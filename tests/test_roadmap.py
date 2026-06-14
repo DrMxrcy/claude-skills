@@ -103,3 +103,35 @@ def test_check_bad_id_raises(roadmap, repo):
     roadmap.init_project(repo, "P")
     with pytest.raises(ValueError):
         roadmap.check_step(repo, 99, 1)
+
+
+def test_parse_plan_ignores_fenced_checkboxes(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    path = roadmap.new_item(repo, "feature", "A")
+    path.write_text(path.read_text() + "\n```\n- [ ] not a real step\n```\n")
+    assert roadmap.count_progress(path) == (0, 2)
+
+
+def test_check_does_not_touch_fenced_box(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    path = roadmap.new_item(repo, "feature", "A")
+    path.write_text(path.read_text() + "\n```\n- [ ] fenced\n```\n")
+    roadmap.check_step(repo, 1, None, all_done=True)
+    body = path.read_text()
+    assert "- [ ] fenced" in body
+    assert roadmap.count_progress(path) == (2, 2)
+
+
+def test_check_step_zero_raises(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    with pytest.raises(ValueError):
+        roadmap.check_step(repo, 1, 0)
+
+
+def test_check_flips_only_target_step(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    roadmap.check_step(repo, 1, 1)
+    steps = roadmap.parse_plan(repo / ".roadmap/plans/001-a.md")["steps"]
+    assert steps[0][0] is True and steps[1][0] is False

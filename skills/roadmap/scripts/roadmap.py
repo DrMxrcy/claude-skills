@@ -28,7 +28,7 @@ def atomic_write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=str(path.parent))
     try:
-        with os.fdopen(fd, "w") as f:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(text)
         os.replace(tmp, path)
     except BaseException:
@@ -38,7 +38,7 @@ def atomic_write(path: Path, text: str) -> None:
 
 
 def read_config(root: Path) -> dict:
-    return json.loads((roadmap_dir(root) / "config.json").read_text())
+    return json.loads((roadmap_dir(root) / "config.json").read_text(encoding="utf-8"))
 
 
 def write_config(root: Path, cfg: dict) -> None:
@@ -51,7 +51,7 @@ def slugify(title: str) -> str:
 
 
 def _render_template(name: str, **values) -> str:
-    text = (TEMPLATES_DIR / name).read_text()
+    text = (TEMPLATES_DIR / name).read_text(encoding="utf-8")
     for k, v in values.items():
         text = text.replace("{{" + k + "}}", str(v))
     return text
@@ -68,8 +68,12 @@ def sync(root: Path) -> None:
 STEP_RE = re.compile(r"^(\s*[-*]\s+)\[( |x|X)\](.*)$")
 
 
+def _is_fence(line: str) -> bool:
+    return line.lstrip().startswith("```")
+
+
 def parse_plan(path: Path) -> dict:
-    text = path.read_text()
+    text = path.read_text(encoding="utf-8")
     meta = {}
     m = re.match(r"^---\n(.*?)\n---\n", text, re.DOTALL)
     if m:
@@ -78,7 +82,13 @@ def parse_plan(path: Path) -> dict:
                 k, _, v = line.partition(":")
                 meta[k.strip()] = v.strip()
     steps = []
+    in_fence = False
     for line in text.splitlines():
+        if _is_fence(line):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
         sm = STEP_RE.match(line)
         if sm:
             steps.append((sm.group(2).lower() == "x", sm.group(3).strip()))
@@ -101,16 +111,20 @@ def check_step(root: Path, plan_id: int, step: int | None,
                undo: bool = False, all_done: bool = False) -> None:
     path = _plan_path(root, plan_id)
     box = "[ ]" if undo else "[x]"
-    out, n = [], 0
-    for line in path.read_text().splitlines():
-        sm = STEP_RE.match(line)
+    out, n, in_fence = [], 0, False
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if _is_fence(line):
+            in_fence = not in_fence
+            out.append(line)
+            continue
+        sm = None if in_fence else STEP_RE.match(line)
         if sm:
             n += 1
             if all_done or n == step:
                 line = re.sub(r"\[( |x|X)\]", box, line, count=1)
         out.append(line)
-    if step is not None and not all_done and step > n:
-        raise ValueError(f"plan {plan_id} has only {n} steps")
+    if step is not None and not all_done and (step < 1 or step > n):
+        raise ValueError(f"plan {plan_id} step {step} out of range (1..{n})")
     atomic_write(path, "\n".join(out) + "\n")
     sync(root)
 
