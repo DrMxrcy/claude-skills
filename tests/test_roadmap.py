@@ -135,3 +135,29 @@ def test_check_flips_only_target_step(roadmap, repo):
     roadmap.check_step(repo, 1, 1)
     steps = roadmap.parse_plan(repo / ".roadmap/plans/001-a.md")["steps"]
     assert steps[0][0] is True and steps[1][0] is False
+
+
+def test_derive_status(roadmap):
+    assert roadmap.derive_status(0, 2) == "planned"
+    assert roadmap.derive_status(1, 2) == "active"
+    assert roadmap.derive_status(2, 2) == "done"
+    assert roadmap.derive_status(0, 0) == "planned"
+
+
+def test_sync_renders_region_and_preserves_incubator(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "Auth Setup")
+    roadmap.check_step(repo, 1, 1)
+    rm = (repo / "ROADMAP.md").read_text()
+    managed = rm.split(roadmap.AUTO_START)[1].split(roadmap.AUTO_END)[0]
+    assert "Auth Setup" in managed
+    assert "50%" in managed
+    assert "feature" in managed
+    assert "Idea Incubator" in rm  # free-form preserved
+
+
+def test_sync_updates_plan_status_frontmatter(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    roadmap.check_step(repo, 1, None, all_done=True)
+    assert "status: done" in (repo / ".roadmap/plans/001-a.md").read_text()

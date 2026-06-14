@@ -61,8 +61,61 @@ def detect_version(root: Path) -> str:
     return "0.0.1"
 
 
+def derive_status(done: int, total: int) -> str:
+    if total > 0 and done == total:
+        return "done"
+    if done > 0:
+        return "active"
+    return "planned"
+
+
+def _set_frontmatter(path: Path, key: str, value: str) -> None:
+    text = path.read_text(encoding="utf-8")
+    new, n = re.subn(rf"(?m)^{key}:.*$", f"{key}: {value}", text, count=1)
+    if n:
+        atomic_write(path, new)
+
+
+def render_region(cfg: dict, progress: dict) -> str:
+    by_version: dict[str, list] = {}
+    for item in cfg["items"]:
+        by_version.setdefault(item["version"], []).append(item)
+    lines = ["## 📊 Versions", ""]
+    for version in sorted(by_version):
+        items = by_version[version]
+        done_total = [progress.get(i["id"], (0, 0)) for i in items]
+        d = sum(x for x, _ in done_total)
+        t = sum(y for _, y in done_total)
+        pct = round(100 * d / t) if t else 0
+        marker = "x" if pct == 100 else " "
+        lines.append(f"### [{marker}] v{version} — {pct}%")
+        for item in items:
+            done, total = progress.get(item["id"], (0, 0))
+            ipct = round(100 * done / total) if total else 0
+            box = "x" if total and done == total else " "
+            lines.append(f"- [{box}] **#{item['id']} {item['title']}** "
+                         f"`{item['type']}` — {ipct}% "
+                         f"([plan](.roadmap/{item['file']}))")
+        lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
+
+
 def sync(root: Path) -> None:
-    pass
+    cfg = read_config(root)
+    progress = {}
+    for item in cfg["items"]:
+        path = roadmap_dir(root) / item["file"]
+        if path.exists():
+            done, total = count_progress(path)
+            progress[item["id"]] = (done, total)
+            _set_frontmatter(path, "status", derive_status(done, total))
+    region = render_region(cfg, progress) if cfg["items"] else \
+        "_No items yet. Use the roadmap skill to add one._\n"
+    rm_path = root / "ROADMAP.md"
+    text = rm_path.read_text(encoding="utf-8")
+    before = text.split(AUTO_START)[0]
+    after = text.split(AUTO_END)[1] if AUTO_END in text else "\n"
+    atomic_write(rm_path, f"{before}{AUTO_START}\n{region}{AUTO_END}{after}")
 
 
 STEP_RE = re.compile(r"^(\s*[-*]\s+)\[( |x|X)\](.*)$")
