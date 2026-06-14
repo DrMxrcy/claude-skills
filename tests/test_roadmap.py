@@ -278,3 +278,16 @@ def test_detect_version_pyproject_prefers_project_over_tool(roadmap, repo):
 def test_detect_version_pyproject_poetry_only(roadmap, repo):
     (repo / "pyproject.toml").write_text('[tool.poetry]\nversion = "3.2.1"\n')
     assert roadmap.detect_version(repo) == "3.2.1"
+
+
+def test_import_creates_plan_with_extracted_steps(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    src = repo / "TODO.md"
+    src.write_text("# Todo\n- [ ] build login\n- [x] set up db\n- not a step\n")
+    created = roadmap.import_file(repo, src)
+    assert len(created) == 1
+    body = created[0].read_text()
+    assert "build login" in body and "set up db" in body
+    assert "not a step" not in body
+    # imported checked state is preserved
+    assert roadmap.count_progress(created[0]) == (1, 2)

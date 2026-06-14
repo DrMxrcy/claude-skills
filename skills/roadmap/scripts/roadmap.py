@@ -287,6 +287,24 @@ def status(root: Path) -> dict:
             "items": items}
 
 
+def import_file(root: Path, src: Path) -> list[Path]:
+    extracted = []
+    for line in src.read_text(encoding="utf-8").splitlines():
+        sm = STEP_RE.match(line)
+        if sm:
+            extracted.append((sm.group(2).lower() == "x", sm.group(3).strip()))
+    if not extracted:
+        return []
+    title = src.stem.replace("_", " ").replace("-", " ").title()
+    path = new_item(root, "feature", f"Imported: {title}")
+    text = path.read_text(encoding="utf-8")
+    checklist = "\n".join(f"- [{'x' if done else ' '}] {txt}" for done, txt in extracted)
+    text = re.sub(r"(## .*Checklist.*\n)(?:.*\n?)*", rf"\1{checklist}\n", text, count=1)
+    atomic_write(path, text)
+    sync(root)
+    return [path]
+
+
 def init_project(root: Path, name: str, adopt: bool = False) -> dict:
     rd = roadmap_dir(root)
     (rd / "plans").mkdir(parents=True, exist_ok=True)
@@ -335,6 +353,9 @@ def main(argv: list[str]) -> int:
 
     sub.add_parser("sync")
 
+    p_imp = sub.add_parser("import")
+    p_imp.add_argument("path")
+
     args = parser.parse_args(argv)
     root = find_root(Path.cwd())
     if args.command == "init":
@@ -353,6 +374,11 @@ def main(argv: list[str]) -> int:
         return 0
     if args.command == "sync":
         sync(root)
+        return 0
+    if args.command == "import":
+        created = import_file(root, Path(args.path))
+        for p in created:
+            print(p)
         return 0
     if args.command == "status":
         st = status(root)
