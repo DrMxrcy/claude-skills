@@ -289,7 +289,13 @@ def status(root: Path) -> dict:
 
 def import_file(root: Path, src: Path) -> list[Path]:
     extracted = []
+    in_fence = False
     for line in src.read_text(encoding="utf-8").splitlines():
+        if _is_fence(line):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
         sm = STEP_RE.match(line)
         if sm:
             extracted.append((sm.group(2).lower() == "x", sm.group(3).strip()))
@@ -299,8 +305,11 @@ def import_file(root: Path, src: Path) -> list[Path]:
     path = new_item(root, "feature", f"Imported: {title}")
     text = path.read_text(encoding="utf-8")
     checklist = "\n".join(f"- [{'x' if done else ' '}] {txt}" for done, txt in extracted)
-    text = re.sub(r"(## .*Checklist.*\n)(?:.*\n?)*", rf"\1{checklist}\n", text, count=1)
-    atomic_write(path, text)
+    new_text, n = re.subn(r"(## .*Checklist.*\n)(?:.*\n?)*",
+                          lambda m: m.group(1) + checklist + "\n", text, count=1)
+    if n == 0:
+        raise ValueError("plan template has no Checklist section to populate")
+    atomic_write(path, new_text)
     sync(root)
     return [path]
 

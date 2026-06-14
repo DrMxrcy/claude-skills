@@ -291,3 +291,24 @@ def test_import_creates_plan_with_extracted_steps(roadmap, repo):
     assert "not a step" not in body
     # imported checked state is preserved
     assert roadmap.count_progress(created[0]) == (1, 2)
+
+
+def test_import_preserves_backslash_content(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    src = repo / "TODO.md"
+    src.write_text("- [ ] use \\1 and \\g<0> literally\n")
+    created = roadmap.import_file(repo, src)
+    body = created[0].read_text()
+    assert "use \\1 and \\g<0> literally" in body
+    assert roadmap.count_progress(created[0]) == (0, 1)
+
+
+def test_import_ignores_fenced_source_checkboxes(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    src = repo / "TODO.md"
+    src.write_text("- [ ] real task\n```\n- [ ] fenced example\n```\n")
+    created = roadmap.import_file(repo, src)
+    body = created[0].read_text()
+    assert "real task" in body
+    assert "fenced example" not in body
+    assert roadmap.count_progress(created[0]) == (0, 1)
