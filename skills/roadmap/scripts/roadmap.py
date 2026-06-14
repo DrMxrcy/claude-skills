@@ -76,6 +76,8 @@ def new_item(root: Path, type_: str, title: str, version: str | None = None) -> 
     item_id = cfg["nextId"]
     version = version or cfg["currentVersion"]
     slug = slugify(title)
+    if not slug:
+        raise ValueError(f"title {title!r} produces an empty slug; use alphanumeric characters")
     fname = f"plans/{item_id:03d}-{slug}.md"
     path = roadmap_dir(root) / fname
     atomic_write(path, _render_template(

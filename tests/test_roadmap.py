@@ -1,3 +1,6 @@
+import pytest
+
+
 def test_slugify(roadmap):
     assert roadmap.slugify("Auth Setup!") == "auth-setup"
     assert roadmap.slugify("Fix   login   bug") == "fix-login-bug"
@@ -60,6 +63,11 @@ def test_new_item_bug_uses_bug_template(roadmap, repo):
 
 def test_new_item_rejects_bad_type(roadmap, repo):
     roadmap.init_project(repo, "P")
-    import pytest
     with pytest.raises(ValueError):
         roadmap.new_item(repo, "epic", "x")
+
+
+def test_new_item_rejects_empty_slug_title(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    with pytest.raises(ValueError):
+        roadmap.new_item(repo, "feature", "!!!")
