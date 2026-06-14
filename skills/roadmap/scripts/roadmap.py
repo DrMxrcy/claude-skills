@@ -116,8 +116,9 @@ def sync(root: Path) -> None:
             done, total = count_progress(path)
             progress[item["id"]] = (done, total)
             _set_frontmatter(path, "status", derive_status(done, total))
-    region = render_region(cfg, progress) if cfg["items"] else \
+    body = render_region(cfg, progress) if cfg["items"] else \
         "_No items yet. Use the roadmap skill to add one._\n"
+    region = f"**Current version: v{cfg['currentVersion']}**\n\n{body}"
     rm_path = root / "ROADMAP.md"
     if not rm_path.exists():
         raise ValueError(f"ROADMAP.md not found at {rm_path}; run init first")
@@ -227,14 +228,6 @@ def release(root: Path, version: str, tag: bool = False) -> None:
     cfg = read_config(root)
     cfg["currentVersion"] = version
     write_config(root, cfg)
-    rm_path = root / "ROADMAP.md"
-    if rm_path.exists():
-        text = rm_path.read_text(encoding="utf-8")
-        text, _ = re.subn(
-            r"(?m)^> Current version: \*\*v[^\*]+\*\*",
-            f"> Current version: **v{version}**",
-            text, count=1)
-        atomic_write(rm_path, text)
     sync(root)
     if tag or cfg["settings"].get("gitTagOnRelease"):
         result = subprocess.run(["git", "tag", f"v{version}"], cwd=str(root), check=False)

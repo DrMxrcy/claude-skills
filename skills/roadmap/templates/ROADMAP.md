@@ -1,7 +1,5 @@
 # 🗺️ Roadmap: {{PROJECT}}
 
-> Current version: **v{{VERSION}}**
-
 ## 💡 Idea Incubator
 <!-- Free-form. Drop loose ideas here; scripts never touch this region. -->
 - (add ideas here)
