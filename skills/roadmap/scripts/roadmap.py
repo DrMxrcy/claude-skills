@@ -57,6 +57,24 @@ def _render_template(name: str, **values) -> str:
     return text
 
 
+def _version_from_pyproject(path: Path) -> str | None:
+    text = path.read_text(encoding="utf-8")
+    try:
+        import tomllib
+        data = tomllib.loads(text)
+        project = data.get("project")
+        if isinstance(project, dict) and isinstance(project.get("version"), str):
+            return project["version"]
+        poetry = data.get("tool", {}).get("poetry") if isinstance(data.get("tool"), dict) else None
+        if isinstance(poetry, dict) and isinstance(poetry.get("version"), str):
+            return poetry["version"]
+        return None
+    except ModuleNotFoundError:
+        # Python < 3.11: best-effort regex fallback
+        m = re.search(r'(?m)^\s*version\s*=\s*["\']([^"\']+)["\']', text)
+        return m.group(1) if m else None
+
+
 def detect_version(root: Path) -> str:
     pkg = root / "package.json"
     if pkg.exists():
@@ -68,10 +86,9 @@ def detect_version(root: Path) -> str:
             pass
     pyproject = root / "pyproject.toml"
     if pyproject.exists():
-        m = re.search(r'(?m)^\s*version\s*=\s*["\']([^"\']+)["\']',
-                      pyproject.read_text(encoding="utf-8"))
-        if m:
-            return m.group(1)
+        v = _version_from_pyproject(pyproject)
+        if v:
+            return v
     try:
         out = subprocess.run(["git", "describe", "--tags", "--abbrev=0"],
                              cwd=str(root), capture_output=True, text=True)

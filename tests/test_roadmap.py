@@ -267,3 +267,14 @@ def test_init_is_idempotent_preserves_items(roadmap, repo):
     cfg = roadmap.init_project(repo, "P")   # re-init must not wipe state
     assert cfg["nextId"] == 2
     assert len(cfg["items"]) == 1
+
+
+def test_detect_version_pyproject_prefers_project_over_tool(roadmap, repo):
+    (repo / "pyproject.toml").write_text(
+        '[tool.poetry]\nversion = "0.1.0"\n\n[project]\nversion = "9.9.9"\n')
+    assert roadmap.detect_version(repo) == "9.9.9"
+
+
+def test_detect_version_pyproject_poetry_only(roadmap, repo):
+    (repo / "pyproject.toml").write_text('[tool.poetry]\nversion = "3.2.1"\n')
+    assert roadmap.detect_version(repo) == "3.2.1"
