@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """roadmap — deterministic CLI for the roadmap skill (Python 3 stdlib only)."""
 from __future__ import annotations
-import argparse, json, os, re, subprocess, sys, tempfile
+import argparse, datetime, json, os, re, subprocess, sys, tempfile
 from pathlib import Path
 
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
@@ -65,6 +65,30 @@ def sync(root: Path) -> None:
     pass
 
 
+TEMPLATE_BY_TYPE = {"feature": "feature-plan.md", "chore": "feature-plan.md",
+                    "bug": "bug-investigation.md", "refactor": "refactor-debt.md"}
+
+
+def new_item(root: Path, type_: str, title: str, version: str | None = None) -> Path:
+    if type_ not in TEMPLATE_BY_TYPE:
+        raise ValueError(f"unknown type {type_!r}; choose from {sorted(TEMPLATE_BY_TYPE)}")
+    cfg = read_config(root)
+    item_id = cfg["nextId"]
+    version = version or cfg["currentVersion"]
+    slug = slugify(title)
+    fname = f"plans/{item_id:03d}-{slug}.md"
+    path = roadmap_dir(root) / fname
+    atomic_write(path, _render_template(
+        TEMPLATE_BY_TYPE[type_], ID=item_id, TITLE=title, TYPE=type_,
+        VERSION=version, DATE=datetime.date.today().isoformat()))
+    cfg["nextId"] += 1
+    cfg["items"].append({"id": item_id, "slug": slug, "title": title,
+                         "type": type_, "version": version, "file": fname})
+    write_config(root, cfg)
+    sync(root)
+    return path
+
+
 def init_project(root: Path, name: str, adopt: bool = False) -> dict:
     version = detect_version(root) if adopt else "0.0.1"
     rd = roadmap_dir(root)
@@ -87,11 +111,20 @@ def main(argv: list[str]) -> int:
     p_init.add_argument("--name", default="My Project")
     p_init.add_argument("--adopt", action="store_true")
 
+    p_new = sub.add_parser("new")
+    p_new.add_argument("--type", required=True)
+    p_new.add_argument("--title", required=True)
+    p_new.add_argument("--version")
+
     args = parser.parse_args(argv)
     root = find_root(Path.cwd())
     if args.command == "init":
         init_project(root, args.name, adopt=args.adopt)
         print(f"Initialized roadmap at {root}")
+        return 0
+    if args.command == "new":
+        path = new_item(root, args.type, args.title, args.version)
+        print(path)
         return 0
     return 0
 

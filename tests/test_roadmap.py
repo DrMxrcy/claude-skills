@@ -36,3 +36,30 @@ def test_init_cli_writes_config(roadmap, repo, monkeypatch):
     monkeypatch.chdir(repo)
     assert roadmap.main(["init", "--name", "Demo"]) == 0
     assert roadmap.read_config(repo)["project"] == "Demo"
+
+
+def test_new_item_allocates_and_registers(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    path = roadmap.new_item(repo, "feature", "Auth Setup")
+    assert path == repo / ".roadmap/plans/001-auth-setup.md"
+    assert path.exists()
+    body = path.read_text()
+    assert "id: 1" in body and "type: feature" in body and "Auth Setup" in body
+    cfg = roadmap.read_config(repo)
+    assert cfg["nextId"] == 2
+    assert cfg["items"][0] == {"id": 1, "slug": "auth-setup", "title": "Auth Setup",
+                               "type": "feature", "version": "0.0.1",
+                               "file": "plans/001-auth-setup.md"}
+
+
+def test_new_item_bug_uses_bug_template(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    path = roadmap.new_item(repo, "bug", "Fix login")
+    assert "Symptom & Reproduction" in path.read_text()
+
+
+def test_new_item_rejects_bad_type(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    import pytest
+    with pytest.raises(ValueError):
+        roadmap.new_item(repo, "epic", "x")
