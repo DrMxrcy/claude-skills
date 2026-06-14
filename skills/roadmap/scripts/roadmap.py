@@ -50,9 +50,9 @@ def slugify(title: str) -> str:
     return s.strip("-")
 
 
-def _render_template(name: str, **vars) -> str:
+def _render_template(name: str, **values) -> str:
     text = (TEMPLATES_DIR / name).read_text()
-    for k, v in vars.items():
+    for k, v in values.items():
         text = text.replace("{{" + k + "}}", str(v))
     return text
 
