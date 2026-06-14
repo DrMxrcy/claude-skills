@@ -50,10 +50,49 @@ def slugify(title: str) -> str:
     return s.strip("-")
 
 
+def _render_template(name: str, **vars) -> str:
+    text = (TEMPLATES_DIR / name).read_text()
+    for k, v in vars.items():
+        text = text.replace("{{" + k + "}}", str(v))
+    return text
+
+
+def detect_version(root: Path) -> str:
+    return "0.0.1"
+
+
+def sync(root: Path) -> None:
+    pass
+
+
+def init_project(root: Path, name: str, adopt: bool = False) -> dict:
+    version = detect_version(root) if adopt else "0.0.1"
+    rd = roadmap_dir(root)
+    (rd / "plans").mkdir(parents=True, exist_ok=True)
+    cfg = {"project": name, "currentVersion": version, "nextId": 1,
+           "items": [], "settings": {"autoCommit": True, "gitTagOnRelease": False}}
+    write_config(root, cfg)
+    roadmap_md = root / "ROADMAP.md"
+    if not roadmap_md.exists():
+        atomic_write(roadmap_md, _render_template("ROADMAP.md", PROJECT=name, VERSION=version))
+    sync(root)
+    return cfg
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(prog="roadmap")
-    parser.add_subparsers(dest="command")
-    parser.parse_args(argv)
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    p_init = sub.add_parser("init")
+    p_init.add_argument("--name", default="My Project")
+    p_init.add_argument("--adopt", action="store_true")
+
+    args = parser.parse_args(argv)
+    root = find_root(Path.cwd())
+    if args.command == "init":
+        init_project(root, args.name, adopt=args.adopt)
+        print(f"Initialized roadmap at {root}")
+        return 0
     return 0
 
 
