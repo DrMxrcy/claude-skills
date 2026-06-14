@@ -1,3 +1,5 @@
+import subprocess
+
 import pytest
 
 
@@ -200,6 +202,7 @@ def test_release_bumps_version(roadmap, repo):
     roadmap.init_project(repo, "P")
     roadmap.release(repo, "0.0.2")
     assert roadmap.read_config(repo)["currentVersion"] == "0.0.2"
+    assert "v0.0.2" in (repo / "ROADMAP.md").read_text()
 
 
 def test_status_returns_structure(roadmap, repo):
@@ -210,3 +213,24 @@ def test_status_returns_structure(roadmap, repo):
     assert st["currentVersion"] == "0.0.1"
     assert st["items"][0]["pct"] == 50
     assert st["items"][0]["type"] == "feature"
+    assert st["project"] == "P"
+    assert st["items"][0]["done"] == 1
+    assert st["items"][0]["total"] == 2
+
+
+def test_release_with_tag_creates_git_tag(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "init"], cwd=repo, check=True)
+    roadmap.release(repo, "0.0.2", tag=True)
+    out = subprocess.run(["git", "tag", "-l"], cwd=repo, capture_output=True, text=True)
+    assert "v0.0.2" in out.stdout
+
+
+def test_status_handles_missing_plan_file(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    (repo / ".roadmap/plans/001-a.md").unlink()
+    st = roadmap.status(repo)
+    assert st["items"][0]["done"] == 0
+    assert st["items"][0]["total"] == 0

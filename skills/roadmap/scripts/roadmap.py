@@ -227,16 +227,28 @@ def release(root: Path, version: str, tag: bool = False) -> None:
     cfg = read_config(root)
     cfg["currentVersion"] = version
     write_config(root, cfg)
+    rm_path = root / "ROADMAP.md"
+    if rm_path.exists():
+        text = rm_path.read_text(encoding="utf-8")
+        text, _ = re.subn(
+            r"(?m)^> Current version: \*\*v[^\*]+\*\*",
+            f"> Current version: **v{version}**",
+            text, count=1)
+        atomic_write(rm_path, text)
     sync(root)
     if tag or cfg["settings"].get("gitTagOnRelease"):
-        subprocess.run(["git", "tag", f"v{version}"], cwd=str(root), check=False)
+        result = subprocess.run(["git", "tag", f"v{version}"], cwd=str(root), check=False)
+        if result.returncode != 0:
+            print(f"Warning: 'git tag v{version}' failed (exit {result.returncode}); "
+                  "version recorded in config but not tagged.", file=sys.stderr)
 
 
 def status(root: Path) -> dict:
     cfg = read_config(root)
     items = []
     for item in cfg["items"]:
-        done, total = count_progress(roadmap_dir(root) / item["file"])
+        path = roadmap_dir(root) / item["file"]
+        done, total = count_progress(path) if path.exists() else (0, 0)
         pct = round(100 * done / total) if total else 0
         items.append({**item, "done": done, "total": total, "pct": pct,
                       "status": derive_status(done, total)})
@@ -284,7 +296,7 @@ def main(argv: list[str]) -> int:
     p_st = sub.add_parser("status")
     p_st.add_argument("--json", action="store_true", dest="as_json")
 
-    p_sync = sub.add_parser("sync")
+    sub.add_parser("sync")
 
     args = parser.parse_args(argv)
     root = find_root(Path.cwd())
