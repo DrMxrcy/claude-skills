@@ -312,3 +312,23 @@ def test_import_ignores_fenced_source_checkboxes(roadmap, repo):
     assert "real task" in body
     assert "fenced example" not in body
     assert roadmap.count_progress(created[0]) == (0, 1)
+
+
+def test_cli_new_bad_type_returns_1(roadmap, repo, monkeypatch, capsys):
+    monkeypatch.chdir(repo)
+    roadmap.main(["init", "--name", "P"])
+    rc = roadmap.main(["new", "--type", "epic", "--title", "x"])
+    assert rc == 1
+    assert "Error" in capsys.readouterr().err
+
+
+def test_cli_command_before_init_returns_1(roadmap, repo, monkeypatch):
+    monkeypatch.chdir(repo)
+    rc = roadmap.main(["new", "--type", "feature", "--title", "x"])
+    assert rc == 1
+
+
+def test_cli_happy_path_returns_0(roadmap, repo, monkeypatch):
+    monkeypatch.chdir(repo)
+    assert roadmap.main(["init", "--name", "P"]) == 0
+    assert roadmap.main(["new", "--type", "feature", "--title", "A"]) == 0

@@ -367,38 +367,42 @@ def main(argv: list[str]) -> int:
 
     args = parser.parse_args(argv)
     root = find_root(Path.cwd())
-    if args.command == "init":
-        init_project(root, args.name, adopt=args.adopt)
-        print(f"Initialized roadmap at {root}")
-        return 0
-    if args.command == "new":
-        path = new_item(root, args.type, args.title, args.version)
-        print(path)
-        return 0
-    if args.command == "check":
-        check_step(root, args.plan, args.step, undo=args.undo, all_done=args.all_done)
-        return 0
-    if args.command == "release":
-        release(root, args.version, tag=args.tag)
-        return 0
-    if args.command == "sync":
-        sync(root)
-        return 0
-    if args.command == "import":
-        created = import_file(root, Path(args.path))
-        for p in created:
-            print(p)
-        return 0
-    if args.command == "status":
-        st = status(root)
-        if args.as_json:
-            print(json.dumps(st, indent=2))
-        else:
-            print(f"{st['project']} — v{st['currentVersion']}")
-            for it in st["items"]:
-                print(f"  #{it['id']} {it['title']} [{it['type']}] "
-                      f"{it['pct']}% ({it['status']})")
-        return 0
+    try:
+        if args.command == "init":
+            init_project(root, args.name, adopt=args.adopt)
+            print(f"Initialized roadmap at {root}")
+            return 0
+        if args.command == "new":
+            path = new_item(root, args.type, args.title, args.version)
+            print(path)
+            return 0
+        if args.command == "check":
+            check_step(root, args.plan, args.step, undo=args.undo, all_done=args.all_done)
+            return 0
+        if args.command == "release":
+            release(root, args.version, tag=args.tag)
+            return 0
+        if args.command == "sync":
+            sync(root)
+            return 0
+        if args.command == "import":
+            created = import_file(root, Path(args.path))
+            for p in created:
+                print(p)
+            return 0
+        if args.command == "status":
+            st = status(root)
+            if args.as_json:
+                print(json.dumps(st, indent=2))
+            else:
+                print(f"{st['project']} — v{st['currentVersion']}")
+                for it in st["items"]:
+                    print(f"  #{it['id']} {it['title']} [{it['type']}] "
+                          f"{it['pct']}% ({it['status']})")
+            return 0
+    except (ValueError, FileNotFoundError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
     return 0
 
 
