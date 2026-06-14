@@ -223,6 +223,27 @@ def new_item(root: Path, type_: str, title: str, version: str | None = None) -> 
     return path
 
 
+def release(root: Path, version: str, tag: bool = False) -> None:
+    cfg = read_config(root)
+    cfg["currentVersion"] = version
+    write_config(root, cfg)
+    sync(root)
+    if tag or cfg["settings"].get("gitTagOnRelease"):
+        subprocess.run(["git", "tag", f"v{version}"], cwd=str(root), check=False)
+
+
+def status(root: Path) -> dict:
+    cfg = read_config(root)
+    items = []
+    for item in cfg["items"]:
+        done, total = count_progress(roadmap_dir(root) / item["file"])
+        pct = round(100 * done / total) if total else 0
+        items.append({**item, "done": done, "total": total, "pct": pct,
+                      "status": derive_status(done, total)})
+    return {"project": cfg["project"], "currentVersion": cfg["currentVersion"],
+            "items": items}
+
+
 def init_project(root: Path, name: str, adopt: bool = False) -> dict:
     version = detect_version(root) if adopt else "0.0.1"
     rd = roadmap_dir(root)
@@ -256,6 +277,15 @@ def main(argv: list[str]) -> int:
     p_check.add_argument("--undo", action="store_true")
     p_check.add_argument("--all-done", action="store_true", dest="all_done")
 
+    p_rel = sub.add_parser("release")
+    p_rel.add_argument("--version", required=True)
+    p_rel.add_argument("--tag", action="store_true")
+
+    p_st = sub.add_parser("status")
+    p_st.add_argument("--json", action="store_true", dest="as_json")
+
+    p_sync = sub.add_parser("sync")
+
     args = parser.parse_args(argv)
     root = find_root(Path.cwd())
     if args.command == "init":
@@ -268,6 +298,22 @@ def main(argv: list[str]) -> int:
         return 0
     if args.command == "check":
         check_step(root, args.plan, args.step, undo=args.undo, all_done=args.all_done)
+        return 0
+    if args.command == "release":
+        release(root, args.version, tag=args.tag)
+        return 0
+    if args.command == "sync":
+        sync(root)
+        return 0
+    if args.command == "status":
+        st = status(root)
+        if args.as_json:
+            print(json.dumps(st, indent=2))
+        else:
+            print(f"{st['project']} — v{st['currentVersion']}")
+            for it in st["items"]:
+                print(f"  #{it['id']} {it['title']} [{it['type']}] "
+                      f"{it['pct']}% ({it['status']})")
         return 0
     return 0
 

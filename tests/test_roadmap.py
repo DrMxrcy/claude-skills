@@ -194,3 +194,19 @@ def test_version_marker_not_done_when_item_incomplete(roadmap, repo):
     rm = (repo / "ROADMAP.md").read_text()
     managed = rm.split(roadmap.AUTO_START)[1].split(roadmap.AUTO_END)[0]
     assert "### [ ] v0.0.1" in managed
+
+
+def test_release_bumps_version(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.release(repo, "0.0.2")
+    assert roadmap.read_config(repo)["currentVersion"] == "0.0.2"
+
+
+def test_status_returns_structure(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    roadmap.check_step(repo, 1, 1)
+    st = roadmap.status(repo)
+    assert st["currentVersion"] == "0.0.1"
+    assert st["items"][0]["pct"] == 50
+    assert st["items"][0]["type"] == "feature"
