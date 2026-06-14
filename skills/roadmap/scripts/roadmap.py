@@ -58,6 +58,27 @@ def _render_template(name: str, **values) -> str:
 
 
 def detect_version(root: Path) -> str:
+    pkg = root / "package.json"
+    if pkg.exists():
+        try:
+            v = json.loads(pkg.read_text(encoding="utf-8")).get("version")
+            if v:
+                return str(v)
+        except json.JSONDecodeError:
+            pass
+    pyproject = root / "pyproject.toml"
+    if pyproject.exists():
+        m = re.search(r'(?m)^\s*version\s*=\s*["\']([^"\']+)["\']',
+                      pyproject.read_text(encoding="utf-8"))
+        if m:
+            return m.group(1)
+    try:
+        out = subprocess.run(["git", "describe", "--tags", "--abbrev=0"],
+                             cwd=str(root), capture_output=True, text=True)
+        if out.returncode == 0 and out.stdout.strip():
+            return out.stdout.strip().lstrip("v")
+    except FileNotFoundError:
+        pass
     return "0.0.1"
 
 
@@ -250,15 +271,21 @@ def status(root: Path) -> dict:
 
 
 def init_project(root: Path, name: str, adopt: bool = False) -> dict:
-    version = detect_version(root) if adopt else "0.0.1"
     rd = roadmap_dir(root)
     (rd / "plans").mkdir(parents=True, exist_ok=True)
-    cfg = {"project": name, "currentVersion": version, "nextId": 1,
-           "items": [], "settings": {"autoCommit": True, "gitTagOnRelease": False}}
-    write_config(root, cfg)
+    if (rd / "config.json").exists():
+        cfg = read_config(root)                      # idempotent: keep items/version
+    else:
+        version = detect_version(root) if adopt else "0.0.1"
+        cfg = {"project": name, "currentVersion": version, "nextId": 1,
+               "items": [], "settings": {"autoCommit": True, "gitTagOnRelease": False}}
+        write_config(root, cfg)
     roadmap_md = root / "ROADMAP.md"
     if not roadmap_md.exists():
-        atomic_write(roadmap_md, _render_template("ROADMAP.md", PROJECT=name, VERSION=version))
+        atomic_write(roadmap_md, _render_template("ROADMAP.md", PROJECT=cfg["project"]))
+    elif AUTO_START not in roadmap_md.read_text(encoding="utf-8"):
+        existing = roadmap_md.read_text(encoding="utf-8").rstrip()
+        atomic_write(roadmap_md, f"{existing}\n\n{AUTO_START}\n{AUTO_END}\n")
     sync(root)
     return cfg
 

@@ -1,3 +1,4 @@
+import json
 import subprocess
 
 import pytest
@@ -234,3 +235,35 @@ def test_status_handles_missing_plan_file(roadmap, repo):
     st = roadmap.status(repo)
     assert st["items"][0]["done"] == 0
     assert st["items"][0]["total"] == 0
+
+
+def test_detect_version_from_package_json(roadmap, repo):
+    (repo / "package.json").write_text(json.dumps({"version": "2.3.4"}))
+    assert roadmap.detect_version(repo) == "2.3.4"
+
+
+def test_detect_version_from_pyproject(roadmap, repo):
+    (repo / "pyproject.toml").write_text('[project]\nversion = "9.9.9"\n')
+    assert roadmap.detect_version(repo) == "9.9.9"
+
+
+def test_detect_version_fallback(roadmap, repo):
+    assert roadmap.detect_version(repo) == "0.0.1"
+
+
+def test_adopt_seeds_version_and_preserves_existing_roadmap(roadmap, repo):
+    (repo / "package.json").write_text(json.dumps({"version": "1.5.0"}))
+    (repo / "ROADMAP.md").write_text("# Existing\n\n- my old note\n")
+    cfg = roadmap.init_project(repo, "Legacy", adopt=True)
+    assert cfg["currentVersion"] == "1.5.0"
+    rm = (repo / "ROADMAP.md").read_text()
+    assert "my old note" in rm          # preserved
+    assert roadmap.AUTO_START in rm      # managed region appended
+
+
+def test_init_is_idempotent_preserves_items(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    cfg = roadmap.init_project(repo, "P")   # re-init must not wipe state
+    assert cfg["nextId"] == 2
+    assert len(cfg["items"]) == 1
