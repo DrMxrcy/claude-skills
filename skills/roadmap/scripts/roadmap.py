@@ -76,18 +76,25 @@ def _set_frontmatter(path: Path, key: str, value: str) -> None:
         atomic_write(path, new)
 
 
+def _version_key(v: str):
+    try:
+        return (0, tuple(int(p) for p in v.split(".")))
+    except ValueError:
+        return (1, v)
+
+
 def render_region(cfg: dict, progress: dict) -> str:
     by_version: dict[str, list] = {}
     for item in cfg["items"]:
         by_version.setdefault(item["version"], []).append(item)
     lines = ["## 📊 Versions", ""]
-    for version in sorted(by_version):
+    for version in sorted(by_version, key=_version_key):
         items = by_version[version]
         done_total = [progress.get(i["id"], (0, 0)) for i in items]
         d = sum(x for x, _ in done_total)
         t = sum(y for _, y in done_total)
         pct = round(100 * d / t) if t else 0
-        marker = "x" if pct == 100 else " "
+        marker = "x" if t and d == t else " "
         lines.append(f"### [{marker}] v{version} — {pct}%")
         for item in items:
             done, total = progress.get(item["id"], (0, 0))
@@ -112,9 +119,17 @@ def sync(root: Path) -> None:
     region = render_region(cfg, progress) if cfg["items"] else \
         "_No items yet. Use the roadmap skill to add one._\n"
     rm_path = root / "ROADMAP.md"
+    if not rm_path.exists():
+        raise ValueError(f"ROADMAP.md not found at {rm_path}; run init first")
     text = rm_path.read_text(encoding="utf-8")
+    if (text.count(AUTO_START) != 1 or text.count(AUTO_END) != 1
+            or text.index(AUTO_START) > text.index(AUTO_END)):
+        raise ValueError(
+            "ROADMAP.md has missing or malformed roadmap:auto markers; restore "
+            "exactly one '<!-- roadmap:auto:start -->' before "
+            "'<!-- roadmap:auto:end -->'")
     before = text.split(AUTO_START)[0]
-    after = text.split(AUTO_END)[1] if AUTO_END in text else "\n"
+    after = text.split(AUTO_END)[1]
     atomic_write(rm_path, f"{before}{AUTO_START}\n{region}{AUTO_END}{after}")
 
 

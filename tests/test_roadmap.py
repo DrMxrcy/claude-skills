@@ -161,3 +161,36 @@ def test_sync_updates_plan_status_frontmatter(roadmap, repo):
     roadmap.new_item(repo, "feature", "A")
     roadmap.check_step(repo, 1, None, all_done=True)
     assert "status: done" in (repo / ".roadmap/plans/001-a.md").read_text()
+
+
+def test_sync_is_idempotent(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    roadmap.check_step(repo, 1, 1)
+    first = (repo / "ROADMAP.md").read_text()
+    roadmap.sync(repo)
+    roadmap.sync(repo)
+    assert (repo / "ROADMAP.md").read_text() == first
+
+
+def test_sync_raises_on_malformed_markers(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    (repo / "ROADMAP.md").write_text("# no markers here\n")
+    with pytest.raises(ValueError):
+        roadmap.sync(repo)
+
+
+def test_render_region_orders_versions_semantically(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "ten", version="0.0.10")
+    roadmap.new_item(repo, "feature", "two", version="0.0.2")
+    rm = (repo / "ROADMAP.md").read_text()
+    assert rm.index("v0.0.2") < rm.index("v0.0.10")
+
+
+def test_version_marker_not_done_when_item_incomplete(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")  # 0/2 steps done
+    rm = (repo / "ROADMAP.md").read_text()
+    managed = rm.split(roadmap.AUTO_START)[1].split(roadmap.AUTO_END)[0]
+    assert "### [ ] v0.0.1" in managed
