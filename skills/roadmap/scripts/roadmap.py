@@ -65,6 +65,56 @@ def sync(root: Path) -> None:
     pass
 
 
+STEP_RE = re.compile(r"^(\s*[-*]\s+)\[( |x|X)\](.*)$")
+
+
+def parse_plan(path: Path) -> dict:
+    text = path.read_text()
+    meta = {}
+    m = re.match(r"^---\n(.*?)\n---\n", text, re.DOTALL)
+    if m:
+        for line in m.group(1).splitlines():
+            if ":" in line:
+                k, _, v = line.partition(":")
+                meta[k.strip()] = v.strip()
+    steps = []
+    for line in text.splitlines():
+        sm = STEP_RE.match(line)
+        if sm:
+            steps.append((sm.group(2).lower() == "x", sm.group(3).strip()))
+    return {"meta": meta, "steps": steps}
+
+
+def count_progress(path: Path) -> tuple[int, int]:
+    steps = parse_plan(path)["steps"]
+    return sum(1 for done, _ in steps if done), len(steps)
+
+
+def _plan_path(root: Path, plan_id: int) -> Path:
+    for item in read_config(root)["items"]:
+        if item["id"] == plan_id:
+            return roadmap_dir(root) / item["file"]
+    raise ValueError(f"no plan with id {plan_id}")
+
+
+def check_step(root: Path, plan_id: int, step: int | None,
+               undo: bool = False, all_done: bool = False) -> None:
+    path = _plan_path(root, plan_id)
+    box = "[ ]" if undo else "[x]"
+    out, n = [], 0
+    for line in path.read_text().splitlines():
+        sm = STEP_RE.match(line)
+        if sm:
+            n += 1
+            if all_done or n == step:
+                line = re.sub(r"\[( |x|X)\]", box, line, count=1)
+        out.append(line)
+    if step is not None and not all_done and step > n:
+        raise ValueError(f"plan {plan_id} has only {n} steps")
+    atomic_write(path, "\n".join(out) + "\n")
+    sync(root)
+
+
 TEMPLATE_BY_TYPE = {"feature": "feature-plan.md", "chore": "feature-plan.md",
                     "bug": "bug-investigation.md", "refactor": "refactor-debt.md"}
 
@@ -118,6 +168,12 @@ def main(argv: list[str]) -> int:
     p_new.add_argument("--title", required=True)
     p_new.add_argument("--version")
 
+    p_check = sub.add_parser("check")
+    p_check.add_argument("--plan", type=int, required=True)
+    p_check.add_argument("--step", type=int)
+    p_check.add_argument("--undo", action="store_true")
+    p_check.add_argument("--all-done", action="store_true", dest="all_done")
+
     args = parser.parse_args(argv)
     root = find_root(Path.cwd())
     if args.command == "init":
@@ -127,6 +183,9 @@ def main(argv: list[str]) -> int:
     if args.command == "new":
         path = new_item(root, args.type, args.title, args.version)
         print(path)
+        return 0
+    if args.command == "check":
+        check_step(root, args.plan, args.step, undo=args.undo, all_done=args.all_done)
         return 0
     return 0
 

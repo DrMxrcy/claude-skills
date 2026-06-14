@@ -71,3 +71,35 @@ def test_new_item_rejects_empty_slug_title(roadmap, repo):
     roadmap.init_project(repo, "P")
     with pytest.raises(ValueError):
         roadmap.new_item(repo, "feature", "!!!")
+
+
+def test_parse_plan_and_progress(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    path = roadmap.new_item(repo, "feature", "A")
+    parsed = roadmap.parse_plan(path)
+    assert parsed["meta"]["id"] == "1"
+    assert len(parsed["steps"]) == 2
+    assert roadmap.count_progress(path) == (0, 2)
+
+
+def test_check_flips_one_box(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    roadmap.check_step(repo, 1, 1)
+    path = repo / ".roadmap/plans/001-a.md"
+    assert roadmap.count_progress(path) == (1, 2)
+    roadmap.check_step(repo, 1, 1, undo=True)
+    assert roadmap.count_progress(path) == (0, 2)
+
+
+def test_check_all_done(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    roadmap.check_step(repo, 1, None, all_done=True)
+    assert roadmap.count_progress(repo / ".roadmap/plans/001-a.md") == (2, 2)
+
+
+def test_check_bad_id_raises(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    with pytest.raises(ValueError):
+        roadmap.check_step(repo, 99, 1)
