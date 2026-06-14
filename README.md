@@ -31,14 +31,3 @@ Add to `.claude/settings.json` to keep `ROADMAP.md` synced automatically:
 
 ## Requirements
 Python 3 (stdlib only; `pyproject.toml` version detection uses `tomllib`, Python 3.11+). No third-party dependencies.
-
-## Commit
-```bash
-git add skills/roadmap/hooks/roadmap-sync.sh skills/roadmap/references/state-model.md .claude-plugin/plugin.json README.md
-git commit -m "feat: stop hook, state-model docs, plugin manifest, README"
-```
-
-## Verify before committing
-- `python3.11 -c "import json; json.load(open('.claude-plugin/plugin.json'))"` → no error
-- `python3.11 -m pytest -q` → still 42 passed (no test impact)
-- Confirm `skills/roadmap/hooks/roadmap-sync.sh` is executable (`ls -l` shows `x`).
