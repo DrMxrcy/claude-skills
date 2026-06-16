@@ -3,10 +3,34 @@
 Local skills for AI-assisted coding, installable with the skills CLI. The first skill is **roadmap**.
 
 ## Install
+
+One command imports the skill(s) and wires the auto-sync hook for you — no manual
+copying, no editing `settings.json`, no cloning required.
+
+**Straight from GitHub (no clone):**
 ```bash
-npx skills add <owner>/claude-skills
+# into the current project's .claude/skills + Stop hook
+curl -fsSL https://raw.githubusercontent.com/<owner>/claude-skills/main/install.sh | bash
+
+# into ~/.claude/skills (available in every project)
+curl -fsSL https://raw.githubusercontent.com/<owner>/claude-skills/main/install.sh | bash -s -- --global
 ```
-Or copy `skills/roadmap/` into `.claude/skills/` in your project.
+
+**From a clone:**
+```bash
+./install.sh            # this project's .claude/skills + Stop hook
+./install.sh --global   # ~/.claude/skills (all projects)
+```
+
+Options: `--global` (user-level), `--link` (symlink for development), `--no-hook`
+(skip the Stop hook), `--init` (also run `roadmap init` now). Env overrides:
+`SKILLS_REPO` / `SKILLS_REF` (which repo/branch to fetch in remote mode).
+
+> Replace `<owner>` with your GitHub owner/org. The default for remote mode is
+> `DrMxrcy/claude-skills`; override with `SKILLS_REPO=owner/repo`.
+
+Alternatively: `npx skills add <owner>/claude-skills`, or copy `skills/roadmap/`
+into `.claude/skills/` by hand.
 
 ## Skills
 - **roadmap** — versioned, type-tagged roadmap as a persistent tracking layer. Maintains `ROADMAP.md` + `.roadmap/` via a deterministic Python CLI (one trackable item at a time, no drift).
