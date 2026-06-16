@@ -73,3 +73,53 @@ def test_install_global_uses_home(tmp_path):
                          cwd=tmp_path, env=env, capture_output=True, text=True)
     assert res.returncode == 0, res.stderr
     assert (tmp_path / ".claude/skills/roadmap/SKILL.md").exists()
+
+
+def test_install_copies_slash_commands(tmp_path):
+    _run(tmp_path, "--project")
+    cmds = tmp_path / ".claude/commands/roadmap"
+    assert (cmds / "init.md").exists()
+    assert (cmds / "plan.md").exists()
+    assert (cmds / "status.md").exists()
+
+
+def test_install_no_commands_flag(tmp_path):
+    _run(tmp_path, "--project", "--no-commands")
+    assert (tmp_path / ".claude/skills/roadmap/SKILL.md").exists()
+    assert not (tmp_path / ".claude/commands").exists()
+
+
+def test_install_writes_claude_md_rules(tmp_path):
+    res = _run(tmp_path, "--project")
+    assert res.returncode == 0, res.stderr
+    cm = (tmp_path / "CLAUDE.md").read_text()
+    assert "roadmap:rules:start" in cm
+    assert "Work one checklist item at a time" in cm
+
+
+def test_install_claude_md_is_idempotent(tmp_path):
+    _run(tmp_path, "--project")
+    _run(tmp_path, "--project")
+    cm = (tmp_path / "CLAUDE.md").read_text()
+    assert cm.count("roadmap:rules:start") == 1
+
+
+def test_install_preserves_existing_claude_md(tmp_path):
+    (tmp_path / "CLAUDE.md").write_text("# My Project rules\n\n- keep this rule\n")
+    _run(tmp_path, "--project")
+    cm = (tmp_path / "CLAUDE.md").read_text()
+    assert "keep this rule" in cm           # existing content preserved
+    assert "roadmap:rules:start" in cm      # block appended
+
+
+def test_install_no_claude_md_flag(tmp_path):
+    _run(tmp_path, "--project", "--no-claude-md")
+    assert (tmp_path / ".claude/skills/roadmap/SKILL.md").exists()
+    assert not (tmp_path / "CLAUDE.md").exists()
+
+
+def test_install_global_skips_claude_md(tmp_path):
+    env = {**os.environ, "PYTHON": "python3.11", "HOME": str(tmp_path)}
+    subprocess.run(["bash", str(INSTALL), "--global"],
+                   cwd=tmp_path, env=env, check=True, capture_output=True, text=True)
+    assert not (tmp_path / "CLAUDE.md").exists()

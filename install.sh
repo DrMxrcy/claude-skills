@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
-# install.sh — import the skills in this repo into a Claude Code skills directory
-# and (optionally) wire the roadmap auto-sync Stop hook into settings.json, so
-# there is nothing to copy or edit by hand.
+# install.sh — import this repo's skills + /roadmap:* slash commands into a Claude
+# Code directory, wire the roadmap auto-sync Stop hook, and add roadmap rules to
+# CLAUDE.md, so there is nothing to copy or edit by hand.
 #
 # Run locally (cloned repo) OR straight from GitHub without cloning:
-#   curl -fsSL https://raw.githubusercontent.com/<owner>/claude-skills/main/install.sh | bash
-#   curl -fsSL https://raw.githubusercontent.com/<owner>/claude-skills/main/install.sh | bash -s -- --global
+#   curl -fsSL https://raw.githubusercontent.com/DrMxrcy/claude-skills/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/DrMxrcy/claude-skills/main/install.sh | bash -s -- --global
 #
 # Usage:
-#   ./install.sh                 # install into ./.claude/skills (this project) + hook
-#   ./install.sh --global        # install into ~/.claude/skills (all projects) + hook
+#   ./install.sh                 # ./.claude: skills + /roadmap:* commands + hook + CLAUDE.md
+#   ./install.sh --global        # ~/.claude (all projects); skips CLAUDE.md
 #   ./install.sh --link          # symlink instead of copy (good for development)
 #   ./install.sh --no-hook       # do not touch settings.json
+#   ./install.sh --no-commands   # do not install the /roadmap:* slash commands
+#   ./install.sh --no-claude-md  # do not add roadmap rules to CLAUDE.md
 #   ./install.sh --init          # also run `roadmap init` in the current directory
 #   ./install.sh -h | --help     # show this help
 #
@@ -30,22 +32,30 @@ scope="project"
 link=0
 hook=1
 do_init=0
+commands=1
+claude_md=1
 for arg in "$@"; do
   case "$arg" in
     --global) scope="global" ;;
     --project) scope="project" ;;
     --link) link=1 ;;
     --no-hook) hook=0 ;;
+    --no-commands) commands=0 ;;
+    --no-claude-md) claude_md=0 ;;
     --init) do_init=1 ;;
     -h|--help)
       cat <<'EOF'
-install.sh — import this repo's skills into a Claude Code skills directory and
-wire the roadmap auto-sync Stop hook (no manual copying or settings edits).
+install.sh — import this repo's skills + /roadmap:* slash commands into a Claude
+Code directory, wire the roadmap auto-sync Stop hook, and add roadmap rules to
+CLAUDE.md (no manual copying or settings edits).
 
-  ./install.sh            install into ./.claude/skills (this project) + hook
-  --global                install into ~/.claude/skills (all projects)
+  ./install.sh            install into ./.claude (this project): skills,
+                          /roadmap:* commands, Stop hook, CLAUDE.md rules
+  --global                install into ~/.claude (all projects); skips CLAUDE.md
   --link                  symlink instead of copy (development)
   --no-hook               do not touch settings.json
+  --no-commands           do not install the /roadmap:* slash commands
+  --no-claude-md          do not add roadmap rules to CLAUDE.md
   --init                  also run `roadmap init` in the current directory
 
 Remote (no clone):
@@ -58,6 +68,9 @@ EOF
     *) echo "Unknown option: $arg (try --help)" >&2; exit 1 ;;
   esac
 done
+
+# Roadmap rules are project-specific; never write a global CLAUDE.md.
+[ "$scope" = "global" ] && claude_md=0
 
 PYTHON="${PYTHON:-python3}"
 SLUG="${SKILLS_REPO:-DrMxrcy/claude-skills}"
@@ -149,6 +162,58 @@ else:
     print(f"Wired roadmap Stop hook into {settings_path}")
 PY
   fi
+fi
+
+# Install the /roadmap:* slash commands (namespaced dirs under commands/) unless --no-commands.
+if [ "$commands" = "1" ]; then
+  cmd_src="$(dirname "$SRC_DIR")/commands"
+  if [ -d "$cmd_src" ]; then
+    mkdir -p "$base/commands"
+    for cdir in "$cmd_src"/*/; do
+      [ -d "$cdir" ] || continue
+      cname="$(basename "$cdir")"
+      rm -rf "$base/commands/$cname"
+      if [ "$link" = "1" ]; then
+        ln -s "${cdir%/}" "$base/commands/$cname"
+      else
+        cp -R "${cdir%/}" "$base/commands/$cname"
+      fi
+    done
+    echo "Installed commands -> $base/commands (try /roadmap:init, /roadmap:plan, /roadmap:status)"
+  fi
+fi
+
+# Add roadmap rules to CLAUDE.md (idempotent) so the discipline applies even when
+# the skill is not explicitly invoked. Project scope only.
+if [ "$claude_md" = "1" ]; then
+  read -r -d '' rules_block <<'BLOCK' || true
+<!-- roadmap:rules:start -->
+## Roadmap tracking
+This project tracks work in `ROADMAP.md` via the **roadmap** skill (`/roadmap:*` commands).
+- Before writing functional code, ensure there is an active plan in `.roadmap/plans/`.
+- Work one checklist item at a time; do not multitask across features/bugs.
+- Update status only through the roadmap CLI / `/roadmap:done`; never hand-edit `ROADMAP.md`.
+<!-- roadmap:rules:end -->
+BLOCK
+  "$PYTHON" - "$PWD/CLAUDE.md" "$rules_block" <<'PY'
+import os, sys
+path, block = sys.argv[1], sys.argv[2].rstrip("\n")
+start, end = "<!-- roadmap:rules:start -->", "<!-- roadmap:rules:end -->"
+existing = open(path, encoding="utf-8").read() if os.path.exists(path) else ""
+if start in existing and end in existing:
+    after = existing.split(end, 1)[1].lstrip("\n")
+    new = existing.split(start)[0] + block + "\n" + after
+    action = "Updated"
+elif existing.strip():
+    new = existing.rstrip() + "\n\n" + block + "\n"
+    action = "Appended"
+else:
+    new = block + "\n"
+    action = "Created"
+with open(path, "w", encoding="utf-8") as f:
+    f.write(new)
+print(f"{action} roadmap rules in {path}")
+PY
 fi
 
 if [ "$do_init" = "1" ]; then
