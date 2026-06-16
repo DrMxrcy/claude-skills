@@ -36,6 +36,9 @@ On invocation, detect state and pick a phase:
      scope/blueprint/checklist (tiny testable steps). The CLI auto-runs `sync`.
 
 3. **Working an item** → Execute.
+   - Read the plan file. If it links a **Spec** or **Detailed plan** (e.g. paths under
+     `docs/`), open and follow those as the authoritative implementation guide — the
+     checklist is the tracking unit; the detailed plan has the how.
    - Lean on **superpowers `executing-plans`**.
    - After each step passes its test: `roadmap.py check --plan <id> --step <n>`, then
      commit code + roadmap together.
