@@ -193,6 +193,7 @@ This project tracks work in `ROADMAP.md` via the **roadmap** skill (`/roadmap:*`
 - Before writing functional code, ensure there is an active plan in `.roadmap/plans/`.
 - Work one checklist item at a time; do not multitask across features/bugs.
 - Update status only through the roadmap CLI / `/roadmap:done`; never hand-edit `ROADMAP.md`.
+- At the start of a work session, run `/roadmap:status` (or read `ROADMAP.md`) to see current progress before continuing.
 <!-- roadmap:rules:end -->
 BLOCK
   "$PYTHON" - "$PWD/CLAUDE.md" "$rules_block" <<'PY'

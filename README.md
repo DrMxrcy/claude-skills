@@ -64,6 +64,7 @@ The installer adds these to `.claude/commands/roadmap/`:
 | `/roadmap:build [id\|version]` | Build one item, a whole version/phase, or the current version — step-by-step, checking off as tests pass |
 | `/roadmap:status` | Show versions, items, and progress |
 | `/roadmap:done <id> [step]` | Mark a step/item done and resync |
+| `/roadmap:review [version]` | Verify a finished phase against its specs + code review before release |
 | `/roadmap:release <version>` | Cut a new version |
 | `/roadmap:sync` | Recompute progress and re-render `ROADMAP.md` |
 

@@ -12,6 +12,7 @@ A persistent tracking layer on top of your planning skills. You decide WHAT; the
 `python3 <path-to-this-skill>/scripts/roadmap.py <command>` from the target project root.
 
 ## Working guardrails (apply whenever this skill is active)
+- At the start of a session, run `roadmap.py status` to orient on current progress before continuing.
 - One trackable item at a time. No multitasking across features/bugs.
 - No functional code without an active plan file in `.roadmap/plans/`.
 - Run the build/tests for a step BEFORE you `check` it.
@@ -43,7 +44,10 @@ On invocation, detect state and pick a phase:
    - After each step passes its test: `roadmap.py check --plan <id> --step <n>`, then
      commit code + roadmap together.
 
-4. **A version's items are all done** → `roadmap.py release --version <next>`.
+4. **A version's items are all done** → Review, then release.
+   - Verify the phase against its specs + code-review the work (`/roadmap:review`) before
+     shipping — confirm every item is genuinely implemented and matches its spec.
+   - Then `roadmap.py release --version <next>`.
 
 ## Command reference
 - `init [--name N] [--adopt]` — scaffold (adopt = existing repo, non-destructive)
