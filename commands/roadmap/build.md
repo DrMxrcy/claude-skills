@@ -1,24 +1,29 @@
 ---
-description: Build (implement) a roadmap plan item, checking off steps as tests pass
-argument-hint: <plan id>
+description: Build a roadmap plan item, a whole version/phase, or the current version
+argument-hint: <plan id | version | empty>
 ---
 
-Implement a roadmap plan item end to end using the **roadmap** skill: $ARGUMENTS
+Implement roadmap work using the **roadmap** skill. Target: $ARGUMENTS
 
-1. Read the plan file at `.roadmap/plans/<id>-*.md` — its Target Scope, Architectural
-   Blueprint, and Step-by-Step Checklist. If no id was given, run
-   `python3 <roadmap.py> status` and ask which item to build.
-2. Honor the guardrails: work this ONE item only, one checklist step at a time.
-3. Execute the checklist:
-   - If the superpowers `subagent-driven-development` skill is available, use it (fresh
-     subagent per step + review). Otherwise use `executing-plans` (inline with
-     checkpoints). If neither is installed, implement each step directly with TDD.
-   - Before checking a step off, its build/tests MUST pass.
-4. After each passing step:
-   `python3 <roadmap.py> check --plan <id> --step <n>` (auto-syncs `ROADMAP.md`),
-   then commit the code and the roadmap update together in one micro-commit.
-5. When every step is done, run `python3 <roadmap.py> status`. If the current version's
-   items are all complete, suggest `/roadmap:release <next version>`.
+First run `python3 <roadmap.py> status` to see items, their versions, and progress, then
+interpret the argument:
+- A bare number (e.g. `3`) → that single plan item.
+- A version (contains dots, e.g. `1.0.0`) → every incomplete item in that version (a whole phase).
+- Empty → every incomplete item in the CURRENT version.
+
+Build the selected item(s) **one item at a time, in ascending id order**. For each item:
+1. Read its plan file `.roadmap/plans/<id>-*.md` (Target Scope, Architectural Blueprint,
+   Step-by-Step Checklist).
+2. Execute its checklist step-by-step — prefer the superpowers `subagent-driven-development`
+   skill (fresh subagent per step + review), else `executing-plans` (inline checkpoints),
+   else implement directly with TDD. Build/tests MUST pass before a step is checked off.
+3. After each passing step: `python3 <roadmap.py> check --plan <id> --step <n>`
+   (auto-syncs `ROADMAP.md`), then commit code + roadmap together in one micro-commit.
+4. When the item is complete, **pause for a checkpoint** — report what shipped and let the
+   user confirm before starting the next item. Do not silently run through an entire phase.
+
+When the version's items are all done, run `status` and suggest
+`/roadmap:release <next version>`.
 
 The CLI lives at `.claude/skills/roadmap/scripts/roadmap.py` (project install) or
 `~/.claude/skills/roadmap/scripts/roadmap.py` (global install).
