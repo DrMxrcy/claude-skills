@@ -52,13 +52,26 @@ The commands drive a deterministic CLI you can also run directly:
 ```bash
 roadmap=.claude/skills/roadmap/scripts/roadmap.py   # or ~/.claude/skills/roadmap/scripts/roadmap.py
 python3 $roadmap init [--name N] [--adopt] [--no-claude-md]
-python3 $roadmap new --type feature|bug|refactor|chore --title "..." [--version V]
+python3 $roadmap new --type feature|bug|refactor|chore --title "..." [--version V] [--note "..."]
+python3 $roadmap note --plan ID --text "user-facing summary"
 python3 $roadmap check --plan ID --step N [--undo] [--all-done]
 python3 $roadmap status [--json]
 python3 $roadmap sync
 python3 $roadmap release --version V [--tag] [--force] [--no-changelog]
 python3 $roadmap import PATH
+python3 $roadmap version
 ```
+
+## Versioning & changelog (user-facing)
+
+- **Semver picks the version**: bug fix → patch (`x.y.Z`), backward-compatible feature →
+  minor (`x.Y.0`), breaking change or a whole new phase → major (`X.0.0`). A *phase* is just
+  a version; type (`bug`/`feature`/…) is set per item. `/roadmap:plan` classifies both.
+- Each item carries a plain-language **`note`** (set at `new --note` or later via `note`).
+- On `release`, `CHANGELOG.md` gets a user-facing entry for the shipped version, grouped into
+  **✨ New / 🐛 Fixed / ⚡ Improved** using each item's note (falling back to its title). The
+  latest section is ready to paste into the **App Store "What's New"** or a website changelog.
+- Release is **guarded** — it refuses an incomplete version (`--force` to override).
 
 ## How it works (anti-drift)
 

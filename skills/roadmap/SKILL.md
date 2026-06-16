@@ -28,13 +28,19 @@ On invocation, detect state and pick a phase:
    - Greenfield: `roadmap.py init --name "<name>"`.
 
 2. **User brings an idea/plan** → Break it down.
-   - Classify type: feature | bug | refactor | chore.
+   - Classify **type**: feature | bug | refactor | chore (this picks the template).
+   - Choose the **target version** by semver — type drives the bump:
+     bug fix → **patch** (x.y.**Z**); backward-compatible feature → **minor** (x.**Y**.0);
+     breaking change or a whole new phase → **major** (**X**.0.0). Assign with `--version`
+     (omit to use the current version).
    - Research: use **context7** for library/API docs; use project **MCPs** (e.g. codegraph)
      for impact analysis. Degrade gracefully if unavailable.
    - Defer the deep design to **superpowers `brainstorming`/`writing-plans` if installed**;
      otherwise design inline.
-   - `roadmap.py new --type <T> --title "<title>"` scaffolds the plan file; then fill in
-     scope/blueprint/checklist (tiny testable steps). The CLI auto-runs `sync`.
+   - `roadmap.py new --type <T> --title "<title>" [--version <V>] --note "<user-facing one-liner>"`
+     scaffolds the plan file; then fill in scope/blueprint/checklist (tiny testable steps).
+     The `--note` is plain-language, benefit-focused — it becomes the user-facing CHANGELOG /
+     App Store "What's New" line. The CLI auto-runs `sync`.
 
 3. **Working an item** → Execute.
    - Read the plan file. If it links a **Spec** or **Detailed plan** (e.g. paths under
@@ -47,7 +53,13 @@ On invocation, detect state and pick a phase:
 4. **A version's items are all done** → Review, then release.
    - Verify the phase against its specs + code-review the work (`/roadmap:review`) before
      shipping — confirm every item is genuinely implemented and matches its spec.
-   - Then `roadmap.py release --version <next>`.
+   - Ensure every completed item has a clear user-facing `note` (set/fix with
+     `roadmap.py note --plan <id> --text "<plain-language summary>"`) so the generated
+     `CHANGELOG.md` reads for end users, not developers.
+   - Pick the next version by semver, then `roadmap.py release --version <next>`. Release is
+     guarded (refuses an incomplete version; `--force` to override) and writes the user-facing
+     `CHANGELOG.md` entry. Its latest section is ready to paste into the App Store "What's New"
+     or a website changelog.
 
 ## Command reference
 - `init [--name N] [--adopt]` — scaffold (adopt = existing repo, non-destructive)

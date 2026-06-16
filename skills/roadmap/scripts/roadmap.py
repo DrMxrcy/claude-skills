@@ -256,7 +256,8 @@ TEMPLATE_BY_TYPE = {"feature": "feature-plan.md", "chore": "feature-plan.md",
                     "bug": "bug-investigation.md", "refactor": "refactor-debt.md"}
 
 
-def new_item(root: Path, type_: str, title: str, version: str | None = None) -> Path:
+def new_item(root: Path, type_: str, title: str, version: str | None = None,
+             note: str = "") -> Path:
     if type_ not in TEMPLATE_BY_TYPE:
         raise ValueError(f"unknown type {type_!r}; choose from {sorted(TEMPLATE_BY_TYPE)}")
     cfg = read_config(root)
@@ -271,11 +272,25 @@ def new_item(root: Path, type_: str, title: str, version: str | None = None) -> 
         TEMPLATE_BY_TYPE[type_], ID=item_id, TITLE=title, TYPE=type_,
         VERSION=version, DATE=datetime.date.today().isoformat()))
     cfg["nextId"] += 1
-    cfg["items"].append({"id": item_id, "slug": slug, "title": title,
-                         "type": type_, "version": version, "file": fname})
+    item = {"id": item_id, "slug": slug, "title": title,
+            "type": type_, "version": version, "file": fname}
+    if note:
+        item["note"] = note            # user-facing changelog line (optional)
+    cfg["items"].append(item)
     write_config(root, cfg)
     sync(root)
     return path
+
+
+def set_note(root: Path, plan_id: int, text: str) -> None:
+    """Set an item's user-facing changelog note."""
+    cfg = read_config(root)
+    for item in cfg["items"]:
+        if item["id"] == plan_id:
+            item["note"] = text
+            write_config(root, cfg)
+            return
+    raise ValueError(f"no plan with id {plan_id}")
 
 
 def _incomplete_items(root: Path, version: str) -> list[dict]:
@@ -289,8 +304,18 @@ def _incomplete_items(root: Path, version: str) -> list[dict]:
     return out
 
 
+# type → user-facing changelog section (App Store / website friendly)
+TYPE_SECTION = {"feature": "✨ New", "bug": "🐛 Fixed",
+                "refactor": "⚡ Improved", "chore": "⚡ Improved"}
+SECTION_ORDER = ["✨ New", "🐛 Fixed", "⚡ Improved"]
+
+
 def write_changelog(root: Path, version: str) -> Path | None:
-    """Append a CHANGELOG.md entry listing the items completed in `version`."""
+    """Append a user-facing CHANGELOG.md entry for `version`, grouped by change kind.
+
+    Each item shows its `note` (a user-facing one-liner) if set, else its title — so the
+    entry reads like an App Store "What's New" / website changelog rather than dev tasks.
+    """
     items = [i for i in read_config(root)["items"] if i["version"] == version]
     if not items:
         return None
@@ -299,9 +324,19 @@ def write_changelog(root: Path, version: str) -> Path | None:
     header = f"## v{version} — {datetime.date.today().isoformat()}"
     if header in existing:
         return path  # idempotent — already recorded
-    entry = "\n".join([header, ""] +
-                      [f"- {i['title']} ({i['type']})" for i in sorted(items, key=lambda x: x["id"])])
-    entry += "\n"
+
+    by_section: dict[str, list[str]] = {}
+    for i in sorted(items, key=lambda x: x["id"]):
+        section = TYPE_SECTION.get(i["type"], "⚡ Improved")
+        by_section.setdefault(section, []).append(i.get("note") or i["title"])
+    lines = [header, ""]
+    for section in SECTION_ORDER:
+        if by_section.get(section):
+            lines.append(f"### {section}")
+            lines += [f"- {label}" for label in by_section[section]]
+            lines.append("")
+    entry = "\n".join(lines).rstrip() + "\n"
+
     if existing.startswith("# Changelog"):
         head, _, rest = existing.partition("\n")
         new = f"{head}\n\n{entry}\n{rest.lstrip(chr(10))}"
@@ -427,6 +462,11 @@ def main(argv: list[str]) -> int:
     p_new.add_argument("--type", required=True)
     p_new.add_argument("--title", required=True)
     p_new.add_argument("--version")
+    p_new.add_argument("--note", default="")
+
+    p_note = sub.add_parser("note")
+    p_note.add_argument("--plan", type=int, required=True)
+    p_note.add_argument("--text", required=True)
 
     p_check = sub.add_parser("check")
     p_check.add_argument("--plan", type=int, required=True)
@@ -457,8 +497,11 @@ def main(argv: list[str]) -> int:
             print(f"Initialized roadmap at {root}")
             return 0
         if args.command == "new":
-            path = new_item(root, args.type, args.title, args.version)
+            path = new_item(root, args.type, args.title, args.version, note=args.note)
             print(path)
+            return 0
+        if args.command == "note":
+            set_note(root, args.plan, args.text)
             return 0
         if args.command == "check":
             check_step(root, args.plan, args.step, undo=args.undo, all_done=args.all_done)

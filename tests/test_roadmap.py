@@ -376,7 +376,29 @@ def test_release_writes_changelog(roadmap, repo):
     roadmap.check_step(repo, 1, None, all_done=True)
     roadmap.release(repo, "0.0.2")
     cl = (repo / "CHANGELOG.md").read_text()
-    assert "## v0.0.1" in cl and "Login (feature)" in cl
+    assert "## v0.0.1" in cl and "✨ New" in cl and "Login" in cl
+    assert "(feature)" not in cl                 # user-facing — no type jargon
+
+
+def test_changelog_uses_note_and_groups_by_type(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "Auth backend", note="Sign in with email")
+    roadmap.new_item(repo, "bug", "Null deref on logout")
+    roadmap.check_step(repo, 1, None, all_done=True)
+    roadmap.check_step(repo, 2, None, all_done=True)
+    roadmap.release(repo, "0.0.2")
+    cl = (repo / "CHANGELOG.md").read_text()
+    assert "Sign in with email" in cl and "Auth backend" not in cl   # note used, not title
+    assert "🐛 Fixed" in cl and "Null deref on logout" in cl
+    assert cl.index("✨ New") < cl.index("🐛 Fixed")                 # New before Fixed
+
+
+def test_new_with_note_and_set_note(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "X", note="hello")
+    assert roadmap.read_config(repo)["items"][0]["note"] == "hello"
+    roadmap.set_note(repo, 1, "updated")
+    assert roadmap.read_config(repo)["items"][0]["note"] == "updated"
 
 
 def test_release_no_changelog_skips(roadmap, repo):
@@ -388,10 +410,12 @@ def test_release_no_changelog_skips(roadmap, repo):
 
 
 def test_get_version(roadmap):
-    assert roadmap.get_version() == "0.1.0"
+    from pathlib import Path
+    vf = Path(roadmap.__file__).resolve().parent.parent / "VERSION"
+    assert roadmap.get_version() == vf.read_text(encoding="utf-8").strip()
 
 
 def test_version_command(roadmap, repo, monkeypatch, capsys):
     monkeypatch.chdir(repo)
     assert roadmap.main(["version"]) == 0
-    assert capsys.readouterr().out.strip() == "0.1.0"
+    assert capsys.readouterr().out.strip() == roadmap.get_version()

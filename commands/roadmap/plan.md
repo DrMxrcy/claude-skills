@@ -8,14 +8,17 @@ Turn this idea into a tracked roadmap item using the **roadmap** skill:
 $ARGUMENTS
 
 Follow the skill's intake phase:
-1. Classify the type: `feature` | `bug` | `refactor` | `chore`.
+1. Classify the type: `feature` | `bug` | `refactor` | `chore`, and pick the **target
+   version** by semver — bug → patch (x.y.Z), feature → minor (x.Y.0), breaking change or a
+   whole new phase → major (X.0.0). Pass it with `--version` (omit for the current version).
 2. Research as needed — use **context7** for library/API docs and any project **MCPs**
    (e.g. codegraph) for impact analysis. Degrade gracefully if unavailable.
 3. If the superpowers `brainstorming`/`writing-plans` skills are installed, use them to
    design the approach before scaffolding.
 4. Scaffold the plan file:
-   `python3 <roadmap.py> new --type <T> --title "<title>" [--version <V>]`
-   (target a future version for work not slated for the current one).
+   `python3 <roadmap.py> new --type <T> --title "<title>" [--version <V>] --note "<one-liner>"`
+   The `--note` is a plain-language, user-benefit sentence (no jargon) — it becomes the
+   user-facing CHANGELOG / App Store "What's New" line for this item.
 5. Fill in the plan's **Target Scope**, **Architectural Blueprint**, and a checklist of
    tiny, testable steps.
 6. If `brainstorming`/`writing-plans` produced a spec or detailed plan document, save it

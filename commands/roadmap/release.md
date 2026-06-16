@@ -5,7 +5,15 @@ argument-hint: <new version, e.g. 0.2.0>
 
 Cut a new roadmap version: $ARGUMENTS
 
-Ideally run `/roadmap:review` first. Then bump the version with the roadmap CLI:
+Pick the next version by **semver**: bug fixes → patch (x.y.Z), backward-compatible features
+→ minor (x.Y.0), breaking changes / a whole new phase → major (X.0.0).
+
+Ideally run `/roadmap:review` first. Then make the changelog read for **end users**: for each
+completed item, ensure it has a clear, plain-language note —
+`python3 <roadmap.py> note --plan <id> --text "<user-facing summary>"` — fixing any that are
+still developer-worded.
+
+Then bump the version with the roadmap CLI:
 
 `python3 <roadmap.py> release --version <V>`
 
@@ -15,4 +23,6 @@ Ideally run `/roadmap:review` first. Then bump the version with the roadmap CLI:
   `--no-changelog` to skip.
 - Add `--tag` to also create a `git tag` (e.g. `v0.2.0`).
 
-Show the updated `ROADMAP.md` (new current version + rollups) and the `CHANGELOG.md` entry.
+Show the updated `ROADMAP.md` (new current version + rollups) and the new `CHANGELOG.md`
+entry — its latest section is ready to paste into the App Store "What's New" or a website
+changelog.

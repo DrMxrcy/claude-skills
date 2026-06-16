@@ -23,4 +23,5 @@ def test_full_flow(repo):
     assert run(repo, "release", "--version", "0.0.2").returncode == 0
     rm = (repo / "ROADMAP.md").read_text()
     assert "v0.0.2" in rm and "Login" in rm
-    assert "Login (feature)" in (repo / "CHANGELOG.md").read_text()
+    cl = (repo / "CHANGELOG.md").read_text()
+    assert "✨ New" in cl and "Login" in cl
