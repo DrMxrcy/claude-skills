@@ -8,6 +8,16 @@ TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 AUTO_START = "<!-- roadmap:auto:start -->"
 AUTO_END = "<!-- roadmap:auto:end -->"
 
+RULES_START = "<!-- roadmap:rules:start -->"
+RULES_END = "<!-- roadmap:rules:end -->"
+RULES_BLOCK = """<!-- roadmap:rules:start -->
+## Roadmap tracking
+This project tracks work in `ROADMAP.md` via the **roadmap** skill (`/roadmap:*` commands).
+- Before writing functional code, ensure there is an active plan in `.roadmap/plans/`.
+- Work one checklist item at a time; do not multitask across features/bugs.
+- Update status only through the roadmap CLI / `/roadmap:done`; never hand-edit `ROADMAP.md`.
+<!-- roadmap:rules:end -->"""
+
 
 def roadmap_dir(root: Path) -> Path:
     return root / ".roadmap"
@@ -314,7 +324,26 @@ def import_file(root: Path, src: Path) -> list[Path]:
     return [path]
 
 
-def init_project(root: Path, name: str, adopt: bool = False) -> dict:
+def ensure_claude_md_rules(root: Path) -> Path:
+    """Idempotently add the roadmap rules block to CLAUDE.md (creating it if absent).
+
+    Runs on every init so the always-on guardrails land in the project regardless of
+    how the skill was installed (install.sh, `npx skills add`, or a manual copy).
+    """
+    path = root / "CLAUDE.md"
+    existing = path.read_text(encoding="utf-8") if path.exists() else ""
+    if RULES_START in existing and RULES_END in existing:
+        after = existing.split(RULES_END, 1)[1].lstrip("\n")
+        new = existing.split(RULES_START)[0] + RULES_BLOCK + "\n" + after
+    elif existing.strip():
+        new = existing.rstrip() + "\n\n" + RULES_BLOCK + "\n"
+    else:
+        new = RULES_BLOCK + "\n"
+    atomic_write(path, new)
+    return path
+
+
+def init_project(root: Path, name: str, adopt: bool = False, claude_md: bool = True) -> dict:
     rd = roadmap_dir(root)
     (rd / "plans").mkdir(parents=True, exist_ok=True)
     if (rd / "config.json").exists():
@@ -330,6 +359,8 @@ def init_project(root: Path, name: str, adopt: bool = False) -> dict:
     elif AUTO_START not in roadmap_md.read_text(encoding="utf-8"):
         existing = roadmap_md.read_text(encoding="utf-8").rstrip()
         atomic_write(roadmap_md, f"{existing}\n\n{AUTO_START}\n{AUTO_END}\n")
+    if claude_md:
+        ensure_claude_md_rules(root)
     sync(root)
     return cfg
 
@@ -341,6 +372,7 @@ def main(argv: list[str]) -> int:
     p_init = sub.add_parser("init")
     p_init.add_argument("--name", default="My Project")
     p_init.add_argument("--adopt", action="store_true")
+    p_init.add_argument("--no-claude-md", action="store_false", dest="claude_md")
 
     p_new = sub.add_parser("new")
     p_new.add_argument("--type", required=True)
@@ -369,7 +401,7 @@ def main(argv: list[str]) -> int:
     root = find_root(Path.cwd())
     try:
         if args.command == "init":
-            init_project(root, args.name, adopt=args.adopt)
+            init_project(root, args.name, adopt=args.adopt, claude_md=args.claude_md)
             print(f"Initialized roadmap at {root}")
             return 0
         if args.command == "new":

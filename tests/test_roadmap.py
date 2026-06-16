@@ -332,3 +332,24 @@ def test_cli_happy_path_returns_0(roadmap, repo, monkeypatch):
     monkeypatch.chdir(repo)
     assert roadmap.main(["init", "--name", "P"]) == 0
     assert roadmap.main(["new", "--type", "feature", "--title", "A"]) == 0
+
+
+def test_init_creates_claude_md_rules(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    cm = (repo / "CLAUDE.md").read_text()
+    assert "roadmap:rules:start" in cm
+    assert "Work one checklist item at a time" in cm
+
+
+def test_init_claude_md_idempotent_and_preserves_content(roadmap, repo):
+    (repo / "CLAUDE.md").write_text("# Existing\n\n- keep this\n")
+    roadmap.init_project(repo, "P")
+    roadmap.init_project(repo, "P")          # re-init must not duplicate
+    cm = (repo / "CLAUDE.md").read_text()
+    assert "keep this" in cm
+    assert cm.count("roadmap:rules:start") == 1
+
+
+def test_init_no_claude_md_opt_out(roadmap, repo):
+    roadmap.init_project(repo, "P", claude_md=False)
+    assert not (repo / "CLAUDE.md").exists()
