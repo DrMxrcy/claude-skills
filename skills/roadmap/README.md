@@ -41,6 +41,7 @@ see the autonomous section in [`commands/roadmap/build.md`](../../commands/roadm
 | `/roadmap:done <id> [step]` | Mark a step/item done and resync |
 | `/roadmap:review [version]` | Verify a finished phase against its specs + code review before release |
 | `/roadmap:release <version>` | Cut a new version (guarded; writes `CHANGELOG.md`) |
+| `/roadmap:changelog [version]` | Show the latest changelog entry, or backfill user-facing notes from git history |
 | `/roadmap:sync` | Recompute progress and re-render `ROADMAP.md` |
 
 The CLI also has `version` (prints the installed skill version, e.g. to confirm an update applied).

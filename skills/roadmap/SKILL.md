@@ -13,6 +13,7 @@ A persistent tracking layer on top of your planning skills. You decide WHAT; the
 
 ## Working guardrails (apply whenever this skill is active)
 - At the start of a session, run `roadmap.py status` to orient on current progress before continuing.
+- New features or found bugs become roadmap items (`/roadmap:plan`) before coding; park stray ideas in the Idea Incubator — nothing is built off-roadmap.
 - One trackable item at a time. No multitasking across features/bugs.
 - No functional code without an active plan file in `.roadmap/plans/`.
 - Run the build/tests for a step BEFORE you `check` it.

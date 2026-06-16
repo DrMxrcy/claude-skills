@@ -11,7 +11,8 @@ Pick the next version by **semver**: bug fixes → patch (x.y.Z), backward-compa
 Ideally run `/roadmap:review` first. Then make the changelog read for **end users**: for each
 completed item, ensure it has a clear, plain-language note —
 `python3 <roadmap.py> note --plan <id> --text "<user-facing summary>"` — fixing any that are
-still developer-worded.
+still developer-worded. If notes are missing (e.g. you adopted an existing repo), backfill
+them from git history (`git log v<previous>..HEAD --oneline`) — or run `/roadmap:changelog`.
 
 Then bump the version with the roadmap CLI:
 

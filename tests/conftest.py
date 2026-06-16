@@ -17,8 +17,10 @@ def roadmap():
 
 @pytest.fixture
 def repo(tmp_path):
-    """A temp git repo, cwd switched to it."""
+    """A hermetic temp git repo (no commit/tag signing, so tests don't touch the
+    user's GPG/SSH signing agent)."""
     subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
-    subprocess.run(["git", "config", "user.email", "t@t.t"], cwd=tmp_path, check=True)
-    subprocess.run(["git", "config", "user.name", "t"], cwd=tmp_path, check=True)
+    for key, val in (("user.email", "t@t.t"), ("user.name", "t"),
+                     ("commit.gpgsign", "false"), ("tag.gpgsign", "false")):
+        subprocess.run(["git", "config", key, val], cwd=tmp_path, check=True)
     return tmp_path
