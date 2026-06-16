@@ -35,6 +35,22 @@ Options: `--global` (user-level), `--link` (symlink for development), `--no-hook
 Alternatively: `npx skills add DrMxrcy/claude-skills`, or copy `skills/roadmap/`
 into `.claude/skills/` by hand.
 
+## Updating
+
+Re-run the same install command — it's idempotent and is the update path:
+
+```bash
+# remote: re-fetches the latest from main
+curl -fsSL https://raw.githubusercontent.com/DrMxrcy/claude-skills/main/install.sh | bash
+# from a clone: git pull first
+git pull && ./install.sh
+```
+
+It clean-replaces the skill and `/roadmap:*` commands (new ones added, stale ones removed),
+re-wires the Stop hook idempotently, and refreshes the `CLAUDE.md` rules block in place.
+Your `ROADMAP.md` and `.roadmap/` data are never touched. Start a fresh Claude session
+afterward so the updated skill and commands load.
+
 ## Skills
 - **roadmap** — versioned, type-tagged roadmap as a persistent tracking layer. Maintains `ROADMAP.md` + `.roadmap/` via a deterministic Python CLI (one trackable item at a time, no drift).
 

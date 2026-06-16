@@ -13,7 +13,9 @@ interpret the argument:
 
 Build the selected item(s) **one item at a time, in ascending id order**. For each item:
 1. Read its plan file `.roadmap/plans/<id>-*.md` (Target Scope, Architectural Blueprint,
-   Step-by-Step Checklist).
+   Step-by-Step Checklist). If the plan links a **Spec** or **Detailed plan** (e.g. paths
+   under `docs/superpowers/`), open and follow those as the authoritative implementation
+   guide — the checklist is the tracking unit; the detailed plan has the how.
 2. Execute its checklist step-by-step — prefer the superpowers `subagent-driven-development`
    skill (fresh subagent per step + review), else `executing-plans` (inline checkpoints),
    else implement directly with TDD. Build/tests MUST pass before a step is checked off.
