@@ -38,8 +38,10 @@ Inline `--auto` already builds a whole phase without checkpoints — that's enou
 hard iteration cap, you may drive the phase with it instead. If it isn't installed, ignore
 this section and use `--auto`.
 
+(The loop command may be invoked as `/ralph-loop` or, if namespaced, `/ralph-loop:ralph-loop`.)
+
 ```
-/ralph-loop:ralph-loop "Build the next unfinished item in the current roadmap version: run
+/ralph-loop "Build the next unfinished item in the current roadmap version: run
 `python3 <roadmap.py> status`, pick the lowest-id item that is not 100%, read its plan and any
 linked spec/detailed plan, implement step-by-step with TDD, run `python3 <roadmap.py> check`
 after each passing step, and commit code + roadmap together. When status shows the current
