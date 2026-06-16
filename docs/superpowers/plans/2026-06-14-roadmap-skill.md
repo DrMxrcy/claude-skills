@@ -1323,7 +1323,7 @@ Local roadmap tracking + planning skills for AI-assisted coding.
 
 ## Install
 \`\`\`bash
-npx skills add <owner>/roadmap-skills
+npx skills add DrMxrcy/roadmap-skills
 \`\`\`
 Or copy `skills/roadmap/` into `.claude/skills/` in your project.
 

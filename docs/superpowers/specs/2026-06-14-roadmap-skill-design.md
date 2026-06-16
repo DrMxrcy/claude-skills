@@ -30,7 +30,7 @@ turn. That always drifts. This design fixes it two ways:
 **In scope (this spec):**
 - The `roadmap` skill: `SKILL.md` + `roadmap.py` CLI + templates + optional Stop hook.
 - Greenfield `init` AND **adopt mode** for importing into existing repos.
-- Multi-skill-ready repo structure installable via `npx skills add <owner>/claude-skills`.
+- Multi-skill-ready repo structure installable via `npx skills add DrMxrcy/claude-skills`.
 
 **Out of scope (YAGNI for now):**
 - Other skills in the repo (structure supports them; none built yet).
