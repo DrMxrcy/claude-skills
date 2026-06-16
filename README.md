@@ -45,6 +45,7 @@ The installer adds these to `.claude/commands/roadmap/`:
 |---|---|
 | `/roadmap:init` | Initialize roadmap tracking (auto-detects adopt for existing repos) |
 | `/roadmap:plan <idea>` | Brainstorm an idea into a tracked, versioned plan |
+| `/roadmap:build <id>` | Implement a plan item step-by-step, checking off as tests pass |
 | `/roadmap:status` | Show versions, items, and progress |
 | `/roadmap:done <id> [step]` | Mark a step/item done and resync |
 | `/roadmap:release <version>` | Cut a new version |
