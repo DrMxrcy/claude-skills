@@ -28,8 +28,27 @@ Build the selected item(s) **one item at a time, in ascending id order**. For ea
    item; otherwise **pause for a checkpoint** — report what shipped and let the user confirm
    before starting the next item.
 
-When the version's items are all done, run `status` and suggest
+When the version's items are all done, run `status` and suggest `/roadmap:review` then
 `/roadmap:release <next version>`.
+
+## Fully hands-off (optional — only if the `ralph-loop` plugin is installed)
+
+Inline `--auto` already builds a whole phase without checkpoints — that's enough on its own.
+**Only if** the `ralph-loop` plugin is installed and you want a harness-enforced loop with a
+hard iteration cap, you may drive the phase with it instead. If it isn't installed, ignore
+this section and use `--auto`.
+
+```
+/ralph-loop:ralph-loop "Build the next unfinished item in the current roadmap version: run
+`python3 <roadmap.py> status`, pick the lowest-id item that is not 100%, read its plan and any
+linked spec/detailed plan, implement step-by-step with TDD, run `python3 <roadmap.py> check`
+after each passing step, and commit code + roadmap together. When status shows the current
+version at 100%, output the completion promise." --completion-promise "ROADMAP_PHASE_DONE"
+--max-iterations <number of items + 3>
+```
+
+Each iteration completes one item (same as `/roadmap:next`); the loop stops when the version
+hits 100% (you output `ROADMAP_PHASE_DONE`) or `--max-iterations` is reached.
 
 The CLI lives at `.claude/skills/roadmap/scripts/roadmap.py` (project install) or
 `~/.claude/skills/roadmap/scripts/roadmap.py` (global install).

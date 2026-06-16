@@ -24,6 +24,11 @@ deterministic Python CLI makes every mechanical edit so the dashboard never drif
 `/roadmap:next` builds the next unfinished item in the current version. `/roadmap:status`
 shows progress anytime; `/roadmap:sync` re-renders the dashboard.
 
+For an **unattended phase build**, `/roadmap:build <version> --auto` runs items back-to-back
+without checkpoints. If you have the [`ralph-loop`](https://github.com/anthropics/claude-code/tree/main/plugins/ralph-wiggum)
+plugin, you can drive it as a harness-enforced loop with a `--max-iterations` safety cap —
+see the autonomous section in [`commands/roadmap/build.md`](../../commands/roadmap/build.md).
+
 ## Slash commands
 
 | Command | Does |

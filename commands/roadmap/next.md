@@ -17,5 +17,9 @@ Pick up the next piece of roadmap work using the **roadmap** skill.
 4. When the item is done, stop at a checkpoint and report — run `/roadmap:next` again for
    the following item.
 
+This "build exactly one item, then stop" shape is the ideal iteration body for the
+`ralph-loop` plugin if you want an unattended phase build — see the autonomous section of
+`/roadmap:build`.
+
 The CLI lives at `.claude/skills/roadmap/scripts/roadmap.py` (project) or
 `~/.claude/skills/roadmap/scripts/roadmap.py` (global).
