@@ -9,4 +9,6 @@ Show the current roadmap status. Run the roadmap CLI:
 (or the global path `~/.claude/skills/roadmap/scripts/roadmap.py status`).
 
 Summarize the current version, each version's items grouped by type, and progress
-percentages. If `.roadmap/` does not exist yet, tell the user to run `/roadmap:init` first.
+percentages. Also surface the latest `CHANGELOG.md` entry (the most recently released version)
+if the file exists, so the user sees what shipped last. If `.roadmap/` does not exist yet,
+tell the user to run `/roadmap:init` first.

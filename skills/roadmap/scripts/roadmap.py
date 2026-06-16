@@ -20,6 +20,11 @@ This project tracks work in `ROADMAP.md` via the **roadmap** skill (`/roadmap:*`
 <!-- roadmap:rules:end -->"""
 
 
+def get_version() -> str:
+    vf = Path(__file__).resolve().parent.parent / "VERSION"
+    return vf.read_text(encoding="utf-8").strip() if vf.exists() else "unknown"
+
+
 def roadmap_dir(root: Path) -> Path:
     return root / ".roadmap"
 
@@ -439,6 +444,7 @@ def main(argv: list[str]) -> int:
     p_st.add_argument("--json", action="store_true", dest="as_json")
 
     sub.add_parser("sync")
+    sub.add_parser("version")
 
     p_imp = sub.add_parser("import")
     p_imp.add_argument("path")
@@ -463,6 +469,9 @@ def main(argv: list[str]) -> int:
             return 0
         if args.command == "sync":
             sync(root)
+            return 0
+        if args.command == "version":
+            print(get_version())
             return 0
         if args.command == "import":
             created = import_file(root, Path(args.path))

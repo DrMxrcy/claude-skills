@@ -385,3 +385,13 @@ def test_release_no_changelog_skips(roadmap, repo):
     roadmap.check_step(repo, 1, None, all_done=True)
     roadmap.release(repo, "0.0.2", changelog=False)
     assert not (repo / "CHANGELOG.md").exists()
+
+
+def test_get_version(roadmap):
+    assert roadmap.get_version() == "0.1.0"
+
+
+def test_version_command(roadmap, repo, monkeypatch, capsys):
+    monkeypatch.chdir(repo)
+    assert roadmap.main(["version"]) == 0
+    assert capsys.readouterr().out.strip() == "0.1.0"

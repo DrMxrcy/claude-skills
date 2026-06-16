@@ -89,6 +89,13 @@ def test_install_no_commands_flag(tmp_path):
     assert not (tmp_path / ".claude/commands").exists()
 
 
+def test_install_ships_all_commands(tmp_path):
+    _run(tmp_path, "--project")
+    src = {p.name for p in (REPO / "commands/roadmap").glob("*.md")}
+    dest = {p.name for p in (tmp_path / ".claude/commands/roadmap").glob("*.md")}
+    assert src and src == dest          # every command in the repo gets installed
+
+
 def test_install_writes_claude_md_rules(tmp_path):
     res = _run(tmp_path, "--project")
     assert res.returncode == 0, res.stderr

@@ -43,6 +43,8 @@ see the autonomous section in [`commands/roadmap/build.md`](../../commands/roadm
 | `/roadmap:release <version>` | Cut a new version (guarded; writes `CHANGELOG.md`) |
 | `/roadmap:sync` | Recompute progress and re-render `ROADMAP.md` |
 
+The CLI also has `version` (prints the installed skill version, e.g. to confirm an update applied).
+
 ## CLI
 
 The commands drive a deterministic CLI you can also run directly:
