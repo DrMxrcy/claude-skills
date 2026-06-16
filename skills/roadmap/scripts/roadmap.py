@@ -273,8 +273,51 @@ def new_item(root: Path, type_: str, title: str, version: str | None = None) -> 
     return path
 
 
-def release(root: Path, version: str, tag: bool = False) -> None:
+def _incomplete_items(root: Path, version: str) -> list[dict]:
+    out = []
+    for item in read_config(root)["items"]:
+        if item["version"] == version:
+            p = roadmap_dir(root) / item["file"]
+            done, total = count_progress(p) if p.exists() else (0, 0)
+            if not (total > 0 and done == total):
+                out.append(item)
+    return out
+
+
+def write_changelog(root: Path, version: str) -> Path | None:
+    """Append a CHANGELOG.md entry listing the items completed in `version`."""
+    items = [i for i in read_config(root)["items"] if i["version"] == version]
+    if not items:
+        return None
+    path = root / "CHANGELOG.md"
+    existing = path.read_text(encoding="utf-8") if path.exists() else "# Changelog\n"
+    header = f"## v{version} — {datetime.date.today().isoformat()}"
+    if header in existing:
+        return path  # idempotent — already recorded
+    entry = "\n".join([header, ""] +
+                      [f"- {i['title']} ({i['type']})" for i in sorted(items, key=lambda x: x["id"])])
+    entry += "\n"
+    if existing.startswith("# Changelog"):
+        head, _, rest = existing.partition("\n")
+        new = f"{head}\n\n{entry}\n{rest.lstrip(chr(10))}"
+    else:
+        new = f"# Changelog\n\n{entry}\n{existing}"
+    atomic_write(path, new)
+    return path
+
+
+def release(root: Path, version: str, tag: bool = False,
+            force: bool = False, changelog: bool = True) -> None:
     cfg = read_config(root)
+    outgoing = cfg["currentVersion"]
+    incomplete = _incomplete_items(root, outgoing)
+    if incomplete and not force:
+        names = ", ".join(f"#{i['id']} {i['title']}" for i in incomplete)
+        raise ValueError(
+            f"v{outgoing} still has incomplete items: {names}. "
+            f"Finish them (see /roadmap:review) or pass --force.")
+    if changelog:
+        write_changelog(root, outgoing)
     cfg["currentVersion"] = version
     write_config(root, cfg)
     sync(root)
@@ -389,6 +432,8 @@ def main(argv: list[str]) -> int:
     p_rel = sub.add_parser("release")
     p_rel.add_argument("--version", required=True)
     p_rel.add_argument("--tag", action="store_true")
+    p_rel.add_argument("--force", action="store_true")
+    p_rel.add_argument("--no-changelog", action="store_false", dest="changelog")
 
     p_st = sub.add_parser("status")
     p_st.add_argument("--json", action="store_true", dest="as_json")
@@ -413,7 +458,8 @@ def main(argv: list[str]) -> int:
             check_step(root, args.plan, args.step, undo=args.undo, all_done=args.all_done)
             return 0
         if args.command == "release":
-            release(root, args.version, tag=args.tag)
+            release(root, args.version, tag=args.tag,
+                    force=args.force, changelog=args.changelog)
             return 0
         if args.command == "sync":
             sync(root)

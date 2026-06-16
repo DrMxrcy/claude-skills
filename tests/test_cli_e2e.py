@@ -16,6 +16,11 @@ def test_full_flow(repo):
     assert run(repo, "check", "--plan", "1", "--step", "1").returncode == 0
     st = run(repo, "status")
     assert "Login" in st.stdout
+    # release is guarded: an incomplete version is refused...
+    assert run(repo, "release", "--version", "0.0.2").returncode == 1
+    # ...complete the item, then release succeeds and writes a changelog.
+    assert run(repo, "check", "--plan", "1", "--all-done").returncode == 0
     assert run(repo, "release", "--version", "0.0.2").returncode == 0
     rm = (repo / "ROADMAP.md").read_text()
     assert "v0.0.2" in rm and "Login" in rm
+    assert "Login (feature)" in (repo / "CHANGELOG.md").read_text()

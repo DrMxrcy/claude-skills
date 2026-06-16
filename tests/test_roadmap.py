@@ -353,3 +353,35 @@ def test_init_claude_md_idempotent_and_preserves_content(roadmap, repo):
 def test_init_no_claude_md_opt_out(roadmap, repo):
     roadmap.init_project(repo, "P", claude_md=False)
     assert not (repo / "CLAUDE.md").exists()
+
+
+def test_release_blocked_when_items_incomplete(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")          # 0/2 done in v0.0.1
+    with pytest.raises(ValueError):
+        roadmap.release(repo, "0.0.2")
+    assert roadmap.read_config(repo)["currentVersion"] == "0.0.1"   # not bumped
+
+
+def test_release_force_bypasses_incomplete(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    roadmap.release(repo, "0.0.2", force=True)
+    assert roadmap.read_config(repo)["currentVersion"] == "0.0.2"
+
+
+def test_release_writes_changelog(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "Login")
+    roadmap.check_step(repo, 1, None, all_done=True)
+    roadmap.release(repo, "0.0.2")
+    cl = (repo / "CHANGELOG.md").read_text()
+    assert "## v0.0.1" in cl and "Login (feature)" in cl
+
+
+def test_release_no_changelog_skips(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "Login")
+    roadmap.check_step(repo, 1, None, all_done=True)
+    roadmap.release(repo, "0.0.2", changelog=False)
+    assert not (repo / "CHANGELOG.md").exists()

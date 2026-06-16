@@ -1,91 +1,53 @@
 # claude-skills
 
-Local skills for AI-assisted coding, installable with the skills CLI. The first skill is **roadmap**.
+A collection of installable [Agent Skills](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview)
+for AI-assisted coding (Claude Code and compatible agents). Each skill lives under
+`skills/<name>/` with its own detailed docs; new skills can be added over time.
 
 ## Install
 
-One command sets up everything — no manual copying, no editing `settings.json`, no
-cloning. For a project install it imports the skill, installs the `/roadmap:*` slash
-commands, wires the auto-sync Stop hook, and adds roadmap rules to `CLAUDE.md`
-(creating it if absent).
+One command imports the skills, their `/`-commands, the auto-sync hook, and project rules —
+no manual copying or settings edits, no clone required:
 
-**Straight from GitHub (no clone):**
 ```bash
-# this project's .claude (skills + /roadmap:* commands + hook + CLAUDE.md rules)
 curl -fsSL https://raw.githubusercontent.com/DrMxrcy/claude-skills/main/install.sh | bash
-
-# into ~/.claude (available in every project; skips CLAUDE.md)
-curl -fsSL https://raw.githubusercontent.com/DrMxrcy/claude-skills/main/install.sh | bash -s -- --global
 ```
 
-**From a clone:**
-```bash
-./install.sh            # this project's .claude/* + CLAUDE.md rules
-./install.sh --global   # ~/.claude (all projects)
-```
+- **Global** (all projects): append `| bash -s -- --global`
+- **From a clone:** `./install.sh`
+- **Flags:** `--global`, `--link` (dev symlink), `--no-hook`, `--no-commands`, `--no-claude-md`, `--init`
 
-Options: `--global` (user-level), `--link` (symlink for development), `--no-hook`
-(skip the Stop hook), `--no-commands` (skip the slash commands), `--no-claude-md`
-(don't touch `CLAUDE.md`), `--init` (also run `roadmap init` now). Env overrides:
-`SKILLS_REPO` / `SKILLS_REF` (which repo/branch to fetch in remote mode).
-
-> Replace `DrMxrcy` with your GitHub owner/org. The default for remote mode is
-> `DrMxrcy/claude-skills`; override with `SKILLS_REPO=owner/repo`.
-
-Alternatively: `npx skills add DrMxrcy/claude-skills`, or copy `skills/roadmap/`
-into `.claude/skills/` by hand.
+Then start a fresh Claude Code session so the skills and commands load. Replace `<owner>` /
+`DrMxrcy` with your fork's owner if you republish (or set `SKILLS_REPO=owner/repo`).
 
 ## Updating
 
-Re-run the same install command — it's idempotent and is the update path:
-
-```bash
-# remote: re-fetches the latest from main
-curl -fsSL https://raw.githubusercontent.com/DrMxrcy/claude-skills/main/install.sh | bash
-# from a clone: git pull first
-git pull && ./install.sh
-```
-
-It clean-replaces the skill and `/roadmap:*` commands (new ones added, stale ones removed),
-re-wires the Stop hook idempotently, and refreshes the `CLAUDE.md` rules block in place.
-Your `ROADMAP.md` and `.roadmap/` data are never touched. Start a fresh Claude session
-afterward so the updated skill and commands load.
+Re-run the install command — it's idempotent and is the update path (or `git pull && ./install.sh`
+from a clone). It refreshes skills, commands, the hook, and the `CLAUDE.md` rules block in
+place; your project's `ROADMAP.md` / `.roadmap/` data is never touched. Start a fresh session
+afterward.
 
 ## Skills
-- **roadmap** — versioned, type-tagged roadmap as a persistent tracking layer. Maintains `ROADMAP.md` + `.roadmap/` via a deterministic Python CLI (one trackable item at a time, no drift).
 
-## Slash commands
-The installer adds these to `.claude/commands/roadmap/`:
+| Skill | What it does | Docs |
+|---|---|---|
+| **roadmap** | A persistent, versioned, type-tagged roadmap that breaks ideas into trackable plans and keeps `ROADMAP.md` in sync — with `/roadmap:*` commands. | [skills/roadmap/README.md](skills/roadmap/README.md) |
 
-| Command | Does |
-|---|---|
-| `/roadmap:init` | Initialize roadmap tracking (auto-detects adopt for existing repos) |
-| `/roadmap:plan <idea>` | Brainstorm an idea into a tracked, versioned plan |
-| `/roadmap:build [id\|version]` | Build one item, a whole version/phase, or the current version — step-by-step, checking off as tests pass |
-| `/roadmap:status` | Show versions, items, and progress |
-| `/roadmap:done <id> [step]` | Mark a step/item done and resync |
-| `/roadmap:review [version]` | Verify a finished phase against its specs + code review before release |
-| `/roadmap:release <version>` | Cut a new version |
-| `/roadmap:sync` | Recompute progress and re-render `ROADMAP.md` |
+## Repository layout
 
-## CLI (used by the skill; you can also run it directly)
-```bash
-python3 skills/roadmap/scripts/roadmap.py init --name "My Project"
-python3 skills/roadmap/scripts/roadmap.py init --adopt --name "Existing Project"
-python3 skills/roadmap/scripts/roadmap.py new --type feature --title "Auth setup"
-python3 skills/roadmap/scripts/roadmap.py check --plan 1 --step 1
-python3 skills/roadmap/scripts/roadmap.py status
-python3 skills/roadmap/scripts/roadmap.py release --version 0.0.2
+```
+skills/<name>/          # each skill: SKILL.md + scripts/templates/refs + README.md
+commands/<skill>/       # slash commands for that skill (installed to .claude/commands)
+install.sh              # one-command installer (local or curl | bash)
+.claude-plugin/         # plugin manifest (marketplace compatibility)
+tests/                  # pytest suite
 ```
 
-## Auto-sync Stop hook
-The installer wires this into `settings.json` automatically (use `--no-hook` to skip). It
-keeps `ROADMAP.md` synced even if a `sync` is missed. To add it by hand instead:
-```json
-{ "hooks": { "Stop": [ { "hooks": [
-  { "type": "command", "command": "bash .claude/skills/roadmap/hooks/roadmap-sync.sh" }
-] } ] } }
-```
+To add a skill: drop it in `skills/<name>/` (with a `SKILL.md` and a `README.md`), add any
+`commands/<name>/` files, and list it in the table above. The installer picks up every skill
+under `skills/` automatically.
 
 ## Requirements
-Python 3 (stdlib only; `pyproject.toml` version detection uses `tomllib`, Python 3.11+). No third-party dependencies.
+
+Python 3, standard library only (no third-party deps). `pyproject.toml` version detection
+uses `tomllib` (Python 3.11+); everything else works on older Python 3.
