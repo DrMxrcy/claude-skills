@@ -37,6 +37,7 @@ see the autonomous section in [`commands/roadmap/build.md`](../../commands/roadm
 | `/roadmap:plan <idea>` | Brainstorm an idea into a tracked, versioned plan; links its spec/detailed plan |
 | `/roadmap:build [id\|version] [--auto]` | Build one item, a whole version/phase, or the current version — step-by-step, tests before each check; `--auto` skips per-item checkpoints |
 | `/roadmap:next` | Build the next unfinished item in the current version |
+| `/roadmap:catchup [id]` | Reconcile the roadmap with work done outside the commands (checks off completed steps) |
 | `/roadmap:status` | Show versions, items, types, and progress |
 | `/roadmap:done <id> [step]` | Mark a step/item done and resync |
 | `/roadmap:review [version]` | Verify a finished phase against its specs + code review before release |
