@@ -457,3 +457,65 @@ def test_version_command(roadmap, repo, monkeypatch, capsys):
     monkeypatch.chdir(repo)
     assert roadmap.main(["version"]) == 0
     assert capsys.readouterr().out.strip() == roadmap.get_version()
+
+
+def test_reorder_changes_render_sequence_within_version(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")   # id 1
+    roadmap.new_item(repo, "feature", "B")   # id 2
+    roadmap.new_item(repo, "feature", "C")   # id 3
+    roadmap.reorder(repo, "0.0.1", [3, 1, 2])
+    rm = (repo / "ROADMAP.md").read_text()
+    assert rm.index("#3 C") < rm.index("#1 A") < rm.index("#2 B")
+
+
+def test_reorder_rejects_id_from_other_version(roadmap, repo):
+    import pytest
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    roadmap.new_item(repo, "feature", "B", version="1.0.0")
+    with pytest.raises(ValueError):
+        roadmap.reorder(repo, "0.0.1", [2])
+
+
+def test_render_defaults_to_id_order_without_reorder(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    roadmap.new_item(repo, "feature", "B")
+    rm = (repo / "ROADMAP.md").read_text()
+    assert rm.index("#1 A") < rm.index("#2 B")
+
+
+def test_merge_combines_steps_and_drops_sources(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    keep = roadmap.new_item(repo, "feature", "Auth")
+    src = roadmap.new_item(repo, "feature", "Login")
+    keep.write_text(keep.read_text() + "\n## Extra\n- [ ] keep step\n")
+    src.write_text(src.read_text() + "\n## Extra\n- [x] source step\n")
+    roadmap.merge_items(repo, keep_id=1, source_ids=[2])
+    cfg = roadmap.read_config(repo)
+    assert [i["id"] for i in cfg["items"]] == [1]   # source removed
+    assert not src.exists()                         # source plan deleted
+    merged = keep.read_text()
+    assert "keep step" in merged and "source step" in merged
+
+
+def test_merge_rewrites_dependencies_to_keeper(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")   # 1
+    roadmap.new_item(repo, "feature", "B")   # 2
+    roadmap.new_item(repo, "feature", "C")   # 3
+    cfg = roadmap.read_config(repo)
+    next(i for i in cfg["items"] if i["id"] == 3)["dependsOn"] = [2]
+    roadmap.write_config(repo, cfg)
+    roadmap.merge_items(repo, keep_id=1, source_ids=[2])
+    c = next(i for i in roadmap.read_config(repo)["items"] if i["id"] == 3)
+    assert c["dependsOn"] == [1]           # dep retargeted 2 -> 1
+
+
+def test_merge_rejects_keeper_in_sources(roadmap, repo):
+    import pytest
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    with pytest.raises(ValueError):
+        roadmap.merge_items(repo, keep_id=1, source_ids=[1])

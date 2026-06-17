@@ -153,7 +153,8 @@ def render_region(cfg: dict, progress: dict) -> str:
         by_version.setdefault(item["version"], []).append(item)
     lines = ["## 📊 Versions", ""]
     for version in sorted(by_version, key=_version_key):
-        items = by_version[version]
+        items = sorted(by_version[version],
+                       key=lambda i: (i.get("order", i["id"]), i["id"]))
         done_total = [progress.get(i["id"], (0, 0)) for i in items]
         d = sum(x for x, _ in done_total)
         t = sum(y for _, y in done_total)
@@ -318,6 +319,63 @@ def set_note(root: Path, plan_id: int, text: str) -> None:
             write_config(root, cfg)
             return
     raise ValueError(f"no plan with id {plan_id}")
+
+
+def reorder(root: Path, version: str, ids: list[int]) -> None:
+    """Set explicit display/build order for items within a version."""
+    version = _norm_version(version)
+    cfg = read_config(root)
+    in_version = {i["id"] for i in cfg["items"] if i["version"] == version}
+    stray = [i for i in ids if i not in in_version]
+    if stray:
+        raise ValueError(f"id(s) {stray} are not in version {version}")
+    pos = {iid: n for n, iid in enumerate(ids)}
+    for item in cfg["items"]:
+        if item["id"] in pos:
+            item["order"] = pos[item["id"]]
+    write_config(root, cfg)
+    sync(root)
+
+
+def merge_items(root: Path, keep_id: int, source_ids: list[int]) -> None:
+    """Combine `source_ids` into `keep_id`: append their checklist steps to the keeper's
+    plan, delete the source plans, drop them from the registry, and retarget any
+    dependency that pointed at a source to the keeper. Used to dedupe/consolidate."""
+    if keep_id in source_ids:
+        raise ValueError(f"keeper #{keep_id} cannot be in the sources")
+    if len(set(source_ids)) != len(source_ids):
+        raise ValueError("duplicate source ids")
+    cfg = read_config(root)
+    by_id = {i["id"]: i for i in cfg["items"]}
+    for iid in [keep_id, *source_ids]:
+        if iid not in by_id:
+            raise ValueError(f"no plan with id {iid}")
+    keep_path = roadmap_dir(root) / by_id[keep_id]["file"]
+    appended = []
+    for sid in source_ids:
+        src = by_id[sid]
+        sp = roadmap_dir(root) / src["file"]
+        if sp.exists():
+            steps = parse_plan(sp)["steps"]
+            appended.append(f"\n## Merged from #{sid} {src['title']}\n")
+            appended += [f"- [{'x' if done else ' '}] {txt}" for done, txt in steps]
+            sp.unlink()
+    if appended:
+        atomic_write(keep_path, keep_path.read_text(encoding="utf-8").rstrip()
+                     + "\n" + "\n".join(appended) + "\n")
+    drop = set(source_ids)
+    cfg["items"] = [i for i in cfg["items"] if i["id"] not in drop]
+    for item in cfg["items"]:                       # retarget dependencies to the keeper
+        deps = item.get("dependsOn")
+        if deps:
+            new = [keep_id if d in drop else d for d in deps]
+            new = [d for d in dict.fromkeys(new) if d != item["id"]]
+            if new:
+                item["dependsOn"] = new
+            else:
+                item.pop("dependsOn", None)
+    write_config(root, cfg)
+    sync(root)
 
 
 def _incomplete_items(root: Path, version: str) -> list[dict]:
@@ -517,6 +575,14 @@ def main(argv: list[str]) -> int:
     p_imp = sub.add_parser("import")
     p_imp.add_argument("path")
 
+    p_re = sub.add_parser("reorder")
+    p_re.add_argument("--version", required=True)
+    p_re.add_argument("--order", required=True)
+
+    p_mg = sub.add_parser("merge")
+    p_mg.add_argument("--into", type=int, required=True)
+    p_mg.add_argument("--from", dest="sources", required=True)
+
     args = parser.parse_args(argv)
     root = find_root(Path.cwd())
     try:
@@ -543,6 +609,13 @@ def main(argv: list[str]) -> int:
             return 0
         if args.command == "version":
             print(get_version())
+            return 0
+        if args.command == "reorder":
+            reorder(root, args.version, [int(x) for x in args.order.split(",") if x.strip()])
+            return 0
+        if args.command == "merge":
+            merge_items(root, args.into,
+                        [int(x) for x in args.sources.split(",") if x.strip()])
             return 0
         if args.command == "import":
             created = import_file(root, Path(args.path))
