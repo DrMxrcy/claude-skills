@@ -43,9 +43,72 @@ see the autonomous section in [`commands/roadmap/build.md`](../../commands/roadm
 | `/roadmap:review [version]` | Verify a finished phase against its specs + code review before release |
 | `/roadmap:release <version>` | Cut a new version (guarded; writes `CHANGELOG.md`) |
 | `/roadmap:changelog [version]` | Show the latest changelog entry, or backfill user-facing notes from git history |
+| `/roadmap:reevaluate [version]` | Audit the codebase against the roadmap — surface missed/duplicate/stale work and resequence |
 | `/roadmap:sync` | Recompute progress and re-render `ROADMAP.md` |
 
 The CLI also has `version` (prints the installed skill version, e.g. to confirm an update applied).
+
+## Command reference (in depth)
+
+The three reconcilers are easy to confuse, so here is the precise division of labour:
+**`sync`** only re-renders from existing checkboxes (never reads your code). **`catchup`**
+reads your code to check off steps of items that *already exist*. **`reevaluate`** audits
+the whole roadmap against the codebase and *reorganizes* it (adds missed items, merges
+dupes, flags stale work, resequences). Use the one that matches the drift you have.
+
+### Setup & planning
+
+- **`/roadmap:init`** — Sets up tracking in the current project: creates `.roadmap/`
+  (`config.json` + `plans/`), a `ROADMAP.md` with managed markers, and adds the rules
+  block to `CLAUDE.md`. On an existing repo it auto-adopts (detects the current version
+  from `package.json`/`pyproject.toml`/git tags). Idempotent — safe to re-run; existing
+  items and version are preserved.
+- **`/roadmap:plan <idea>`** — Turns a raw idea into a tracked, versioned item. Brainstorms
+  scope, classifies the **type** (`feature`/`bug`/`refactor`/`chore`) and **version** (the
+  semver bump), researches as needed, then runs `new` to create the plan file with a
+  step-by-step checklist. If it produces a spec or detailed plan, those are saved under
+  `docs/` and linked at the top of the plan so `build` can follow them.
+
+### Building
+
+- **`/roadmap:build [id|version] [--auto]`** — The workhorse. A bare **id** builds that one
+  item; a **version** (e.g. `1.0.0`) builds every incomplete item in that phase; **empty**
+  builds the current version. Works one checklist step at a time, requires build/tests to
+  pass before checking a step off, and commits code + roadmap together. Without `--auto`
+  it pauses for a checkpoint after each item; `--auto` runs the whole selection back-to-back.
+- **`/roadmap:next`** — Builds just the next unfinished item in the current version (the
+  lowest-id item that isn't 100%). Equivalent to one item of a `build` run.
+- **`/roadmap:done <id> [step]`** — Manually mark a step (or a whole item, if no step given)
+  complete and resync. The quick path when you finished something by hand and just need the
+  dashboard to reflect it.
+
+### Reconciling drift
+
+- **`/roadmap:sync`** — Recomputes progress from the plan checkboxes and re-renders the
+  managed region of `ROADMAP.md`. Pure view refresh; never inspects source code. Runs
+  automatically after every mutation and via the optional Stop hook.
+- **`/roadmap:catchup [id]`** — For work done *outside* the commands: reads the code and git
+  history for the targeted (or current-version) items and checks off the steps that are
+  genuinely implemented. Reconciles **progress** of items that already exist.
+- **`/roadmap:reevaluate [version]`** — The structural audit. Scans the codebase + git
+  history and produces an **advisory** report of: missed/untracked work, done-but-untracked
+  features, **duplicates/overlap**, stale/obsolete items, gaps, and sequencing problems.
+  After you approve, it applies changes via the CLI only — `new`, `check`, `depends`,
+  `reorder`, and `merge` — and never auto-deletes a plan. Run it periodically as the backlog
+  grows.
+
+### Status, shipping & sharing
+
+- **`/roadmap:status`** — Prints the project, current version, and every item with its type
+  and progress. The fast orientation command at the start of a session.
+- **`/roadmap:review [version]`** — Before releasing, verifies a finished phase against its
+  linked specs and does a code review, so you cut a version only when the work truly matches
+  the plan.
+- **`/roadmap:release <version>`** — Cuts the next version. **Guarded**: refuses if the
+  current version still has incomplete items (`--force` to override). Writes a user-facing
+  `CHANGELOG.md` entry grouped ✨ New / 🐛 Fixed / ⚡ Improved, and optionally tags git.
+- **`/roadmap:changelog [version]`** — Shows the latest changelog entry, or backfills
+  user-facing notes from git history when you forgot to set them.
 
 ## CLI
 
@@ -60,9 +123,16 @@ python3 $roadmap check --plan ID --step N [--undo] [--all-done]
 python3 $roadmap status [--json]
 python3 $roadmap sync
 python3 $roadmap release --version V [--tag] [--force] [--no-changelog]
+python3 $roadmap reorder --version V --order 3,1,2          # explicit item order within a version
+python3 $roadmap merge --into KEEP_ID --from 2,5            # combine duplicate items into one
 python3 $roadmap import PATH
 python3 $roadmap version
 ```
+
+`reorder` and `merge` are the verbs `/roadmap:reevaluate` uses to resequence and dedupe:
+`reorder` sets an explicit order for items in a version (the dashboard renders by that
+order, falling back to id order), and `merge` folds the source items' checklist steps into
+the keeper, deletes the source plans, and retargets any dependencies onto the keeper.
 
 ## Versioning & changelog (user-facing)
 
