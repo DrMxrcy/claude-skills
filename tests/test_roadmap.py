@@ -419,3 +419,22 @@ def test_version_command(roadmap, repo, monkeypatch, capsys):
     monkeypatch.chdir(repo)
     assert roadmap.main(["version"]) == 0
     assert capsys.readouterr().out.strip() == roadmap.get_version()
+
+
+def test_upgrade_refreshes_rules_and_reports_version(roadmap, repo, capsys):
+    roadmap.init_project(repo, "P")
+    claude = repo / "CLAUDE.md"
+    claude.write_text(f"# P\n\n{roadmap.RULES_START}\nOLD RULES\n{roadmap.RULES_END}\n")
+    roadmap.upgrade(repo)
+    text = claude.read_text()
+    assert "OLD RULES" not in text
+    assert "## Roadmap tracking" in text
+    assert roadmap.read_config(repo)["skillVersion"] == roadmap.get_version()
+    assert roadmap.get_version() in capsys.readouterr().out
+
+
+def test_upgrade_command_runs(roadmap, repo, monkeypatch):
+    monkeypatch.chdir(repo)
+    roadmap.init_project(repo, "P")
+    assert roadmap.main(["upgrade"]) == 0
+    assert roadmap.read_config(repo)["skillVersion"] == roadmap.get_version()

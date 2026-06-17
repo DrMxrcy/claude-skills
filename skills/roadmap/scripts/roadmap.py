@@ -451,6 +451,20 @@ def init_project(root: Path, name: str, adopt: bool = False, claude_md: bool = T
     return cfg
 
 
+def upgrade(root: Path) -> None:
+    """Project-level: refresh this project's CLAUDE.md rules block to the current skill
+    version and resync. Run after updating the skill globally (the global install does
+    not touch project CLAUDE.md files)."""
+    cfg = read_config(root)
+    old = cfg.get("skillVersion", "unknown")
+    new = get_version()
+    ensure_claude_md_rules(root)
+    cfg["skillVersion"] = new
+    write_config(root, cfg)
+    sync(root)
+    print(f"Refreshed roadmap rules in {root / 'CLAUDE.md'} ({old} → v{new})")
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(prog="roadmap")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -487,6 +501,7 @@ def main(argv: list[str]) -> int:
 
     sub.add_parser("sync")
     sub.add_parser("version")
+    sub.add_parser("upgrade")
 
     p_imp = sub.add_parser("import")
     p_imp.add_argument("path")
@@ -517,6 +532,9 @@ def main(argv: list[str]) -> int:
             return 0
         if args.command == "version":
             print(get_version())
+            return 0
+        if args.command == "upgrade":
+            upgrade(root)
             return 0
         if args.command == "import":
             created = import_file(root, Path(args.path))
