@@ -1,0 +1,25 @@
+docs/superpowers/specs/2026-06-17-roadmap-v0.5.0-design.md
+  s_d823ec971f2e75::t_c38814036deb0b 147-149
+  s_d823ec971f2e75::t_50e7150bdf9943 108-133,138
+  s_d823ec971f2e75::t_fcda91b233517b 167-169
+docs/superpowers/plans/2026-06-17-roadmap-v0.5.0.md
+  s_d823ec971f2e75::t_124a2bb3921fbd 1166-1324
+  s_d823ec971f2e75::t_bb3ab295a7d680 1329-1331,1333-1334
+  s_d823ec971f2e75::t_f430fbf7da00a8 28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "bce8a0df0e595b3536ec942d5ea13ed33eb3b56b",
+  "prompts": {},
+  "sessions": {
+    "s_d823ec971f2e75": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "287c0f1e-e982-41b3-b4d4-482bd59388f2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
