@@ -132,6 +132,14 @@ def _set_frontmatter(path: Path, key: str, value: str) -> None:
         atomic_write(path, new)
 
 
+def _norm_version(v: str) -> str:
+    """Canonical internal version form: trimmed, no leading 'v' (renderers add it)."""
+    v = v.strip()
+    if v[:1] in ("v", "V"):
+        v = v[1:]
+    return v
+
+
 def _version_key(v: str):
     try:
         return (0, tuple(int(p) for p in v.split(".")))
@@ -165,6 +173,23 @@ def render_region(cfg: dict, progress: dict) -> str:
 
 def sync(root: Path) -> None:
     cfg = read_config(root)
+    # Self-heal: enforce the canonical (no-'v') version form on stored data so a
+    # project written before normalization (e.g. a `--version v1.0.0` that produced
+    # `vv1.0.0`) repairs itself on the next sync.
+    changed = False
+    if _norm_version(cfg["currentVersion"]) != cfg["currentVersion"]:
+        cfg["currentVersion"] = _norm_version(cfg["currentVersion"])
+        changed = True
+    for item in cfg["items"]:
+        nv = _norm_version(item["version"])
+        if nv != item["version"]:
+            item["version"] = nv
+            changed = True
+            path = roadmap_dir(root) / item["file"]
+            if path.exists():
+                _set_frontmatter(path, "version", nv)
+    if changed:
+        write_config(root, cfg)
     progress = {}
     for item in cfg["items"]:
         path = roadmap_dir(root) / item["file"]
@@ -264,7 +289,7 @@ def new_item(root: Path, type_: str, title: str, version: str | None = None,
         raise ValueError(f"unknown type {type_!r}; choose from {sorted(TEMPLATE_BY_TYPE)}")
     cfg = read_config(root)
     item_id = cfg["nextId"]
-    version = version or cfg["currentVersion"]
+    version = _norm_version(version or cfg["currentVersion"])
     slug = slugify(title)
     if not slug:
         raise ValueError(f"title {title!r} produces an empty slug; use alphanumeric characters")
@@ -350,6 +375,7 @@ def write_changelog(root: Path, version: str) -> Path | None:
 
 def release(root: Path, version: str, tag: bool = False,
             force: bool = False, changelog: bool = True) -> None:
+    version = _norm_version(version)
     cfg = read_config(root)
     outgoing = cfg["currentVersion"]
     incomplete = _incomplete_items(root, outgoing)
@@ -435,7 +461,7 @@ def init_project(root: Path, name: str, adopt: bool = False, claude_md: bool = T
     if (rd / "config.json").exists():
         cfg = read_config(root)                      # idempotent: keep items/version
     else:
-        version = detect_version(root) if adopt else "0.0.1"
+        version = _norm_version(detect_version(root) if adopt else "0.0.1")
         cfg = {"project": name, "currentVersion": version, "nextId": 1,
                "items": [], "settings": {"autoCommit": True, "gitTagOnRelease": False}}
         write_config(root, cfg)

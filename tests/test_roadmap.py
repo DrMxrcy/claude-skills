@@ -409,6 +409,44 @@ def test_release_no_changelog_skips(roadmap, repo):
     assert not (repo / "CHANGELOG.md").exists()
 
 
+def test_norm_version_strips_leading_v(roadmap):
+    assert roadmap._norm_version("v1.0.0") == "1.0.0"
+    assert roadmap._norm_version("V2.3.4") == "2.3.4"
+    assert roadmap._norm_version(" 1.0.0 ") == "1.0.0"
+    assert roadmap._norm_version("1.0.0") == "1.0.0"
+
+
+def test_new_item_normalizes_v_prefixed_version(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "First", version="1.0.0")
+    roadmap.new_item(repo, "feature", "Eighth", version="v1.0.0")
+    versions = [i["version"] for i in roadmap.read_config(repo)["items"]]
+    assert versions == ["1.0.0", "1.0.0"]
+    roadmap_md = (repo / "ROADMAP.md").read_text()
+    assert "vv1.0.0" not in roadmap_md
+    assert roadmap_md.count("### [ ] v1.0.0") == 1
+
+
+def test_release_normalizes_v_prefixed_version(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "Login")
+    roadmap.check_step(repo, 1, None, all_done=True)
+    roadmap.release(repo, "v0.0.2")
+    assert roadmap.read_config(repo)["currentVersion"] == "0.0.2"
+
+
+def test_sync_heals_v_prefixed_versions(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "First", version="1.0.0")
+    # Simulate a config corrupted before normalization existed.
+    cfg = roadmap.read_config(repo)
+    cfg["items"][0]["version"] = "v1.0.0"
+    roadmap.write_config(repo, cfg)
+    roadmap.sync(repo)
+    assert roadmap.read_config(repo)["items"][0]["version"] == "1.0.0"
+    assert "vv1.0.0" not in (repo / "ROADMAP.md").read_text()
+
+
 def test_get_version(roadmap):
     from pathlib import Path
     vf = Path(roadmap.__file__).resolve().parent.parent / "VERSION"
