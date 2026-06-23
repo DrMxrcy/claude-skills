@@ -574,6 +574,17 @@ INTERNAL_PHRASING = [
     "spam/abuse", "reusable", "scaffolding", "boilerplate", "rearchitect", "re-architect",
     "static-page", "sitemap", "robots rules", "robots.txt", "closed gaps", "headliner index",
     "walk-through", "walkthrough index", "data feed", "data feeds", "groundwork for",
+    "public url", "public urls", "expiring link", "expiring links", "signed url",
+    "signed urls", "vulnerability", "exploit", "under the hood",
+    "structured data", "metadata", "search-optimized", "search optimized", "seo",
+]
+# Wrong-audience tells: admin/operator-only surfaces, and compliance/legal gates. These are
+# "user-facing" to staff or to regulators — not to the end users who read a public changelog.
+INTERNAL_SCOPE = [
+    "admin", "admins", "admin panel", "admin console", "admin area", "admin dashboard",
+    "moderation", "moderator", "moderators", "audit trail", "audit log", "role-gated", "cms",
+    "compliance", "coppa", "gdpr", "age gate", "age-gate", "age verification", "13-and-up",
+    "13 and up", "underage", "minimum age", "eula", "terms acceptance", "community guidelines",
 ]
 
 
@@ -593,7 +604,8 @@ def lint_note(text: str, extra_terms: list[str] | None = None) -> list[str]:
                        r"json|ya?ml|toml|sql|sh|css|scss)\b", text)    # foo/bar.ts
     hits += re.findall(r"\b\w+(?:/\w+){2,}\b", text)                   # a/b/c paths
     low = text.lower()
-    terms = [*INTERNAL_VENDORS, *INTERNAL_JARGON, *INTERNAL_PHRASING, *(extra_terms or [])]
+    terms = [*INTERNAL_VENDORS, *INTERNAL_JARGON, *INTERNAL_PHRASING, *INTERNAL_SCOPE,
+             *(extra_terms or [])]
     hits += [t for t in terms if re.search(r"\b" + re.escape(t.lower()) + r"\b", low)]
     seen, uniq = set(), []                                            # de-dupe, keep order
     for h in hits:
@@ -718,6 +730,12 @@ def audit_public_notes(root: Path) -> list[str]:
         tells = lint_note(note, extra)
         if tells:
             msgs.append(f"#{it['id']} note reads internal ({', '.join(tells)}): \"{note}\"")
+        # The note may read clean while the work is actually admin-only, a compliance gate, or
+        # otherwise internal — the planning title usually still carries that signal.
+        title_only = [t for t in lint_note(it["title"], extra) if t not in tells]
+        if title_only:
+            msgs.append(f"#{it['id']} note looks clean but its title suggests internal/admin "
+                        f"scope ({', '.join(title_only)}) — confirm it's really public: \"{it['title']}\"")
     return msgs
 
 

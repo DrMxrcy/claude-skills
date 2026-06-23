@@ -33,6 +33,41 @@ for the full log. If the section is already curated, it's ready to paste.
 4. Re-run `python3 <roadmap.py> changelog` until it prints no warnings, then preview both
    files. `/roadmap:release` stamps the dated section; this command just gets it clean.
 
+**What "public" actually means.** The public changelog is a **marketing surface — a What's
+New for end users, not a complete record.** An item is `public` only if it is *net-new*,
+*end-user-visible*, *worth announcing*, and *safe to announce*. Before writing a note, run it
+past these exclusions — each sends the item to `internal` even if it shipped real work:
+
+- **Admin / operator-only** — admin panels, dashboards, user management, moderation, the
+  CMS/markdown editor, "…on the web" tools that only staff use. The people who read a public
+  changelog are end users, not your admins. *(A note can read perfectly user-facing and still
+  be admin-only — judge by who actually uses the feature; the audit also flags admin/CMS words
+  in the item's title.)*
+- **Security fixes that disclose a past hole** — "now protected by expiring links instead of
+  public URLs", "closed a privilege gap". Announcing the fix tells users (and attackers) they
+  were exposed. Keep these `internal`; never describe the prior weakness.
+- **Compliance / legal gates** — age gates (13+), terms/EULA acceptance, COPPA/GDPR, account
+  deletion required by policy. Required, not a feature anyone chose. `internal`.
+- **Foundational / launch / table-stakes** — "you can sign up", "choose a @username", core
+  navigation, "the app has a dark theme". Baseline, not *new*. Don't list the product's
+  existence as a highlight — even at v1.0.0, lead with the headline experience, not every
+  brick that makes the app an app.
+- **Trivial housekeeping / cosmetic / minor nav** — "the Settings screen now matches the
+  theme", "moved Search to an easier-to-reach spot", "a Settings screen with sign out". Real,
+  but nobody reads a changelog for these. Fold them into the behind-the-scenes roll-up.
+
+Litmus test: *"Would we proudly put this in the App Store 'What's New', and be glad a
+competitor read it?"* If it's plumbing, admin-only, a fixed embarrassment, a legal checkbox,
+cosmetic housekeeping, or just "the app works" — it's `internal`.
+
+**Collapse a campaign into one line.** When many items are the same initiative, the public
+changelog gets **one headline**, not every variant — mark the rest `internal`. A version that
+shipped six SEO items ("static-page builder", "per-park web pages", "news web pages",
+"sitemap.xml", "structured data", "search-optimized homepage") gets *one* public line —
+"Parks, rides, and news now show up when you search Google" — and the plumbing stays internal.
+Same for five "responsive web layout" items → "Parkboxd now has a proper desktop web layout."
+The public changelog is the highlight reel; the internal log keeps the full list.
+
 **Writing voice — public vs internal.** This is the part to get right:
 
 - **Public note** = what the *user* gains, in *their* words. One sentence, lead with the

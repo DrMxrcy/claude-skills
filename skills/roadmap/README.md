@@ -30,9 +30,11 @@ need `/roadmap:release` to get a changelog.
 shows progress anytime; `/roadmap:sync` re-renders the dashboard.
 
 For an **unattended phase build**, `/roadmap:build <version> --auto` runs items back-to-back
-without checkpoints. If you have the [`ralph-loop`](https://github.com/anthropics/claude-code/tree/main/plugins/ralph-wiggum)
-plugin, you can drive it as a harness-enforced loop with a `--max-iterations` safety cap —
-see the autonomous section in [`commands/roadmap/build.md`](../../commands/roadmap/build.md).
+without checkpoints; add `--worktree` to isolate the work in a `roadmap/v<version>` git
+worktree and `--pr` to open a PR at 100% without merging to main. If you have the
+[`ralph-loop`](https://github.com/anthropics/claude-code/tree/main/plugins/ralph-wiggum)
+plugin, you can drive that same flow as a harness-enforced loop with a `--max-iterations`
+safety cap — see the autonomous section in [`commands/roadmap/build.md`](../../commands/roadmap/build.md).
 
 ## Slash commands
 
@@ -40,7 +42,7 @@ see the autonomous section in [`commands/roadmap/build.md`](../../commands/roadm
 |---|---|
 | `/roadmap:init` | Initialize tracking (auto-detects adopt for existing repos) |
 | `/roadmap:plan <idea>` | Brainstorm an idea into a tracked, versioned plan; links its spec/detailed plan |
-| `/roadmap:build [id\|version] [--auto]` | Build one item, a whole version/phase, or the current version — step-by-step, tests before each check; `--auto` skips per-item checkpoints |
+| `/roadmap:build [id\|version] [--auto] [--worktree] [--pr]` | Build one item, a whole version/phase, or the current version — step-by-step, tests before each check; `--auto` skips per-item checkpoints, `--worktree` isolates in a git worktree, `--pr` opens a PR at 100% (never merges to main) |
 | `/roadmap:next` | Build the next unfinished item in the current version |
 | `/roadmap:catchup [id]` | Reconcile the roadmap with work done outside the commands (checks off completed steps) |
 | `/roadmap:status` | Show versions, items, types, and progress |
@@ -79,11 +81,14 @@ dupes, flags stale work, resequences). Use the one that matches the drift you ha
 
 ### Building
 
-- **`/roadmap:build [id|version] [--auto]`** — The workhorse. A bare **id** builds that one
-  item; a **version** (e.g. `1.0.0`) builds every incomplete item in that phase; **empty**
-  builds the current version. Works one checklist step at a time, requires build/tests to
-  pass before checking a step off, and commits code + roadmap together. Without `--auto`
-  it pauses for a checkpoint after each item; `--auto` runs the whole selection back-to-back.
+- **`/roadmap:build [id|version] [--auto] [--worktree] [--pr]`** — The workhorse. A bare
+  **id** builds that one item; a **version** (e.g. `1.0.0`) builds every incomplete item in
+  that phase; **empty** builds the current version. Works one checklist step at a time,
+  requires build/tests to pass before checking a step off, and commits code + roadmap
+  together. Without `--auto` it pauses for a checkpoint after each item; `--auto` runs the
+  whole selection back-to-back. `--worktree` isolates the build in a `roadmap/v<version>` git
+  worktree; `--pr` opens a PR once the selection hits 100% and never merges to main. Together
+  (`--auto --worktree --pr`) they make a fully hands-off phase build.
 - **`/roadmap:next`** — Builds just the next unfinished item in the current version (the
   lowest-id item that isn't 100%). Equivalent to one item of a `build` run.
 - **`/roadmap:done <id> [step]`** — Manually mark a step (or a whole item, if no step given)
@@ -173,10 +178,18 @@ release (do it on a branch; the CLI edits roadmap state, not git).
     work get one **"behind-the-scenes" roll-up line** instead of listing it. This is the file
     you paste into the **App Store "What's New"** or a website changelog.
   - **`CHANGELOG.internal.md`** — every item, note falling back to title: the full dev log.
-- **Writing voice** (the `/roadmap:*` commands prompt the AI for this): public notes are
-  *user-benefit, plain language* — what the user can now do, in their words; no vendor/tool
-  names (Convex, Sentry, Codex, EAS…), file paths, issue refs, or dev jargon. The CLI lints
-  public notes and warns when they read internal. Internal items can use any technical detail.
+- **What counts as `public`** (the `/roadmap:*` commands prompt the AI for this): the public
+  changelog is a **marketing surface, not a complete record** — an item is public only if it's
+  *net-new, end-user-visible, worth announcing, and safe to announce*. Sent to `internal` even
+  when real work shipped: **admin/operator-only** features (panels, CMS, moderation),
+  **security fixes that disclose a past hole** ("now uses expiring links instead of public
+  URLs"), **compliance/legal gates** (age gate, EULA, GDPR), and **foundational/launch
+  table-stakes** ("you can sign up", "pick a @username"). Litmus: *would you proudly put it in
+  the App Store "What's New"?*
+- **Writing voice**: public notes are *user-benefit, plain language* — what the user can now
+  do, in their words; no vendor/tool names (Convex, Sentry, Codex, EAS…), file paths, issue
+  refs, or dev jargon. The CLI lints public notes (and item titles) and warns when they read
+  internal, admin-only, or self-incriminating. Internal items can use any technical detail.
 - An item appears once it hits 100%; its version's heading is dated once *all* the version's
   items are complete (persisted, so re-renders are stable). In-progress versions show
   `(in progress)` with `(pending)` lines — no `release` step required.

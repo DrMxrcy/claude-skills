@@ -827,6 +827,20 @@ def test_lint_note_flags_soft_dev_phrasing(roadmap):
     assert roadmap.lint_note("Crowd levels are more accurate now") == []   # clean benefit
 
 
+def test_lint_note_flags_scope_and_compliance_terms(roadmap):
+    assert "admin" in [t.lower() for t in roadmap.lint_note("New admin dashboard")]
+    assert "gdpr" in [t.lower() for t in roadmap.lint_note("GDPR data export tool")]
+    assert "moderation" in [t.lower() for t in roadmap.lint_note("Moderation queue")]
+
+
+def test_audit_flags_internal_scope_in_clean_looking_title(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    # note reads user-facing, but the title reveals admin-only scope
+    roadmap.new_item(repo, "feature", "Admin moderation dashboard", note="Manage your community")
+    msgs = roadmap.audit_public_notes(repo)
+    assert any("#1" in m and "admin" in m.lower() for m in msgs)
+
+
 def test_internal_changelog_falls_back_to_title(roadmap, repo):
     roadmap.init_project(repo, "P")
     roadmap.new_item(repo, "chore", "Bump deps")               # internal, no note
