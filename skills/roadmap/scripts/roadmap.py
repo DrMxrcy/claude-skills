@@ -198,6 +198,21 @@ def sync(root: Path) -> None:
             done, total = count_progress(path)
             progress[item["id"]] = (done, total)
             _set_frontmatter(path, "status", derive_status(done, total))
+    # stamp a completion date the first time a version reaches 100% (deterministic changelog)
+    version_dates = cfg.setdefault("versionDates", {})
+    by_version: dict[str, list] = {}
+    for item in cfg["items"]:
+        by_version.setdefault(item["version"], []).append(item)
+    for version, vitems in by_version.items():
+        if version in version_dates:
+            continue
+        if vitems and all(progress.get(i["id"], (0, 0))[1] > 0
+                          and progress.get(i["id"], (0, 0))[0] == progress.get(i["id"], (0, 0))[1]
+                          for i in vitems):
+            version_dates[version] = datetime.date.today().isoformat()
+            changed = True
+    if changed:
+        write_config(root, cfg)
     body = render_region(cfg, progress) if cfg["items"] else \
         "_No items yet. Use the roadmap skill to add one._\n"
     region = f"**Current version: v{cfg['currentVersion']}**\n\n{body}"
@@ -214,6 +229,7 @@ def sync(root: Path) -> None:
     before = text.split(AUTO_START)[0]
     after = text.split(AUTO_END)[1]
     atomic_write(rm_path, f"{before}{AUTO_START}\n{region}{AUTO_END}{after}")
+    atomic_write(root / "CHANGELOG.md", render_changelog(root))
 
 
 STEP_RE = re.compile(r"^(\s*[-*]\s+)\[( |x|X)\](.*)$")
@@ -321,6 +337,74 @@ def set_note(root: Path, plan_id: int, text: str) -> None:
     raise ValueError(f"no plan with id {plan_id}")
 
 
+def set_depends(root: Path, plan_id: int, on: list[int], clear: bool = False) -> None:
+    """Set (or clear) an item's `dependsOn` list. Advisory ordering metadata consumed by
+    /roadmap:reevaluate and retargeted by merge/remove."""
+    cfg = read_config(root)
+    by_id = {i["id"]: i for i in cfg["items"]}
+    if plan_id not in by_id:
+        raise ValueError(f"no plan with id {plan_id}")
+    if clear:
+        by_id[plan_id].pop("dependsOn", None)
+        write_config(root, cfg)
+        return
+    if plan_id in on:
+        raise ValueError(f"plan #{plan_id} cannot depend on itself")
+    for d in on:
+        if d not in by_id:
+            raise ValueError(f"no plan with id {d}")
+    by_id[plan_id]["dependsOn"] = list(dict.fromkeys(on))
+    write_config(root, cfg)
+
+
+INCUBATOR_RE = re.compile(r"(?im)^#{1,6}\s+.*idea incubator.*$")
+
+
+def _incubator_stub(root: Path, plan_id: int, title: str) -> None:
+    """Append a breadcrumb for a removed item under the free-form Idea Incubator heading.
+    Edits ROADMAP.md directly (outside the roadmap:auto markers, which sync owns)."""
+    rm = root / "ROADMAP.md"
+    text = rm.read_text(encoding="utf-8")
+    stub = f"- (was #{plan_id}) {title}"
+    m = INCUBATOR_RE.search(text)
+    if m:
+        new = text[:m.end()] + "\n" + stub + text[m.end():]
+    else:
+        new = text.rstrip() + f"\n\n## 💡 Idea Incubator\n{stub}\n"
+    atomic_write(rm, new)
+
+
+def remove_item(root: Path, plan_id: int) -> None:
+    """Remove a tracked item: archive its plan file, drop it from the registry, clear any
+    dependency that pointed at it, and demote it to the Idea Incubator. Reversible."""
+    cfg = read_config(root)
+    by_id = {i["id"]: i for i in cfg["items"]}
+    if plan_id not in by_id:
+        raise ValueError(f"no plan with id {plan_id}")
+    item = by_id[plan_id]
+    dependents = [i["id"] for i in cfg["items"] if plan_id in (i.get("dependsOn") or [])]
+    if dependents:
+        print(f"Warning: #{dependents} depended on #{plan_id}; clearing that link.",
+              file=sys.stderr)
+    src = roadmap_dir(root) / item["file"]
+    if src.exists():
+        dest = roadmap_dir(root) / "archive" / Path(item["file"]).name
+        atomic_write(dest, src.read_text(encoding="utf-8"))
+        src.unlink()
+    cfg["items"] = [i for i in cfg["items"] if i["id"] != plan_id]
+    for i in cfg["items"]:
+        deps = i.get("dependsOn")
+        if deps and plan_id in deps:
+            new = [d for d in deps if d != plan_id]
+            if new:
+                i["dependsOn"] = new
+            else:
+                i.pop("dependsOn", None)
+    write_config(root, cfg)
+    _incubator_stub(root, plan_id, item["title"])
+    sync(root)
+
+
 def reorder(root: Path, version: str, ids: list[int]) -> None:
     """Set explicit display/build order for items within a version."""
     version = _norm_version(version)
@@ -395,44 +479,67 @@ TYPE_SECTION = {"feature": "✨ New", "bug": "🐛 Fixed",
 SECTION_ORDER = ["✨ New", "🐛 Fixed", "⚡ Improved"]
 
 
-def write_changelog(root: Path, version: str) -> Path | None:
-    """Append a user-facing CHANGELOG.md entry for `version`, grouped by change kind.
+def render_changelog(root: Path) -> str:
+    """Render CHANGELOG.md from config: every version that has items, grouped by section,
+    using each item's user-facing `note` (fallback: title). A version is dated once all its
+    items reach 100% (date persisted in config.versionDates for stable re-rendering);
+    otherwise it renders '(in progress)' with '(pending)' lines for unfinished items."""
+    cfg = read_config(root)
+    version_dates = cfg.get("versionDates", {})
+    by_version: dict[str, list] = {}
+    for item in cfg["items"]:
+        by_version.setdefault(item["version"], []).append(item)
+    out = ["# Changelog", ""]
+    for version in sorted(by_version, key=_version_key, reverse=True):
+        vitems = sorted(by_version[version], key=lambda i: i["id"])
+        sections: dict[str, list[tuple[bool, str]]] = {}
+        done_all = True
+        for it in vitems:
+            p = roadmap_dir(root) / it["file"]
+            done, total = count_progress(p) if p.exists() else (0, 0)
+            complete = total > 0 and done == total
+            done_all = done_all and complete
+            section = TYPE_SECTION.get(it["type"], "⚡ Improved")
+            sections.setdefault(section, []).append((complete, it.get("note") or it["title"]))
+        date = version_dates.get(version)
+        if done_all and date:
+            out.append(f"## v{version} — {date}")
+        elif done_all:
+            out.append(f"## v{version}")
+        else:
+            out.append(f"## v{version} — (in progress)")
+        out.append("")
+        for section in SECTION_ORDER:
+            entries = sections.get(section)
+            if not entries:
+                continue
+            out.append(f"### {section}")
+            out += [f"- {label}" if complete else f"- (pending) {label}"
+                    for complete, label in entries]
+            out.append("")
+    return "\n".join(out).rstrip() + "\n"
 
-    Each item shows its `note` (a user-facing one-liner) if set, else its title — so the
-    entry reads like an App Store "What's New" / website changelog rather than dev tasks.
-    """
-    items = [i for i in read_config(root)["items"] if i["version"] == version]
-    if not items:
-        return None
-    path = root / "CHANGELOG.md"
-    existing = path.read_text(encoding="utf-8") if path.exists() else "# Changelog\n"
-    header = f"## v{version} — {datetime.date.today().isoformat()}"
-    if header in existing:
-        return path  # idempotent — already recorded
 
-    by_section: dict[str, list[str]] = {}
-    for i in sorted(items, key=lambda x: x["id"]):
-        section = TYPE_SECTION.get(i["type"], "⚡ Improved")
-        by_section.setdefault(section, []).append(i.get("note") or i["title"])
-    lines = [header, ""]
-    for section in SECTION_ORDER:
-        if by_section.get(section):
-            lines.append(f"### {section}")
-            lines += [f"- {label}" for label in by_section[section]]
-            lines.append("")
-    entry = "\n".join(lines).rstrip() + "\n"
-
-    if existing.startswith("# Changelog"):
-        head, _, rest = existing.partition("\n")
-        new = f"{head}\n\n{entry}\n{rest.lstrip(chr(10))}"
-    else:
-        new = f"# Changelog\n\n{entry}\n{existing}"
-    atomic_write(path, new)
-    return path
+def backfill_changelog(root: Path) -> None:
+    """For each version lacking a recorded date, adopt its matching git tag's commit date
+    (git tag v<ver>). Versions without a tag stay undated. Then re-sync to re-render."""
+    cfg = read_config(root)
+    version_dates = cfg.setdefault("versionDates", {})
+    changed = False
+    for version in {i["version"] for i in cfg["items"]}:
+        if version in version_dates:
+            continue
+        out = subprocess.run(["git", "log", "-1", "--format=%cs", f"v{version}"],
+                             cwd=str(root), capture_output=True, text=True)
+        if out.returncode == 0 and out.stdout.strip():
+            version_dates[version] = out.stdout.strip()
+            changed = True
+    if changed:
+        write_config(root, cfg)
+    sync(root)
 
 
-def release(root: Path, version: str, tag: bool = False,
-            force: bool = False, changelog: bool = True) -> None:
+def release(root: Path, version: str, tag: bool = False, force: bool = False) -> None:
     version = _norm_version(version)
     cfg = read_config(root)
     outgoing = cfg["currentVersion"]
@@ -442,8 +549,6 @@ def release(root: Path, version: str, tag: bool = False,
         raise ValueError(
             f"v{outgoing} still has incomplete items: {names}. "
             f"Finish them (see /roadmap:review) or pass --force.")
-    if changelog:
-        write_changelog(root, outgoing)
     cfg["currentVersion"] = version
     write_config(root, cfg)
     sync(root)
@@ -564,7 +669,6 @@ def main(argv: list[str]) -> int:
     p_rel.add_argument("--version", required=True)
     p_rel.add_argument("--tag", action="store_true")
     p_rel.add_argument("--force", action="store_true")
-    p_rel.add_argument("--no-changelog", action="store_false", dest="changelog")
 
     p_st = sub.add_parser("status")
     p_st.add_argument("--json", action="store_true", dest="as_json")
@@ -582,6 +686,17 @@ def main(argv: list[str]) -> int:
     p_mg = sub.add_parser("merge")
     p_mg.add_argument("--into", type=int, required=True)
     p_mg.add_argument("--from", dest="sources", required=True)
+
+    p_dep = sub.add_parser("depends")
+    p_dep.add_argument("--plan", type=int, required=True)
+    p_dep.add_argument("--on", default="")
+    p_dep.add_argument("--clear", action="store_true")
+
+    p_rm = sub.add_parser("remove")
+    p_rm.add_argument("--plan", type=int, required=True)
+
+    p_cl = sub.add_parser("changelog")
+    p_cl.add_argument("--backfill", action="store_true")
 
     args = parser.parse_args(argv)
     root = find_root(Path.cwd())
@@ -601,8 +716,7 @@ def main(argv: list[str]) -> int:
             check_step(root, args.plan, args.step, undo=args.undo, all_done=args.all_done)
             return 0
         if args.command == "release":
-            release(root, args.version, tag=args.tag,
-                    force=args.force, changelog=args.changelog)
+            release(root, args.version, tag=args.tag, force=args.force)
             return 0
         if args.command == "sync":
             sync(root)
@@ -616,6 +730,23 @@ def main(argv: list[str]) -> int:
         if args.command == "merge":
             merge_items(root, args.into,
                         [int(x) for x in args.sources.split(",") if x.strip()])
+            return 0
+        if args.command == "depends":
+            set_depends(root, args.plan,
+                        [int(x) for x in args.on.split(",") if x.strip()],
+                        clear=args.clear)
+            return 0
+        if args.command == "remove":
+            remove_item(root, args.plan)
+            return 0
+        if args.command == "changelog":
+            if args.backfill:
+                backfill_changelog(root)
+            else:
+                sync(root)
+            cl = root / "CHANGELOG.md"
+            if cl.exists():
+                print(cl.read_text(encoding="utf-8"), end="")
             return 0
         if args.command == "import":
             created = import_file(root, Path(args.path))
