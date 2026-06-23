@@ -73,6 +73,7 @@ On invocation, detect state and pick a phase:
 - `merge --into KEEP --from IDS` — fold duplicate items into one keeper
 - `retarget --to V (--from VERS | --plan IDS)` — re-stamp items onto another version
 - `sync` — recompute progress + re-render ROADMAP.md **and CHANGELOG.md** (safe anytime)
+- `upgrade` — refresh this project's CLAUDE.md rules to the installed skill version
 - `changelog [--backfill]` — print the live changelog; `--backfill` dates past versions from git tags
 - `release --version V [--tag] [--force]` — bump version (optional; changelog is automatic)
 - `status [--json]` — print current state

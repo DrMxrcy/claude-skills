@@ -50,6 +50,7 @@ see the autonomous section in [`commands/roadmap/build.md`](../../commands/roadm
 | `/roadmap:changelog [version]` | Print the live changelog; backfill past versions' dates from git tags / notes from history |
 | `/roadmap:reevaluate [version]` | Audit the codebase against the roadmap — surface missed/duplicate/stale work and resequence |
 | `/roadmap:sync` | Recompute progress and re-render `ROADMAP.md` |
+| `/roadmap:upgrade` | Refresh this project's `CLAUDE.md` rules to the installed skill version (after a global update) |
 
 The CLI also has `version` (prints the installed skill version, e.g. to confirm an update applied).
 

@@ -742,3 +742,22 @@ def test_cli_retarget(roadmap, repo, monkeypatch):
     roadmap.new_item(repo, "feature", "A", version="1.6.0")
     assert roadmap.main(["retarget", "--to", "1.0.0", "--from", "1.6.0"]) == 0
     assert roadmap.read_config(repo)["items"][0]["version"] == "1.0.0"
+
+
+def test_upgrade_refreshes_rules_and_reports_version(roadmap, repo, capsys):
+    roadmap.init_project(repo, "P")
+    claude = repo / "CLAUDE.md"
+    claude.write_text(f"# P\n\n{roadmap.RULES_START}\nOLD RULES\n{roadmap.RULES_END}\n")
+    roadmap.upgrade(repo)
+    text = claude.read_text()
+    assert "OLD RULES" not in text
+    assert "## Roadmap tracking" in text
+    assert roadmap.read_config(repo)["skillVersion"] == roadmap.get_version()
+    assert roadmap.get_version() in capsys.readouterr().out
+
+
+def test_upgrade_command_runs(roadmap, repo, monkeypatch):
+    monkeypatch.chdir(repo)
+    roadmap.init_project(repo, "P")
+    assert roadmap.main(["upgrade"]) == 0
+    assert roadmap.read_config(repo)["skillVersion"] == roadmap.get_version()
