@@ -211,6 +211,10 @@ def sync(root: Path) -> None:
                           for i in vitems):
             version_dates[version] = datetime.date.today().isoformat()
             changed = True
+    # drop dates for versions that no longer have any items (e.g. after a retarget)
+    for stale in [v for v in version_dates if v not in by_version]:
+        del version_dates[stale]
+        changed = True
     if changed:
         write_config(root, cfg)
     body = render_region(cfg, progress) if cfg["items"] else \
@@ -402,6 +406,39 @@ def remove_item(root: Path, plan_id: int) -> None:
                 i.pop("dependsOn", None)
     write_config(root, cfg)
     _incubator_stub(root, plan_id, item["title"])
+    sync(root)
+
+
+def retarget(root: Path, to: str, from_versions: list[str] | None = None,
+             plan_ids: list[int] | None = None) -> None:
+    """Re-stamp existing items onto version `to`. Select either by source versions
+    (`from_versions`) or by item ids (`plan_ids`) — exactly one. Used to consolidate work
+    spread across versions (e.g. fold v1.0.0–v1.6.0 into a single v1.0.0 on a release branch).
+    Leaves currentVersion untouched; the git branch is the caller's workflow."""
+    if bool(from_versions) == bool(plan_ids):
+        raise ValueError("pass exactly one of from_versions / plan_ids")
+    to = _norm_version(to)
+    cfg = read_config(root)
+    by_id = {i["id"]: i for i in cfg["items"]}
+    if plan_ids:
+        for pid in plan_ids:
+            if pid not in by_id:
+                raise ValueError(f"no plan with id {pid}")
+        selected = [by_id[pid] for pid in plan_ids]
+    else:
+        wanted = {_norm_version(v) for v in from_versions}
+        present = {i["version"] for i in cfg["items"]}
+        for v in wanted - present:
+            print(f"Warning: no items in version {v}; skipping.", file=sys.stderr)
+        selected = [i for i in cfg["items"] if i["version"] in wanted]
+    if not selected:
+        raise ValueError("retarget selected no items")
+    for item in selected:
+        item["version"] = to
+        path = roadmap_dir(root) / item["file"]
+        if path.exists():
+            _set_frontmatter(path, "version", to)
+    write_config(root, cfg)
     sync(root)
 
 
@@ -698,6 +735,11 @@ def main(argv: list[str]) -> int:
     p_cl = sub.add_parser("changelog")
     p_cl.add_argument("--backfill", action="store_true")
 
+    p_rt = sub.add_parser("retarget")
+    p_rt.add_argument("--to", required=True)
+    p_rt.add_argument("--from", dest="from_versions", default="")
+    p_rt.add_argument("--plan", dest="plan_ids", default="")
+
     args = parser.parse_args(argv)
     root = find_root(Path.cwd())
     try:
@@ -738,6 +780,11 @@ def main(argv: list[str]) -> int:
             return 0
         if args.command == "remove":
             remove_item(root, args.plan)
+            return 0
+        if args.command == "retarget":
+            retarget(root, args.to,
+                     from_versions=[v for v in args.from_versions.split(",") if v.strip()] or None,
+                     plan_ids=[int(x) for x in args.plan_ids.split(",") if x.strip()] or None)
             return 0
         if args.command == "changelog":
             if args.backfill:

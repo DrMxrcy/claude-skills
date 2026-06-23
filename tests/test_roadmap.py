@@ -666,3 +666,79 @@ def test_backfill_no_tag_leaves_undated(roadmap, repo):
     roadmap.write_config(repo, cfg)
     roadmap.backfill_changelog(repo)
     assert roadmap.read_config(repo)["versionDates"] == {}   # nothing to backfill
+
+
+def test_retarget_from_versions_moves_items(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A", version="1.0.0")   # 1
+    roadmap.new_item(repo, "feature", "B", version="1.3.0")   # 2
+    roadmap.new_item(repo, "feature", "C", version="1.6.0")   # 3
+    roadmap.retarget(repo, "1.0.0", from_versions=["1.3.0", "1.6.0"])
+    versions = {i["id"]: i["version"] for i in roadmap.read_config(repo)["items"]}
+    assert versions == {1: "1.0.0", 2: "1.0.0", 3: "1.0.0"}
+
+
+def test_retarget_rewrites_plan_frontmatter(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    p = roadmap.new_item(repo, "feature", "A", version="1.3.0")
+    roadmap.retarget(repo, "2.0.0", from_versions=["1.3.0"])
+    assert "version: 2.0.0" in p.read_text()
+
+
+def test_retarget_by_plan_ids(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A", version="1.0.0")   # 1
+    roadmap.new_item(repo, "feature", "B", version="1.0.0")   # 2
+    roadmap.retarget(repo, "1.5.0", plan_ids=[2])
+    versions = {i["id"]: i["version"] for i in roadmap.read_config(repo)["items"]}
+    assert versions == {1: "1.0.0", 2: "1.5.0"}
+
+
+def test_retarget_normalizes_target(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A", version="1.0.0")
+    roadmap.retarget(repo, "v2.0.0", plan_ids=[1])
+    assert roadmap.read_config(repo)["items"][0]["version"] == "2.0.0"
+
+
+def test_retarget_requires_exactly_one_selector(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    with pytest.raises(ValueError):
+        roadmap.retarget(repo, "1.0.0")                                  # neither
+    with pytest.raises(ValueError):
+        roadmap.retarget(repo, "1.0.0", from_versions=["0.0.1"], plan_ids=[1])  # both
+
+
+def test_retarget_unknown_plan_id_raises(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    with pytest.raises(ValueError):
+        roadmap.retarget(repo, "1.0.0", plan_ids=[99])
+
+
+def test_retarget_empty_selection_raises(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A", version="1.0.0")
+    with pytest.raises(ValueError):
+        roadmap.retarget(repo, "2.0.0", from_versions=["9.9.9"])         # no such version
+
+
+def test_retarget_prunes_emptied_version_dates(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A", version="1.3.0")
+    roadmap.check_step(repo, 1, None, all_done=True)                     # stamps versionDates[1.3.0]
+    assert "1.3.0" in roadmap.read_config(repo)["versionDates"]
+    roadmap.retarget(repo, "1.0.0", from_versions=["1.3.0"])
+    vd = roadmap.read_config(repo)["versionDates"]
+    assert "1.3.0" not in vd                                             # emptied version pruned
+    cl = (repo / "CHANGELOG.md").read_text()
+    assert "## v1.0.0" in cl and "## v1.3.0" not in cl                   # re-rendered under target
+
+
+def test_cli_retarget(roadmap, repo, monkeypatch):
+    monkeypatch.chdir(repo)
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A", version="1.6.0")
+    assert roadmap.main(["retarget", "--to", "1.0.0", "--from", "1.6.0"]) == 0
+    assert roadmap.read_config(repo)["items"][0]["version"] == "1.0.0"
