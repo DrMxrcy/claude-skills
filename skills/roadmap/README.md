@@ -119,7 +119,8 @@ dupes, flags stale work, resequences). Use the one that matches the drift you ha
   the plan.
 - **`/roadmap:remove <id>`** — Removes a tracked item the clean way: archives its plan to
   `.roadmap/archive/`, drops it from the registry, clears any dependency on it, and leaves a
-  `- (was #id) title` breadcrumb under the Idea Incubator. The recoverable alternative to
+  `- (was #id) title ([archived plan](…))` breadcrumb under the Idea Incubator that links the
+  archived plan. The recoverable alternative to
   hand-editing `config.json`. (To consolidate two items instead of dropping one, use `merge`.)
 - **`/roadmap:release <version>`** — **Optional.** Pins a new current version and can `git tag`
   it. **Guarded**: refuses if the current version still has incomplete items (`--force` to

@@ -10,7 +10,8 @@ Remove a tracked item with the **roadmap** skill — the clean alternative to ha
 2. `python3 <roadmap.py> remove --plan <id>`. This:
    - archives `.roadmap/plans/<id>-*.md` to `.roadmap/archive/` (recoverable),
    - drops the item from the registry and clears any `dependsOn` that pointed at it,
-   - leaves a breadcrumb under the **Idea Incubator** in `ROADMAP.md` (`- (was #<id>) <title>`),
+   - leaves a breadcrumb under the **Idea Incubator** in `ROADMAP.md`
+     (`- (was #<id>) <title> ([archived plan](.roadmap/archive/...))`) linking the kept plan,
    - re-syncs the dashboard + `CHANGELOG.md`.
 3. Commit the roadmap change.
 

@@ -599,6 +599,7 @@ def test_remove_archives_and_drops(roadmap, repo):
     rm = (repo / "ROADMAP.md").read_text()
     assert "(was #1) Stray thing" in rm                        # demoted to Incubator
     assert rm.index("Idea Incubator") < rm.index("(was #1)")   # under the heading
+    assert "([archived plan](.roadmap/archive/001-stray-thing.md))" in rm  # links the archive
 
 
 def test_remove_retargets_dependents(roadmap, repo):
@@ -617,6 +618,8 @@ def test_remove_missing_plan_file_still_drops(roadmap, repo):
     p.unlink()                               # plan file already gone
     roadmap.remove_item(repo, 1)
     assert roadmap.read_config(repo)["items"] == []
+    rm = (repo / "ROADMAP.md").read_text()
+    assert "(was #1) A" in rm and "archived plan" not in rm   # breadcrumb, but no dead link
 
 
 def test_remove_unknown_id_raises(roadmap, repo):

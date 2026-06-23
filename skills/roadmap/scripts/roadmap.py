@@ -394,12 +394,15 @@ def set_depends(root: Path, plan_id: int, on: list[int], clear: bool = False) ->
 INCUBATOR_RE = re.compile(r"(?im)^#{1,6}\s+.*idea incubator.*$")
 
 
-def _incubator_stub(root: Path, plan_id: int, title: str) -> None:
-    """Append a breadcrumb for a removed item under the free-form Idea Incubator heading.
-    Edits ROADMAP.md directly (outside the roadmap:auto markers, which sync owns)."""
+def _incubator_stub(root: Path, plan_id: int, title: str, archived: str | None = None) -> None:
+    """Append a breadcrumb for a removed item under the free-form Idea Incubator heading,
+    linking the archived plan file when one was kept. Edits ROADMAP.md directly (outside the
+    roadmap:auto markers, which sync owns)."""
     rm = root / "ROADMAP.md"
     text = rm.read_text(encoding="utf-8")
     stub = f"- (was #{plan_id}) {title}"
+    if archived:
+        stub += f" ([archived plan]({archived}))"
     m = INCUBATOR_RE.search(text)
     if m:
         new = text[:m.end()] + "\n" + stub + text[m.end():]
@@ -421,10 +424,12 @@ def remove_item(root: Path, plan_id: int) -> None:
         print(f"Warning: #{dependents} depended on #{plan_id}; clearing that link.",
               file=sys.stderr)
     src = roadmap_dir(root) / item["file"]
+    archived = None
     if src.exists():
         dest = roadmap_dir(root) / "archive" / Path(item["file"]).name
         atomic_write(dest, src.read_text(encoding="utf-8"))
         src.unlink()
+        archived = str(dest.relative_to(root))
     cfg["items"] = [i for i in cfg["items"] if i["id"] != plan_id]
     for i in cfg["items"]:
         deps = i.get("dependsOn")
@@ -435,7 +440,7 @@ def remove_item(root: Path, plan_id: int) -> None:
             else:
                 i.pop("dependsOn", None)
     write_config(root, cfg)
-    _incubator_stub(root, plan_id, item["title"])
+    _incubator_stub(root, plan_id, item["title"], archived)
     sync(root)
 
 
