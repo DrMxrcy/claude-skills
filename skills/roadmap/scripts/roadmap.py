@@ -566,6 +566,15 @@ INTERNAL_JARGON = [
     "polling", "cron", "webhook", "ci", "lint", "linter", "env var",
     "environment variable", "api key", "n+1", "regression",
 ]
+# Softer "dev summary" phrasing — process, security, and architecture words that read like a
+# changelog written for engineers, not users. These are the tells a vendor/path scan misses
+# (e.g. "pre-launch hardening pass", "lays the groundwork", "privilege misuse").
+INTERNAL_PHRASING = [
+    "hardening", "hardened", "groundwork", "pre-launch", "prelaunch", "privilege",
+    "spam/abuse", "reusable", "scaffolding", "boilerplate", "rearchitect", "re-architect",
+    "static-page", "sitemap", "robots rules", "robots.txt", "closed gaps", "headliner index",
+    "walk-through", "walkthrough index", "data feed", "data feeds", "groundwork for",
+]
 
 
 def item_audience(item: dict) -> str:
@@ -584,7 +593,7 @@ def lint_note(text: str, extra_terms: list[str] | None = None) -> list[str]:
                        r"json|ya?ml|toml|sql|sh|css|scss)\b", text)    # foo/bar.ts
     hits += re.findall(r"\b\w+(?:/\w+){2,}\b", text)                   # a/b/c paths
     low = text.lower()
-    terms = [*INTERNAL_VENDORS, *INTERNAL_JARGON, *(extra_terms or [])]
+    terms = [*INTERNAL_VENDORS, *INTERNAL_JARGON, *INTERNAL_PHRASING, *(extra_terms or [])]
     hits += [t for t in terms if re.search(r"\b" + re.escape(t.lower()) + r"\b", low)]
     seen, uniq = set(), []                                            # de-dupe, keep order
     for h in hits:

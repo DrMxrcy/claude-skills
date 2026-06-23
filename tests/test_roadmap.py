@@ -819,6 +819,14 @@ def test_lint_note_flags_internal_tells(roadmap):
     assert "convex" in low and "#77" in tells and any(".ts" in t for t in tells)
 
 
+def test_lint_note_flags_soft_dev_phrasing(roadmap):
+    # process/architecture phrasing a vendor/path scan misses
+    tells = [t.lower() for t in
+             roadmap.lint_note("Pre-launch hardening pass that lays the groundwork")]
+    assert "hardening" in tells and "groundwork" in tells and "pre-launch" in tells
+    assert roadmap.lint_note("Crowd levels are more accurate now") == []   # clean benefit
+
+
 def test_internal_changelog_falls_back_to_title(roadmap, repo):
     roadmap.init_project(repo, "P")
     roadmap.new_item(repo, "chore", "Bump deps")               # internal, no note

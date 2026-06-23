@@ -47,6 +47,26 @@ for the full log. If the section is already curated, it's ready to paste.
   a fix or refactor the user *feels* (faster, fewer crashes, lower battery) can be `public`
   with a benefit-worded note. When unsure whether a user would notice → `internal`.
 
+**Default these whole categories to `internal`** — they read as dev summaries even when
+genuinely shipped. Make them public *only* if there's a concrete benefit the user directly
+feels, and then write *only that benefit*, never the mechanism:
+
+- **Security / abuse hardening** — "hardened security", "closed gaps", "privilege misuse",
+  "spam/abuse", "pre-launch hardening pass" → internal. The exception is a control the user
+  *operates*: "You can now block other users" is public; the audit-trail/permissions plumbing
+  behind it is not.
+- **SEO / discoverability plumbing** — "lays the groundwork", "reusable static-page builder",
+  "sitemap.xml", "robots rules", "structured data" → internal. Collapse the whole effort into
+  at most one public payoff line: "Parks and rides now show up when you search Google."
+- **Internal milestones / architecture** — "Phase 1 foundation", "pre-launch", "rearchitected
+  X", "scaffolding" → internal.
+- **Algorithm internals** — "truncated headliner index", "walk-through filtering", "data-feed
+  verification" → describe the *result* ("crowd levels are more accurate now"), not the method.
+
+The lint flags this softer phrasing too (hardening, groundwork, privilege, sitemap, reusable,
+headliner index…), so a warning here usually means "reclassify as internal, or rewrite to the
+pure benefit."
+
 Translate, don't copy. Examples:
 
 | Item (internal/title)                              | ❌ leaks internal                          | ✅ public note                                            |
@@ -55,6 +75,9 @@ Translate, don't copy. Examples:
 | Stop dev backend polling 24/7 (Convex cost)        | "Cut Convex polling to save cost"          | *(internal — infra; `internal`)*                          |
 | Signed URLs for non-public images (convex/lib/r2)  | "Switch r2.ts reads to signed URLs (#42)"  | "Your private photos are now protected by secure, expiring links." |
 | Park-closed gate fix in waitTimes.ts               | "Fixed hours gate in waitTimes.ts"         | "Closed parks no longer show phantom wait times."         |
+| Pre-launch security & abuse hardening              | "Hardened security: closed privilege-misuse and spam/abuse gaps" | *(internal — plumbing; expose only user-operated controls like "block users")* |
+| SEO: reusable static-page builder + sitemap/robots | "Lays the groundwork with a reusable static-page builder + robots rules" | "Parks and rides now show up when you search Google."     |
+| Crowd index: truncated headliner index             | "Use a truncated headliner index over anchor rides" | "Crowd levels are more accurate — busy parks now read busy." |
 | Apple Watch logging feature                        | —                                          | "Log the ride you just rode straight from your Apple Watch — no phone needed." |
 
 **Backfill (adopted repo / missing notes):** reconstruct what shipped from git history —
