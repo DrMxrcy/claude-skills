@@ -1,0 +1,45 @@
+commands/roadmap/build.md
+  s_fc2eb9dd6e45b1::t_0876233e88be1b 16-23
+  s_fc2eb9dd6e45b1::t_2db5844129e985 39-62,66-68,70-73,76,79-81
+  s_fc2eb9dd6e45b1::t_b3d74bbff37403 3
+skills/roadmap/scripts/roadmap.py
+  s_f8aaf2c010daa3::t_a7fd29393c83fb 733-738
+  s_f8aaf2c010daa3::t_b10aa9d3053fe8 607-608
+  s_f8aaf2c010daa3::t_fbb52afd10b486 581-583
+  s_f8aaf2c010daa3::t_e246a7dea835fb 577
+  s_f8aaf2c010daa3::t_7937a25e09a605 578-579,584-587
+skills/roadmap/README.md
+  s_fc2eb9dd6e45b1::t_b74309ab27941e 45
+  s_f8aaf2c010daa3::t_b47aff7f4b33eb 181-192
+  s_fc2eb9dd6e45b1::t_91d8e77927b2d3 33-37
+  s_fc2eb9dd6e45b1::t_57cb1c9647ddd9 84-91
+tests/test_roadmap.py
+  s_fc2eb9dd6e45b1::t_f77e0fd6703910 830-843
+commands/roadmap/changelog.md
+  s_f8aaf2c010daa3::t_003eab39eef207 55-57,61-69
+  s_f8aaf2c010daa3::t_e93cfc99134ce1 36-54,58-60,70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "c8a3dbaa16a8e3810ba7766350d127afd4e7e804",
+  "prompts": {},
+  "sessions": {
+    "s_f8aaf2c010daa3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2615454c-bad1-471d-9b61-946c5bc5d1b9",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    },
+    "s_fc2eb9dd6e45b1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7f9a4c51-b12e-4d5a-8257-b991702a6963",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
