@@ -172,7 +172,7 @@ def render_region(cfg: dict, progress: dict) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-def sync(root: Path) -> None:
+def sync(root: Path, quiet: bool = False) -> None:
     cfg = read_config(root)
     # Self-heal: enforce the canonical (no-'v') version form on stored data so a
     # project written before normalization (e.g. a `--version v1.0.0` that produced
@@ -233,7 +233,12 @@ def sync(root: Path) -> None:
     before = text.split(AUTO_START)[0]
     after = text.split(AUTO_END)[1]
     atomic_write(rm_path, f"{before}{AUTO_START}\n{region}{AUTO_END}{after}")
-    atomic_write(root / "CHANGELOG.md", render_changelog(root))
+    public_text, warnings = render_public_changelog(root)
+    atomic_write(root / "CHANGELOG.md", public_text)
+    atomic_write(root / "CHANGELOG.internal.md", render_internal_changelog(root))
+    if not quiet:
+        for w in warnings:
+            print(f"warning: {w}", file=sys.stderr)
 
 
 STEP_RE = re.compile(r"^(\s*[-*]\s+)\[( |x|X)\](.*)$")
@@ -305,7 +310,7 @@ TEMPLATE_BY_TYPE = {"feature": "feature-plan.md", "chore": "feature-plan.md",
 
 
 def new_item(root: Path, type_: str, title: str, version: str | None = None,
-             note: str = "") -> Path:
+             note: str = "", audience: str | None = None) -> Path:
     if type_ not in TEMPLATE_BY_TYPE:
         raise ValueError(f"unknown type {type_!r}; choose from {sorted(TEMPLATE_BY_TYPE)}")
     cfg = read_config(root)
@@ -324,6 +329,8 @@ def new_item(root: Path, type_: str, title: str, version: str | None = None,
             "type": type_, "version": version, "file": fname}
     if note:
         item["note"] = note            # user-facing changelog line (optional)
+    if audience in ("public", "internal"):
+        item["audience"] = audience    # else falls back to DEFAULT_AUDIENCE by type
     cfg["items"].append(item)
     write_config(root, cfg)
     sync(root)
@@ -331,12 +338,35 @@ def new_item(root: Path, type_: str, title: str, version: str | None = None,
 
 
 def set_note(root: Path, plan_id: int, text: str) -> None:
-    """Set an item's user-facing changelog note."""
+    """Set an item's user-facing changelog note, then re-render. If the item renders to the
+    PUBLIC changelog, lint the note for internal language and warn (non-blocking)."""
     cfg = read_config(root)
     for item in cfg["items"]:
         if item["id"] == plan_id:
             item["note"] = text
             write_config(root, cfg)
+            if item_audience(item) == "public":
+                tells = lint_note(text, cfg.get("settings", {}).get("internalTerms", []))
+                if tells:
+                    print(f"warning: #{plan_id} note reads internal ({', '.join(tells)}); "
+                          f"CHANGELOG.md is user-facing. Rephrase in plain benefit language, "
+                          f"or mark it internal: roadmap audience --plan {plan_id} --to internal",
+                          file=sys.stderr)
+            sync(root)
+            return
+    raise ValueError(f"no plan with id {plan_id}")
+
+
+def set_audience(root: Path, plan_id: int, audience: str) -> None:
+    """Set an item's changelog audience ('public' | 'internal'), then re-render both files."""
+    if audience not in ("public", "internal"):
+        raise ValueError("audience must be 'public' or 'internal'")
+    cfg = read_config(root)
+    for item in cfg["items"]:
+        if item["id"] == plan_id:
+            item["audience"] = audience
+            write_config(root, cfg)
+            sync(root)
             return
     raise ValueError(f"no plan with id {plan_id}")
 
@@ -515,46 +545,171 @@ TYPE_SECTION = {"feature": "✨ New", "bug": "🐛 Fixed",
                 "refactor": "⚡ Improved", "chore": "⚡ Improved"}
 SECTION_ORDER = ["✨ New", "🐛 Fixed", "⚡ Improved"]
 
+# Unset `audience` falls back to this per-type default. The AI sets `audience` explicitly
+# via the roadmap commands; this is only the safety net at render time.
+DEFAULT_AUDIENCE = {"feature": "public", "bug": "public",
+                    "refactor": "internal", "chore": "internal"}
+# One-line stand-in shown in the PUBLIC changelog when a version shipped internal-only
+# work, instead of listing it.
+ROLLUP_LINE = "_Plus behind-the-scenes performance and reliability work._"
 
-def render_changelog(root: Path) -> str:
-    """Render CHANGELOG.md from config: every version that has items, grouped by section,
-    using each item's user-facing `note` (fallback: title). A version is dated once all its
-    items reach 100% (date persisted in config.versionDates for stable re-rendering);
-    otherwise it renders '(in progress)' with '(pending)' lines for unfinished items."""
+# Internal "tells" that should never appear in a PUBLIC note. Matched case-insensitively
+# as whole words; the vendor list is extendable via settings.internalTerms.
+INTERNAL_VENDORS = [
+    "convex", "sentry", "aptabase", "codex", "eas", "clerk", "supabase", "firebase",
+    "vercel", "netlify", "cloudflare", "r2", "s3", "docker", "kubernetes", "k8s",
+    "redis", "postgres", "postgresql", "mysql", "mongodb", "stripe", "github actions",
+    "expo", "webpack", "vite", "prisma", "graphql", "grpc",
+]
+INTERNAL_JARGON = [
+    "refactor", "schema", "migration", "mutation", "endpoint", "backend", "frontend",
+    "polling", "cron", "webhook", "ci", "lint", "linter", "env var",
+    "environment variable", "api key", "n+1", "regression",
+]
+
+
+def item_audience(item: dict) -> str:
+    """An item's effective audience: explicit `audience` if set, else the per-type default."""
+    a = item.get("audience")
+    return a if a in ("public", "internal") else DEFAULT_AUDIENCE.get(item["type"], "internal")
+
+
+def lint_note(text: str, extra_terms: list[str] | None = None) -> list[str]:
+    """Return the 'internal tells' found in a would-be PUBLIC changelog note — issue refs,
+    source-file paths, vendor/tool names, and dev jargon. Empty list == looks clean.
+    Advisory only: callers warn, they never block."""
+    hits: list[str] = []
+    hits += re.findall(r"#\d+", text)                                  # issue refs (#77)
+    hits += re.findall(r"\b[\w.-]+\.(?:ts|tsx|js|jsx|mjs|cjs|py|go|rs|java|rb|php|"
+                       r"json|ya?ml|toml|sql|sh|css|scss)\b", text)    # foo/bar.ts
+    hits += re.findall(r"\b\w+(?:/\w+){2,}\b", text)                   # a/b/c paths
+    low = text.lower()
+    terms = [*INTERNAL_VENDORS, *INTERNAL_JARGON, *(extra_terms or [])]
+    hits += [t for t in terms if re.search(r"\b" + re.escape(t.lower()) + r"\b", low)]
+    seen, uniq = set(), []                                            # de-dupe, keep order
+    for h in hits:
+        if h.lower() not in seen:
+            seen.add(h.lower())
+            uniq.append(h)
+    return uniq
+
+
+def _changelog_versions(root: Path) -> list[tuple[str, str, list[dict]]]:
+    """Shared scaffold for both changelog renderers. Returns (version, header, rows) per
+    version (newest first), where each row is {'item', 'complete'} and `header` is the
+    '## v.. — ..' line. A version is dated once all its items reach 100% (date persisted in
+    config.versionDates); otherwise it renders '(in progress)'."""
     cfg = read_config(root)
     version_dates = cfg.get("versionDates", {})
     by_version: dict[str, list] = {}
     for item in cfg["items"]:
         by_version.setdefault(item["version"], []).append(item)
-    out = ["# Changelog", ""]
+    blocks = []
     for version in sorted(by_version, key=_version_key, reverse=True):
-        vitems = sorted(by_version[version], key=lambda i: i["id"])
-        sections: dict[str, list[tuple[bool, str]]] = {}
-        done_all = True
-        for it in vitems:
+        rows, done_all = [], True
+        for it in sorted(by_version[version], key=lambda i: i["id"]):
             p = roadmap_dir(root) / it["file"]
             done, total = count_progress(p) if p.exists() else (0, 0)
             complete = total > 0 and done == total
             done_all = done_all and complete
-            section = TYPE_SECTION.get(it["type"], "⚡ Improved")
-            sections.setdefault(section, []).append((complete, it.get("note") or it["title"]))
+            rows.append({"item": it, "complete": complete})
         date = version_dates.get(version)
         if done_all and date:
-            out.append(f"## v{version} — {date}")
+            header = f"## v{version} — {date}"
         elif done_all:
-            out.append(f"## v{version}")
+            header = f"## v{version}"
         else:
-            out.append(f"## v{version} — (in progress)")
-        out.append("")
-        for section in SECTION_ORDER:
-            entries = sections.get(section)
-            if not entries:
+            header = f"## v{version} — (in progress)"
+        blocks.append((version, header, rows))
+    return blocks
+
+
+def _grouped_lines(entries: dict[str, list[tuple[bool, str]]]) -> list[str]:
+    """Render section-grouped '- label' / '- (pending) label' lines from {section: [(complete, label)]}."""
+    lines = []
+    for section in SECTION_ORDER:
+        items = entries.get(section)
+        if not items:
+            continue
+        lines.append(f"### {section}")
+        lines += [f"- {label}" if complete else f"- (pending) {label}"
+                  for complete, label in items]
+        lines.append("")
+    return lines
+
+
+def render_public_changelog(root: Path) -> tuple[str, list[str]]:
+    """Render the PUBLIC CHANGELOG.md: only audience=public items, rendered from their
+    user-facing `note` ONLY (never the raw title). A public item with no note is skipped;
+    if it has already shipped (complete) that omission is returned as a warning. Versions
+    that also shipped internal-only work get one roll-up line instead of listing it.
+    Returns (markdown, warnings)."""
+    warnings: list[str] = []
+    out = ["# Changelog", ""]
+    for _version, header, rows in _changelog_versions(root):
+        sections: dict[str, list[tuple[bool, str]]] = {}
+        has_internal = False
+        for row in rows:
+            it = row["item"]
+            if item_audience(it) != "public":
+                has_internal = True
                 continue
-            out.append(f"### {section}")
-            out += [f"- {label}" if complete else f"- (pending) {label}"
-                    for complete, label in entries]
-            out.append("")
+            note = it.get("note")
+            if not note:
+                if row["complete"]:
+                    warnings.append(
+                        f"#{it['id']} \"{it['title']}\" is public but has no note; "
+                        f"omitted from CHANGELOG.md. Add one: "
+                        f"roadmap note --plan {it['id']} --text \"...\"")
+                continue
+            section = TYPE_SECTION.get(it["type"], "⚡ Improved")
+            sections.setdefault(section, []).append((row["complete"], note))
+        lines = _grouped_lines(sections)
+        if has_internal:
+            lines += [ROLLUP_LINE, ""]
+        if not lines:
+            continue                       # nothing public to show for this version
+        out += [header, "", *lines]
+    return "\n".join(out).rstrip() + "\n", warnings
+
+
+def render_internal_changelog(root: Path) -> str:
+    """Render the INTERNAL CHANGELOG.internal.md: every item, every section, using each
+    item's `note` and falling back to the raw title — the full dev-facing work log."""
+    out = ["# Changelog (internal)", "",
+           "_Full work log — every item, including internal/dev work. "
+           "The curated public changelog is CHANGELOG.md._", ""]
+    for _version, header, rows in _changelog_versions(root):
+        sections: dict[str, list[tuple[bool, str]]] = {}
+        for row in rows:
+            it = row["item"]
+            section = TYPE_SECTION.get(it["type"], "⚡ Improved")
+            sections.setdefault(section, []).append(
+                (row["complete"], it.get("note") or it["title"]))
+        lines = _grouped_lines(sections)
+        if lines:
+            out += [header, "", *lines]
     return "\n".join(out).rstrip() + "\n"
+
+
+def audit_public_notes(root: Path) -> list[str]:
+    """Full pre-release audit of the public changelog: flag every public item missing a
+    note, and lint existing public notes for internal language. Used by /roadmap:changelog."""
+    cfg = read_config(root)
+    extra = cfg.get("settings", {}).get("internalTerms", [])
+    msgs = []
+    for it in sorted(cfg["items"], key=lambda i: i["id"]):
+        if item_audience(it) != "public":
+            continue
+        note = it.get("note")
+        if not note:
+            msgs.append(f"#{it['id']} \"{it['title']}\" (public) has no note — "
+                        f"add one, or mark it internal: roadmap audience --plan {it['id']} --to internal")
+            continue
+        tells = lint_note(note, extra)
+        if tells:
+            msgs.append(f"#{it['id']} note reads internal ({', '.join(tells)}): \"{note}\"")
+    return msgs
 
 
 def backfill_changelog(root: Path) -> None:
@@ -705,10 +860,15 @@ def main(argv: list[str]) -> int:
     p_new.add_argument("--title", required=True)
     p_new.add_argument("--version")
     p_new.add_argument("--note", default="")
+    p_new.add_argument("--audience", choices=["public", "internal"])
 
     p_note = sub.add_parser("note")
     p_note.add_argument("--plan", type=int, required=True)
     p_note.add_argument("--text", required=True)
+
+    p_aud = sub.add_parser("audience")
+    p_aud.add_argument("--plan", type=int, required=True)
+    p_aud.add_argument("--to", required=True, choices=["public", "internal"])
 
     p_check = sub.add_parser("check")
     p_check.add_argument("--plan", type=int, required=True)
@@ -749,6 +909,8 @@ def main(argv: list[str]) -> int:
 
     p_cl = sub.add_parser("changelog")
     p_cl.add_argument("--backfill", action="store_true")
+    p_cl.add_argument("--internal", action="store_true",
+                      help="print CHANGELOG.internal.md instead of the public CHANGELOG.md")
 
     p_rt = sub.add_parser("retarget")
     p_rt.add_argument("--to", required=True)
@@ -763,11 +925,15 @@ def main(argv: list[str]) -> int:
             print(f"Initialized roadmap at {root}")
             return 0
         if args.command == "new":
-            path = new_item(root, args.type, args.title, args.version, note=args.note)
+            path = new_item(root, args.type, args.title, args.version,
+                            note=args.note, audience=args.audience)
             print(path)
             return 0
         if args.command == "note":
             set_note(root, args.plan, args.text)
+            return 0
+        if args.command == "audience":
+            set_audience(root, args.plan, args.to)
             return 0
         if args.command == "check":
             check_step(root, args.plan, args.step, undo=args.undo, all_done=args.all_done)
@@ -808,8 +974,10 @@ def main(argv: list[str]) -> int:
             if args.backfill:
                 backfill_changelog(root)
             else:
-                sync(root)
-            cl = root / "CHANGELOG.md"
+                sync(root, quiet=True)
+            for m in audit_public_notes(root):
+                print(f"warning: {m}", file=sys.stderr)
+            cl = root / ("CHANGELOG.internal.md" if args.internal else "CHANGELOG.md")
             if cl.exists():
                 print(cl.read_text(encoding="utf-8"), end="")
             return 0

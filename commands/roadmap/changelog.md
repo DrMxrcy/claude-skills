@@ -1,25 +1,65 @@
 ---
-description: Show the latest changelog entry, or backfill user-facing notes from git history
+description: Curate the public changelog (and backfill user-facing notes from git history)
 argument-hint: <version | empty for current>
 ---
 
-Work with the user-facing changelog via the **roadmap** skill. Target: $ARGUMENTS
-(default: current version).
+Curate the changelog via the **roadmap** skill. Target: $ARGUMENTS (default: current version).
 
-**Show / copy:** If `CHANGELOG.md` already has an entry for the target version, print that
-section verbatim — it's ready to paste into the App Store "What's New" or a website changelog.
+There are **two** changelogs, both rendered deterministically by the CLI:
+- `CHANGELOG.md` — **public**. Only `audience: public` items, rendered from each item's
+  user-facing `note` (never the raw title). Ready to paste into the App Store "What's New"
+  or a website changelog. Versions that also shipped internal-only work get one rolled-up
+  "behind-the-scenes" line instead of listing it.
+- `CHANGELOG.internal.md` — **internal**. Every item, with the raw title as a fallback —
+  the full dev-facing work log.
 
-**Backfill (when notes are missing or you adopted an existing repo):**
-1. Run `python3 <roadmap.py> status` to list the version's items and which lack a user-facing
-   `note`.
-2. To reconstruct what shipped, read git history since the previous release:
-   `git log v<previous>..HEAD --oneline` (or `git log --oneline` if there are no tags yet).
-   Map commits to items by their plan/title.
-3. For each item without a good note, write a plain-language, benefit-focused one-liner:
+**Show / copy:** `python3 <roadmap.py> changelog` prints the public file; add `--internal`
+for the full log. If the section is already curated, it's ready to paste.
+
+**Curate (your real job here) — classify, then phrase:**
+1. Run `python3 <roadmap.py> changelog` and read the warnings it prints. They flag two
+   problems: public items with **no note** (silently dropped from `CHANGELOG.md`), and notes
+   that **read internal** (vendor/tool names, file paths, issue refs, dev jargon).
+2. For each item, decide its **audience** with judgment — would a user notice or care?
+   - User-visible → `python3 <roadmap.py> audience --plan <id> --to public`
+   - Backend/infra/tooling/CI/dev-only → `--to internal`
+   The type default (`feature`/`bug` → public, `refactor`/`chore` → internal) is only a
+   safety net; you are the real gate.
+3. For every **public** item, write a plain-language, benefit-focused one-liner — what the
+   user can now do, in their words:
    `python3 <roadmap.py> note --plan <id> --text "<user-facing summary>"`.
-4. Preview the grouped entry (✨ New / 🐛 Fixed / ⚡ Improved). The actual `CHANGELOG.md`
-   section is written by `/roadmap:release`; this command just gets the notes ready and shows
-   what it will look like.
+   No vendor names (Convex, Sentry, Codex, EAS…), no file paths, no `#123`, no
+   "refactor/schema/backend/polling". The CLI re-lints and warns if it still reads internal.
+4. Re-run `python3 <roadmap.py> changelog` until it prints no warnings, then preview both
+   files. `/roadmap:release` stamps the dated section; this command just gets it clean.
+
+**Writing voice — public vs internal.** This is the part to get right:
+
+- **Public note** = what the *user* gains, in *their* words. One sentence, lead with the
+  benefit or the new ability. Name features the user sees, not the systems behind them.
+  Forbidden in public notes: vendor/tool names (Convex, Sentry, Aptabase, Codex, EAS, Clerk,
+  R2, Stripe…), file paths (`convex/lib/r2.ts`), issue/PR refs (`#77`), and engineer jargon
+  (refactor, schema, mutation, endpoint, backend, polling, CI, migration). The CLI lints for
+  these and warns — treat a warning as "rewrite it."
+- **Internal note** (or no note → falls back to the title) = whatever a developer needs.
+  Technical detail, vendor names, file paths, and ticket refs are all fine here.
+- Decide audience by impact, not by type: a feature the user can't perceive is `internal`;
+  a fix or refactor the user *feels* (faster, fewer crashes, lower battery) can be `public`
+  with a benefit-worded note. When unsure whether a user would notice → `internal`.
+
+Translate, don't copy. Examples:
+
+| Item (internal/title)                              | ❌ leaks internal                          | ✅ public note                                            |
+|----------------------------------------------------|--------------------------------------------|-----------------------------------------------------------|
+| Wire up Sentry + Aptabase analytics                | "Added Sentry crash reporting + Aptabase"  | *(internal — user sees nothing; mark `internal`)*         |
+| Stop dev backend polling 24/7 (Convex cost)        | "Cut Convex polling to save cost"          | *(internal — infra; `internal`)*                          |
+| Signed URLs for non-public images (convex/lib/r2)  | "Switch r2.ts reads to signed URLs (#42)"  | "Your private photos are now protected by secure, expiring links." |
+| Park-closed gate fix in waitTimes.ts               | "Fixed hours gate in waitTimes.ts"         | "Closed parks no longer show phantom wait times."         |
+| Apple Watch logging feature                        | —                                          | "Log the ride you just rode straight from your Apple Watch — no phone needed." |
+
+**Backfill (adopted repo / missing notes):** reconstruct what shipped from git history —
+`git log v<previous>..HEAD --oneline` (or `git log --oneline` with no tags) — map commits to
+items by plan/title, then set each item's audience + note as above.
 
 The CLI lives at `.claude/skills/roadmap/scripts/roadmap.py` (project) or
 `~/.claude/skills/roadmap/scripts/roadmap.py` (global).

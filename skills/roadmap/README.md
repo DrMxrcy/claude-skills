@@ -21,8 +21,10 @@ deterministic Python CLI makes every mechanical edit so the dashboard never drif
 /roadmap:release <version>    # optional: pin a new version / git-tag (changelog is automatic)
 ```
 
-`CHANGELOG.md` is rendered automatically on every sync — each item shows up once it hits
-100%, grouped by its version. You don't need `/roadmap:release` to get a changelog.
+Two changelogs render automatically on every sync — **`CHANGELOG.md`** (public, curated, only
+`audience: public` items in user-facing language) and **`CHANGELOG.internal.md`** (the full
+dev log, every item). Each item shows up once it hits 100%, grouped by its version. You don't
+need `/roadmap:release` to get a changelog.
 
 `/roadmap:next` builds the next unfinished item in the current version. `/roadmap:status`
 shows progress anytime; `/roadmap:sync` re-renders the dashboard.
@@ -117,8 +119,10 @@ dupes, flags stale work, resequences). Use the one that matches the drift you ha
 - **`/roadmap:release <version>`** — **Optional.** Pins a new current version and can `git tag`
   it. **Guarded**: refuses if the current version still has incomplete items (`--force` to
   override). It no longer writes the changelog — that's automatic (see below).
-- **`/roadmap:changelog [version]`** — Prints the live `CHANGELOG.md`. `--backfill` dates past
-  versions from their `git tag v<ver>`; you can also reconstruct missing notes from git history.
+- **`/roadmap:changelog [version]`** — Curates and prints the live changelog. Audits the
+  version and warns about public items missing a `note` or worded internally. Prints the
+  public `CHANGELOG.md` (or `--internal` for the full log). `--backfill` dates past versions
+  from their `git tag v<ver>`; you can also reconstruct missing notes from git history.
 
 ## CLI
 
@@ -127,12 +131,13 @@ The commands drive a deterministic CLI you can also run directly:
 ```bash
 roadmap=.claude/skills/roadmap/scripts/roadmap.py   # or ~/.claude/skills/roadmap/scripts/roadmap.py
 python3 $roadmap init [--name N] [--adopt] [--no-claude-md]
-python3 $roadmap new --type feature|bug|refactor|chore --title "..." [--version V] [--note "..."]
-python3 $roadmap note --plan ID --text "user-facing summary"
+python3 $roadmap new --type feature|bug|refactor|chore --title "..." [--version V] [--note "..."] [--audience public|internal]
+python3 $roadmap note --plan ID --text "user-facing summary"   # set the public changelog line (lints for internal language)
+python3 $roadmap audience --plan ID --to public|internal       # route the item: public CHANGELOG.md vs CHANGELOG.internal.md
 python3 $roadmap check --plan ID --step N [--undo] [--all-done]
 python3 $roadmap status [--json]
 python3 $roadmap sync
-python3 $roadmap changelog [--backfill]                     # print the live changelog; --backfill dates past versions from git tags
+python3 $roadmap changelog [--internal] [--backfill]           # print the public (or --internal) changelog + audit warnings
 python3 $roadmap remove --plan ID                           # archive + drop an item, demote to Incubator
 python3 $roadmap depends --plan ID --on 2,5 [--clear]       # advisory dependency ordering
 python3 $roadmap release --version V [--tag] [--force]      # optional version pin / git tag
@@ -157,13 +162,24 @@ release (do it on a branch; the CLI edits roadmap state, not git).
 - **Semver picks the version**: bug fix → patch (`x.y.Z`), backward-compatible feature →
   minor (`x.Y.0`), breaking change or a whole new phase → major (`X.0.0`). A *phase* is just
   a version; type (`bug`/`feature`/…) is set per item. `/roadmap:plan` classifies both.
-- Each item carries a plain-language **`note`** (set at `new --note` or later via `note`).
-- `CHANGELOG.md` is **rendered automatically on every `sync`** from the item registry, grouped
-  into **✨ New / 🐛 Fixed / ⚡ Improved** using each item's note (falling back to its title). An
-  item appears once it hits 100%; its version's heading is dated once *all* the version's items
-  are complete (the date is persisted so re-renders are stable). In-progress versions show
-  `(in progress)` with `(pending)` lines. The latest section is ready to paste into the
-  **App Store "What's New"** or a website changelog — no `release` step required.
+- Each item carries an **`audience`** (`public` | `internal`) and a plain-language **`note`**
+  (set at `new --note/--audience` or later via `note` / `audience`). Audience defaults by type
+  — `feature`/`bug` → public, `refactor`/`chore` → internal — and you override per judgment.
+- **Two files render automatically on every `sync`**, both grouped into
+  **✨ New / 🐛 Fixed / ⚡ Improved**:
+  - **`CHANGELOG.md`** (public) — only `audience: public` items, rendered from each item's
+    **`note` only, never the raw title**. A public item with no note is skipped (and warned,
+    once shipped) so a planning title can never leak. Versions that also shipped internal-only
+    work get one **"behind-the-scenes" roll-up line** instead of listing it. This is the file
+    you paste into the **App Store "What's New"** or a website changelog.
+  - **`CHANGELOG.internal.md`** — every item, note falling back to title: the full dev log.
+- **Writing voice** (the `/roadmap:*` commands prompt the AI for this): public notes are
+  *user-benefit, plain language* — what the user can now do, in their words; no vendor/tool
+  names (Convex, Sentry, Codex, EAS…), file paths, issue refs, or dev jargon. The CLI lints
+  public notes and warns when they read internal. Internal items can use any technical detail.
+- An item appears once it hits 100%; its version's heading is dated once *all* the version's
+  items are complete (persisted, so re-renders are stable). In-progress versions show
+  `(in progress)` with `(pending)` lines — no `release` step required.
 - `release` is **optional and guarded** — it only pins a new current version / `git tag` and
   refuses an incomplete version (`--force` to override). It does not write the changelog.
 
@@ -176,7 +192,8 @@ ROADMAP.md          # human-readable dashboard (rendered view)
 .roadmap/
 ├── config.json     # project, current version, next id, item registry
 └── plans/NNN-*.md  # one plan per item: frontmatter + checklist of tiny steps
-CHANGELOG.md        # rendered on every sync from the item registry (per version)
+CHANGELOG.md          # public, curated — rendered on every sync (audience:public items only)
+CHANGELOG.internal.md # full dev log — rendered on every sync (every item)
 ```
 
 - **Plan files** are the source of truth for progress (the checklist).
