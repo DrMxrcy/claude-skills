@@ -372,22 +372,22 @@ def test_release_force_bypasses_incomplete(roadmap, repo):
 
 def test_release_writes_changelog(roadmap, repo):
     roadmap.init_project(repo, "P")
-    roadmap.new_item(repo, "feature", "Login")
+    roadmap.new_item(repo, "feature", "Login", note="Sign in with email")
     roadmap.check_step(repo, 1, None, all_done=True)           # sync writes changelog
     cl = (repo / "CHANGELOG.md").read_text()
-    assert "## v0.0.1" in cl and "✨ New" in cl and "Login" in cl
+    assert "## v0.0.1" in cl and "✨ New" in cl and "Sign in with email" in cl
     assert "(feature)" not in cl                 # user-facing — no type jargon
 
 
 def test_changelog_uses_note_and_groups_by_type(roadmap, repo):
     roadmap.init_project(repo, "P")
     roadmap.new_item(repo, "feature", "Auth backend", note="Sign in with email")
-    roadmap.new_item(repo, "bug", "Null deref on logout")
+    roadmap.new_item(repo, "bug", "Null deref on logout", note="No more logout crash")
     roadmap.check_step(repo, 1, None, all_done=True)
     roadmap.check_step(repo, 2, None, all_done=True)
     cl = (repo / "CHANGELOG.md").read_text()
     assert "Sign in with email" in cl and "Auth backend" not in cl   # note used, not title
-    assert "🐛 Fixed" in cl and "Null deref on logout" in cl
+    assert "🐛 Fixed" in cl and "No more logout crash" in cl
     assert cl.index("✨ New") < cl.index("🐛 Fixed")                 # New before Fixed
 
 
@@ -402,9 +402,9 @@ def test_changelog_written_on_completion_via_sync(roadmap, repo):
 
 def test_changelog_in_progress_shows_pending(roadmap, repo):
     roadmap.init_project(repo, "P")
-    roadmap.new_item(repo, "feature", "Big feature")          # 0/2 done
+    roadmap.new_item(repo, "feature", "Big feature", note="A big new feature")  # 0/2 done
     cl = (repo / "CHANGELOG.md").read_text()
-    assert "(in progress)" in cl and "- (pending) Big feature" in cl
+    assert "(in progress)" in cl and "- (pending) A big new feature" in cl
 
 
 def test_changelog_date_is_stable_across_resync(roadmap, repo):
@@ -726,7 +726,7 @@ def test_retarget_empty_selection_raises(roadmap, repo):
 
 def test_retarget_prunes_emptied_version_dates(roadmap, repo):
     roadmap.init_project(repo, "P")
-    roadmap.new_item(repo, "feature", "A", version="1.3.0")
+    roadmap.new_item(repo, "feature", "A", version="1.3.0", note="Feature A")
     roadmap.check_step(repo, 1, None, all_done=True)                     # stamps versionDates[1.3.0]
     assert "1.3.0" in roadmap.read_config(repo)["versionDates"]
     roadmap.retarget(repo, "1.0.0", from_versions=["1.3.0"])
@@ -761,3 +761,66 @@ def test_upgrade_command_runs(roadmap, repo, monkeypatch):
     roadmap.init_project(repo, "P")
     assert roadmap.main(["upgrade"]) == 0
     assert roadmap.read_config(repo)["skillVersion"] == roadmap.get_version()
+
+
+# --- audience-aware public/internal changelog ---------------------------------
+
+def test_audience_defaults_by_type(roadmap):
+    assert roadmap.item_audience({"type": "feature"}) == "public"
+    assert roadmap.item_audience({"type": "bug"}) == "public"
+    assert roadmap.item_audience({"type": "refactor"}) == "internal"
+    assert roadmap.item_audience({"type": "chore"}) == "internal"
+    assert roadmap.item_audience({"type": "feature", "audience": "internal"}) == "internal"
+
+
+def test_internal_item_excluded_from_public_but_in_internal(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "Login", note="Sign in with email")     # public
+    roadmap.new_item(repo, "refactor", "Rework cache", note="Cache rewrite")  # internal by default
+    roadmap.check_step(repo, 1, None, all_done=True)
+    roadmap.check_step(repo, 2, None, all_done=True)
+    public = (repo / "CHANGELOG.md").read_text()
+    internal = (repo / "CHANGELOG.internal.md").read_text()
+    assert "Sign in with email" in public and "Cache rewrite" not in public
+    assert roadmap.ROLLUP_LINE in public                       # internal work rolled up
+    assert "Cache rewrite" in internal and "Sign in with email" in internal
+
+
+def test_public_item_without_note_omitted_with_warning(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "Secret sauce")          # public, no note
+    roadmap.check_step(repo, 1, None, all_done=True)
+    _text, warnings = roadmap.render_public_changelog(repo)
+    assert "Secret sauce" not in _text
+    assert any("no note" in w for w in warnings)
+
+
+def test_set_audience_moves_item_between_changelogs(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "Internal tool", note="Did a thing")
+    roadmap.check_step(repo, 1, None, all_done=True)
+    assert "Did a thing" in (repo / "CHANGELOG.md").read_text()   # public by default
+    roadmap.set_audience(repo, 1, "internal")
+    assert "Did a thing" not in (repo / "CHANGELOG.md").read_text()
+    assert "Did a thing" in (repo / "CHANGELOG.internal.md").read_text()
+
+
+def test_set_audience_rejects_bad_value(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    with pytest.raises(ValueError):
+        roadmap.set_audience(repo, 1, "everyone")
+
+
+def test_lint_note_flags_internal_tells(roadmap):
+    assert roadmap.lint_note("Plain user benefit") == []
+    tells = roadmap.lint_note("Fixed the Convex mutation in src/api/db.ts (#77)")
+    low = [t.lower() for t in tells]
+    assert "convex" in low and "#77" in tells and any(".ts" in t for t in tells)
+
+
+def test_internal_changelog_falls_back_to_title(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "chore", "Bump deps")               # internal, no note
+    roadmap.check_step(repo, 1, None, all_done=True)
+    assert "Bump deps" in (repo / "CHANGELOG.internal.md").read_text()  # title fallback
