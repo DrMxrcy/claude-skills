@@ -57,17 +57,23 @@ On invocation, detect state and pick a phase:
    - Ensure every completed item has a clear user-facing `note` (set/fix with
      `roadmap.py note --plan <id> --text "<plain-language summary>"`) so the generated
      `CHANGELOG.md` reads for end users, not developers.
-   - Pick the next version by semver, then `roadmap.py release --version <next>`. Release is
-     guarded (refuses an incomplete version; `--force` to override) and writes the user-facing
-     `CHANGELOG.md` entry. Its latest section is ready to paste into the App Store "What's New"
-     or a website changelog.
+   - The user-facing `CHANGELOG.md` is rendered automatically on every `sync` (each item
+     appears once it hits 100%, grouped by its version). `release` is **optional** — use it
+     only to pin a new current version or create a `git tag` (`--tag`); it no longer owns the
+     changelog. Run `roadmap.py changelog` anytime to print the latest.
 
 ## Command reference
 - `init [--name N] [--adopt]` — scaffold (adopt = existing repo, non-destructive)
-- `new --type T --title "..." [--version V]` — scaffold + register a plan
+- `new --type T --title "..." [--version V] [--note "..."]` — scaffold + register a plan
+- `note --plan ID --text "..."` — set an item's user-facing changelog line
 - `check --plan ID --step N [--undo] [--all-done]` — flip checkboxes
-- `sync` — recompute progress + re-render ROADMAP.md (safe anytime)
-- `release --version V [--tag]` — bump version
+- `remove --plan ID` — archive a plan, drop it, demote it to the Idea Incubator
+- `depends --plan ID --on IDS [--clear]` — set advisory dependency ordering
+- `reorder --version V --order IDS` — set display/build order within a version
+- `merge --into KEEP --from IDS` — fold duplicate items into one keeper
+- `sync` — recompute progress + re-render ROADMAP.md **and CHANGELOG.md** (safe anytime)
+- `changelog [--backfill]` — print the live changelog; `--backfill` dates past versions from git tags
+- `release --version V [--tag] [--force]` — bump version (optional; changelog is automatic)
 - `status [--json]` — print current state
 - `import PATH` — extract checklist lines from a file into a plan
 
