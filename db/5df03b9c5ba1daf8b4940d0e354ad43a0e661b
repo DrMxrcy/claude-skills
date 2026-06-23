@@ -1,0 +1,27 @@
+skills/roadmap/README.md
+  s_fc2eb9dd6e45b1::t_00958eafc5fb76 150-152
+  s_fc2eb9dd6e45b1::t_4dbc7e6e9530cf 47
+  s_fc2eb9dd6e45b1::t_28944d7d93a616 140
+skills/roadmap/SKILL.md
+  s_fc2eb9dd6e45b1::t_d3b54f0c28fb64 74
+commands/roadmap/retarget.md
+  s_fc2eb9dd6e45b1::t_007195d7086ffc 1-31
+docs/superpowers/specs/2026-06-22-roadmap-retarget-design.md
+  s_fc2eb9dd6e45b1::t_f215838bf8644a 1-77
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "db5df03b9c5ba1daf8b4940d0e354ad43a0e661b",
+  "prompts": {},
+  "sessions": {
+    "s_fc2eb9dd6e45b1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7f9a4c51-b12e-4d5a-8257-b991702a6963",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
