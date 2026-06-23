@@ -18,8 +18,11 @@ deterministic Python CLI makes every mechanical edit so the dashboard never drif
 /roadmap:plan <idea>          # brainstorm an idea into a tracked, versioned plan
 /roadmap:build <id|version>   # implement an item or a whole phase, checking off as tests pass
 /roadmap:review <version>     # verify a finished phase against its specs + code review
-/roadmap:release <version>    # cut the next version (guarded; writes CHANGELOG.md)
+/roadmap:release <version>    # optional: pin a new version / git-tag (changelog is automatic)
 ```
+
+`CHANGELOG.md` is rendered automatically on every sync — each item shows up once it hits
+100%, grouped by its version. You don't need `/roadmap:release` to get a changelog.
 
 `/roadmap:next` builds the next unfinished item in the current version. `/roadmap:status`
 shows progress anytime; `/roadmap:sync` re-renders the dashboard.
@@ -40,9 +43,11 @@ see the autonomous section in [`commands/roadmap/build.md`](../../commands/roadm
 | `/roadmap:catchup [id]` | Reconcile the roadmap with work done outside the commands (checks off completed steps) |
 | `/roadmap:status` | Show versions, items, types, and progress |
 | `/roadmap:done <id> [step]` | Mark a step/item done and resync |
+| `/roadmap:remove <id>` | Remove a tracked item — archive its plan, demote it to the Idea Incubator |
+| `/roadmap:retarget --to V (--from VERS \| --plan IDS)` | Re-stamp items onto another version (e.g. consolidate shipped work into one release on a branch) |
 | `/roadmap:review [version]` | Verify a finished phase against its specs + code review before release |
-| `/roadmap:release <version>` | Cut a new version (guarded; writes `CHANGELOG.md`) |
-| `/roadmap:changelog [version]` | Show the latest changelog entry, or backfill user-facing notes from git history |
+| `/roadmap:release <version>` | Optional: pin a new current version / `git tag` (changelog is automatic) |
+| `/roadmap:changelog [version]` | Print the live changelog; backfill past versions' dates from git tags / notes from history |
 | `/roadmap:reevaluate [version]` | Audit the codebase against the roadmap — surface missed/duplicate/stale work and resequence |
 | `/roadmap:sync` | Recompute progress and re-render `ROADMAP.md` |
 
@@ -104,11 +109,15 @@ dupes, flags stale work, resequences). Use the one that matches the drift you ha
 - **`/roadmap:review [version]`** — Before releasing, verifies a finished phase against its
   linked specs and does a code review, so you cut a version only when the work truly matches
   the plan.
-- **`/roadmap:release <version>`** — Cuts the next version. **Guarded**: refuses if the
-  current version still has incomplete items (`--force` to override). Writes a user-facing
-  `CHANGELOG.md` entry grouped ✨ New / 🐛 Fixed / ⚡ Improved, and optionally tags git.
-- **`/roadmap:changelog [version]`** — Shows the latest changelog entry, or backfills
-  user-facing notes from git history when you forgot to set them.
+- **`/roadmap:remove <id>`** — Removes a tracked item the clean way: archives its plan to
+  `.roadmap/archive/`, drops it from the registry, clears any dependency on it, and leaves a
+  `- (was #id) title` breadcrumb under the Idea Incubator. The recoverable alternative to
+  hand-editing `config.json`. (To consolidate two items instead of dropping one, use `merge`.)
+- **`/roadmap:release <version>`** — **Optional.** Pins a new current version and can `git tag`
+  it. **Guarded**: refuses if the current version still has incomplete items (`--force` to
+  override). It no longer writes the changelog — that's automatic (see below).
+- **`/roadmap:changelog [version]`** — Prints the live `CHANGELOG.md`. `--backfill` dates past
+  versions from their `git tag v<ver>`; you can also reconstruct missing notes from git history.
 
 ## CLI
 
@@ -122,17 +131,25 @@ python3 $roadmap note --plan ID --text "user-facing summary"
 python3 $roadmap check --plan ID --step N [--undo] [--all-done]
 python3 $roadmap status [--json]
 python3 $roadmap sync
-python3 $roadmap release --version V [--tag] [--force] [--no-changelog]
+python3 $roadmap changelog [--backfill]                     # print the live changelog; --backfill dates past versions from git tags
+python3 $roadmap remove --plan ID                           # archive + drop an item, demote to Incubator
+python3 $roadmap depends --plan ID --on 2,5 [--clear]       # advisory dependency ordering
+python3 $roadmap release --version V [--tag] [--force]      # optional version pin / git tag
 python3 $roadmap reorder --version V --order 3,1,2          # explicit item order within a version
 python3 $roadmap merge --into KEEP_ID --from 2,5            # combine duplicate items into one
+python3 $roadmap retarget --to 1.0.0 --from 1.3.0,1.6.0    # re-stamp items onto another version
 python3 $roadmap import PATH
 python3 $roadmap version
 ```
 
-`reorder` and `merge` are the verbs `/roadmap:reevaluate` uses to resequence and dedupe:
-`reorder` sets an explicit order for items in a version (the dashboard renders by that
-order, falling back to id order), and `merge` folds the source items' checklist steps into
-the keeper, deletes the source plans, and retargets any dependencies onto the keeper.
+`reorder`, `merge`, and `depends` are the verbs `/roadmap:reevaluate` uses to resequence and
+dedupe: `reorder` sets an explicit order for items in a version (the dashboard renders by that
+order, falling back to id order); `merge` folds the source items' checklist steps into the
+keeper, deletes the source plans, and retargets any dependencies onto the keeper; `depends`
+records advisory ordering (`dependsOn`) that merge/remove keep consistent. `remove` archives a
+single item and demotes it to the Idea Incubator. `retarget` changes the *version* of existing
+items — select by `--from <versions>` or `--plan <ids>` — to consolidate shipped work into one
+release (do it on a branch; the CLI edits roadmap state, not git).
 
 ## Versioning & changelog (user-facing)
 
@@ -140,10 +157,14 @@ the keeper, deletes the source plans, and retargets any dependencies onto the ke
   minor (`x.Y.0`), breaking change or a whole new phase → major (`X.0.0`). A *phase* is just
   a version; type (`bug`/`feature`/…) is set per item. `/roadmap:plan` classifies both.
 - Each item carries a plain-language **`note`** (set at `new --note` or later via `note`).
-- On `release`, `CHANGELOG.md` gets a user-facing entry for the shipped version, grouped into
-  **✨ New / 🐛 Fixed / ⚡ Improved** using each item's note (falling back to its title). The
-  latest section is ready to paste into the **App Store "What's New"** or a website changelog.
-- Release is **guarded** — it refuses an incomplete version (`--force` to override).
+- `CHANGELOG.md` is **rendered automatically on every `sync`** from the item registry, grouped
+  into **✨ New / 🐛 Fixed / ⚡ Improved** using each item's note (falling back to its title). An
+  item appears once it hits 100%; its version's heading is dated once *all* the version's items
+  are complete (the date is persisted so re-renders are stable). In-progress versions show
+  `(in progress)` with `(pending)` lines. The latest section is ready to paste into the
+  **App Store "What's New"** or a website changelog — no `release` step required.
+- `release` is **optional and guarded** — it only pins a new current version / `git tag` and
+  refuses an incomplete version (`--force` to override). It does not write the changelog.
 
 ## How it works (anti-drift)
 
@@ -154,7 +175,7 @@ ROADMAP.md          # human-readable dashboard (rendered view)
 .roadmap/
 ├── config.json     # project, current version, next id, item registry
 └── plans/NNN-*.md  # one plan per item: frontmatter + checklist of tiny steps
-CHANGELOG.md        # written on release, per completed version
+CHANGELOG.md        # rendered on every sync from the item registry (per version)
 ```
 
 - **Plan files** are the source of truth for progress (the checklist).

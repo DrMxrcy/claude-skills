@@ -373,8 +373,7 @@ def test_release_force_bypasses_incomplete(roadmap, repo):
 def test_release_writes_changelog(roadmap, repo):
     roadmap.init_project(repo, "P")
     roadmap.new_item(repo, "feature", "Login")
-    roadmap.check_step(repo, 1, None, all_done=True)
-    roadmap.release(repo, "0.0.2")
+    roadmap.check_step(repo, 1, None, all_done=True)           # sync writes changelog
     cl = (repo / "CHANGELOG.md").read_text()
     assert "## v0.0.1" in cl and "✨ New" in cl and "Login" in cl
     assert "(feature)" not in cl                 # user-facing — no type jargon
@@ -386,11 +385,38 @@ def test_changelog_uses_note_and_groups_by_type(roadmap, repo):
     roadmap.new_item(repo, "bug", "Null deref on logout")
     roadmap.check_step(repo, 1, None, all_done=True)
     roadmap.check_step(repo, 2, None, all_done=True)
-    roadmap.release(repo, "0.0.2")
     cl = (repo / "CHANGELOG.md").read_text()
     assert "Sign in with email" in cl and "Auth backend" not in cl   # note used, not title
     assert "🐛 Fixed" in cl and "Null deref on logout" in cl
     assert cl.index("✨ New") < cl.index("🐛 Fixed")                 # New before Fixed
+
+
+def test_changelog_written_on_completion_via_sync(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "Login", note="Sign in with email")
+    roadmap.check_step(repo, 1, None, all_done=True)           # triggers sync
+    cl = (repo / "CHANGELOG.md").read_text()
+    assert "## v0.0.1" in cl and "✨ New" in cl and "Sign in with email" in cl
+    assert "(pending)" not in cl                               # version fully done
+
+
+def test_changelog_in_progress_shows_pending(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "Big feature")          # 0/2 done
+    cl = (repo / "CHANGELOG.md").read_text()
+    assert "(in progress)" in cl and "- (pending) Big feature" in cl
+
+
+def test_changelog_date_is_stable_across_resync(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    roadmap.check_step(repo, 1, None, all_done=True)
+    first = (repo / "CHANGELOG.md").read_text()
+    date = roadmap.read_config(repo)["versionDates"]["0.0.1"]
+    roadmap.sync(repo)
+    roadmap.sync(repo)
+    assert (repo / "CHANGELOG.md").read_text() == first        # no churn
+    assert roadmap.read_config(repo)["versionDates"]["0.0.1"] == date
 
 
 def test_new_with_note_and_set_note(roadmap, repo):
@@ -399,14 +425,6 @@ def test_new_with_note_and_set_note(roadmap, repo):
     assert roadmap.read_config(repo)["items"][0]["note"] == "hello"
     roadmap.set_note(repo, 1, "updated")
     assert roadmap.read_config(repo)["items"][0]["note"] == "updated"
-
-
-def test_release_no_changelog_skips(roadmap, repo):
-    roadmap.init_project(repo, "P")
-    roadmap.new_item(repo, "feature", "Login")
-    roadmap.check_step(repo, 1, None, all_done=True)
-    roadmap.release(repo, "0.0.2", changelog=False)
-    assert not (repo / "CHANGELOG.md").exists()
 
 
 def test_norm_version_strips_leading_v(roadmap):
@@ -519,3 +537,208 @@ def test_merge_rejects_keeper_in_sources(roadmap, repo):
     roadmap.new_item(repo, "feature", "A")
     with pytest.raises(ValueError):
         roadmap.merge_items(repo, keep_id=1, source_ids=[1])
+
+
+def test_depends_sets_field(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")   # 1
+    roadmap.new_item(repo, "feature", "B")   # 2
+    roadmap.set_depends(repo, 2, [1])
+    dep = next(i for i in roadmap.read_config(repo)["items"] if i["id"] == 2)
+    assert dep["dependsOn"] == [1]
+
+
+def test_depends_dedups_and_preserves_order(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    for t in ("A", "B", "C"):
+        roadmap.new_item(repo, "feature", t)
+    roadmap.set_depends(repo, 3, [2, 1, 2])
+    dep = next(i for i in roadmap.read_config(repo)["items"] if i["id"] == 3)
+    assert dep["dependsOn"] == [2, 1]
+
+
+def test_depends_rejects_self_and_unknown(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    with pytest.raises(ValueError):
+        roadmap.set_depends(repo, 1, [1])        # self
+    with pytest.raises(ValueError):
+        roadmap.set_depends(repo, 1, [99])       # unknown target
+    with pytest.raises(ValueError):
+        roadmap.set_depends(repo, 99, [1])       # unknown plan
+
+
+def test_depends_clear_removes_field(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    roadmap.new_item(repo, "feature", "B")
+    roadmap.set_depends(repo, 2, [1])
+    roadmap.set_depends(repo, 2, [], clear=True)
+    dep = next(i for i in roadmap.read_config(repo)["items"] if i["id"] == 2)
+    assert "dependsOn" not in dep
+
+
+def test_cli_depends(roadmap, repo, monkeypatch):
+    monkeypatch.chdir(repo)
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    roadmap.new_item(repo, "feature", "B")
+    assert roadmap.main(["depends", "--plan", "2", "--on", "1"]) == 0
+    dep = next(i for i in roadmap.read_config(repo)["items"] if i["id"] == 2)
+    assert dep["dependsOn"] == [1]
+
+
+def test_remove_archives_and_drops(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    p = roadmap.new_item(repo, "feature", "Stray thing")
+    roadmap.remove_item(repo, 1)
+    cfg = roadmap.read_config(repo)
+    assert cfg["items"] == []                                  # dropped from registry
+    assert not p.exists()                                      # original gone
+    assert (repo / ".roadmap/archive/001-stray-thing.md").exists()  # archived
+    rm = (repo / "ROADMAP.md").read_text()
+    assert "(was #1) Stray thing" in rm                        # demoted to Incubator
+    assert rm.index("Idea Incubator") < rm.index("(was #1)")   # under the heading
+
+
+def test_remove_retargets_dependents(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")   # 1
+    roadmap.new_item(repo, "feature", "B")   # 2
+    roadmap.set_depends(repo, 2, [1])
+    roadmap.remove_item(repo, 1)
+    dep = next(i for i in roadmap.read_config(repo)["items"] if i["id"] == 2)
+    assert "dependsOn" not in dep            # link to removed item cleared
+
+
+def test_remove_missing_plan_file_still_drops(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    p = roadmap.new_item(repo, "feature", "A")
+    p.unlink()                               # plan file already gone
+    roadmap.remove_item(repo, 1)
+    assert roadmap.read_config(repo)["items"] == []
+
+
+def test_remove_unknown_id_raises(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    with pytest.raises(ValueError):
+        roadmap.remove_item(repo, 99)
+
+
+def test_cli_remove(roadmap, repo, monkeypatch):
+    monkeypatch.chdir(repo)
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    assert roadmap.main(["remove", "--plan", "1"]) == 0
+    assert roadmap.read_config(repo)["items"] == []
+
+
+def test_changelog_command_prints(roadmap, repo, monkeypatch, capsys):
+    monkeypatch.chdir(repo)
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "Login", note="Sign in")
+    roadmap.check_step(repo, 1, None, all_done=True)
+    assert roadmap.main(["changelog"]) == 0
+    assert "Sign in" in capsys.readouterr().out
+
+
+def test_backfill_dates_from_git_tag(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    roadmap.check_step(repo, 1, None, all_done=True)
+    # remove the auto-stamped date so backfill has work to do
+    cfg = roadmap.read_config(repo)
+    cfg["versionDates"] = {}
+    roadmap.write_config(repo, cfg)
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "x"], cwd=repo, check=True)
+    subprocess.run(["git", "tag", "v0.0.1"], cwd=repo, check=True)
+    roadmap.backfill_changelog(repo)
+    date = roadmap.read_config(repo)["versionDates"].get("0.0.1")
+    assert date and date.count("-") == 2          # ISO YYYY-MM-DD from tag commit
+
+
+def test_backfill_no_tag_leaves_undated(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")        # incomplete, no tag
+    cfg = roadmap.read_config(repo)
+    cfg["versionDates"] = {}
+    roadmap.write_config(repo, cfg)
+    roadmap.backfill_changelog(repo)
+    assert roadmap.read_config(repo)["versionDates"] == {}   # nothing to backfill
+
+
+def test_retarget_from_versions_moves_items(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A", version="1.0.0")   # 1
+    roadmap.new_item(repo, "feature", "B", version="1.3.0")   # 2
+    roadmap.new_item(repo, "feature", "C", version="1.6.0")   # 3
+    roadmap.retarget(repo, "1.0.0", from_versions=["1.3.0", "1.6.0"])
+    versions = {i["id"]: i["version"] for i in roadmap.read_config(repo)["items"]}
+    assert versions == {1: "1.0.0", 2: "1.0.0", 3: "1.0.0"}
+
+
+def test_retarget_rewrites_plan_frontmatter(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    p = roadmap.new_item(repo, "feature", "A", version="1.3.0")
+    roadmap.retarget(repo, "2.0.0", from_versions=["1.3.0"])
+    assert "version: 2.0.0" in p.read_text()
+
+
+def test_retarget_by_plan_ids(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A", version="1.0.0")   # 1
+    roadmap.new_item(repo, "feature", "B", version="1.0.0")   # 2
+    roadmap.retarget(repo, "1.5.0", plan_ids=[2])
+    versions = {i["id"]: i["version"] for i in roadmap.read_config(repo)["items"]}
+    assert versions == {1: "1.0.0", 2: "1.5.0"}
+
+
+def test_retarget_normalizes_target(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A", version="1.0.0")
+    roadmap.retarget(repo, "v2.0.0", plan_ids=[1])
+    assert roadmap.read_config(repo)["items"][0]["version"] == "2.0.0"
+
+
+def test_retarget_requires_exactly_one_selector(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    with pytest.raises(ValueError):
+        roadmap.retarget(repo, "1.0.0")                                  # neither
+    with pytest.raises(ValueError):
+        roadmap.retarget(repo, "1.0.0", from_versions=["0.0.1"], plan_ids=[1])  # both
+
+
+def test_retarget_unknown_plan_id_raises(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    with pytest.raises(ValueError):
+        roadmap.retarget(repo, "1.0.0", plan_ids=[99])
+
+
+def test_retarget_empty_selection_raises(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A", version="1.0.0")
+    with pytest.raises(ValueError):
+        roadmap.retarget(repo, "2.0.0", from_versions=["9.9.9"])         # no such version
+
+
+def test_retarget_prunes_emptied_version_dates(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A", version="1.3.0")
+    roadmap.check_step(repo, 1, None, all_done=True)                     # stamps versionDates[1.3.0]
+    assert "1.3.0" in roadmap.read_config(repo)["versionDates"]
+    roadmap.retarget(repo, "1.0.0", from_versions=["1.3.0"])
+    vd = roadmap.read_config(repo)["versionDates"]
+    assert "1.3.0" not in vd                                             # emptied version pruned
+    cl = (repo / "CHANGELOG.md").read_text()
+    assert "## v1.0.0" in cl and "## v1.3.0" not in cl                   # re-rendered under target
+
+
+def test_cli_retarget(roadmap, repo, monkeypatch):
+    monkeypatch.chdir(repo)
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A", version="1.6.0")
+    assert roadmap.main(["retarget", "--to", "1.0.0", "--from", "1.6.0"]) == 0
+    assert roadmap.read_config(repo)["items"][0]["version"] == "1.0.0"
