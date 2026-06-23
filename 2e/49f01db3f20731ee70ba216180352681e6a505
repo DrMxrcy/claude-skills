@@ -1,0 +1,19 @@
+skills/roadmap/example/RALPH-LOOP.md
+  s_fc2eb9dd6e45b1::t_70447e3b721bea 1-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "2e49f01db3f20731ee70ba216180352681e6a505",
+  "prompts": {},
+  "sessions": {
+    "s_fc2eb9dd6e45b1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7f9a4c51-b12e-4d5a-8257-b991702a6963",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
