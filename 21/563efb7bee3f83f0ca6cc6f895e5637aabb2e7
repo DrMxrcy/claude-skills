@@ -1,0 +1,54 @@
+skills/roadmap/scripts/roadmap.py
+  s_f8aaf2c010daa3::t_ddd74b6533836b 236-238
+  s_f8aaf2c010daa3::t_9dad0ffb487141 332-333
+  s_f8aaf2c010daa3::t_e7b526262ca63b 313
+  s_f8aaf2c010daa3::t_5d5a9d39834e2f 863,869-871
+  s_f8aaf2c010daa3::t_039057bdaeaac3 175
+  s_f8aaf2c010daa3::t_52b012648d8fa2 239-241
+  s_f8aaf2c010daa3::t_8b1ca9a5b47b11 928-929,935-936
+  s_f8aaf2c010daa3::t_9307efd1f71f61 977
+  s_f8aaf2c010daa3::t_931e369c3b546c 548-601,607,609-610,615,618,620,622-663,665-691,695-712
+  s_f8aaf2c010daa3::t_1329dbab954888 978-980
+  s_f8aaf2c010daa3::t_e36617abd204fc 341-342,348-369
+  s_f8aaf2c010daa3::t_b2c7af7564fbb6 912-913
+commands/roadmap/plan.md
+  s_f8aaf2c010daa3::t_60940de7009fad 19-28
+skills/roadmap/README.md
+  s_f8aaf2c010daa3::t_c041627dcd5f34 24-27
+  s_f8aaf2c010daa3::t_23f58399acb6cd 165-182
+  s_f8aaf2c010daa3::t_8890b7568eed0e 134-136,140
+  s_f8aaf2c010daa3::t_7e6401494548f3 122-125
+  s_f8aaf2c010daa3::t_cb2262c44b76fa 195-196
+commands/roadmap/release.md
+  s_f8aaf2c010daa3::t_4e84e002cbccc0 29-30,33-35
+  s_f8aaf2c010daa3::t_18f145fea9caaa 11-21
+commands/roadmap/done.md
+  s_f8aaf2c010daa3::t_55f42f1442b17c 15-20
+commands/roadmap/retarget.md
+  s_f8aaf2c010daa3::t_e873da1712aa23 28
+  s_f8aaf2c010daa3::t_c2b0300bf7307e 20-27
+commands/roadmap/changelog.md
+  s_f8aaf2c010daa3::t_8440a40da64bc7 2,6,8-14,16-29,31-35,60-62
+  s_f8aaf2c010daa3::t_f0774337e5678e 36-59
+skills/roadmap/SKILL.md
+  s_f8aaf2c010daa3::t_bb96e33c711df8 75-77
+  s_f8aaf2c010daa3::t_d4bbc1b858dc4f 61-71
+  s_f8aaf2c010daa3::t_7949287ff6b934 41,43-48
+  s_f8aaf2c010daa3::t_aa7727104839e8 84,86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "21563efb7bee3f83f0ca6cc6f895e5637aabb2e7",
+  "prompts": {},
+  "sessions": {
+    "s_f8aaf2c010daa3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2615454c-bad1-471d-9b61-946c5bc5d1b9",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
