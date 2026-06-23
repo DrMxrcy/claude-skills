@@ -1,0 +1,21 @@
+docs/superpowers/specs/2026-06-22-roadmap-removal-changelog-deps-design.md
+  s_fc2eb9dd6e45b1::t_75576e41a8dedb 1-205
+docs/superpowers/plans/2026-06-22-roadmap-removal-changelog-deps.md
+  s_fc2eb9dd6e45b1::t_452a931664be40 1-719
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "39e3d672c507c012cde024d70fd7ea9442cac921",
+  "prompts": {},
+  "sessions": {
+    "s_fc2eb9dd6e45b1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7f9a4c51-b12e-4d5a-8257-b991702a6963",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
