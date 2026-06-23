@@ -1,0 +1,28 @@
+skills/roadmap/README.md
+  s_fc2eb9dd6e45b1::t_87461d33e4a5c6 122-123
+tests/test_roadmap.py
+  s_fc2eb9dd6e45b1::t_0a2c83767138ed 621-622
+  s_fc2eb9dd6e45b1::t_2a0d9eb4a6aac5 602
+commands/roadmap/remove.md
+  s_fc2eb9dd6e45b1::t_1754d69f62023d 13-14
+skills/roadmap/scripts/roadmap.py
+  s_fc2eb9dd6e45b1::t_d59ffb2f958120 397-400,404-405
+  s_fc2eb9dd6e45b1::t_c6de09db91998c 427,432
+  s_fc2eb9dd6e45b1::t_49c60646ea63d2 443
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "63c214a5017ff28c988ec75828e9d9be6f154698",
+  "prompts": {},
+  "sessions": {
+    "s_fc2eb9dd6e45b1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7f9a4c51-b12e-4d5a-8257-b991702a6963",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
