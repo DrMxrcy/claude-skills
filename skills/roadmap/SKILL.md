@@ -71,6 +71,7 @@ On invocation, detect state and pick a phase:
 - `depends --plan ID --on IDS [--clear]` — set advisory dependency ordering
 - `reorder --version V --order IDS` — set display/build order within a version
 - `merge --into KEEP --from IDS` — fold duplicate items into one keeper
+- `retarget --to V (--from VERS | --plan IDS)` — re-stamp items onto another version
 - `sync` — recompute progress + re-render ROADMAP.md **and CHANGELOG.md** (safe anytime)
 - `changelog [--backfill]` — print the live changelog; `--backfill` dates past versions from git tags
 - `release --version V [--tag] [--force]` — bump version (optional; changelog is automatic)

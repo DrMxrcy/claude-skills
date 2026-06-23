@@ -44,6 +44,7 @@ see the autonomous section in [`commands/roadmap/build.md`](../../commands/roadm
 | `/roadmap:status` | Show versions, items, types, and progress |
 | `/roadmap:done <id> [step]` | Mark a step/item done and resync |
 | `/roadmap:remove <id>` | Remove a tracked item — archive its plan, demote it to the Idea Incubator |
+| `/roadmap:retarget --to V (--from VERS \| --plan IDS)` | Re-stamp items onto another version (e.g. consolidate shipped work into one release on a branch) |
 | `/roadmap:review [version]` | Verify a finished phase against its specs + code review before release |
 | `/roadmap:release <version>` | Optional: pin a new current version / `git tag` (changelog is automatic) |
 | `/roadmap:changelog [version]` | Print the live changelog; backfill past versions' dates from git tags / notes from history |
@@ -136,6 +137,7 @@ python3 $roadmap depends --plan ID --on 2,5 [--clear]       # advisory dependenc
 python3 $roadmap release --version V [--tag] [--force]      # optional version pin / git tag
 python3 $roadmap reorder --version V --order 3,1,2          # explicit item order within a version
 python3 $roadmap merge --into KEEP_ID --from 2,5            # combine duplicate items into one
+python3 $roadmap retarget --to 1.0.0 --from 1.3.0,1.6.0    # re-stamp items onto another version
 python3 $roadmap import PATH
 python3 $roadmap version
 ```
@@ -145,7 +147,9 @@ dedupe: `reorder` sets an explicit order for items in a version (the dashboard r
 order, falling back to id order); `merge` folds the source items' checklist steps into the
 keeper, deletes the source plans, and retargets any dependencies onto the keeper; `depends`
 records advisory ordering (`dependsOn`) that merge/remove keep consistent. `remove` archives a
-single item and demotes it to the Idea Incubator.
+single item and demotes it to the Idea Incubator. `retarget` changes the *version* of existing
+items — select by `--from <versions>` or `--plan <ids>` — to consolidate shipped work into one
+release (do it on a branch; the CLI edits roadmap state, not git).
 
 ## Versioning & changelog (user-facing)
 
