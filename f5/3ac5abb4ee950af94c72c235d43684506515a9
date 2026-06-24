@@ -1,0 +1,69 @@
+commands/roadmap/next.md
+  s_fc2eb9dd6e45b1::t_74682d1341b7c5 24-31
+skills/roadmap/scripts/roadmap.py
+  s_f8aaf2c010daa3::t_36dea51b902181 348-353
+  s_f8aaf2c010daa3::t_86f563b37a3c2f 566-571,577,581-582,584-589,592-593,597-607,609-612,615,617-622,625-653
+  s_f8aaf2c010daa3::t_145e74f0fcb48b 761-770,772-776
+commands/roadmap/catchup.md
+  s_fc2eb9dd6e45b1::t_74682d1341b7c5 25-32
+skills/roadmap/SKILL.md
+  s_fc2eb9dd6e45b1::t_74682d1341b7c5 11-18
+  s_f8aaf2c010daa3::t_a633b757f1bf53 69-73
+commands/roadmap/done.md
+  s_fc2eb9dd6e45b1::t_74682d1341b7c5 22-30
+tests/test_roadmap.py
+  s_fc2eb9dd6e45b1::t_b98ebbeb050ffe 847-869
+commands/roadmap/reevaluate.md
+  s_fc2eb9dd6e45b1::t_74682d1341b7c5 39-46
+commands/roadmap/plan.md
+  s_fc2eb9dd6e45b1::t_74682d1341b7c5 35-43
+commands/roadmap/release.md
+  s_fc2eb9dd6e45b1::t_74682d1341b7c5 36-44
+commands/roadmap/retarget.md
+  s_fc2eb9dd6e45b1::t_74682d1341b7c5 35-42
+commands/roadmap/init.md
+  s_fc2eb9dd6e45b1::t_74682d1341b7c5 16-24
+  s_fc2eb9dd6e45b1::t_d59889ae24d1d2 12-13
+commands/roadmap/build.md
+  s_fc2eb9dd6e45b1::t_74682d1341b7c5 83-90
+commands/roadmap/review.md
+  s_fc2eb9dd6e45b1::t_74682d1341b7c5 23-30
+commands/roadmap/status.md
+  s_fc2eb9dd6e45b1::t_74682d1341b7c5 7,13-21
+commands/roadmap/sync.md
+  s_fc2eb9dd6e45b1::t_74682d1341b7c5 5,11-19
+commands/roadmap/upgrade.md
+  s_fc2eb9dd6e45b1::t_74682d1341b7c5 15-22
+commands/roadmap/remove.md
+  s_fc2eb9dd6e45b1::t_74682d1341b7c5 21-28
+commands/roadmap/changelog.md
+  s_f8aaf2c010daa3::t_787484687744ca 19-26
+  s_f8aaf2c010daa3::t_bd17b23b8cacf7 27-35
+  s_f8aaf2c010daa3::t_6b550355cb4976 36-89,105-107
+  s_f8aaf2c010daa3::t_7687daf6c1434c 99-104
+  s_fc2eb9dd6e45b1::t_74682d1341b7c5 124-131
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "f53ac5abb4ee950af94c72c235d43684506515a9",
+  "prompts": {},
+  "sessions": {
+    "s_f8aaf2c010daa3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2615454c-bad1-471d-9b61-946c5bc5d1b9",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    },
+    "s_fc2eb9dd6e45b1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7f9a4c51-b12e-4d5a-8257-b991702a6963",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
