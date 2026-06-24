@@ -345,7 +345,12 @@ def set_note(root: Path, plan_id: int, text: str) -> None:
         if item["id"] == plan_id:
             item["note"] = text
             write_config(root, cfg)
-            if item_audience(item) == "public":
+            blob = f"{text} {item['title']}"
+            if item.get("audience") is None and demote_tells(blob):
+                print(f"warning: #{plan_id} auto-routed to the internal changelog "
+                      f"({', '.join(demote_tells(blob))}); if it really is user-facing, "
+                      f"override: roadmap audience --plan {plan_id} --to public", file=sys.stderr)
+            elif item_audience(item) == "public":
                 tells = lint_note(text, cfg.get("settings", {}).get("internalTerms", []))
                 if tells:
                     print(f"warning: #{plan_id} note reads internal ({', '.join(tells)}); "
@@ -558,66 +563,94 @@ DEFAULT_AUDIENCE = {"feature": "public", "bug": "public",
 # work, instead of listing it.
 ROLLUP_LINE = "_Plus behind-the-scenes performance and reliability work._"
 
-# Internal "tells" that should never appear in a PUBLIC note. Matched case-insensitively
-# as whole words; the vendor list is extendable via settings.internalTerms.
-INTERNAL_VENDORS = [
+# Internal "tells" come in two tiers, matched case-insensitively as whole words.
+#
+# WARN tier = WORDING problems. The feature may still be public; the note just reads like it
+# was written for engineers — rephrase, don't reclassify. (vendor/tool names, dev jargon,
+# mechanism phrasing, plus file paths / issue refs detected by regex in lint_note.)
+WARN_VENDORS = [
     "convex", "sentry", "aptabase", "codex", "eas", "clerk", "supabase", "firebase",
     "vercel", "netlify", "cloudflare", "r2", "s3", "docker", "kubernetes", "k8s",
     "redis", "postgres", "postgresql", "mysql", "mongodb", "stripe", "github actions",
     "expo", "webpack", "vite", "prisma", "graphql", "grpc",
 ]
-INTERNAL_JARGON = [
+WARN_JARGON = [
     "refactor", "schema", "migration", "mutation", "endpoint", "backend", "frontend",
     "polling", "cron", "webhook", "ci", "lint", "linter", "env var",
     "environment variable", "api key", "n+1", "regression",
+    "under the hood", "data feed", "data feeds", "headliner index", "walk-through",
+    "walkthrough index",
 ]
-# Softer "dev summary" phrasing — process, security, and architecture words that read like a
-# changelog written for engineers, not users. These are the tells a vendor/path scan misses
-# (e.g. "pre-launch hardening pass", "lays the groundwork", "privilege misuse").
-INTERNAL_PHRASING = [
-    "hardening", "hardened", "groundwork", "pre-launch", "prelaunch", "privilege",
-    "spam/abuse", "reusable", "scaffolding", "boilerplate", "rearchitect", "re-architect",
-    "static-page", "sitemap", "robots rules", "robots.txt", "closed gaps", "headliner index",
-    "walk-through", "walkthrough index", "data feed", "data feeds", "groundwork for",
-    "public url", "public urls", "expiring link", "expiring links", "signed url",
-    "signed urls", "vulnerability", "exploit", "under the hood",
-    "structured data", "metadata", "search-optimized", "search optimized", "seo",
-]
-# Wrong-audience tells: admin/operator-only surfaces, and compliance/legal gates. These are
-# "user-facing" to staff or to regulators — not to the end users who read a public changelog.
-INTERNAL_SCOPE = [
+WARN_TELLS = [*WARN_VENDORS, *WARN_JARGON]
+
+# DEMOTE tier = WRONG-AUDIENCE / self-incriminating. The *work* is internal, not just the
+# wording. An item with no explicit audience that trips any of these auto-routes to
+# CHANGELOG.internal.md (an explicit `audience --to public` still wins). Grouped by reason:
+DEMOTE_ADMIN = [        # operator-only surfaces — staff read these, not end users
     "admin", "admins", "admin panel", "admin console", "admin area", "admin dashboard",
     "moderation", "moderator", "moderators", "audit trail", "audit log", "role-gated", "cms",
+]
+DEMOTE_COMPLIANCE = [   # legal/regulatory gates — required, not a feature anyone chose
     "compliance", "coppa", "gdpr", "age gate", "age-gate", "age verification", "13-and-up",
     "13 and up", "underage", "minimum age", "eula", "terms acceptance", "community guidelines",
 ]
+DEMOTE_SECURITY = [     # security fixes that disclose a past hole — never advertise the weakness
+    "hardening", "hardened", "privilege", "spam/abuse", "closed gaps", "vulnerability",
+    "exploit", "public url", "public urls", "expiring link", "expiring links", "signed url",
+    "signed urls",
+]
+DEMOTE_PLUMBING = [     # SEO/infra plumbing & internal milestones — no user-visible payoff
+    "groundwork", "groundwork for", "reusable", "static-page", "sitemap", "robots rules",
+    "robots.txt", "structured data", "metadata", "search-optimized", "search optimized", "seo",
+    "scaffolding", "boilerplate", "rearchitect", "re-architect", "pre-launch", "prelaunch",
+]
+DEMOTE_TELLS = [*DEMOTE_ADMIN, *DEMOTE_COMPLIANCE, *DEMOTE_SECURITY, *DEMOTE_PLUMBING]
+
+_PATH_RE = re.compile(r"\b[\w.-]+\.(?:ts|tsx|js|jsx|mjs|cjs|py|go|rs|java|rb|php|"
+                      r"json|ya?ml|toml|sql|sh|css|scss)\b")          # foo/bar.ts
+_SEG_RE = re.compile(r"\b\w+(?:/\w+){2,}\b")                          # a/b/c paths
+_REF_RE = re.compile(r"#\d+")                                        # issue refs (#77)
 
 
-def item_audience(item: dict) -> str:
-    """An item's effective audience: explicit `audience` if set, else the per-type default."""
-    a = item.get("audience")
-    return a if a in ("public", "internal") else DEFAULT_AUDIENCE.get(item["type"], "internal")
+def _word_hits(text: str, terms: list[str]) -> list[str]:
+    low = text.lower()
+    return [t for t in terms if re.search(r"\b" + re.escape(t.lower()) + r"\b", low)]
+
+
+def _dedupe(seq: list[str]) -> list[str]:
+    seen, out = set(), []
+    for h in seq:
+        if h.lower() not in seen:
+            seen.add(h.lower())
+            out.append(h)
+    return out
 
 
 def lint_note(text: str, extra_terms: list[str] | None = None) -> list[str]:
-    """Return the 'internal tells' found in a would-be PUBLIC changelog note — issue refs,
-    source-file paths, vendor/tool names, and dev jargon. Empty list == looks clean.
-    Advisory only: callers warn, they never block."""
-    hits: list[str] = []
-    hits += re.findall(r"#\d+", text)                                  # issue refs (#77)
-    hits += re.findall(r"\b[\w.-]+\.(?:ts|tsx|js|jsx|mjs|cjs|py|go|rs|java|rb|php|"
-                       r"json|ya?ml|toml|sql|sh|css|scss)\b", text)    # foo/bar.ts
-    hits += re.findall(r"\b\w+(?:/\w+){2,}\b", text)                   # a/b/c paths
-    low = text.lower()
-    terms = [*INTERNAL_VENDORS, *INTERNAL_JARGON, *INTERNAL_PHRASING, *INTERNAL_SCOPE,
-             *(extra_terms or [])]
-    hits += [t for t in terms if re.search(r"\b" + re.escape(t.lower()) + r"\b", low)]
-    seen, uniq = set(), []                                            # de-dupe, keep order
-    for h in hits:
-        if h.lower() not in seen:
-            seen.add(h.lower())
-            uniq.append(h)
-    return uniq
+    """Every internal tell in a would-be PUBLIC note, for display/warnings — issue refs,
+    source-file paths, vendor/jargon (warn tier), and scope/disclosure words (demote tier).
+    Empty list == looks clean. Advisory: callers warn, they never block."""
+    hits = _REF_RE.findall(text) + _PATH_RE.findall(text) + _SEG_RE.findall(text)
+    hits += _word_hits(text, [*WARN_TELLS, *DEMOTE_TELLS, *(extra_terms or [])])
+    return _dedupe(hits)
+
+
+def demote_tells(text: str) -> list[str]:
+    """Only the high-confidence WRONG-AUDIENCE tells (admin / compliance / security-disclosure
+    / plumbing). Drives auto-routing of an unclassified item to the internal changelog."""
+    return _dedupe(_word_hits(text, DEMOTE_TELLS))
+
+
+def item_audience(item: dict) -> str:
+    """An item's effective audience. An explicit `audience` always wins. Otherwise an item
+    whose note/title trips a high-confidence demote tell auto-routes to `internal`; failing
+    that, it falls back to the per-type default."""
+    a = item.get("audience")
+    if a in ("public", "internal"):
+        return a
+    if demote_tells(f"{item.get('note', '')} {item.get('title', '')}"):
+        return "internal"
+    return DEFAULT_AUDIENCE.get(item["type"], "internal")
 
 
 def _changelog_versions(root: Path) -> list[tuple[str, str, list[dict]]]:
@@ -725,8 +758,22 @@ def audit_public_notes(root: Path) -> list[str]:
     extra = cfg.get("settings", {}).get("internalTerms", [])
     msgs = []
     for it in sorted(cfg["items"], key=lambda i: i["id"]):
-        if item_audience(it) != "public":
+        explicit = it.get("audience")
+        blob = f"{it.get('note', '')} {it['title']}"
+        eff = item_audience(it)
+        # Auto-routed: no explicit audience, would be public by type, demoted by a high-conf tell.
+        if explicit is None and DEFAULT_AUDIENCE.get(it["type"]) == "public" and eff == "internal":
+            msgs.append(f"#{it['id']} \"{it['title']}\" auto-routed to internal "
+                        f"({', '.join(demote_tells(blob))}); if it really is user-facing, "
+                        f"override: roadmap audience --plan {it['id']} --to public")
             continue
+        if eff != "public":
+            continue
+        # Explicitly marked public but matches a high-confidence internal signal — likely wrong.
+        d = demote_tells(blob)
+        if explicit == "public" and d:
+            msgs.append(f"#{it['id']} is marked PUBLIC but matches high-confidence internal "
+                        f"signals ({', '.join(d)}) — likely miscategorized: \"{it['title']}\"")
         note = it.get("note")
         if not note:
             msgs.append(f"#{it['id']} \"{it['title']}\" (public) has no note — "

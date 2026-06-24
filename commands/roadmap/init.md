@@ -9,10 +9,16 @@ history), use **adopt** mode so the starting version is seeded from the project 
 existing `TODO.md`/`README` roadmap is ingested non-destructively. Otherwise initialize
 greenfield.
 
-The CLI lives at `.claude/skills/roadmap/scripts/roadmap.py` (project install) or
-`~/.claude/skills/roadmap/scripts/roadmap.py` (global install):
-
-- Greenfield: `python3 <path> init --name "<project name>"`
-- Existing repo: `python3 <path> init --adopt --name "<project name>"`
+- Greenfield: `python3 "$RM" init --name "<project name>"`
+- Existing repo: `python3 "$RM" init --adopt --name "<project name>"`
 
 Then confirm `ROADMAP.md` and `.roadmap/` were created and show the result.
+
+**Finding the CLI (`<roadmap.py>`) — do not search for it.** It ships with the skill at a
+fixed path; resolve it once and reuse `$RM`:
+
+```bash
+RM=.claude/skills/roadmap/scripts/roadmap.py; [ -f "$RM" ] || RM="$HOME/.claude/skills/roadmap/scripts/roadmap.py"
+```
+
+Run `python3 "$RM" …` — use `$RM` wherever `<roadmap.py>` appears.

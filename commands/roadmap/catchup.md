@@ -22,5 +22,11 @@ Target: $ARGUMENTS (default: every unfinished item in the current version).
 Going forward, use `/roadmap:build` / `/roadmap:next` so steps are checked off as you go —
 `catchup` is the recovery path, not the normal loop.
 
-The CLI lives at `.claude/skills/roadmap/scripts/roadmap.py` (project) or
-`~/.claude/skills/roadmap/scripts/roadmap.py` (global).
+**Finding the CLI (`<roadmap.py>`) — do not search for it.** It ships with the skill at a
+fixed path; resolve it once and reuse `$RM`:
+
+```bash
+RM=.claude/skills/roadmap/scripts/roadmap.py; [ -f "$RM" ] || RM="$HOME/.claude/skills/roadmap/scripts/roadmap.py"
+```
+
+Run `python3 "$RM" …` — use `$RM` wherever `<roadmap.py>` appears.

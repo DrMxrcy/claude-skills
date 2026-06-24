@@ -33,3 +33,12 @@ Then bump the version with the roadmap CLI:
 Show the updated `ROADMAP.md` (new current version + rollups) and the new public
 `CHANGELOG.md` entry — its latest section is ready to paste into the App Store "What's New"
 or a website changelog.
+
+**Finding the CLI (`<roadmap.py>`) — do not search for it.** It ships with the skill at a
+fixed path; resolve it once and reuse `$RM`:
+
+```bash
+RM=.claude/skills/roadmap/scripts/roadmap.py; [ -f "$RM" ] || RM="$HOME/.claude/skills/roadmap/scripts/roadmap.py"
+```
+
+Run `python3 "$RM" …` — use `$RM` wherever `<roadmap.py>` appears.

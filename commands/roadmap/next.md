@@ -21,5 +21,11 @@ This "build exactly one item, then stop" shape is the ideal iteration body for t
 `ralph-loop` plugin if you want an unattended phase build — see the autonomous section of
 `/roadmap:build`.
 
-The CLI lives at `.claude/skills/roadmap/scripts/roadmap.py` (project) or
-`~/.claude/skills/roadmap/scripts/roadmap.py` (global).
+**Finding the CLI (`<roadmap.py>`) — do not search for it.** It ships with the skill at a
+fixed path; resolve it once and reuse `$RM`:
+
+```bash
+RM=.claude/skills/roadmap/scripts/roadmap.py; [ -f "$RM" ] || RM="$HOME/.claude/skills/roadmap/scripts/roadmap.py"
+```
+
+Run `python3 "$RM" …` — use `$RM` wherever `<roadmap.py>` appears.

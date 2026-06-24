@@ -844,6 +844,29 @@ def test_audit_flags_internal_scope_in_clean_looking_title(roadmap, repo):
     assert any("#1" in m and "admin" in m.lower() for m in msgs)
 
 
+def test_demote_tells_are_high_confidence_only(roadmap):
+    # wrong-audience signals (admin/compliance/security/plumbing) demote
+    assert "admin" in [t.lower() for t in roadmap.demote_tells("New admin panel")]
+    assert "gdpr" in [t.lower() for t in roadmap.demote_tells("GDPR export")]
+    # warn-tier wording (vendor/jargon) is NOT a demote signal on its own
+    assert roadmap.demote_tells("Refactored the Convex schema") == []
+
+
+def test_unclassified_item_with_demote_tell_auto_routes_internal(roadmap):
+    # a feature would default public, but a high-confidence tell routes it internal…
+    assert roadmap.item_audience({"type": "feature", "title": "Admin dashboard"}) == "internal"
+    # …unless the audience is set explicitly, which always wins
+    assert roadmap.item_audience(
+        {"type": "feature", "title": "Admin dashboard", "audience": "public"}) == "public"
+
+
+def test_audit_flags_explicit_public_with_internal_signal(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "Admin tools", note="Manage things", audience="public")
+    msgs = roadmap.audit_public_notes(repo)
+    assert any("#1" in m and "PUBLIC" in m and "admin" in m.lower() for m in msgs)
+
+
 def test_internal_changelog_falls_back_to_title(roadmap, repo):
     roadmap.init_project(repo, "P")
     roadmap.new_item(repo, "chore", "Bump deps")               # internal, no note

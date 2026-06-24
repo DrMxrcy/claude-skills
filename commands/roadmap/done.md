@@ -19,3 +19,12 @@ warns if a public item ships without a note or with internal-sounding wording. F
 can wait for `/roadmap:changelog` / `/roadmap:release`, but a one-liner now saves rework.
 
 After updating, commit the code and the roadmap changes together in one micro-commit.
+
+**Finding the CLI (`<roadmap.py>`) — do not search for it.** It ships with the skill at a
+fixed path; resolve it once and reuse `$RM`:
+
+```bash
+RM=.claude/skills/roadmap/scripts/roadmap.py; [ -f "$RM" ] || RM="$HOME/.claude/skills/roadmap/scripts/roadmap.py"
+```
+
+Run `python3 "$RM" …` — use `$RM` wherever `<roadmap.py>` appears.

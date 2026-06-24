@@ -8,8 +8,14 @@ description: Use when planning features/bugs/refactors, tracking a project roadm
 A persistent tracking layer on top of your planning skills. You decide WHAT; the
 `roadmap.py` CLI makes every mechanical edit so the dashboard never drifts.
 
-**Always mutate state through the CLI — never hand-edit ROADMAP.md.** Run the CLI as
-`python3 <path-to-this-skill>/scripts/roadmap.py <command>` from the target project root.
+**Always mutate state through the CLI — never hand-edit ROADMAP.md.** The `roadmap.py` CLI
+ships with the skill at a deterministic path — **do not search or glob for it**. Resolve it
+once and reuse `$RM` (run from the project root):
+
+```bash
+RM=.claude/skills/roadmap/scripts/roadmap.py; [ -f "$RM" ] || RM="$HOME/.claude/skills/roadmap/scripts/roadmap.py"
+python3 "$RM" <command>
+```
 
 ## Working guardrails (apply whenever this skill is active)
 - At the start of a session, run `roadmap.py status` to orient on current progress before continuing.
@@ -60,8 +66,11 @@ On invocation, detect state and pick a phase:
      shipping — confirm every item is genuinely implemented and matches its spec.
    - Confirm each completed item's **audience** (`roadmap.py audience --plan <id> --to
      public|internal`) and give every *public* item a clear user-facing `note`
-     (`roadmap.py note --plan <id> --text "<plain-language summary>"`). `/roadmap:changelog`
-     audits the version and warns about public items missing a note or worded internally.
+     (`roadmap.py note --plan <id> --text "<plain-language summary>"`). Items with a
+     high-confidence internal tell (admin/operator, compliance, security-disclosure, SEO
+     plumbing) **auto-route to the internal changelog** unless you explicitly set them public;
+     softer wording tells only warn. `/roadmap:changelog` audits the version and reports
+     auto-routings, public items missing a note, and notes worded internally.
    - Two changelogs render automatically on every `sync`: **`CHANGELOG.md`** (public — only
      `audience: public` items, from their `note` only, never the raw title; versions with
      internal-only work get one "behind-the-scenes" roll-up line) and

@@ -32,5 +32,11 @@ release **on a branch**, leaving mainline untouched.
 
 To drop or combine items instead of re-versioning them, use `/roadmap:remove` or `merge`.
 
-The CLI lives at `.claude/skills/roadmap/scripts/roadmap.py` (project) or
-`~/.claude/skills/roadmap/scripts/roadmap.py` (global).
+**Finding the CLI (`<roadmap.py>`) — do not search for it.** It ships with the skill at a
+fixed path; resolve it once and reuse `$RM`:
+
+```bash
+RM=.claude/skills/roadmap/scripts/roadmap.py; [ -f "$RM" ] || RM="$HOME/.claude/skills/roadmap/scripts/roadmap.py"
+```
+
+Run `python3 "$RM" …` — use `$RM` wherever `<roadmap.py>` appears.

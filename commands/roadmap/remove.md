@@ -18,5 +18,11 @@ Remove a tracked item with the **roadmap** skill — the clean alternative to ha
 Use this for stray, duplicated, or abandoned items. To **consolidate** two items into one
 instead of dropping work, use `merge` (see `/roadmap:reevaluate`).
 
-The CLI lives at `.claude/skills/roadmap/scripts/roadmap.py` (project) or
-`~/.claude/skills/roadmap/scripts/roadmap.py` (global).
+**Finding the CLI (`<roadmap.py>`) — do not search for it.** It ships with the skill at a
+fixed path; resolve it once and reuse `$RM`:
+
+```bash
+RM=.claude/skills/roadmap/scripts/roadmap.py; [ -f "$RM" ] || RM="$HOME/.claude/skills/roadmap/scripts/roadmap.py"
+```
+
+Run `python3 "$RM" …` — use `$RM` wherever `<roadmap.py>` appears.

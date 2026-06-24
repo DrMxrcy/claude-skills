@@ -16,49 +16,77 @@ There are **two** changelogs, both rendered deterministically by the CLI:
 **Show / copy:** `python3 <roadmap.py> changelog` prints the public file; add `--internal`
 for the full log. If the section is already curated, it's ready to paste.
 
-**Curate (your real job here) — classify, then phrase:**
-1. Run `python3 <roadmap.py> changelog` and read the warnings it prints. They flag two
-   problems: public items with **no note** (silently dropped from `CHANGELOG.md`), and notes
-   that **read internal** (vendor/tool names, file paths, issue refs, dev jargon).
-2. For each item, decide its **audience** with judgment — would a user notice or care?
-   - User-visible → `python3 <roadmap.py> audience --plan <id> --to public`
-   - Backend/infra/tooling/CI/dev-only → `--to internal`
-   The type default (`feature`/`bug` → public, `refactor`/`chore` → internal) is only a
-   safety net; you are the real gate.
-3. For every **public** item, write a plain-language, benefit-focused one-liner — what the
-   user can now do, in their words:
-   `python3 <roadmap.py> note --plan <id> --text "<user-facing summary>"`.
-   No vendor names (Convex, Sentry, Codex, EAS…), no file paths, no `#123`, no
-   "refactor/schema/backend/polling". The CLI re-lints and warns if it still reads internal.
-4. Re-run `python3 <roadmap.py> changelog` until it prints no warnings, then preview both
-   files. `/roadmap:release` stamps the dated section; this command just gets it clean.
+**Auto-routing.** The CLI already does the high-confidence calls for you: an item with no
+explicit `audience` whose note/title trips an admin, compliance, security-disclosure, or
+SEO-plumbing tell is **auto-routed to the internal changelog** (and reported in the audit). An
+explicit `audience --to public` always overrides this — but if you set public on something
+that still matches those tells, the audit flags it loudly as "likely miscategorized." Softer
+wording problems (vendor names, jargon, mechanism phrasing) only **warn** — those are usually
+public features that just need rephrasing, not reclassifying.
 
-**What "public" actually means.** The public changelog is a **marketing surface — a What's
-New for end users, not a complete record.** An item is `public` only if it is *net-new*,
-*end-user-visible*, *worth announcing*, and *safe to announce*. Before writing a note, run it
-past these exclusions — each sends the item to `internal` even if it shipped real work:
+**The north star: `CHANGELOG.md` *is* your App Store "What's New".** Write and curate it as if
+it will be pasted, unedited, straight into the App Store / Play Store release notes — because it
+should be. That means: written for a **prospective or current end user**, in their language;
+short and punchy; led by the headline features; friendly but not hypey; and containing nothing
+they couldn't see, wouldn't care about, or shouldn't know. If a line wouldn't earn its place in
+those few release-notes bullets, it belongs in `CHANGELOG.internal.md`. The internal changelog's
+reader is your future team; write that one for them.
 
-- **Admin / operator-only** — admin panels, dashboards, user management, moderation, the
-  CMS/markdown editor, "…on the web" tools that only staff use. The people who read a public
-  changelog are end users, not your admins. *(A note can read perfectly user-facing and still
-  be admin-only — judge by who actually uses the feature; the audit also flags admin/CMS words
-  in the item's title.)*
-- **Security fixes that disclose a past hole** — "now protected by expiring links instead of
-  public URLs", "closed a privilege gap". Announcing the fix tells users (and attackers) they
-  were exposed. Keep these `internal`; never describe the prior weakness.
-- **Compliance / legal gates** — age gates (13+), terms/EULA acceptance, COPPA/GDPR, account
-  deletion required by policy. Required, not a feature anyone chose. `internal`.
-- **Foundational / launch / table-stakes** — "you can sign up", "choose a @username", core
-  navigation, "the app has a dark theme". Baseline, not *new*. Don't list the product's
-  existence as a highlight — even at v1.0.0, lead with the headline experience, not every
-  brick that makes the app an app.
-- **Trivial housekeeping / cosmetic / minor nav** — "the Settings screen now matches the
-  theme", "moved Search to an easier-to-reach spot", "a Settings screen with sign out". Real,
-  but nobody reads a changelog for these. Fold them into the behind-the-scenes roll-up.
+When you're unsure which file an item belongs in, the one question that settles it:
 
-Litmus test: *"Would we proudly put this in the App Store 'What's New', and be glad a
-competitor read it?"* If it's plumbing, admin-only, a fixed embarrassment, a legal checkbox,
-cosmetic housekeeping, or just "the app works" — it's `internal`.
+> *"Would this line make that end user a little more glad they use the app — and can they
+> understand it without knowing how the app is built?"*
+
+No on either half → `internal`. **The keyword lint only catches phrasing we anticipated; it
+will miss novel internal wording. You are the classifier — apply the principle below even when
+nothing is flagged. The lint is a seatbelt, not the rule.**
+
+**For each item, decide in this order:**
+1. **Who actually experiences it?** End users → maybe public. Only admins/operators/staff,
+   only a regulator, or nobody visible → `internal`. Judge by who *uses* the feature, not how
+   the note reads: "a markdown editor on the web" sounds public, but if it lives in the admin
+   panel it's internal.
+2. **Net-new value, or table-stakes?** A new ability or an improvement they'll feel → maybe
+   public. The app merely *existing* (sign-up, @usernames, a dark theme, core navigation) or a
+   cosmetic/housekeeping tweak → `internal`. Don't announce that the product is a product.
+3. **Safe to say out loud?** Announcing a security fix advertises the hole you had; a
+   compliance gate (age check, EULA, GDPR) is a legal obligation, not a feature. Anything
+   self-incriminating or legally mandated → `internal`. Never describe a past weakness.
+4. **Still public? Write the benefit, not the build.** One sentence, in the user's words,
+   leading with what they can now *do* — never the system, vendor, file, ticket, or mechanism
+   behind it. Describe the *result* ("crowd levels are more accurate"), not the method
+   ("truncated headliner index").
+
+**Operational loop:**
+1. `python3 <roadmap.py> changelog` → read the warnings: items auto-routed to internal
+   (confirm or override `--to public`), items marked public but matching internal signals
+   (almost always reclassify), public items with no note (dropped from `CHANGELOG.md`), and
+   notes that read internal (rephrase).
+2. Set audience where the auto-router didn't decide:
+   `python3 <roadmap.py> audience --plan <id> --to public|internal`.
+3. Write each public note: `python3 <roadmap.py> note --plan <id> --text "<benefit>"`.
+4. Re-run until clean, then preview both files. `/roadmap:release` stamps the dated section;
+   this command just gets it clean.
+
+**The exclusions, and the principle behind each** (each sends an item to `internal` even when
+real work shipped — recognize the *category*, not just the example words):
+
+- **Admin / operator-only** — panels, dashboards, user management, moderation, the CMS. Staff
+  aren't the audience. Expose only the user-operated half: "block other users" is public; the
+  moderation console behind it is not.
+- **Security fixes that reveal a past hole** — "now uses expiring links instead of public
+  URLs", "closed a privilege gap". Telling users you fixed it tells them (and attackers) they
+  were exposed. Never name the prior weakness.
+- **Compliance / legal gates** — age gate, EULA/terms acceptance, GDPR/COPPA, policy-required
+  account deletion. Mandated, not chosen by anyone.
+- **Foundational / launch / table-stakes** — sign-up, @usernames, a theme, core nav. Baseline,
+  not *new*. Even at v1.0.0, lead with the headline experience, not every brick.
+- **Trivial / cosmetic / minor nav** — a settings-screen reskin, moving a button. Fold into the
+  roll-up.
+
+Litmus test: *"Would I proudly put this in the App Store 'What's New', and be glad a competitor
+read it?"* If it's plumbing, admin-only, a fixed embarrassment, a legal checkbox, cosmetic
+housekeeping, or just "the app works" — it's `internal`.
 
 **Collapse a campaign into one line.** When many items are the same initiative, the public
 changelog gets **one headline**, not every variant — mark the rest `internal`. A version that
@@ -68,41 +96,15 @@ shipped six SEO items ("static-page builder", "per-park web pages", "news web pa
 Same for five "responsive web layout" items → "Parkboxd now has a proper desktop web layout."
 The public changelog is the highlight reel; the internal log keeps the full list.
 
-**Writing voice — public vs internal.** This is the part to get right:
+**Voice — write App Store release notes.** Public notes: one sentence, lead with the user's
+gain, concrete and specific, warm and plain (the way the App Store "What's New" reads), results
+over mechanisms, zero vendor/tool names, file paths, issue refs, or dev jargon. Read the whole
+public section back as if it were the release notes a user sees before updating — if any line
+feels like a ticket, an internal brag, or filler, fix or drop it. A version's public section
+should feel like a tight highlight reel of a few marquee items, not an exhaustive list.
+Internal notes (or no note → the title fallback) can be as technical as you like.
 
-- **Public note** = what the *user* gains, in *their* words. One sentence, lead with the
-  benefit or the new ability. Name features the user sees, not the systems behind them.
-  Forbidden in public notes: vendor/tool names (Convex, Sentry, Aptabase, Codex, EAS, Clerk,
-  R2, Stripe…), file paths (`convex/lib/r2.ts`), issue/PR refs (`#77`), and engineer jargon
-  (refactor, schema, mutation, endpoint, backend, polling, CI, migration). The CLI lints for
-  these and warns — treat a warning as "rewrite it."
-- **Internal note** (or no note → falls back to the title) = whatever a developer needs.
-  Technical detail, vendor names, file paths, and ticket refs are all fine here.
-- Decide audience by impact, not by type: a feature the user can't perceive is `internal`;
-  a fix or refactor the user *feels* (faster, fewer crashes, lower battery) can be `public`
-  with a benefit-worded note. When unsure whether a user would notice → `internal`.
-
-**Default these whole categories to `internal`** — they read as dev summaries even when
-genuinely shipped. Make them public *only* if there's a concrete benefit the user directly
-feels, and then write *only that benefit*, never the mechanism:
-
-- **Security / abuse hardening** — "hardened security", "closed gaps", "privilege misuse",
-  "spam/abuse", "pre-launch hardening pass" → internal. The exception is a control the user
-  *operates*: "You can now block other users" is public; the audit-trail/permissions plumbing
-  behind it is not.
-- **SEO / discoverability plumbing** — "lays the groundwork", "reusable static-page builder",
-  "sitemap.xml", "robots rules", "structured data" → internal. Collapse the whole effort into
-  at most one public payoff line: "Parks and rides now show up when you search Google."
-- **Internal milestones / architecture** — "Phase 1 foundation", "pre-launch", "rearchitected
-  X", "scaffolding" → internal.
-- **Algorithm internals** — "truncated headliner index", "walk-through filtering", "data-feed
-  verification" → describe the *result* ("crowd levels are more accurate now"), not the method.
-
-The lint flags this softer phrasing too (hardening, groundwork, privilege, sitemap, reusable,
-headliner index…), so a warning here usually means "reclassify as internal, or rewrite to the
-pure benefit."
-
-Translate, don't copy. Examples:
+**Translate, don't copy.** Examples:
 
 | Item (internal/title)                              | ❌ leaks internal                          | ✅ public note                                            |
 |----------------------------------------------------|--------------------------------------------|-----------------------------------------------------------|
@@ -119,5 +121,11 @@ Translate, don't copy. Examples:
 `git log v<previous>..HEAD --oneline` (or `git log --oneline` with no tags) — map commits to
 items by plan/title, then set each item's audience + note as above.
 
-The CLI lives at `.claude/skills/roadmap/scripts/roadmap.py` (project) or
-`~/.claude/skills/roadmap/scripts/roadmap.py` (global).
+**Finding the CLI (`<roadmap.py>`) — do not search for it.** It ships with the skill at a
+fixed path; resolve it once and reuse `$RM`:
+
+```bash
+RM=.claude/skills/roadmap/scripts/roadmap.py; [ -f "$RM" ] || RM="$HOME/.claude/skills/roadmap/scripts/roadmap.py"
+```
+
+Run `python3 "$RM" …` — use `$RM` wherever `<roadmap.py>` appears.

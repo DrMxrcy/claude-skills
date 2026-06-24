@@ -80,5 +80,11 @@ Each iteration advances the version; the loop stops when it hits 100% (you outpu
 or `--max-iterations` is reached. The work lands on a `roadmap/v<version>` branch as a PR,
 never direct to main.
 
-The CLI lives at `.claude/skills/roadmap/scripts/roadmap.py` (project install) or
-`~/.claude/skills/roadmap/scripts/roadmap.py` (global install).
+**Finding the CLI (`<roadmap.py>`) — do not search for it.** It ships with the skill at a
+fixed path; resolve it once and reuse `$RM`:
+
+```bash
+RM=.claude/skills/roadmap/scripts/roadmap.py; [ -f "$RM" ] || RM="$HOME/.claude/skills/roadmap/scripts/roadmap.py"
+```
+
+Run `python3 "$RM" …` — use `$RM` wherever `<roadmap.py>` appears.

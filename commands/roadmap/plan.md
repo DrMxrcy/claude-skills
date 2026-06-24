@@ -32,3 +32,12 @@ Follow the skill's intake phase:
    under `docs/superpowers/` and add `**Spec:**` / `**Detailed plan:**` links near the top
    of the plan file — `/roadmap:build` follows those links for the implementation detail.
 7. The CLI auto-syncs `ROADMAP.md`. Show the new plan file and the updated dashboard.
+
+**Finding the CLI (`<roadmap.py>`) — do not search for it.** It ships with the skill at a
+fixed path; resolve it once and reuse `$RM`:
+
+```bash
+RM=.claude/skills/roadmap/scripts/roadmap.py; [ -f "$RM" ] || RM="$HOME/.claude/skills/roadmap/scripts/roadmap.py"
+```
+
+Run `python3 "$RM" …` — use `$RM` wherever `<roadmap.py>` appears.
