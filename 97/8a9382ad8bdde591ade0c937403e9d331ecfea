@@ -1,0 +1,19 @@
+docs/superpowers/specs/2026-06-26-roadmap-changelog-tightening-design.md
+  s_f014b13b037514::t_dc58b15524f33f 1-180
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "978a9382ad8bdde591ade0c937403e9d331ecfea",
+  "prompts": {},
+  "sessions": {
+    "s_f014b13b037514": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "62293275-7c85-4a7c-9fcf-3ff29c1ee01a",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
