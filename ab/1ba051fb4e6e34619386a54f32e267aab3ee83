@@ -1,0 +1,48 @@
+commands/roadmap/init.md
+  s_f014b13b037514::t_0c05356801266f 15-28
+commands/roadmap/plan.md
+  s_f014b13b037514::t_7ef1802cf45504 25-30
+skills/roadmap/scripts/roadmap.py
+  s_f014b13b037514::t_15d42becf87a3b 978-979,982,987-988
+  s_f014b13b037514::t_85ca25060a192a 575-591
+  s_f014b13b037514::t_29e2166daa7b7d 859-876
+  s_f014b13b037514::t_002f4d805e68ae 679-680,684-708,711,717-718
+  s_f014b13b037514::t_374818daf2547e 349,354,361-364
+  s_f014b13b037514::t_6d808fa62ea0e1 370-381
+  s_f014b13b037514::t_c6a399f7513498 1095-1096,1099-1104
+  s_f014b13b037514::t_d8c406be8bdfac 640-646
+  s_f014b13b037514::t_c4fd68ac796243 613-615
+  s_f014b13b037514::t_d8aaebbb024b75 772,779
+  s_f014b13b037514::t_716af19098a896 825-826,831,833
+  s_f014b13b037514::t_f6506110681721 1024-1027
+  s_f014b13b037514::t_7cb3dc1d83c092 1105
+tests/test_roadmap.py
+  s_f014b13b037514::t_0ff8ae4c1decb0 875-992
+commands/roadmap/release.md
+  s_f014b13b037514::t_29a46215e5e734 15-20
+commands/roadmap/done.md
+  s_f014b13b037514::t_d63fd88ce56c10 17-23
+commands/roadmap/changelog.md
+  s_f014b13b037514::t_c9c230f65da25a 19-30,32-34,37-39
+skills/roadmap/SKILL.md
+  s_f014b13b037514::t_b6f98081a8e84b 72-76
+  s_f014b13b037514::t_2f6a4f785a1225 52-55
+skills/roadmap/README.md
+  s_f014b13b037514::t_91ffd165b3588e 29-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "ab1ba051fb4e6e34619386a54f32e267aab3ee83",
+  "prompts": {},
+  "sessions": {
+    "s_f014b13b037514": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "62293275-7c85-4a7c-9fcf-3ff29c1ee01a",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
