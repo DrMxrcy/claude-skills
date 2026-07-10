@@ -82,7 +82,9 @@ If there are no args (bare `/roadmap`), use **Phase routing** below.
 
 ## Switching between AI coders (Claude ↔ Grok ↔ …)
 
-The **git repo** is the shared brain — not chat history.
+The **git repo** is the shared brain — not chat history. **`handoff` is optional** (a
+nicer brief). Rate limits, crashes, and hard kills usually mean you never ran it — that
+is fine if you micro-committed along the way.
 
 | Shared in git | Owner |
 |---|---|
@@ -90,11 +92,20 @@ The **git repo** is the shared brain — not chat history.
 | Plan checklists / progress | CLI `check` |
 | `CLAUDE.md` + `AGENTS.md` rules block | `init` / `upgrade` |
 
-**Handoff protocol (always):**
-1. Leaving agent: commit code+roadmap (clean tree), optional `git push`.
-2. `python3 "$RM" handoff` — prints next item, drift, dirty tree, stale skill rules.
-3. Entering agent: `git pull`, `handoff` or SessionStart orient, then `/roadmap-next` / build.
-4. Drift warning → `/roadmap-catchup` after tests, never invent a second plan offline.
+**Ideal leave (when you can):** micro-commit after each checked step; optional
+`python3 "$RM" handoff` + push.
+
+**Abrupt leave (rate limit / kill — no handoff):**
+
+1. Open the other agent in the **same repo**.
+2. `git status` — commit anything the previous agent left (code + roadmap if present).
+3. `python3 "$RM" orient` or `handoff` (SessionStart orient often already ran).
+4. Drift warning → `/roadmap-catchup` after tests for steps done but not checked.
+5. Read the active plan’s **next unchecked step** — continue quality-first build.
+   Do **not** re-derive the plan from the dead chat.
+
+**Why this works:** every `check` + micro-commit moves truth into git. The dead session’s
+context is disposable; unfinished work is either committed or still in the working tree.
 
 Install both agents at the same skill version: `./install.sh --global --both`.
 

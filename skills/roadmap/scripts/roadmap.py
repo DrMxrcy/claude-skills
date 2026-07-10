@@ -20,10 +20,10 @@ This project uses the **roadmap** skill so AI coders (Claude Code, Grok Build, a
 - **Orient first:** at session start run `roadmap.py orient` or `/roadmap:status` / `/roadmap-status` (or read `ROADMAP.md`) before writing code.
 - **Nothing off-roadmap:** new features/bugs become items via `/roadmap:plan` / `/roadmap-plan` before coding; park ideas with `/roadmap:idea` / `/roadmap-idea` (one bullet; long write-ups → linked `.roadmap/notes/`). Promote with `/roadmap:promote` / `/roadmap-promote`.
 - **One item at a time.** Active plan in `.roadmap/plans/` required for functional code. No multitasking across features/bugs. Respect `dependsOn` (`roadmap.py next` skips blocked items).
-- **Quality-first build (default for `/roadmap:build` / `/roadmap-build`, including `--auto`):** for each checklist step — optional explore research → one implementer subagent → **spec review** subagent → **quality review** subagent → parent runs real build/tests → only then `check` + commit code+roadmap. Parent owns all `roadmap.py` calls; children never edit `ROADMAP.md`. `--auto` skips user pauses between items, **not** reviews or tests. Prefer superpowers `subagent-driven-development` when available.
+- **Quality-first build (default for `/roadmap:build` / `/roadmap-build`, including `--auto`):** for each checklist step — optional explore research → one implementer subagent → **spec review** subagent → **quality review** subagent → parent runs real build/tests → only then `check` + **micro-commit code+roadmap immediately**. Parent owns all `roadmap.py` calls; children never edit `ROADMAP.md`. `--auto` skips user pauses between items, **not** reviews or tests. Prefer superpowers `subagent-driven-development` when available.
 - **Specs are law:** follow each plan's linked Spec / Detailed plan; the checklist is the tracker, not the design.
 - **Never hand-edit `ROADMAP.md`.** Use the CLI / `/roadmap:done` / `/roadmap-done`. If work happened outside the loop, `/roadmap:catchup` / `/roadmap-catchup` after verifying tests.
-- **Multi-coder sync:** the repo is the shared brain. Always commit code + roadmap together; when switching Claude ↔ Grok (or any agent), `git pull`, run `roadmap.py handoff` (or `orient` + `drift-check`), then continue — never maintain a private parallel plan outside `.roadmap/`.
+- **Multi-coder sync / rate limits:** the **git repo** is the shared brain — formal `handoff` is optional. Micro-commit after every checked step so a rate-limit mid-session loses at most one unfinished step. On any new agent (or after rate-limit): `git pull` if needed → `roadmap.py orient` or `handoff` (SessionStart orient also runs) → if dirty, commit or inspect → if drift, catchup after tests → continue `next`/`build` from the plan checklist. Never keep a private parallel plan in chat.
 - **Ship clean:** before release, `/roadmap:review` / `/roadmap-review` the version (spec + code review).
 <!-- roadmap:rules:end -->"""
 
@@ -1158,8 +1158,8 @@ def format_orient(payload: dict, handoff: bool = False) -> str:
     if payload.get("drift"):
         lines.append(payload["drift"])
     if payload.get("gitDirty"):
-        lines.append("⚠ Working tree has uncommitted changes — commit (or stash) before "
-                     "switching AI coders so the next agent sees the same state.")
+        lines.append("⚠ Working tree has uncommitted changes — commit code+roadmap (or "
+                     "inspect) before building more so nothing is agent-private.")
     inst = payload.get("skillVersionInstalled", "?")
     proj = payload.get("skillVersionProject", "?")
     if payload.get("skillVersionStale"):
@@ -1167,17 +1167,22 @@ def format_orient(payload: dict, handoff: bool = False) -> str:
                      f"run: roadmap.py upgrade")
     elif handoff:
         lines.append(f"Skill: v{inst} (project rules recorded: v{proj})")
+    # Always useful after rate-limit / crash / agent switch (handoff adds the full list).
+    if payload.get("gitDirty") or payload.get("drift") or handoff:
+        lines.append(
+            "Resume: commit or catchup if needed, then continue the plan checklist "
+            "(/roadmap:next or /roadmap-next) — formal handoff is optional; git is the sync.")
     if handoff:
         lines.extend([
             "",
-            "Multi-coder handoff checklist:",
-            "  1. Commit code + roadmap together (or stash) so git is clean",
-            "  2. git push (if collaborating) so the other agent can pull",
-            "  3. On the next agent: git pull, then roadmap.py handoff (or orient)",
-            "  4. If drift warning above → /roadmap:catchup after verifying tests",
-            "  5. Continue with /roadmap:next or /roadmap-next (same quality-first protocol)",
-            "Shared source of truth: ROADMAP.md + .roadmap/ + CHANGELOG*.md in git — "
-            "never a private parallel plan.",
+            "Multi-coder / rate-limit checklist:",
+            "  1. Prefer micro-commits after every checked step (limits loss on rate-limit)",
+            "  2. If you could not handoff: just open the other agent — run orient/handoff there",
+            "  3. Commit any dirty tree (code + roadmap) the previous agent left",
+            "  4. git pull/push if machines differ",
+            "  5. Drift → /roadmap:catchup after tests; then next unfinished step",
+            "  6. Continue quality-first build (do not re-plan from chat memory)",
+            "Shared source of truth: ROADMAP.md + .roadmap/ + CHANGELOG*.md in git.",
         ])
     return "\n".join(lines)
 

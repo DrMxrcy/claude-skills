@@ -73,7 +73,9 @@ Only the parent:
 
 1. Run the project’s real build/tests for the change.
 2. On green: `python3 "$RM" check --plan <id> --step <n>`
-3. Commit **code + roadmap** together (one micro-commit).
+3. **Micro-commit code + roadmap immediately** (one commit per checked step).
+   This is what makes rate-limits safe: the next agent only loses uncommitted
+   in-flight work, never completed steps.
 4. Proceed to the next step.
 
 ### F. Item complete

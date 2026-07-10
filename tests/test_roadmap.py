@@ -1218,7 +1218,7 @@ def test_handoff_includes_checklist_and_skill_version(roadmap, repo, monkeypatch
     assert roadmap.main(["handoff"]) == 0
     out = capsys.readouterr().out
     assert "Auth" in out
-    assert "Multi-coder handoff checklist" in out
+    assert "Multi-coder / rate-limit checklist" in out or "rate-limit" in out
     assert "Skill:" in out or "skill" in out.lower()
 
 

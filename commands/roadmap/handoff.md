@@ -1,23 +1,36 @@
 ---
-description: Multi-coder handoff brief — sync state when switching Claude ↔ Grok (or any agent)
+description: Multi-coder resume brief — after switch, rate-limit, or crash (handoff optional)
 ---
 
-Prepare a clean handoff so the next AI coder continues from the **same** roadmap state.
-No arguments required.
+Print a resume brief so any AI coder continues from the **same** roadmap state.
+No arguments required. **You do not need a clean prior handoff** — this is also the
+recovery path after rate limits, crashes, or killed sessions.
 
-1. Run `python3 <roadmap.py> handoff` (or `handoff --json`).
-2. Act on any warnings it prints:
-   - **Uncommitted changes** → commit code + roadmap together (or stash). Do not switch agents with a dirty tree if the other agent needs those edits.
-   - **Drift** (commits since last check-off) → `/roadmap:catchup` / `/roadmap-catchup` after verifying tests, then commit.
-   - **Stale skill rules** (project `skillVersion` ≠ installed) → `python3 <roadmap.py> upgrade`.
-3. If collaborating or switching machines: `git push` so the other session can `git pull`.
-4. On the **next** agent (Claude Code, Grok Build, etc.):
-   - `git pull`
-   - `python3 <roadmap.py> handoff` (or rely on SessionStart `orient`)
-   - Continue with `/roadmap:next` / `/roadmap-next` or `/roadmap:build` / `/roadmap-build`
-     under the quality-first multi-agent protocol.
+1. Run `python3 <roadmap.py> handoff` (or `orient` — lighter; SessionStart often runs orient).
+2. Act on warnings:
+   - **Uncommitted changes** → inspect `git status` / `git diff`. Commit code + roadmap
+     together if the previous agent finished a step; otherwise finish or stash carefully.
+   - **Drift** (commits since last check-off) → `/roadmap:catchup` / `/roadmap-catchup`
+     after verifying tests, then commit.
+   - **Stale skill rules** → `python3 <roadmap.py> upgrade`.
+3. Continue from the **plan checklist** (next unfinished step), not from chat memory:
+   `/roadmap:next` / `/roadmap-next` or `/roadmap:build` / `/roadmap-build`.
 
-**Shared source of truth (always in git):**
+## Rate limit / no formal handoff
+
+If Claude or Grok died mid-turn:
+
+| What you still have | What to do |
+|---|---|
+| Committed steps | Already safe — `orient` shows **Next** |
+| Uncommitted code on disk | Commit or finish the step on the new agent |
+| Code done, checklist not checked | `/roadmap-catchup` after tests |
+| Nothing on disk (pure chat ideas) | Lost — re-park with `/roadmap-idea` if still needed |
+
+**Prevention:** after every successful `check`, micro-commit immediately. That way a
+rate-limit loses at most the in-flight step, never a whole item.
+
+## Shared source of truth (always in git)
 
 | Path | Role |
 |---|---|
@@ -26,9 +39,6 @@ No arguments required.
 | `.roadmap/plans/*` | Checklists / progress |
 | `CHANGELOG.md` / `CHANGELOG.internal.md` | Rendered on sync |
 | `CLAUDE.md` + `AGENTS.md` rules block | Same discipline for every agent |
-
-Never keep a private parallel plan in chat memory only — if it matters, it's a plan item,
-incubator idea, or notes file under `.roadmap/`.
 
 **Agent slash names:** Claude Code → `/roadmap:handoff`; Grok → `/roadmap-handoff`.
 
