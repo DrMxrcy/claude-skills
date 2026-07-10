@@ -968,6 +968,136 @@ def roadmap_health(root: Path) -> list[str]:
     return warnings
 
 
+MAX_BULLET_CHARS = 200
+DUPLICATE_RATIO = 0.8
+MD_LINK_RE = re.compile(r"\[[^\]]*\]\(([^)\s]+\.md)\)")
+
+
+def _freeform_lines(text: str) -> list[str]:
+    """Lines of ROADMAP.md outside the roadmap:auto region."""
+    out, in_auto = [], False
+    for line in text.splitlines():
+        if AUTO_START in line:
+            in_auto = True
+        elif AUTO_END in line:
+            in_auto = False
+        elif not in_auto:
+            out.append(line)
+    return out
+
+
+def _norm_title(s: str) -> str:
+    return re.sub(r"[^a-z0-9 ]+", "", s.lower()).strip()
+
+
+def tidy_report(root: Path) -> dict:
+    """Analyze the free-form region of ROADMAP.md (Idea Incubator + surrounding prose)
+    and report what needs grooming. Report-only by design: scripts never rewrite the
+    free-form region — the /roadmap:tidy command flow applies the judgment edits."""
+    import difflib
+    rm = root / "ROADMAP.md"
+    report = {"clean": True, "warnings": [], "bullets": [],
+              "prose": {"lines": 0, "leads": []}}
+    if not rm.exists():
+        return report
+    report["warnings"] = roadmap_health(root)
+    try:
+        tracked = [(i["id"], i["title"]) for i in read_config(root)["items"]]
+    except (ValueError, FileNotFoundError, KeyError):
+        tracked = []
+
+    bullets, prose = [], report["prose"]
+    cur = None
+    seen_h1 = in_comment = False
+    for line in _freeform_lines(rm.read_text(encoding="utf-8")):
+        stripped = line.strip()
+        if in_comment:
+            in_comment = "-->" not in stripped
+            cur = None
+            continue
+        if stripped.startswith("<!--"):
+            in_comment = "-->" not in stripped
+            cur = None
+            continue
+        if not stripped:
+            cur = None
+            continue
+        if re.match(r"^#\s", line):
+            if not seen_h1:
+                seen_h1 = True
+                continue
+        if re.match(r"^#{1,6}\s", line):
+            cur = None
+            if not INCUBATOR_RE.match(line):
+                prose["leads"].append(stripped[:70])
+            continue
+        if re.match(r"^[-*+]\s", line):
+            cur = {"index": len(bullets) + 1, "text": stripped[2:].strip(),
+                   "chars": len(stripped), "children": 0}
+            bullets.append(cur)
+            continue
+        if re.match(r"^\s+\S", line) and cur is not None:
+            cur["chars"] += len(stripped)
+            if re.match(r"^\s+[-*+]\s", line):
+                cur["children"] += 1
+            continue
+        cur = None
+        prose["lines"] += 1
+        if stripped.startswith("**"):
+            prose["leads"].append(stripped[:70])
+
+    for b in bullets:
+        title = re.sub(r"\s*\([^)]*\)\s*$", "", b["text"]).strip()
+        title = re.sub(r"\s*\[[^\]]*\]\([^)]*\)\s*$", "", title).strip()
+        entry = {"index": b["index"], "title": title[:100], "chars": b["chars"],
+                 "children": b["children"],
+                 "notesLink": bool(MD_LINK_RE.search(b["text"])), "flags": []}
+        if b["children"]:
+            entry["flags"].append("nested")
+        if b["chars"] > MAX_BULLET_CHARS and not entry["notesLink"]:
+            entry["flags"].append("long-no-link")
+        elif b["chars"] > 2 * MAX_BULLET_CHARS:
+            entry["flags"].append("long")
+        norm = _norm_title(title)
+        if norm and tracked:
+            best = max(tracked, key=lambda t: difflib.SequenceMatcher(
+                None, norm, _norm_title(t[1])).ratio())
+            if difflib.SequenceMatcher(
+                    None, norm, _norm_title(best[1])).ratio() >= DUPLICATE_RATIO:
+                entry["flags"].append("duplicate")
+                entry["duplicateOf"] = best[0]
+        if entry["flags"]:
+            report["bullets"].append(entry)
+
+    report["clean"] = not (report["warnings"] or report["bullets"] or prose["lines"])
+    return report
+
+
+def format_tidy(report: dict) -> str:
+    if report["clean"]:
+        return "ROADMAP.md free-form region: clean — nothing to tidy."
+    out = ["ROADMAP.md free-form region needs grooming:"]
+    for w in report["warnings"]:
+        out.append(f"  ! {w}")
+    for b in report["bullets"]:
+        detail = [f"{b['chars']} chars"]
+        if b["children"]:
+            detail.append(f"{b['children']} sub-bullets")
+        if not b["notesLink"]:
+            detail.append("no notes link")
+        if "duplicate" in b["flags"]:
+            detail.append(f"≈ tracked item #{b['duplicateOf']}")
+        out.append(f"  - bullet {b['index']} “{b['title']}” — " + ", ".join(detail))
+    if report["prose"]["lines"]:
+        leads = "; ".join(report["prose"]["leads"][:5])
+        out.append(f"  - {report['prose']['lines']} prose line(s) outside any bullet"
+                   + (f" (sections: {leads})" if leads else ""))
+    out.append("Groom with /roadmap:tidy · /roadmap-tidy — move bodies to linked "
+               ".roadmap/notes/ files, one bullet per idea; drop bullets that "
+               "duplicate tracked items (or promote them).")
+    return "\n".join(out)
+
+
 def status(root: Path) -> dict:
     cfg = read_config(root)
     by_id = {i["id"]: i for i in cfg["items"]}
@@ -1485,6 +1615,10 @@ def main(argv: list[str]) -> int:
     sub.add_parser("version")
     sub.add_parser("upgrade")
 
+    p_tidy = sub.add_parser(
+        "tidy", help="report free-form / Idea Incubator hygiene issues (report-only)")
+    p_tidy.add_argument("--json", action="store_true", dest="as_json")
+
     p_imp = sub.add_parser("import")
     p_imp.add_argument("path")
 
@@ -1552,6 +1686,13 @@ def main(argv: list[str]) -> int:
             return 0
         if args.command == "upgrade":
             upgrade(root)
+            return 0
+        if args.command == "tidy":
+            rep = tidy_report(root)
+            if args.as_json:
+                print(json.dumps(rep, indent=2))
+            else:
+                print(format_tidy(rep))
             return 0
         if args.command == "reorder":
             reorder(root, args.version, [int(x) for x in args.order.split(",") if x.strip()])

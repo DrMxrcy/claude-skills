@@ -73,6 +73,7 @@ Bare `/roadmap <subcommand>` also routes correctly.
 | `/roadmap:release <version>` · `/roadmap-release` | Optional: pin a new current version / `git tag` (changelog is automatic) |
 | `/roadmap:changelog [version]` · `/roadmap-changelog` | Print the live changelog; backfill past versions' dates from git tags / notes from history |
 | `/roadmap:reevaluate [version]` · `/roadmap-reevaluate` | Audit the codebase against the roadmap — surface missed/duplicate/stale work and resequence |
+| `/roadmap:tidy` · `/roadmap-tidy` | Groom the Idea Incubator / free-form region — prose walls into linked `.roadmap/notes/` files, one bullet per idea, dupes flagged (`roadmap.py tidy` prints the report) |
 | `/roadmap:sync` · `/roadmap-sync` | Recompute progress and re-render `ROADMAP.md` |
 | `/roadmap:upgrade` · `/roadmap-upgrade` | Refresh this project's `CLAUDE.md` + `AGENTS.md` rules to the installed skill version (after a global update) |
 | `/roadmap:promote [match]` · `/roadmap-promote` | Lift an Idea Incubator bullet into a tracked plan |

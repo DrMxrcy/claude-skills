@@ -1017,6 +1017,84 @@ def test_health_warns_on_freeform_char_volume(roadmap, repo):
     assert any("free-form" in m and "characters" in m for m in msgs)
 
 
+# ---- tidy free-form hygiene report ----------------------------------------------
+
+def _inject_freeform(roadmap, repo, block):
+    rm = repo / "ROADMAP.md"
+    rm.write_text(rm.read_text().replace(
+        roadmap.AUTO_START, block + "\n" + roadmap.AUTO_START))
+
+
+def test_tidy_clean_on_fresh_roadmap(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    rep = roadmap.tidy_report(repo)
+    assert rep["clean"] is True and rep["bullets"] == []
+
+
+def test_tidy_flags_long_bullet_without_notes_link(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    _inject_freeform(roadmap, repo, "- big prose-wall idea " + "x" * 300)
+    rep = roadmap.tidy_report(repo)
+    assert rep["clean"] is False
+    assert any("long-no-link" in b["flags"] for b in rep["bullets"])
+
+
+def test_tidy_linked_bullet_gets_grace(roadmap, repo):
+    # A bullet with a notes link is fine up to twice the budget.
+    roadmap.init_project(repo, "P")
+    _inject_freeform(roadmap, repo,
+                     "- linked idea " + "x" * 250 + " ([notes](.roadmap/notes/x.md))")
+    rep = roadmap.tidy_report(repo)
+    assert not any("long" in f for b in rep["bullets"] for f in b["flags"])
+
+
+def test_tidy_flags_nested_sub_bullets(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    _inject_freeform(roadmap, repo,
+                     "- deferred findings\n  - finding one\n  - finding two")
+    rep = roadmap.tidy_report(repo)
+    flagged = [b for b in rep["bullets"] if "nested" in b["flags"]]
+    assert flagged and flagged[0]["children"] == 2
+
+
+def test_tidy_flags_duplicate_of_tracked_item(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "User data export as portable file")
+    _inject_freeform(roadmap, repo, "- User data export as a portable file")
+    rep = roadmap.tidy_report(repo)
+    dupes = [b for b in rep["bullets"] if "duplicate" in b["flags"]]
+    assert dupes and dupes[0]["duplicateOf"] == 1
+
+
+def test_tidy_counts_prose_outside_bullets(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    _inject_freeform(roadmap, repo,
+                     "**Future phases** promote these when started, long prose here.")
+    rep = roadmap.tidy_report(repo)
+    assert rep["prose"]["lines"] == 1
+    assert rep["prose"]["leads"] and rep["prose"]["leads"][0].startswith("**Future")
+
+
+def test_tidy_ignores_auto_region(roadmap, repo):
+    # Version headings and item rows inside the auto markers never count.
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "Something " + "y" * 80)
+    rep = roadmap.tidy_report(repo)
+    assert rep["clean"] is True
+
+
+def test_cli_tidy_json(roadmap, repo, monkeypatch, capsys):
+    roadmap.init_project(repo, "P")
+    monkeypatch.chdir(repo)
+    assert roadmap.main(["tidy", "--json"]) == 0
+    rep = json.loads(capsys.readouterr().out)
+    assert rep["clean"] is True
+    _inject_freeform(roadmap, repo, "- prose wall " + "z" * 400)
+    assert roadmap.main(["tidy"]) == 0
+    out = capsys.readouterr().out
+    assert "needs grooming" in out and "/roadmap:tidy" in out
+
+
 # --- next / depends gating / promote / orient / drift / multi-agent rules ------
 
 def test_next_item_skips_blocked_dependency(roadmap, repo, capsys):

@@ -64,7 +64,7 @@ If the user message / `$ARGUMENTS` starts with one of these verbs, run that flow
 | `idea` | Park remaining args in the Idea Incubator |
 | `init` | Initialize / adopt |
 | `done` | Mark step/item done |
-| `remove` / `retarget` / `review` / `release` / `changelog` / `catchup` / `reevaluate` / `upgrade` | Follow that command's flow |
+| `remove` / `retarget` / `review` / `release` / `changelog` / `catchup` / `reevaluate` / `tidy` / `upgrade` | Follow that command's flow |
 
 If there are no args (bare `/roadmap`), use **Phase routing** below.
 
@@ -75,7 +75,9 @@ If there are no args (bare `/roadmap`), use **Phase routing** below.
   `roadmap.py idea --title "..."`. Long-form content — brainstorm output, deferred review
   findings, phase sketches, option analyses — goes to a linked `.roadmap/notes/` file
   (`idea --body/--body-file`) or a spec under `docs/`, and gets ONE linked bullet; never
-  paste prose walls into ROADMAP.md. `status` warns when the file outgrows these bounds.
+  paste prose walls into ROADMAP.md. `status` warns when the file outgrows these bounds;
+  groom it back with `/roadmap:tidy` · `/roadmap-tidy` (`roadmap.py tidy` prints the
+  report — the only sanctioned direct edit of the free-form region, never the auto region).
 - One trackable item at a time. No multitasking across features/bugs.
 - No functional code without an active plan file in `.roadmap/plans/`.
 - Run the build/tests for a step BEFORE you `check` it.
@@ -197,6 +199,7 @@ On invocation, detect state and pick a phase:
 - `orient [--json] [--hook]` — session orientation (project, progress, next item, drift)
 - `handoff [--json]` — multi-coder switch brief (orient + git dirty + checklist)
 - `drift-check` — nudge if commits landed without a check-off
+- `tidy [--json]` — report-only free-form/incubator hygiene analysis (long bullets, nested blocks, dupes vs tracked items, stray prose); `/roadmap:tidy` applies the grooming
 - `sync` — recompute progress + re-render ROADMAP.md **and both changelogs** (safe anytime)
 - `upgrade` — refresh this project's `CLAUDE.md` + `AGENTS.md` rules to the installed skill version
 - `changelog [--internal] [--backfill]` — print the public (or `--internal`) changelog + audit warnings; `--backfill` dates past versions from git tags
