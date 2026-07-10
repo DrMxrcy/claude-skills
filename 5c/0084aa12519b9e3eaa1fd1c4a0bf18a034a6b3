@@ -1,0 +1,96 @@
+.claude-plugin/plugin.json
+  s_02885ea82c5591::t_69c7c489bf6358 3
+commands/roadmap/plan.md
+  s_02885ea82c5591::t_3afa02c6b75c74 36-37
+  s_02885ea82c5591::t_e3e1ccf7d35e48 40
+commands/roadmap/init.md
+  s_02885ea82c5591::t_3afa02c6b75c74 17-18
+  s_02885ea82c5591::t_e3e1ccf7d35e48 21
+commands/roadmap/release.md
+  s_02885ea82c5591::t_e3e1ccf7d35e48 41
+  s_02885ea82c5591::t_3afa02c6b75c74 37-38
+commands/roadmap/status.md
+  s_02885ea82c5591::t_e3e1ccf7d35e48 18
+  s_02885ea82c5591::t_3afa02c6b75c74 14-15
+commands/roadmap/changelog.md
+  s_02885ea82c5591::t_e3e1ccf7d35e48 128
+  s_02885ea82c5591::t_3afa02c6b75c74 124-125
+commands/roadmap/done.md
+  s_02885ea82c5591::t_e3e1ccf7d35e48 27
+  s_02885ea82c5591::t_3afa02c6b75c74 23-24
+commands/roadmap/remove.md
+  s_02885ea82c5591::t_e3e1ccf7d35e48 25
+  s_02885ea82c5591::t_3afa02c6b75c74 21-22
+commands/roadmap/sync.md
+  s_02885ea82c5591::t_3afa02c6b75c74 12-13
+  s_02885ea82c5591::t_e3e1ccf7d35e48 16
+skills/roadmap/SKILL.md
+  s_02885ea82c5591::t_e3243cbeffcac2 12-14
+  s_02885ea82c5591::t_e3e1ccf7d35e48 17
+commands/roadmap/build.md
+  s_02885ea82c5591::t_e3e1ccf7d35e48 87
+  s_02885ea82c5591::t_3afa02c6b75c74 83-84
+commands/roadmap/review.md
+  s_02885ea82c5591::t_e3e1ccf7d35e48 27
+  s_02885ea82c5591::t_3afa02c6b75c74 23-24
+commands/roadmap/next.md
+  s_02885ea82c5591::t_e3e1ccf7d35e48 28
+  s_02885ea82c5591::t_3afa02c6b75c74 24-25
+commands/roadmap/reevaluate.md
+  s_02885ea82c5591::t_3afa02c6b75c74 39-40
+  s_02885ea82c5591::t_e3e1ccf7d35e48 43
+README.md
+  s_02885ea82c5591::t_e4e323d872c053 18,23-37
+  s_0e0cbeada925ca::t_6276ccbf8fa17b 38
+skills/roadmap/README.md
+  s_02885ea82c5591::t_091ef3d332bdc5 13-16
+  s_02885ea82c5591::t_c0f2b87882d4a1 245-248
+install.sh
+  s_02885ea82c5591::t_726529f03fd3d8 192-197
+  s_02885ea82c5591::t_932d91e958d0cd 13,15
+  s_02885ea82c5591::t_e6f726a6beb9ab 53-54,59-61,63
+  s_02885ea82c5591::t_595bdb9a87061e 112,114
+  s_02885ea82c5591::t_49d6e9e05eb997 236-240
+  s_02885ea82c5591::t_e5604efc412883 33,43-44
+  s_02885ea82c5591::t_c13ff7b99c9aa9 143-161
+commands/roadmap/retarget.md
+  s_02885ea82c5591::t_e3e1ccf7d35e48 39
+  s_02885ea82c5591::t_3afa02c6b75c74 35-36
+commands/roadmap/upgrade.md
+  s_02885ea82c5591::t_e3e1ccf7d35e48 19
+  s_02885ea82c5591::t_3afa02c6b75c74 15-16
+commands/roadmap/catchup.md
+  s_02885ea82c5591::t_3afa02c6b75c74 25-26
+  s_02885ea82c5591::t_e3e1ccf7d35e48 29
+commands/roadmap/idea.md
+  s_02885ea82c5591::t_3afa02c6b75c74 24-25
+  s_02885ea82c5591::t_e3e1ccf7d35e48 28
+tests/test_install.py
+  s_02885ea82c5591::t_71fd467f78afc7 99-150
+skills/roadmap/VERSION
+  s_02885ea82c5591::t_69c7c489bf6358 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5c0084aa12519b9e3eaa1fd1c4a0bf18a034a6b3",
+  "prompts": {},
+  "sessions": {
+    "s_02885ea82c5591": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8aece967-b24b-4796-8c24-1bce359500b3",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    },
+    "s_0e0cbeada925ca": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "26993cf9-a776-437c-b1d0-19a637fba8d5",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
