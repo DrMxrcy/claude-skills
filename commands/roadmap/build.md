@@ -1,95 +1,107 @@
 ---
-description: Build a roadmap plan item, a whole version/phase, or the current version
+description: Build a roadmap plan item, a whole version/phase, or the current version (quality-first multi-agent)
 argument-hint: <plan id | version | empty> [--auto] [--worktree] [--pr]
 ---
 
 Implement roadmap work using the **roadmap** skill. Target: $ARGUMENTS
 
-First run `python3 <roadmap.py> status` to see items, their versions, and progress, then
-interpret the argument:
+**Default mode is high quality, not maximum parallelism.** Use the quality-first multi-agent
+protocol below (and the full write-up in the skill’s
+`references/quality-build.md` when installed). Especially for
+`/roadmap-build <version> --auto` / `/roadmap-build 1.2.0 --auto`.
+
+## Resolve selection
+
+First run `python3 <roadmap.py> status`, then interpret the argument:
+
 - A bare number (e.g. `3`) → that single plan item.
-- A version (contains dots, e.g. `1.0.0`) → every incomplete item in that version (a whole phase).
+- A version (contains dots, e.g. `1.2.0`) → every incomplete item in that version (a whole phase).
 - Empty → every incomplete item in the CURRENT version.
-- `--auto` anywhere in the argument → build all selected items end-to-end **without** pausing
-  for a checkpoint between items (still one item at a time, still tests-before-check). Without
-  `--auto`, pause after each item (the default).
-- `--worktree` → isolate the work in a git worktree before building (see below). Without it,
-  build on the current branch (the default).
-- `--pr` → when the selection reaches 100%, push and open a PR instead of stopping locally;
-  **never merge to main** (see below).
+- `--auto` → build all selected items end-to-end **without user pauses between items**.
+  **Still one item at a time. Still tests + reviews before every check.** Does **not** skip quality gates.
+- `--worktree` → isolate the whole build in a git worktree (see below).
+- `--pr` → when the selection reaches 100%, push and open a PR; **never merge to main**.
 
-These flags compose. `--auto --worktree --pr` on a version is the fully hands-off phase build:
-isolate → loop the whole version → open a PR for review. They are agent-interpreted directives
-(parsed from the argument here), not flags on the CLI.
-
-Build the selected item(s) **one item at a time, in ascending id / `order` field order**.
-Prefer `python3 <roadmap.py> next` when the user wants "whatever is next" — it skips items
-blocked by incomplete `dependsOn` targets. For each item:
-0. `python3 <roadmap.py> deps-check --plan <id>` — warns (does not hard-block) when
-   dependencies are incomplete. Prefer finishing blockers first; only continue on the
-   user's say-so.
-1. Read its plan file `.roadmap/plans/<id>-*.md` (Target Scope, Architectural Blueprint,
-   Step-by-Step Checklist). If the plan links a **Spec** or **Detailed plan** (e.g. paths
-   under `docs/superpowers/`), open and follow those as the authoritative implementation
-   guide — the checklist is the tracking unit; the detailed plan has the how.
-2. Execute its checklist step-by-step — prefer the superpowers `subagent-driven-development`
-   skill (fresh subagent per step + review), else `executing-plans` (inline checkpoints),
-   else implement directly with TDD. Build/tests MUST pass before a step is checked off.
-3. After each passing step: `python3 <roadmap.py> check --plan <id> --step <n>`
-   (auto-syncs `ROADMAP.md`, records `last_seen_sha` for drift detection), then commit
-   code + roadmap together in one micro-commit.
-4. When the item is complete: if `--auto` was given, report briefly and continue to the next
-   item; otherwise **pause for a checkpoint** — report what shipped and let the user confirm
-   before starting the next item.
+Flags compose: `--auto --worktree --pr` on a version = hands-off phase build with full quality gates.
 
 **Agent slash names:** Claude Code → `/roadmap:build`; Grok → `/roadmap-build`.
 
-When the version's items are all done: if `--pr` was given, follow the PR gate below;
-otherwise run `status` and suggest `/roadmap:review` then `/roadmap:release <next version>`.
+## Build order
+
+1. Prefer `python3 <roadmap.py> next` logic for “whatever is next” (skips incomplete `dependsOn`).
+2. Otherwise process selected items in ascending `order` / id, **one item fully complete before the next**.
+3. Per item: `python3 <roadmap.py> deps-check --plan <id>` — finish blockers first unless the user overrides.
+
+## Quality-first multi-agent protocol (default)
+
+**Parent session = orchestrator only for roadmap state.** Children never run `roadmap.py` or edit `ROADMAP.md`.
+
+For each unfinished checklist step of the current item:
+
+| Phase | Who | What |
+|---|---|---|
+| **0. Context** | Parent | Read plan + linked Spec / Detailed plan. Extract the step + acceptance criteria. |
+| **1. Research** | `explore` subagent (optional, may be background) | Map files/APIs; return paths + constraints. Read-only. |
+| **2. Implement** | **One** `general-purpose` subagent | TDD for this step only. Self-review. Report DONE / DONE_WITH_CONCERNS / BLOCKED. |
+| **3. Spec review** | Fresh subagent | Diff vs step + spec. Gaps → implementer fixes → re-review until ✅. |
+| **4. Quality review** | Fresh subagent | Correctness, tests, maintainability. Issues → fix → re-review until ✅. |
+| **5. Verify + check** | **Parent only** | Run real project build/tests. On green: `python3 <roadmap.py> check --plan <id> --step <n>`, then commit code + roadmap together. |
+
+Prefer superpowers **`subagent-driven-development`** when installed — it is the same shape
+(implement → spec review → quality review per task). Else use native subagents
+(Grok: `spawn_subagent`; Claude: Task / subagents).
+
+### Parallelism policy (quality over speed)
+
+- **Do** parallelize: background `explore` while preparing the implementer prompt.
+- **Do not** by default: multiple implementers on the same working tree.
+- **Do not**: build multiple roadmap items in parallel (breaks depends / review narrative).
+- **Do not**: skip steps 3–5 under `--auto`.
+- Grok: only the parent spawns subagents (nesting depth 1). Watch kids with Ctrl+B.
+
+If steps are *proven* file-disjoint and the user asked for speed, you may use
+`isolation: worktree` implementers — but merge carefully and still run full reviews + tests
+before each `check`. Default for `/roadmap-build … --auto` remains **serial implement + dual review**.
+
+### When the item is done
+
+- Optional: one item-level review against full plan scope.
+- Without `--auto`: pause and report; wait for user before the next item.
+- With `--auto`: one-line status, then the next unblocked selected item.
+
+When the whole selection is 100%: if `--pr`, follow the PR gate; else suggest
+`/roadmap:review` / `/roadmap-review` then `/roadmap:release` / `/roadmap-release`.
 
 ## `--worktree` — isolate the build
 
-When `--worktree` is present, before building anything derive `<project>` (the project name
-from `python3 <roadmap.py> status`) and `<version>` (the target version), then:
+When `--worktree` is present, before building:
 
 ```
 git worktree add ../<project>-v<version> -b roadmap/v<version>
 ```
 
-and run the whole build **inside that worktree** so `main` is never touched. (For a single-item
-build, name the branch after the item, e.g. `roadmap/<id>-<slug>`.)
+(`<project>` and `<version>` from `status`). Run the **entire** selection inside that worktree.
+Single-item builds may use `roadmap/<id>-<slug>` instead.
 
 ## `--pr` — open a PR, never merge
 
-When `--pr` is present, after the selection hits 100% and `status` confirms it: push the
-branch and open a PR — but **DO NOT MERGE TO MAIN**. Wait for code review and automated tests.
+After selection hits 100%:
 
 ```
 git push -u origin roadmap/v<version>
-gh pr create --fill   # then report the PR URL; do not merge
+gh pr create --fill   # report URL; do not merge
 ```
 
-## Fully hands-off (optional — only if the `ralph-loop` plugin is installed)
+## Fully hands-off harness (optional — only if `ralph-loop` is installed)
 
-`--auto --worktree --pr` already gives a hands-off phase build inline. **Only if** the
-`ralph-loop` plugin is installed and you want a harness-enforced loop with a hard iteration
-cap, drive the same flow with it instead. If it isn't installed, ignore this section.
-
-First read `python3 <roadmap.py> status` for `<VERSION>` (target version), `<PROJECT>` (project
-name → worktree path `../<PROJECT>-v<VERSION>`), and the **count of unfinished items in that
-version** (→ `--max-iterations` = that count + a small buffer). Then emit (filling `<…>`; the
-command may be invoked as `/ralph-loop` or, namespaced, `/ralph-loop:ralph-loop`):
+`--auto --worktree --pr` already loops inline with quality gates. **Only if** ralph-loop is
+installed and you want a hard iteration cap, drive the same flow with it. If missing, ignore.
 
 ```
-/ralph-loop:ralph-loop --completion-promise 'v<VERSION> DONE' --max-iterations <UNFINISHED+buffer> "First: git worktree add ../<PROJECT>-v<VERSION> -b roadmap/v<VERSION> and work inside it. Loop until roadmap v<VERSION> is 100%: run /roadmap:status, build the next unfinished v<VERSION> item (one step, or fan out subagents), tests MUST pass, mark done via the roadmap CLI, commit code+roadmap together. Never hand-edit ROADMAP.md. When all v<VERSION> items hit 100%, push and gh pr create but DO NOT MERGE TO MAIN — wait for code review and automated tests — then output <promise>v<VERSION> DONE</promise>."
+/ralph-loop:ralph-loop --completion-promise 'v<VERSION> DONE' --max-iterations <UNFINISHED+buffer> "Work inside git worktree ../<PROJECT>-v<VERSION> on branch roadmap/v<VERSION>. Loop until roadmap v<VERSION> is 100%: status, build next unblocked item with quality-first multi-agent protocol (implement + spec review + quality review per step; parent-only roadmap CLI; tests before check), commit code+roadmap. Never hand-edit ROADMAP.md. At 100%: push + gh pr create, DO NOT MERGE, then <promise>v<VERSION> DONE</promise>."
 ```
 
-Each iteration advances the version; the loop stops when it hits 100% (you output the promise)
-or `--max-iterations` is reached. The work lands on a `roadmap/v<version>` branch as a PR,
-never direct to main.
-
-**Finding the CLI (`<roadmap.py>`) — do not search for it.** It ships with the skill under
-the agent's skills dir; probe the fixed candidates once and reuse `$RM`:
+**Finding the CLI (`<roadmap.py>`) — do not search for it.**
 
 ```bash
 for d in .claude .grok .agents "$HOME/.claude" "$HOME/.grok" "$HOME/.agents"; do RM="$d/skills/roadmap/scripts/roadmap.py"; [ -f "$RM" ] && break; done

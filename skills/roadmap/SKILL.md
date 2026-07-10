@@ -99,11 +99,20 @@ On invocation, detect state and pick a phase:
      `refactor`/`chore` → internal) and override when judgment differs. The CLI auto-runs
      `sync` and warns if a public note reads internal.
 
-3. **Working an item** → Execute.
+3. **Working an item** → Execute (**quality-first multi-agent**).
    - Read the plan file. If it links a **Spec** or **Detailed plan** (e.g. paths under
      `docs/`), open and follow those as the authoritative implementation guide — the
      checklist is the tracking unit; the detailed plan has the how.
-   - Lean on **superpowers `executing-plans`**.
+   - **Default protocol** (also used by `/roadmap-build … --auto`): one item at a time;
+     per checklist step → optional `explore` research → **one** implementer subagent →
+     **spec review** subagent → **quality review** subagent → parent runs real tests →
+     only then `roadmap.py check` + commit. Parent owns all roadmap CLI; children never
+     edit `ROADMAP.md`. Do **not** parallelize implementers on the same tree; `--auto`
+     skips user pauses between items, **not** reviews. Full write-up:
+     [`references/quality-build.md`](references/quality-build.md).
+   - Prefer superpowers **`subagent-driven-development`** when installed; else native
+     subagents (Grok `spawn_subagent`, Claude Task). Fallback: `executing-plans` or
+     direct TDD with the same gates.
    - After each step passes its test: `roadmap.py check --plan <id> --step <n>`, then
      commit code + roadmap together.
 
