@@ -14,11 +14,11 @@ greenfield.
 
 Then confirm `ROADMAP.md` and `.roadmap/` were created and show the result.
 
-**Finding the CLI (`<roadmap.py>`) — do not search for it.** It ships with the skill at a
-fixed path; resolve it once and reuse `$RM`:
+**Finding the CLI (`<roadmap.py>`) — do not search for it.** It ships with the skill under
+the agent's skills dir; probe the fixed candidates once and reuse `$RM`:
 
 ```bash
-RM=.claude/skills/roadmap/scripts/roadmap.py; [ -f "$RM" ] || RM="$HOME/.claude/skills/roadmap/scripts/roadmap.py"
+for d in .claude .grok .agents "$HOME/.claude" "$HOME/.grok" "$HOME/.agents"; do RM="$d/skills/roadmap/scripts/roadmap.py"; [ -f "$RM" ] && break; done
 ```
 
 Run `python3 "$RM" …` — use `$RM` wherever `<roadmap.py>` appears.

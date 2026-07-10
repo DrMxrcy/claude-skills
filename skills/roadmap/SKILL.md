@@ -9,11 +9,12 @@ A persistent tracking layer on top of your planning skills. You decide WHAT; the
 `roadmap.py` CLI makes every mechanical edit so the dashboard never drifts.
 
 **Always mutate state through the CLI — never hand-edit ROADMAP.md.** The `roadmap.py` CLI
-ships with the skill at a deterministic path — **do not search or glob for it**. Resolve it
-once and reuse `$RM` (run from the project root):
+ships with the skill under the host agent's skills dir (`.claude`, `.grok`, or `.agents` —
+project-level or home) — **do not search or glob for it**; probe those fixed candidates.
+Resolve it once and reuse `$RM` (run from the project root):
 
 ```bash
-RM=.claude/skills/roadmap/scripts/roadmap.py; [ -f "$RM" ] || RM="$HOME/.claude/skills/roadmap/scripts/roadmap.py"
+for d in .claude .grok .agents "$HOME/.claude" "$HOME/.grok" "$HOME/.agents"; do RM="$d/skills/roadmap/scripts/roadmap.py"; [ -f "$RM" ] && break; done
 python3 "$RM" <command>
 ```
 

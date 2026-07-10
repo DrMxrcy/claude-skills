@@ -10,8 +10,9 @@
 # Usage:
 #   ./install.sh                 # ./.claude: skills + /roadmap:* commands + hook + CLAUDE.md
 #   ./install.sh --global        # ~/.claude (all projects); skips CLAUDE.md
+#   ./install.sh --grok          # target Grok Build: ./.grok (or ~/.grok with --global)
 #   ./install.sh --link          # symlink instead of copy (good for development)
-#   ./install.sh --no-hook       # do not touch settings.json
+#   ./install.sh --no-hook       # do not wire the auto-sync Stop hook
 #   ./install.sh --no-commands   # do not install the /roadmap:* slash commands
 #   ./install.sh --no-claude-md  # do not add roadmap rules to CLAUDE.md
 #   ./install.sh --init          # also run `roadmap init` in the current directory
@@ -29,6 +30,7 @@ usage() {
 }
 
 scope="project"
+agent="claude"
 link=0
 hook=1
 do_init=0
@@ -38,6 +40,8 @@ for arg in "$@"; do
   case "$arg" in
     --global) scope="global" ;;
     --project) scope="project" ;;
+    --grok) agent="grok" ;;
+    --claude) agent="claude" ;;
     --link) link=1 ;;
     --no-hook) hook=0 ;;
     --no-commands) commands=0 ;;
@@ -46,14 +50,17 @@ for arg in "$@"; do
     -h|--help)
       cat <<'EOF'
 install.sh — import this repo's skills + /roadmap:* slash commands into a Claude
-Code directory, wire the roadmap auto-sync Stop hook, and add roadmap rules to
-CLAUDE.md (no manual copying or settings edits).
+Code (or Grok Build) directory, wire the roadmap auto-sync Stop hook, and add
+roadmap rules to CLAUDE.md (no manual copying or settings edits).
 
   ./install.sh            install into ./.claude (this project): skills,
                           /roadmap:* commands, Stop hook, CLAUDE.md rules
   --global                install into ~/.claude (all projects); skips CLAUDE.md
+  --grok                  target Grok Build instead: ./.grok (or ~/.grok with
+                          --global), native .grok/hooks JSON, no command files
+                          (skills surface as /roadmap in Grok)
   --link                  symlink instead of copy (development)
-  --no-hook               do not touch settings.json
+  --no-hook               do not wire the auto-sync Stop hook
   --no-commands           do not install the /roadmap:* slash commands
   --no-claude-md          do not add roadmap rules to CLAUDE.md
   --init                  also run `roadmap init` in the current directory
@@ -102,9 +109,9 @@ fi
 [ -d "$SRC_DIR" ] || { echo "Could not locate a skills/ directory at $SRC_DIR" >&2; exit 1; }
 
 if [ "$scope" = "global" ]; then
-  base="$HOME/.claude"
+  base="$HOME/.$agent"
 else
-  base="$PWD/.claude"
+  base="$PWD/.$agent"
 fi
 skills_dest="$base/skills"
 settings="$base/settings.json"
@@ -133,7 +140,25 @@ if [ "$installed" -eq 0 ]; then
 fi
 
 # Wire the roadmap auto-sync Stop hook (idempotent) unless --no-hook.
-if [ "$hook" = "1" ]; then
+# Claude Code: merge into settings.json. Grok Build: native .grok/hooks JSON
+# (Grok also reads .claude/settings.json hooks, but the native file survives
+# without any Claude-compat shim).
+if [ "$hook" = "1" ] && [ "$agent" = "grok" ]; then
+  hook_path="$skills_dest/roadmap/hooks/roadmap-sync.sh"
+  if [ -f "$hook_path" ]; then
+    mkdir -p "$base/hooks"
+    cat > "$base/hooks/roadmap-sync.json" <<EOF
+{
+  "hooks": {
+    "Stop": [
+      { "hooks": [ { "type": "command", "command": "bash \"$hook_path\"" } ] }
+    ]
+  }
+}
+EOF
+    echo "Wired roadmap Stop hook into $base/hooks/roadmap-sync.json"
+  fi
+elif [ "$hook" = "1" ]; then
   hook_path="$skills_dest/roadmap/hooks/roadmap-sync.sh"
   if [ -f "$hook_path" ]; then
     "$PYTHON" - "$settings" "bash \"$hook_path\"" <<'PY'
@@ -164,8 +189,12 @@ PY
   fi
 fi
 
-# Install the /roadmap:* slash commands (namespaced dirs under commands/) unless --no-commands.
-if [ "$commands" = "1" ]; then
+# Install the /roadmap:* slash commands (namespaced dirs under commands/) unless
+# --no-commands. Claude Code only — Grok Build has no commands/*.md equivalent;
+# it surfaces the installed skill itself as the /roadmap slash command.
+if [ "$commands" = "1" ] && [ "$agent" = "grok" ]; then
+  echo "Skipped command files: Grok Build exposes the skill as /roadmap directly."
+elif [ "$commands" = "1" ]; then
   cmd_src="$(dirname "$SRC_DIR")/commands"
   if [ -d "$cmd_src" ]; then
     mkdir -p "$base/commands"
@@ -204,4 +233,8 @@ fi
 
 echo ""
 echo "Done. Installed $installed skill(s) into $skills_dest."
-echo "Start a new Claude Code session to pick up the skill(s)."
+if [ "$agent" = "grok" ]; then
+  echo "Start a new Grok Build session to pick up the skill(s); run 'grok inspect' to verify discovery."
+else
+  echo "Start a new Claude Code session to pick up the skill(s)."
+fi

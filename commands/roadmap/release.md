@@ -34,11 +34,11 @@ Show the updated `ROADMAP.md` (new current version + rollups) and the new public
 `CHANGELOG.md` entry — its latest section is ready to paste into the App Store "What's New"
 or a website changelog.
 
-**Finding the CLI (`<roadmap.py>`) — do not search for it.** It ships with the skill at a
-fixed path; resolve it once and reuse `$RM`:
+**Finding the CLI (`<roadmap.py>`) — do not search for it.** It ships with the skill under
+the agent's skills dir; probe the fixed candidates once and reuse `$RM`:
 
 ```bash
-RM=.claude/skills/roadmap/scripts/roadmap.py; [ -f "$RM" ] || RM="$HOME/.claude/skills/roadmap/scripts/roadmap.py"
+for d in .claude .grok .agents "$HOME/.claude" "$HOME/.grok" "$HOME/.agents"; do RM="$d/skills/roadmap/scripts/roadmap.py"; [ -f "$RM" ] && break; done
 ```
 
 Run `python3 "$RM" …` — use `$RM` wherever `<roadmap.py>` appears.

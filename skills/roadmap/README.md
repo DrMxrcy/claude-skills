@@ -10,6 +10,10 @@ deterministic Python CLI makes every mechanical edit so the dashboard never drif
 
 > Install via the repo root [`install.sh`](../../README.md#install). After installing, start a
 > fresh Claude Code session so the skill and `/roadmap:*` commands load.
+>
+> **Grok Build:** a project install works there out of the box (Grok reads `.claude/`), or
+> use `install.sh --grok` for a native `.grok/` install — the skill surfaces as `/roadmap`
+> and the same phase routing applies. Verify with `grok inspect`.
 
 ## The loop
 
@@ -238,9 +242,10 @@ work one item at a time, keep an active plan, and update only through the CLI. O
 
 ## Auto-sync hook
 
-The installer wires an opt-in Stop hook (`hooks/roadmap-sync.sh`) into `settings.json` that
-runs `sync` each session as a safety net. The CLI already syncs after every mutation, so the
-hook is belt-and-suspenders. Skip it with `--no-hook`.
+The installer wires an opt-in Stop hook (`hooks/roadmap-sync.sh`) that runs `sync` each
+session as a safety net — into `settings.json` for Claude Code, or as a native
+`.grok/hooks/roadmap-sync.json` with `--grok`. The CLI already syncs after every mutation,
+so the hook is belt-and-suspenders. Skip it with `--no-hook`.
 
 ## Plans link their detail
 

@@ -22,11 +22,11 @@ Target: $ARGUMENTS (default: every unfinished item in the current version).
 Going forward, use `/roadmap:build` / `/roadmap:next` so steps are checked off as you go —
 `catchup` is the recovery path, not the normal loop.
 
-**Finding the CLI (`<roadmap.py>`) — do not search for it.** It ships with the skill at a
-fixed path; resolve it once and reuse `$RM`:
+**Finding the CLI (`<roadmap.py>`) — do not search for it.** It ships with the skill under
+the agent's skills dir; probe the fixed candidates once and reuse `$RM`:
 
 ```bash
-RM=.claude/skills/roadmap/scripts/roadmap.py; [ -f "$RM" ] || RM="$HOME/.claude/skills/roadmap/scripts/roadmap.py"
+for d in .claude .grok .agents "$HOME/.claude" "$HOME/.grok" "$HOME/.agents"; do RM="$d/skills/roadmap/scripts/roadmap.py"; [ -f "$RM" ] && break; done
 ```
 
 Run `python3 "$RM" …` — use `$RM` wherever `<roadmap.py>` appears.

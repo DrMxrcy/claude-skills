@@ -96,6 +96,58 @@ def test_install_ships_all_commands(tmp_path):
     assert src and src == dest          # every command in the repo gets installed
 
 
+def test_install_grok_project_copies_skill_and_wires_native_hook(tmp_path):
+    res = _run(tmp_path, "--project", "--grok")
+    assert res.returncode == 0, res.stderr
+    assert (tmp_path / ".grok/skills/roadmap/SKILL.md").exists()
+    assert (tmp_path / ".grok/skills/roadmap/scripts/roadmap.py").exists()
+    assert not (tmp_path / ".claude").exists()
+    data = json.loads((tmp_path / ".grok/hooks/roadmap-sync.json").read_text())
+    cmds = [h["command"] for e in data["hooks"]["Stop"] for h in e["hooks"]]
+    assert any("roadmap-sync.sh" in c for c in cmds)
+
+
+def test_install_grok_no_hook_flag(tmp_path):
+    _run(tmp_path, "--project", "--grok", "--no-hook")
+    assert (tmp_path / ".grok/skills/roadmap/SKILL.md").exists()
+    assert not (tmp_path / ".grok/hooks").exists()
+
+
+def test_install_grok_skips_command_files(tmp_path):
+    # Grok Build has no commands/*.md equivalent; the skill itself is /roadmap.
+    _run(tmp_path, "--project", "--grok")
+    assert not (tmp_path / ".grok/commands").exists()
+
+
+def test_install_grok_writes_claude_md_rules(tmp_path):
+    # Grok Build reads CLAUDE.md natively, so the rules block still applies.
+    _run(tmp_path, "--project", "--grok")
+    assert "roadmap:rules:start" in (tmp_path / "CLAUDE.md").read_text()
+
+
+def test_install_grok_global_uses_home(tmp_path):
+    env = {**os.environ, "PYTHON": "python3.11", "HOME": str(tmp_path)}
+    res = subprocess.run(["bash", str(INSTALL), "--global", "--grok"],
+                         cwd=tmp_path, env=env, capture_output=True, text=True)
+    assert res.returncode == 0, res.stderr
+    assert (tmp_path / ".grok/skills/roadmap/SKILL.md").exists()
+    assert (tmp_path / ".grok/hooks/roadmap-sync.json").exists()
+
+
+def test_skill_resolver_finds_grok_install(tmp_path):
+    # The $RM resolver documented in SKILL.md must locate the CLI in a
+    # pure-Grok install (no .claude anywhere, HOME empty).
+    _run(tmp_path, "--project", "--grok")
+    skill = (REPO / "skills/roadmap/SKILL.md").read_text()
+    resolver = next(l for l in skill.splitlines() if l.startswith("for d in .claude"))
+    home = tmp_path / "empty-home"
+    home.mkdir()
+    out = subprocess.run(["bash", "-c", resolver + '; echo "$RM"'],
+                         cwd=tmp_path, env={**os.environ, "HOME": str(home)},
+                         capture_output=True, text=True)
+    assert out.stdout.strip() == ".grok/skills/roadmap/scripts/roadmap.py"
+
+
 def test_install_writes_claude_md_rules(tmp_path):
     res = _run(tmp_path, "--project")
     assert res.returncode == 0, res.stderr
