@@ -10,12 +10,14 @@ block is also written to `AGENTS.md` for agent-neutral readers (Grok, Codex, Cur
 
 <!-- roadmap:rules:start -->
 ## Roadmap tracking
-This project tracks work in `ROADMAP.md` via the **roadmap** skill.
-- **Slash names:** Claude Code → `/roadmap:<cmd>` (e.g. `/roadmap:status`); Grok Build and other flat-command agents → `/roadmap-<cmd>` (e.g. `/roadmap-status`). Bare `/roadmap <cmd>` also works on either.
-- At the start of a work session, run `roadmap.py orient` or `/roadmap:status` / `/roadmap-status` (or read `ROADMAP.md`) before continuing.
-- New features or found bugs become roadmap items via `/roadmap:plan` / `/roadmap-plan` before coding; park stray ideas in the Idea Incubator via `/roadmap:idea` / `/roadmap-idea` (one bullet each — long write-ups become linked `.roadmap/notes/` files, never inline prose) — nothing is built off-roadmap. Promote parked ideas with `/roadmap:promote` / `/roadmap-promote`.
-- No functional code without an active plan in `.roadmap/plans/`. Work one checklist item at a time; do not multitask across features/bugs. Respect `dependsOn` — build dependencies first (`roadmap.py next` skips blocked items).
-- When building an item, follow its linked Spec / Detailed plan as the authoritative how-to (the checklist is just the tracker).
-- Mark a step done only after its build/tests pass, and commit the code + roadmap update together; if work was done outside the commands, run `/roadmap:catchup` / `/roadmap-catchup` to reconcile.
-- Update status only through the roadmap CLI / `/roadmap:done` / `/roadmap-done`; never hand-edit `ROADMAP.md`.
+This project uses the **roadmap** skill so AI coders (Claude Code, Grok Build, and others) stay **on-task** and ship **high-quality** code — not ad-hoc thrash. The living source of truth is `ROADMAP.md` + `.roadmap/plans/` via the deterministic CLI.
+- **Slash names:** Claude Code → `/roadmap:<cmd>` (e.g. `/roadmap:status`); Grok Build → `/roadmap-<cmd>` (e.g. `/roadmap-status`). Bare `/roadmap <cmd>` works on either.
+- **Orient first:** at session start run `roadmap.py orient` or `/roadmap:status` / `/roadmap-status` (or read `ROADMAP.md`) before writing code.
+- **Nothing off-roadmap:** new features/bugs become items via `/roadmap:plan` / `/roadmap-plan` before coding; park ideas with `/roadmap:idea` / `/roadmap-idea` (one bullet; long write-ups → linked `.roadmap/notes/`). Promote with `/roadmap:promote` / `/roadmap-promote`.
+- **One item at a time.** Active plan in `.roadmap/plans/` required for functional code. No multitasking across features/bugs. Respect `dependsOn` (`roadmap.py next` skips blocked items).
+- **Quality-first build (default for `/roadmap:build` / `/roadmap-build`, including `--auto`):** for each checklist step — optional explore research → one implementer subagent → **spec review** subagent → **quality review** subagent → parent runs real build/tests → only then `check` + commit code+roadmap. Parent owns all `roadmap.py` calls; children never edit `ROADMAP.md`. `--auto` skips user pauses between items, **not** reviews or tests. Prefer superpowers `subagent-driven-development` when available.
+- **Specs are law:** follow each plan's linked Spec / Detailed plan; the checklist is the tracker, not the design.
+- **Never hand-edit `ROADMAP.md`.** Use the CLI / `/roadmap:done` / `/roadmap-done`. If work happened outside the loop, `/roadmap:catchup` / `/roadmap-catchup` after verifying tests.
+- **Multi-coder sync:** the repo is the shared brain. Always commit code + roadmap together; when switching Claude ↔ Grok (or any agent), `git pull`, run `roadmap.py handoff` (or `orient` + `drift-check`), then continue — never maintain a private parallel plan outside `.roadmap/`.
+- **Ship clean:** before release, `/roadmap:review` / `/roadmap-review` the version (spec + code review).
 <!-- roadmap:rules:end -->

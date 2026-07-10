@@ -12,16 +12,19 @@ RULES_START = "<!-- roadmap:rules:start -->"
 RULES_END = "<!-- roadmap:rules:end -->"
 # Dual slash forms: Claude Code uses /roadmap:<cmd>; Grok (and other flat-command
 # agents) use /roadmap-<cmd>. Bare /roadmap <cmd> also routes via the skill.
+# This block is the always-on harness: same discipline for Claude, Grok, Codex, etc.
 RULES_BLOCK = """<!-- roadmap:rules:start -->
 ## Roadmap tracking
-This project tracks work in `ROADMAP.md` via the **roadmap** skill.
-- **Slash names:** Claude Code → `/roadmap:<cmd>` (e.g. `/roadmap:status`); Grok Build and other flat-command agents → `/roadmap-<cmd>` (e.g. `/roadmap-status`). Bare `/roadmap <cmd>` also works on either.
-- At the start of a work session, run `roadmap.py orient` or `/roadmap:status` / `/roadmap-status` (or read `ROADMAP.md`) before continuing.
-- New features or found bugs become roadmap items via `/roadmap:plan` / `/roadmap-plan` before coding; park stray ideas in the Idea Incubator via `/roadmap:idea` / `/roadmap-idea` (one bullet each — long write-ups become linked `.roadmap/notes/` files, never inline prose) — nothing is built off-roadmap. Promote parked ideas with `/roadmap:promote` / `/roadmap-promote`.
-- No functional code without an active plan in `.roadmap/plans/`. Work one checklist item at a time; do not multitask across features/bugs. Respect `dependsOn` — build dependencies first (`roadmap.py next` skips blocked items).
-- When building an item, follow its linked Spec / Detailed plan as the authoritative how-to (the checklist is just the tracker).
-- Mark a step done only after its build/tests pass, and commit the code + roadmap update together; if work was done outside the commands, run `/roadmap:catchup` / `/roadmap-catchup` to reconcile.
-- Update status only through the roadmap CLI / `/roadmap:done` / `/roadmap-done`; never hand-edit `ROADMAP.md`.
+This project uses the **roadmap** skill so AI coders (Claude Code, Grok Build, and others) stay **on-task** and ship **high-quality** code — not ad-hoc thrash. The living source of truth is `ROADMAP.md` + `.roadmap/plans/` via the deterministic CLI.
+- **Slash names:** Claude Code → `/roadmap:<cmd>` (e.g. `/roadmap:status`); Grok Build → `/roadmap-<cmd>` (e.g. `/roadmap-status`). Bare `/roadmap <cmd>` works on either.
+- **Orient first:** at session start run `roadmap.py orient` or `/roadmap:status` / `/roadmap-status` (or read `ROADMAP.md`) before writing code.
+- **Nothing off-roadmap:** new features/bugs become items via `/roadmap:plan` / `/roadmap-plan` before coding; park ideas with `/roadmap:idea` / `/roadmap-idea` (one bullet; long write-ups → linked `.roadmap/notes/`). Promote with `/roadmap:promote` / `/roadmap-promote`.
+- **One item at a time.** Active plan in `.roadmap/plans/` required for functional code. No multitasking across features/bugs. Respect `dependsOn` (`roadmap.py next` skips blocked items).
+- **Quality-first build (default for `/roadmap:build` / `/roadmap-build`, including `--auto`):** for each checklist step — optional explore research → one implementer subagent → **spec review** subagent → **quality review** subagent → parent runs real build/tests → only then `check` + commit code+roadmap. Parent owns all `roadmap.py` calls; children never edit `ROADMAP.md`. `--auto` skips user pauses between items, **not** reviews or tests. Prefer superpowers `subagent-driven-development` when available.
+- **Specs are law:** follow each plan's linked Spec / Detailed plan; the checklist is the tracker, not the design.
+- **Never hand-edit `ROADMAP.md`.** Use the CLI / `/roadmap:done` / `/roadmap-done`. If work happened outside the loop, `/roadmap:catchup` / `/roadmap-catchup` after verifying tests.
+- **Multi-coder sync:** the repo is the shared brain. Always commit code + roadmap together; when switching Claude ↔ Grok (or any agent), `git pull`, run `roadmap.py handoff` (or `orient` + `drift-check`), then continue — never maintain a private parallel plan outside `.roadmap/`.
+- **Ship clean:** before release, `/roadmap:review` / `/roadmap-review` the version (spec + code review).
 <!-- roadmap:rules:end -->"""
 
 # Agent-neutral project instruction files that receive the same rules block.
@@ -1096,11 +1099,21 @@ def drift_check(root: Path) -> str | None:
             f"run /roadmap:catchup or /roadmap-catchup?")
 
 
+def _git_dirty(root: Path) -> bool:
+    try:
+        out = subprocess.run(["git", "status", "--porcelain"], cwd=str(root),
+                             capture_output=True, text=True)
+        return out.returncode == 0 and bool(out.stdout.strip())
+    except FileNotFoundError:
+        return False
+
+
 def orient(root: Path) -> dict | None:
-    """Session orientation: project, current version, progress, next unblocked item.
-    Returns None (and prints nothing) when .roadmap/ is absent — safe for hooks."""
+    """Session orientation: project, progress, next item, drift, skill versions.
+    Returns None when .roadmap/ is absent — safe for hooks."""
     if not (roadmap_dir(root) / "config.json").exists():
         return None
+    cfg = read_config(root)
     st = status(root)
     ver = st["currentVersion"]
     in_ver = [i for i in st["items"] if i["version"] == ver]
@@ -1108,6 +1121,8 @@ def orient(root: Path) -> dict | None:
     steps_total = sum(i["total"] for i in in_ver)
     items_done = sum(1 for i in in_ver if i["pct"] == 100)
     nxt = next_item(root, version=ver, quiet=True)
+    installed = get_version()
+    recorded = cfg.get("skillVersion") or "unknown"
     return {
         "project": st["project"],
         "currentVersion": ver,
@@ -1116,12 +1131,18 @@ def orient(root: Path) -> dict | None:
         "itemsDone": items_done,
         "itemsTotal": len(in_ver),
         "next": ({"id": nxt["id"], "title": nxt["title"], "type": nxt["type"],
-                  "pct": nxt["pct"], "blockedBy": nxt.get("blockedBy") or []}
+                  "pct": nxt["pct"], "blockedBy": nxt.get("blockedBy") or [],
+                  "file": nxt.get("file")}
                  if nxt else None),
+        "drift": drift_check(root),
+        "skillVersionInstalled": installed,
+        "skillVersionProject": recorded,
+        "skillVersionStale": recorded not in ("unknown", installed),
+        "gitDirty": _git_dirty(root),
     }
 
 
-def format_orient(payload: dict) -> str:
+def format_orient(payload: dict, handoff: bool = False) -> str:
     lines = [
         f"Roadmap: {payload['project']} — v{payload['currentVersion']}",
         f"Progress: {payload['itemsDone']}/{payload['itemsTotal']} items · "
@@ -1130,9 +1151,41 @@ def format_orient(payload: dict) -> str:
     nxt = payload.get("next")
     if nxt:
         lines.append(f"Next: #{nxt['id']} {nxt['title']} [{nxt['type']}] — {nxt['pct']}%")
+        if handoff and nxt.get("file"):
+            lines.append(f"Plan: .roadmap/{nxt['file']}")
     else:
         lines.append("Next: (none — current version complete or all remaining items blocked)")
+    if payload.get("drift"):
+        lines.append(payload["drift"])
+    if payload.get("gitDirty"):
+        lines.append("⚠ Working tree has uncommitted changes — commit (or stash) before "
+                     "switching AI coders so the next agent sees the same state.")
+    inst = payload.get("skillVersionInstalled", "?")
+    proj = payload.get("skillVersionProject", "?")
+    if payload.get("skillVersionStale"):
+        lines.append(f"⚠ Project rules at skill v{proj} but installed skill is v{inst} — "
+                     f"run: roadmap.py upgrade")
+    elif handoff:
+        lines.append(f"Skill: v{inst} (project rules recorded: v{proj})")
+    if handoff:
+        lines.extend([
+            "",
+            "Multi-coder handoff checklist:",
+            "  1. Commit code + roadmap together (or stash) so git is clean",
+            "  2. git push (if collaborating) so the other agent can pull",
+            "  3. On the next agent: git pull, then roadmap.py handoff (or orient)",
+            "  4. If drift warning above → /roadmap:catchup after verifying tests",
+            "  5. Continue with /roadmap:next or /roadmap-next (same quality-first protocol)",
+            "Shared source of truth: ROADMAP.md + .roadmap/ + CHANGELOG*.md in git — "
+            "never a private parallel plan.",
+        ])
     return "\n".join(lines)
+
+
+def handoff(root: Path) -> dict | None:
+    """Brief for switching between AI coders (Claude ↔ Grok ↔ …). Same data as orient
+    with an explicit handoff checklist."""
+    return orient(root)
 
 
 INCUBATOR_BULLET_RE = re.compile(r"^(\s*[-*+]\s+)(.+)$")
@@ -1366,6 +1419,11 @@ def main(argv: list[str]) -> int:
     p_orient.add_argument("--hook", action="store_true",
                           help="emit Claude SessionStart additionalContext JSON")
 
+    p_handoff = sub.add_parser(
+        "handoff",
+        help="multi-coder switch brief (orient + drift + git dirty + checklist)")
+    p_handoff.add_argument("--json", action="store_true", dest="as_json")
+
     sub.add_parser("drift-check", help="nudge if commits landed without check-off")
 
     p_promote = sub.add_parser("promote", help="lift an Idea Incubator bullet into a plan")
@@ -1510,6 +1568,16 @@ def main(argv: list[str]) -> int:
                 print(json.dumps(payload, indent=2))
             else:
                 print(text)
+            return 0
+        if args.command == "handoff":
+            payload = handoff(root)
+            if payload is None:
+                print("No .roadmap/ here — nothing to hand off.")
+                return 0
+            if args.as_json:
+                print(json.dumps(payload, indent=2))
+            else:
+                print(format_orient(payload, handoff=True))
             return 0
         if args.command == "drift-check":
             msg = drift_check(root)

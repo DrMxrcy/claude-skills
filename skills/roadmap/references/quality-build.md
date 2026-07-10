@@ -1,13 +1,22 @@
 # Quality-first multi-agent build protocol
 
-Default for `/roadmap-build` (including `--auto`) and `/roadmap-next`.
-**Optimize for correctness and maintainability, not wall-clock parallelism.**
+Default for `/roadmap-build` / `/roadmap:build` (including `--auto`) and
+`/roadmap-next` / `/roadmap:next` on **Claude Code, Grok Build, and other agents**.
+
+**Optimize for correctness and maintainability.** Speed comes from focused subagents and
+small checklist steps — not from racing parallel writers or skipping review.
+
+## Mission
+
+Keep AI coders **on-task** (one plan item, real checklist, no dashboard thrash) while
+**high-quality code** ships (implement → spec review → quality review → tests → check).
 
 ## Goals
 
 1. High-quality code: tests green, matches plan/spec, reviewed before check-off.
 2. Roadmap never drifts: only the **parent** session runs `roadmap.py`.
 3. Use subagents for **fresh context + specialized roles**, not for racing two writers.
+4. Same protocol on every agent — colon vs hyphen slash names are the only surface difference.
 
 ## Hard rules
 

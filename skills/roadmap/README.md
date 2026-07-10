@@ -1,12 +1,18 @@
 # roadmap
 
+**Mission: keep AI coders on-task while high-quality code ships** — whether the driver is
+**Claude Code**, **Grok Build**, or another agent. Same slash-command intent (colon vs
+hyphen names), same quality-first multi-agent build protocol, same anti-drift CLI.
+
 A persistent tracking layer for AI-assisted development. You bring an idea or plan; the skill
 breaks it into small, type-tagged, **versioned** units, links them into a living `ROADMAP.md`,
-and keeps that dashboard in sync as code gets written — across many sessions.
+and keeps that dashboard in sync as code gets written — across many sessions and agents.
 
 It's a layer **on top of** your planning skills: it defers deep design to
 `brainstorming`/`writing-plans`, uses `context7` and project MCPs for research, and a
-deterministic Python CLI makes every mechanical edit so the dashboard never drifts.
+deterministic Python CLI makes every mechanical edit so the dashboard never drifts. Builds
+default to **implement → spec review → quality review → tests → check** (see
+[`references/quality-build.md`](references/quality-build.md)).
 
 > Install via the repo root [`install.sh`](../../README.md#install). After installing, start a
 > fresh Claude Code session so the skill and `/roadmap:*` commands load.
@@ -71,8 +77,26 @@ Bare `/roadmap <subcommand>` also routes correctly.
 | `/roadmap:upgrade` · `/roadmap-upgrade` | Refresh this project's `CLAUDE.md` + `AGENTS.md` rules to the installed skill version (after a global update) |
 | `/roadmap:promote [match]` · `/roadmap-promote` | Lift an Idea Incubator bullet into a tracked plan |
 | `/roadmap:next` · `/roadmap-next` | Next unfinished item — **skips** items blocked by incomplete `dependsOn` |
+| `/roadmap:handoff` · `/roadmap-handoff` | **Switch AI coders** — next item, drift, dirty tree, skill version, checklist |
 
-Also CLI-only (hooks use them): `orient` (session briefing), `drift-check` (nudge after off-roadmap commits), `deps-check`, `next --json`.
+Also CLI-only (hooks use them): `orient` (session briefing), `drift-check`, `deps-check`, `next --json`.
+
+### Keeping Claude + Grok in sync
+
+```bash
+# Install the same skill version into both agents (recommended)
+./install.sh --global --both
+
+# When leaving one coder for another:
+python3 $roadmap handoff    # or /roadmap:handoff / /roadmap-handoff
+git add -A && git commit && git push   # code + roadmap together
+
+# On the other coder:
+git pull && python3 $roadmap handoff
+```
+
+Shared truth is **only** what is in git (`ROADMAP.md`, `.roadmap/`, changelogs, rules in
+`CLAUDE.md`/`AGENTS.md`). Chat memory is not a plan.
 
 The CLI also has `version` (prints the installed skill version, e.g. to confirm an update applied).
 

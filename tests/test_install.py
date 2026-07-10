@@ -185,10 +185,12 @@ def test_install_writes_claude_md_rules(tmp_path):
     assert res.returncode == 0, res.stderr
     cm = (tmp_path / "CLAUDE.md").read_text()
     assert "roadmap:rules:start" in cm
-    assert "Work one checklist item at a time" in cm
+    assert "One item at a time" in cm
+    assert "Quality-first build" in cm
     assert "/roadmap-<cmd>" in cm
     agents = (tmp_path / "AGENTS.md").read_text()
     assert "roadmap:rules:start" in agents
+    assert "high-quality" in agents
 
 
 def test_install_claude_md_is_idempotent(tmp_path):
@@ -217,3 +219,13 @@ def test_install_global_skips_claude_md(tmp_path):
     subprocess.run(["bash", str(INSTALL), "--global"],
                    cwd=tmp_path, env=env, check=True, capture_output=True, text=True)
     assert not (tmp_path / "CLAUDE.md").exists()
+
+
+def test_install_both_agents(tmp_path):
+    res = _run(tmp_path, "--project", "--both", "--no-hook", "--no-orient", "--no-claude-md")
+    assert res.returncode == 0, res.stderr + res.stdout
+    assert (tmp_path / ".claude/skills/roadmap/SKILL.md").exists()
+    assert (tmp_path / ".grok/skills/roadmap/SKILL.md").exists()
+    assert (tmp_path / ".claude/commands/roadmap-handoff.md").exists() or \
+           (tmp_path / ".claude/commands/roadmap/handoff.md").exists()
+    assert (tmp_path / ".grok/commands/roadmap-handoff.md").exists()

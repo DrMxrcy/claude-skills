@@ -1,10 +1,20 @@
 ---
 name: roadmap
-description: Use when planning features/bugs/refactors, tracking a project roadmap, breaking an idea or plan into trackable units, marking work done, or cutting a version. Maintains a versioned ROADMAP.md + .roadmap/ plan files via a deterministic CLI. Triggers on "roadmap", "plan this feature", "track this", "break this down", "mark done", "cut a version", "import into roadmap", /roadmap, /roadmap-next, /roadmap-build, /roadmap-status.
+description: >
+  Keep AI coders (Claude Code, Grok Build, others) on-task while shipping high-quality code.
+  Use when planning features/bugs/refactors, tracking a project roadmap, breaking work into
+  trackable units, building with quality-first multi-agent review, marking done, or cutting a
+  version. Maintains versioned ROADMAP.md + .roadmap/ via a deterministic CLI. Triggers on
+  "roadmap", "plan this feature", "track this", "build the next item", "mark done", "cut a
+  version", /roadmap, /roadmap-next, /roadmap-build, /roadmap-status.
 argument-hint: "[status|next|build|plan|idea|init|done|review|release|sync|…] [args]"
 ---
 
 # Roadmap
+
+**Mission:** keep AI coders on-task and ship high-quality code — on Claude Code, Grok Build,
+or any agent that loads this skill. Plans and checklists are the rails; subagent implement +
+dual review is the default build quality bar; the CLI is the only way the dashboard moves.
 
 A persistent tracking layer on top of your planning skills. You decide WHAT; the
 `roadmap.py` CLI makes every mechanical edit so the dashboard never drifts.
@@ -47,6 +57,7 @@ If the user message / `$ARGUMENTS` starts with one of these verbs, run that flow
 | `status` | `roadmap.py status` (+ summarize) |
 | `sync` | `roadmap.py sync` |
 | `next` | Build the lowest-id unfinished item in the **current** version (same as `/roadmap-next`) |
+| `handoff` | Multi-coder switch brief (sync state when leaving Claude for Grok or vice versa) |
 | `build` | Build the rest of the args (id / version / empty / flags) — same as `/roadmap-build` |
 | `plan` | Brainstorm remaining args into a tracked plan |
 | `idea` | Park remaining args in the Idea Incubator |
@@ -57,7 +68,7 @@ If the user message / `$ARGUMENTS` starts with one of these verbs, run that flow
 If there are no args (bare `/roadmap`), use **Phase routing** below.
 
 ## Working guardrails (apply whenever this skill is active)
-- At the start of a session, run `roadmap.py status` to orient on current progress before continuing.
+- At the start of a session, run `roadmap.py orient` / `handoff` (or status) before writing code.
 - New features or found bugs become roadmap items (`/roadmap:plan`) before coding; park stray ideas in the Idea Incubator — nothing is built off-roadmap.
 - **Incubator hygiene — ROADMAP.md stays skimmable.** One bullet per parked idea, added via
   `roadmap.py idea --title "..."`. Long-form content — brainstorm output, deferred review
@@ -68,6 +79,24 @@ If there are no args (bare `/roadmap`), use **Phase routing** below.
 - No functional code without an active plan file in `.roadmap/plans/`.
 - Run the build/tests for a step BEFORE you `check` it.
 - Commit code + roadmap updates together in one micro-commit.
+
+## Switching between AI coders (Claude ↔ Grok ↔ …)
+
+The **git repo** is the shared brain — not chat history.
+
+| Shared in git | Owner |
+|---|---|
+| `ROADMAP.md`, `.roadmap/`, `CHANGELOG*.md` | CLI only |
+| Plan checklists / progress | CLI `check` |
+| `CLAUDE.md` + `AGENTS.md` rules block | `init` / `upgrade` |
+
+**Handoff protocol (always):**
+1. Leaving agent: commit code+roadmap (clean tree), optional `git push`.
+2. `python3 "$RM" handoff` — prints next item, drift, dirty tree, stale skill rules.
+3. Entering agent: `git pull`, `handoff` or SessionStart orient, then `/roadmap-next` / build.
+4. Drift warning → `/roadmap-catchup` after tests, never invent a second plan offline.
+
+Install both agents at the same skill version: `./install.sh --global --both`.
 
 ## Phase routing
 On invocation, detect state and pick a phase:
@@ -153,7 +182,8 @@ On invocation, detect state and pick a phase:
 - `reorder --version V --order IDS` — set display/build order within a version
 - `merge --into KEEP --from IDS` — fold duplicate items into one keeper
 - `retarget --to V (--from VERS | --plan IDS)` — re-stamp items onto another version
-- `orient [--json] [--hook]` — session orientation (project, progress, next item)
+- `orient [--json] [--hook]` — session orientation (project, progress, next item, drift)
+- `handoff [--json]` — multi-coder switch brief (orient + git dirty + checklist)
 - `drift-check` — nudge if commits landed without a check-off
 - `sync` — recompute progress + re-render ROADMAP.md **and both changelogs** (safe anytime)
 - `upgrade` — refresh this project's `CLAUDE.md` + `AGENTS.md` rules to the installed skill version

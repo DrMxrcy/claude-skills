@@ -1,8 +1,12 @@
 # claude-skills
 
 A collection of installable [Agent Skills](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview)
-for AI-assisted coding (Claude Code and compatible agents). Each skill lives under
-`skills/<name>/` with its own detailed docs; new skills can be added over time.
+for AI-assisted coding — **Claude Code, Grok Build, and compatible agents**. The flagship
+**roadmap** skill keeps AI coders on-task with a versioned plan + quality-first multi-agent
+build loop (implement → review → tests → check) so speed does not cost quality.
+
+Each skill lives under `skills/<name>/` with its own detailed docs; new skills can be added
+over time.
 
 ## Install
 
@@ -15,7 +19,7 @@ curl -fsSL https://raw.githubusercontent.com/DrMxrcy/claude-skills/main/install.
 
 - **Global** (all projects): append `| bash -s -- --global`
 - **From a clone:** `./install.sh`
-- **Flags:** `--global`, `--grok` (target Grok Build), `--link` (dev symlink), `--no-hook`, `--no-orient`, `--no-commands`, `--no-claude-md`, `--init`
+- **Flags:** `--global`, `--grok`, **`--both`** (Claude + Grok same version — best when switching coders), `--link`, `--no-hook`, `--no-orient`, `--no-commands`, `--no-claude-md`, `--init`
 
 Then start a fresh Claude Code session so the skills and commands load. Replace `<owner>` /
 `DrMxrcy` with your fork's owner if you republish (or set `SKILLS_REPO=owner/repo`).
@@ -57,7 +61,7 @@ afterward.
 
 | Skill | What it does | Docs |
 |---|---|---|
-| **roadmap** | A persistent, versioned, type-tagged roadmap that breaks ideas into trackable plans and keeps `ROADMAP.md` in sync — with `/roadmap:*` commands. | [skills/roadmap/README.md](skills/roadmap/README.md) |
+| **roadmap** | On-task + high-quality AI coding harness: versioned plans, dual-agent slash commands (`/roadmap:*` · `/roadmap-*`), quality-first multi-agent build (`--auto` still reviews), anti-drift CLI. | [skills/roadmap/README.md](skills/roadmap/README.md) |
 
 ## Repository layout
 

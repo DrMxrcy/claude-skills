@@ -11,6 +11,7 @@
 #   ./install.sh                 # ./.claude: skills + /roadmap:* commands + hook + CLAUDE.md
 #   ./install.sh --global        # ~/.claude (all projects); skips CLAUDE.md
 #   ./install.sh --grok          # target Grok Build: ./.grok (or ~/.grok with --global)
+#   ./install.sh --both          # install Claude + Grok (same skill version; keeps coders in sync)
 #   ./install.sh --link          # symlink instead of copy (good for development)
 #   ./install.sh --no-hook       # do not wire the auto-sync Stop hook (sync + drift-check)
 #   ./install.sh --no-orient     # do not wire the SessionStart orient hook
@@ -32,24 +33,27 @@ usage() {
 
 scope="project"
 agent="claude"
+both=0
 link=0
 hook=1
 orient=1
 do_init=0
 commands=1
 claude_md=1
+pass_args=()
 for arg in "$@"; do
   case "$arg" in
-    --global) scope="global" ;;
-    --project) scope="project" ;;
-    --grok) agent="grok" ;;
-    --claude) agent="claude" ;;
-    --link) link=1 ;;
-    --no-hook) hook=0 ;;
-    --no-orient) orient=0 ;;
-    --no-commands) commands=0 ;;
-    --no-claude-md) claude_md=0 ;;
-    --init) do_init=1 ;;
+    --global) scope="global"; pass_args+=("$arg") ;;
+    --project) scope="project"; pass_args+=("$arg") ;;
+    --grok) agent="grok"; pass_args+=("$arg") ;;
+    --claude) agent="claude"; pass_args+=("$arg") ;;
+    --both|--all-agents) both=1 ;;
+    --link) link=1; pass_args+=("$arg") ;;
+    --no-hook) hook=0; pass_args+=("$arg") ;;
+    --no-orient) orient=0; pass_args+=("$arg") ;;
+    --no-commands) commands=0; pass_args+=("$arg") ;;
+    --no-claude-md) claude_md=0; pass_args+=("$arg") ;;
+    --init) do_init=1; pass_args+=("$arg") ;;
     -h|--help)
       cat <<'EOF'
 install.sh — import this repo's skills + slash commands into Claude Code or Grok
@@ -60,6 +64,8 @@ rules to CLAUDE.md + AGENTS.md (no manual copying or settings edits).
   --global                install into ~/.claude (all projects); skips project rules
   --grok                  target Grok Build: ./.grok (or ~/.grok with --global),
                           native hooks JSON, flat /roadmap-* slash commands
+  --both                  install Claude + Grok at the same skill version (recommended
+                          when you switch between AI coders)
   --link                  symlink instead of copy (development)
   --no-hook               do not wire the Stop hook (sync + drift-check)
   --no-orient             do not wire the SessionStart orient hook
@@ -69,7 +75,7 @@ rules to CLAUDE.md + AGENTS.md (no manual copying or settings edits).
 
 Remote (no clone):
   curl -fsSL .../install.sh | bash
-  curl -fsSL .../install.sh | bash -s -- --global
+  curl -fsSL .../install.sh | bash -s -- --global --both
 
 Env: SKILLS_REPO, SKILLS_REF, SKILLS_SRC, PYTHON
 EOF
@@ -77,6 +83,26 @@ EOF
     *) echo "Unknown option: $arg (try --help)" >&2; exit 1 ;;
   esac
 done
+
+# --both: install Claude then Grok with the same flags (keeps multi-coder skill in sync).
+if [ "$both" = "1" ]; then
+  # Drop agent selectors from the recursive pass; force each target.
+  both_args=()
+  for a in "${pass_args[@]+"${pass_args[@]}"}"; do
+    case "$a" in
+      --grok|--claude|--both|--all-agents) ;;
+      *) both_args+=("$a") ;;
+    esac
+  done
+  echo "=== Installing for Claude Code ==="
+  bash "$0" "${both_args[@]+"${both_args[@]}"}" --claude
+  echo ""
+  echo "=== Installing for Grok Build ==="
+  bash "$0" "${both_args[@]+"${both_args[@]}"}" --grok
+  echo ""
+  echo "Both agents installed at the same skill version. Switch coders with: roadmap.py handoff"
+  exit 0
+fi
 
 # Roadmap rules are project-specific; never write a global CLAUDE.md.
 [ "$scope" = "global" ] && claude_md=0

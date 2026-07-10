@@ -338,7 +338,9 @@ def test_init_creates_claude_md_rules(roadmap, repo):
     roadmap.init_project(repo, "P")
     cm = (repo / "CLAUDE.md").read_text()
     assert "roadmap:rules:start" in cm
-    assert "Work one checklist item at a time" in cm
+    assert "One item at a time" in cm
+    assert "Quality-first build" in cm
+    assert "high-quality" in cm
 
 
 def test_init_claude_md_idempotent_and_preserves_content(roadmap, repo):
@@ -1186,6 +1188,8 @@ def test_init_writes_agents_md_and_dual_slash_names(roadmap, repo):
         assert "roadmap:rules:start" in text
         assert "/roadmap:<cmd>" in text
         assert "/roadmap-<cmd>" in text
+        assert "Quality-first build" in text
+        assert "spec review" in text
 
 
 def test_rules_block_in_example(roadmap):
@@ -1205,3 +1209,32 @@ def test_depends_rejects_two_cycle(roadmap, repo):
     roadmap.set_depends(repo, 2, [1])
     with pytest.raises(ValueError, match="cycle"):
         roadmap.set_depends(repo, 1, [2])
+
+
+def test_handoff_includes_checklist_and_skill_version(roadmap, repo, monkeypatch, capsys):
+    monkeypatch.chdir(repo)
+    roadmap.init_project(repo, "P", claude_md=False)
+    roadmap.new_item(repo, "feature", "Auth")
+    assert roadmap.main(["handoff"]) == 0
+    out = capsys.readouterr().out
+    assert "Auth" in out
+    assert "Multi-coder handoff checklist" in out
+    assert "Skill:" in out or "skill" in out.lower()
+
+
+def test_orient_reports_git_dirty(roadmap, repo):
+    roadmap.init_project(repo, "P", claude_md=False)
+    (repo / "loose.txt").write_text("x")
+    payload = roadmap.orient(repo)
+    assert payload["gitDirty"] is True
+    text = roadmap.format_orient(payload)
+    assert "uncommitted" in text.lower()
+
+
+def test_cli_handoff_json(roadmap, repo, monkeypatch, capsys):
+    monkeypatch.chdir(repo)
+    roadmap.init_project(repo, "P", claude_md=False)
+    assert roadmap.main(["handoff", "--json"]) == 0
+    data = json.loads(capsys.readouterr().out)
+    assert "skillVersionInstalled" in data
+    assert data["project"] == "P"
