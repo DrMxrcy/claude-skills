@@ -153,8 +153,8 @@ def test_install_grok_writes_claude_md_rules(tmp_path):
     for name in ("CLAUDE.md", "AGENTS.md"):
         text = (tmp_path / name).read_text()
         assert "roadmap:rules:start" in text
-        assert "/roadmap-<cmd>" in text
-        assert "/roadmap:<cmd>" in text
+        assert "/roadmap-build" in text and "/roadmap:build" in text
+        assert "hyphen only" in text
 
 
 def test_install_grok_global_uses_home(tmp_path):
@@ -189,7 +189,7 @@ def test_install_writes_claude_md_rules(tmp_path):
     assert "Quality-first build" in cm
     assert "Micro-commit" in cm
     assert "Abrupt switch" in cm
-    assert "/roadmap-<cmd>" in cm
+    assert "/roadmap-build" in cm and "hyphen only" in cm
     agents = (tmp_path / "AGENTS.md").read_text()
     assert "roadmap:rules:start" in agents
     assert "high-quality" in agents

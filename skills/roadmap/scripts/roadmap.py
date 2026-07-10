@@ -18,7 +18,12 @@ RULES_BLOCK = """<!-- roadmap:rules:start -->
 This project uses the **roadmap** skill so AI coders (Claude Code, Grok Build, and others) stay **on-task** and ship **high-quality** code — not ad-hoc thrash. Living truth is **git**: `ROADMAP.md` + `.roadmap/` (plans, config) + `CHANGELOG*.md` via the deterministic CLI only.
 
 ### Surfaces (every agent)
-- **Slash names:** Claude Code → `/roadmap:<cmd>` (e.g. `/roadmap:status`); Grok Build → `/roadmap-<cmd>` (e.g. `/roadmap-status`). Bare `/roadmap <cmd>` works on either.
+- **Slash names — always offer BOTH when recommending a command** (agents mix these up):
+  - Claude Code discovers **colon**: `/roadmap:status`, `/roadmap:build`, `/roadmap:next`
+  - Grok Build discovers **hyphen only**: `/roadmap-status`, `/roadmap-build`, `/roadmap-next`
+  - Bare space form works on either: `/roadmap status`, `/roadmap build 3`, `/roadmap next`
+  - **Never tell a Grok user only `/roadmap:…`** — those do not appear in Grok's slash menu. Prefer writing `/roadmap:build` **·** `/roadmap-build` (or the bare form).
+- **`--auto` is only for build** (item/version/empty selection), e.g. `/roadmap-build 1.2.0 --auto` or `/roadmap build 80 --auto`. **`next` has no `--auto`** — it always does exactly one item then stops. To chain items use `build` with `--auto`, not `next --auto`.
 - **CLI resolve once:** probe `.claude|.grok|.agents` skills paths (project then `$HOME`); never hand-edit `ROADMAP.md`.
 
 ### Always on-task
@@ -1171,9 +1176,20 @@ def format_orient(payload: dict, handoff: bool = False) -> str:
     ]
     nxt = payload.get("next")
     if nxt:
-        lines.append(f"Next: #{nxt['id']} {nxt['title']} [{nxt['type']}] — {nxt['pct']}%")
+        nid = nxt["id"]
+        lines.append(f"Next: #{nid} {nxt['title']} [{nxt['type']}] — {nxt['pct']}%")
         if handoff and nxt.get("file"):
             lines.append(f"Plan: .roadmap/{nxt['file']}")
+        # Dual slash forms so Grok never gets colon-only recommendations
+        lines.append(
+            f"Continue: /roadmap:next · /roadmap-next · /roadmap next"
+            f"  OR  /roadmap:build {nid} · /roadmap-build {nid} · /roadmap build {nid}"
+        )
+        lines.append(
+            f"Chain version (pauses off): /roadmap:build {payload['currentVersion']} --auto"
+            f" · /roadmap-build {payload['currentVersion']} --auto"
+            f"  (not next --auto — next is always one item)"
+        )
     else:
         lines.append("Next: (none — current version complete or all remaining items blocked)")
     if payload.get("drift"):
@@ -1192,7 +1208,7 @@ def format_orient(payload: dict, handoff: bool = False) -> str:
     if payload.get("gitDirty") or payload.get("drift") or handoff:
         lines.append(
             "Resume: commit or catchup if needed, then continue the plan checklist "
-            "(/roadmap:next or /roadmap-next) — formal handoff is optional; git is the sync.")
+            "(/roadmap:next · /roadmap-next) — formal handoff is optional; git is the sync.")
     if handoff:
         lines.extend([
             "",

@@ -34,7 +34,10 @@ For a whole version with the same quality gates, use `/roadmap:build <ver> --aut
 4. When the item is 100%, **stop** and report — run `/roadmap:next` / `/roadmap-next`
    again for the following item (or switch to `/roadmap-build <ver> --auto` to chain).
 
-**Agent slash names:** Claude Code → `/roadmap:next`; Grok → `/roadmap-next`.
+**Agent slash names (always cite both — Grok does not load colon forms):**
+- Claude: `/roadmap:next` · Grok: **`/roadmap-next`** · Either: `/roadmap next`
+- **No `--auto` on next.** One item then stop. To chain: `/roadmap-build <version> --auto`
+  or `/roadmap:build <version> --auto`.
 
 **Finding the CLI (`<roadmap.py>`) — do not search for it.**
 

@@ -345,6 +345,8 @@ def test_init_creates_claude_md_rules(roadmap, repo):
     assert "Micro-commit" in cm
     assert "Abrupt switch" in cm
     assert "rate-limit" in cm or "Rate limits" in cm
+    assert "hyphen only" in cm
+    assert "next` has no `--auto`" in cm or "next has no" in cm
 
 
 def test_init_claude_md_idempotent_and_preserves_content(roadmap, repo):
@@ -1141,6 +1143,10 @@ def test_orient_payload(roadmap, repo):
     assert payload["itemsTotal"] == 1
     text = roadmap.format_orient(payload)
     assert "Auth" in text and "v0.0.1" in text
+    # Dual slash forms so Grok never gets colon-only recommendations
+    assert "/roadmap-next" in text and "/roadmap:next" in text
+    assert "/roadmap-build" in text
+    assert "not next --auto" in text
 
 
 def test_orient_noop_without_roadmap(roadmap, tmp_path):
@@ -1190,8 +1196,8 @@ def test_init_writes_agents_md_and_dual_slash_names(roadmap, repo):
     for name in ("CLAUDE.md", "AGENTS.md"):
         text = (repo / name).read_text()
         assert "roadmap:rules:start" in text
-        assert "/roadmap:<cmd>" in text
-        assert "/roadmap-<cmd>" in text
+        assert "/roadmap:status" in text and "/roadmap-status" in text
+        assert "/roadmap-build" in text and "hyphen only" in text
         assert "Quality-first build" in text
         assert "spec review" in text
         assert "Micro-commit" in text
@@ -1204,7 +1210,7 @@ def test_rules_block_in_example(roadmap):
     text = example.read_text()
     assert roadmap.RULES_START in text
     body = text.split(roadmap.RULES_START, 1)[1].split(roadmap.RULES_END, 1)[0]
-    assert "/roadmap-<cmd>" in body
+    assert "/roadmap-build" in body and "hyphen only" in body
     assert "promote" in body.lower() or "roadmap-promote" in body
 
 

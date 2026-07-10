@@ -24,7 +24,11 @@ First run `python3 <roadmap.py> status`, then interpret the argument:
 
 Flags compose: `--auto --worktree --pr` on a version = hands-off phase build with full quality gates.
 
-**Agent slash names:** Claude Code → `/roadmap:build`; Grok → `/roadmap-build`.
+**Agent slash names (always cite both — Grok does not load colon forms):**
+- Claude Code: `/roadmap:build 80` · `/roadmap:build 1.2.0 --auto`
+- Grok Build: **`/roadmap-build 80`** · **`/roadmap-build 1.2.0 --auto`**
+- Either: `/roadmap build 80` · `/roadmap build 1.2.0 --auto`
+- **Not valid:** `next --auto` (use `build … --auto` to chain items; `next` is one item only)
 
 ## Build order
 

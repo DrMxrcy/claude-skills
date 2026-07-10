@@ -31,18 +31,19 @@ python3 "$RM" <command>
 
 ## Slash commands (agent-specific names)
 
-| Action | Claude Code | Grok Build |
-|---|---|---|
-| Init | `/roadmap:init` | `/roadmap-init` |
-| Plan an idea | `/roadmap:plan …` | `/roadmap-plan …` |
-| Build next item | `/roadmap:next` | `/roadmap-next` |
-| Build item/version | `/roadmap:build …` | `/roadmap-build …` |
-| Status | `/roadmap:status` | `/roadmap-status` |
-| (and the rest) | `/roadmap:<cmd>` | `/roadmap-<cmd>` |
+| Action | Claude Code | Grok Build | Either |
+|---|---|---|---|
+| Init | `/roadmap:init` | `/roadmap-init` | `/roadmap init` |
+| Plan | `/roadmap:plan …` | `/roadmap-plan …` | `/roadmap plan …` |
+| Next item | `/roadmap:next` | `/roadmap-next` | `/roadmap next` |
+| Build | `/roadmap:build …` | `/roadmap-build …` | `/roadmap build …` |
+| Status | `/roadmap:status` | `/roadmap-status` | `/roadmap status` |
+| (rest) | `/roadmap:<cmd>` | `/roadmap-<cmd>` | `/roadmap <cmd>` |
 
-Grok only discovers **flat** `commands/*.md` files (filename stem = command name). Nested
-Claude-style `commands/roadmap/next.md` → `/roadmap:next` does **not** appear in Grok's
-slash list. The installer ships flat aliases (`roadmap-next.md` → `/roadmap-next`).
+**When recommending a command to the user, always list hyphen (Grok) and/or bare form —
+never colon-only.** Grok only discovers flat `commands/roadmap-*.md`; nested
+`commands/roadmap/next.md` → `/roadmap:next` does **not** show in Grok's menu.
+`--auto` only on **build** (not next).
 
 **Also works:** invoke this skill with a subcommand as the argument — `/roadmap next`,
 `/roadmap build 1.0.0`, `/roadmap status` — and route exactly like the dedicated command.
