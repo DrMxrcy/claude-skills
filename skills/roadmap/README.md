@@ -66,7 +66,11 @@ Bare `/roadmap <subcommand>` also routes correctly.
 | `/roadmap:changelog [version]` · `/roadmap-changelog` | Print the live changelog; backfill past versions' dates from git tags / notes from history |
 | `/roadmap:reevaluate [version]` · `/roadmap-reevaluate` | Audit the codebase against the roadmap — surface missed/duplicate/stale work and resequence |
 | `/roadmap:sync` · `/roadmap-sync` | Recompute progress and re-render `ROADMAP.md` |
-| `/roadmap:upgrade` · `/roadmap-upgrade` | Refresh this project's `CLAUDE.md` rules to the installed skill version (after a global update) |
+| `/roadmap:upgrade` · `/roadmap-upgrade` | Refresh this project's `CLAUDE.md` + `AGENTS.md` rules to the installed skill version (after a global update) |
+| `/roadmap:promote [match]` · `/roadmap-promote` | Lift an Idea Incubator bullet into a tracked plan |
+| `/roadmap:next` · `/roadmap-next` | Next unfinished item — **skips** items blocked by incomplete `dependsOn` |
+
+Also CLI-only (hooks use them): `orient` (session briefing), `drift-check` (nudge after off-roadmap commits), `deps-check`, `next --json`.
 
 The CLI also has `version` (prints the installed skill version, e.g. to confirm an update applied).
 
@@ -151,14 +155,19 @@ roadmap=.claude/skills/roadmap/scripts/roadmap.py   # or ~/.claude/skills/roadma
 python3 $roadmap init [--name N] [--adopt] [--no-claude-md]
 python3 $roadmap new --type feature|bug|refactor|chore --title "..." [--version V] [--note "..."] [--audience public|internal]
 python3 $roadmap idea --title "..." [--body "..." | --body-file PATH]   # park an idea; body -> linked .roadmap/notes/ file
+python3 $roadmap promote [--match T | --index N] [--type T] …           # incubator bullet → tracked plan
 python3 $roadmap note --plan ID --text "user-facing summary"   # set the public changelog line (lints for internal language)
 python3 $roadmap audience --plan ID --to public|internal       # route the item: public CHANGELOG.md vs CHANGELOG.internal.md
 python3 $roadmap check --plan ID --step N [--undo] [--all-done]
+python3 $roadmap next [--version V] [--force] [--json]      # next unblocked unfinished item
+python3 $roadmap deps-check --plan ID [--force]             # warn if dependsOn targets incomplete
 python3 $roadmap status [--json]
+python3 $roadmap orient [--json] [--hook]                   # session briefing (hooks use --hook)
+python3 $roadmap drift-check                                # nudge if commits without check-off
 python3 $roadmap sync
 python3 $roadmap changelog [--internal] [--backfill]           # print the public (or --internal) changelog + audit warnings
 python3 $roadmap remove --plan ID                           # archive + drop an item, demote to Incubator
-python3 $roadmap depends --plan ID --on 2,5 [--clear]       # advisory dependency ordering
+python3 $roadmap depends --plan ID --on 2,5 [--clear]       # dependency ordering (honored by next)
 python3 $roadmap release --version V [--tag] [--force]      # optional version pin / git tag
 python3 $roadmap reorder --version V --order 3,1,2          # explicit item order within a version
 python3 $roadmap merge --into KEEP_ID --from 2,5            # combine duplicate items into one
@@ -239,20 +248,24 @@ CHANGELOG.internal.md # full dev log — rendered on every sync (every item)
 **Tags** = the `type` field (feature/bug/refactor/chore). **Milestones** = `version`; a
 phase is just a version (`v1.0.0`), so `/roadmap:build 1.0.0` builds the whole phase.
 
-## Project rules (CLAUDE.md)
+## Project rules (CLAUDE.md + AGENTS.md)
 
-`init` and the installer add a small, idempotent rules block to your project's `CLAUDE.md`
-(creating it if absent) so the discipline applies in every session — see
-[`example/CLAUDE.md`](example/CLAUDE.md). It tells Claude to check status at session start,
-work one item at a time, keep an active plan, and update only through the CLI. Opt out with
-`--no-claude-md`.
+`init` and the installer add a small, idempotent rules block to your project's **`CLAUDE.md`
+and `AGENTS.md`** (creating them if absent) so every agent — Claude Code, Grok Build, Codex,
+Cursor, etc. — sees the same discipline. See [`example/CLAUDE.md`](example/CLAUDE.md). The
+block documents both slash forms (`/roadmap:cmd` and `/roadmap-cmd`), session orient,
+depends-aware `next`, and promote. Opt out with `--no-claude-md`. Refresh after a global
+skill update with `/roadmap:upgrade` / `/roadmap-upgrade`.
 
-## Auto-sync hook
+## Lifecycle hooks
 
-The installer wires an opt-in Stop hook (`hooks/roadmap-sync.sh`) that runs `sync` each
-session as a safety net — into `settings.json` for Claude Code, or as a native
-`.grok/hooks/roadmap-sync.json` with `--grok`. The CLI already syncs after every mutation,
-so the hook is belt-and-suspenders. Skip it with `--no-hook`.
+| Hook | Script | What it does | Opt out |
+|---|---|---|---|
+| **Stop** | `hooks/roadmap-sync.sh` | `sync` + `drift-check` (nudge if commits landed without check-off) | `--no-hook` |
+| **SessionStart** | `hooks/roadmap-orient.sh` | Inject current version + next unblocked item into context | `--no-orient` |
+
+Claude Code: merged into `.claude/settings.json`. Grok: native `.grok/hooks/*.json`. The CLI
+already syncs after every mutation; hooks are belt-and-suspenders + orientation.
 
 ## Plans link their detail
 

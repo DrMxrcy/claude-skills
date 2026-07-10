@@ -15,7 +15,7 @@ curl -fsSL https://raw.githubusercontent.com/DrMxrcy/claude-skills/main/install.
 
 - **Global** (all projects): append `| bash -s -- --global`
 - **From a clone:** `./install.sh`
-- **Flags:** `--global`, `--grok` (target Grok Build), `--link` (dev symlink), `--no-hook`, `--no-commands`, `--no-claude-md`, `--init`
+- **Flags:** `--global`, `--grok` (target Grok Build), `--link` (dev symlink), `--no-hook`, `--no-orient`, `--no-commands`, `--no-claude-md`, `--init`
 
 Then start a fresh Claude Code session so the skills and commands load. Replace `<owner>` /
 `DrMxrcy` with your fork's owner if you republish (or set `SKILLS_REPO=owner/repo`).

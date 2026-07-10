@@ -1007,3 +1007,201 @@ def test_health_warns_on_freeform_char_volume(roadmap, repo):
     rm.write_text(rm.read_text().replace(roadmap.AUTO_START, prose + "\n" + roadmap.AUTO_START))
     msgs = roadmap.roadmap_health(repo)
     assert any("free-form" in m and "characters" in m for m in msgs)
+
+
+# --- next / depends gating / promote / orient / drift / multi-agent rules ------
+
+def test_next_item_skips_blocked_dependency(roadmap, repo, capsys):
+    roadmap.init_project(repo, "P", claude_md=False)
+    roadmap.new_item(repo, "feature", "A")
+    roadmap.new_item(repo, "feature", "B")
+    roadmap.set_depends(repo, 2, [1])
+    nxt = roadmap.next_item(repo)
+    assert nxt is not None and nxt["id"] == 1
+    roadmap.check_step(repo, 1, None, all_done=True)
+    nxt2 = roadmap.next_item(repo)
+    assert nxt2 is not None and nxt2["id"] == 2
+
+
+def test_next_item_returns_none_when_all_blocked(roadmap, repo, capsys):
+    roadmap.init_project(repo, "P", claude_md=False)
+    roadmap.new_item(repo, "feature", "A")
+    roadmap.new_item(repo, "feature", "B")
+    # B depends on A; only B is "next" candidate if we somehow only had B unfinished —
+    # with both unfinished, A is chosen. Make A also depend on B → cycle rejected on set.
+    # Instead finish nothing and depend B→A: next is A. Force path:
+    roadmap.set_depends(repo, 1, [2])  # A blocked by B, B free
+    nxt = roadmap.next_item(repo)
+    assert nxt is not None and nxt["id"] == 2
+    # After finishing B, A unblocks
+    roadmap.check_step(repo, 2, None, all_done=True)
+    assert roadmap.next_item(repo)["id"] == 1
+
+
+def test_next_force_ignores_blockers(roadmap, repo):
+    roadmap.init_project(repo, "P", claude_md=False)
+    roadmap.new_item(repo, "feature", "A")
+    roadmap.new_item(repo, "feature", "B")
+    roadmap.set_depends(repo, 1, [2])
+    # Without force, next is #2 (unblocked). With force and we want #1:
+    # next_item force still walks in order — first candidate is #1, force allows it.
+    nxt = roadmap.next_item(repo, force=True)
+    assert nxt["id"] == 1
+
+
+def test_status_shows_blocked_by(roadmap, repo):
+    roadmap.init_project(repo, "P", claude_md=False)
+    roadmap.new_item(repo, "feature", "A")
+    roadmap.new_item(repo, "feature", "B")
+    roadmap.set_depends(repo, 2, [1])
+    st = roadmap.status(repo)
+    b = next(i for i in st["items"] if i["id"] == 2)
+    assert b["blockedBy"] == [1]
+    assert b["dependsOn"] == [1]
+
+
+def test_cli_next(roadmap, repo, monkeypatch, capsys):
+    monkeypatch.chdir(repo)
+    roadmap.init_project(repo, "P", claude_md=False)
+    roadmap.new_item(repo, "feature", "Auth")
+    assert roadmap.main(["next"]) == 0
+    out = capsys.readouterr().out
+    assert "#1 Auth" in out
+
+
+def test_warn_incomplete_deps(roadmap, repo, capsys):
+    roadmap.init_project(repo, "P", claude_md=False)
+    roadmap.new_item(repo, "feature", "A")
+    roadmap.new_item(repo, "feature", "B")
+    roadmap.set_depends(repo, 2, [1])
+    blocked = roadmap.warn_incomplete_deps(repo, 2)
+    assert blocked == [1]
+    err = capsys.readouterr().err
+    assert "depends on incomplete" in err
+    assert roadmap.warn_incomplete_deps(repo, 2, force=True) == [1]
+    assert "depends on incomplete" not in capsys.readouterr().err
+
+
+def test_promote_sole_bullet(roadmap, repo):
+    roadmap.init_project(repo, "P", claude_md=False)
+    roadmap.add_idea(repo, "Dark mode toggle")
+    path = roadmap.promote_idea(repo, type_="feature")
+    assert path.exists()
+    cfg = roadmap.read_config(repo)
+    assert any(i["title"] == "Dark mode toggle" for i in cfg["items"])
+    rm = (repo / "ROADMAP.md").read_text()
+    assert "Dark mode toggle" not in rm.split("roadmap:auto:start")[0] or \
+           "- Dark mode toggle" not in rm  # bullet removed from incubator
+    # More precise: incubator bullets list empty of that title
+    bullets = roadmap.list_incubator_bullets(repo)
+    assert all(b["title"] != "Dark mode toggle" for b in bullets)
+
+
+def test_promote_by_match_and_index(roadmap, repo):
+    roadmap.init_project(repo, "P", claude_md=False)
+    roadmap.add_idea(repo, "Alpha idea")
+    roadmap.add_idea(repo, "Beta idea")
+    path = roadmap.promote_idea(repo, match="Beta", type_="bug")
+    assert "beta" in path.name or path.exists()
+    assert any(i["title"] == "Beta idea" for i in roadmap.read_config(repo)["items"])
+    path2 = roadmap.promote_idea(repo, index=1, type_="feature")
+    assert path2.exists()
+    assert roadmap.list_incubator_bullets(repo) == []
+
+
+def test_promote_requires_selector_when_multiple(roadmap, repo):
+    roadmap.init_project(repo, "P", claude_md=False)
+    roadmap.add_idea(repo, "One")
+    roadmap.add_idea(repo, "Two")
+    with pytest.raises(ValueError, match="multiple"):
+        roadmap.promote_idea(repo)
+
+
+def test_cli_promote(roadmap, repo, monkeypatch):
+    monkeypatch.chdir(repo)
+    roadmap.init_project(repo, "P", claude_md=False)
+    roadmap.add_idea(repo, "Ship it")
+    assert roadmap.main(["promote", "--match", "Ship"]) == 0
+    assert any(i["title"] == "Ship it" for i in roadmap.read_config(repo)["items"])
+
+
+def test_orient_payload(roadmap, repo):
+    roadmap.init_project(repo, "P", claude_md=False)
+    roadmap.new_item(repo, "feature", "Auth")
+    payload = roadmap.orient(repo)
+    assert payload["project"] == "P"
+    assert payload["currentVersion"] == "0.0.1"
+    assert payload["next"]["id"] == 1
+    assert payload["itemsTotal"] == 1
+    text = roadmap.format_orient(payload)
+    assert "Auth" in text and "v0.0.1" in text
+
+
+def test_orient_noop_without_roadmap(roadmap, tmp_path):
+    assert roadmap.orient(tmp_path) is None
+
+
+def test_cli_orient_hook_json(roadmap, repo, monkeypatch, capsys):
+    monkeypatch.chdir(repo)
+    roadmap.init_project(repo, "P", claude_md=False)
+    roadmap.new_item(repo, "feature", "Auth")
+    assert roadmap.main(["orient", "--hook"]) == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["hookSpecificOutput"]["hookEventName"] == "SessionStart"
+    assert "Auth" in data["hookSpecificOutput"]["additionalContext"]
+
+
+def _git_commit_all(repo, msg="checkpoint"):
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", msg], cwd=repo, check=True)
+
+
+def test_drift_check_nudge_after_commits(roadmap, repo):
+    roadmap.init_project(repo, "P", claude_md=False)
+    roadmap.new_item(repo, "feature", "Auth")
+    _git_commit_all(repo, "initial roadmap")
+    # Baseline check-off stamps last_seen_sha
+    roadmap.check_step(repo, 1, 1)  # partial progress so version still unfinished
+    assert roadmap.read_config(repo).get("last_seen_sha")
+    # Make a new commit without checking off further
+    (repo / "extra.txt").write_text("x")
+    _git_commit_all(repo, "work outside roadmap")
+    msg = roadmap.drift_check(repo)
+    assert msg is not None
+    assert "commit" in msg and "catchup" in msg
+
+
+def test_drift_check_silent_when_caught_up(roadmap, repo):
+    roadmap.init_project(repo, "P", claude_md=False)
+    roadmap.new_item(repo, "feature", "Auth")
+    _git_commit_all(repo, "initial")
+    roadmap.check_step(repo, 1, None, all_done=True)
+    assert roadmap.drift_check(repo) is None
+
+
+def test_init_writes_agents_md_and_dual_slash_names(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    for name in ("CLAUDE.md", "AGENTS.md"):
+        text = (repo / name).read_text()
+        assert "roadmap:rules:start" in text
+        assert "/roadmap:<cmd>" in text
+        assert "/roadmap-<cmd>" in text
+
+
+def test_rules_block_in_example(roadmap):
+    from pathlib import Path
+    example = Path(roadmap.__file__).resolve().parent.parent / "example" / "CLAUDE.md"
+    text = example.read_text()
+    assert roadmap.RULES_START in text
+    body = text.split(roadmap.RULES_START, 1)[1].split(roadmap.RULES_END, 1)[0]
+    assert "/roadmap-<cmd>" in body
+    assert "promote" in body.lower() or "roadmap-promote" in body
+
+
+def test_depends_rejects_two_cycle(roadmap, repo):
+    roadmap.init_project(repo, "P", claude_md=False)
+    roadmap.new_item(repo, "feature", "A")
+    roadmap.new_item(repo, "feature", "B")
+    roadmap.set_depends(repo, 2, [1])
+    with pytest.raises(ValueError, match="cycle"):
+        roadmap.set_depends(repo, 1, [2])

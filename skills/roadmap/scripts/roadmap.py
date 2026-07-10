@@ -446,6 +446,17 @@ def _incubator_stub(root: Path, plan_id: int, title: str, archived: str | None =
     _incubator_append(root, stub)
 
 
+def _strip_incubator_placeholder(root: Path) -> None:
+    """Remove the template placeholder bullet so real ideas stand alone."""
+    rm = root / "ROADMAP.md"
+    if not rm.exists():
+        return
+    text = rm.read_text(encoding="utf-8")
+    new = re.sub(r"(?m)^\s*[-*+]\s+\(add ideas here\)\s*\n?", "", text)
+    if new != text:
+        atomic_write(rm, new)
+
+
 def add_idea(root: Path, title: str, body: str | None = None) -> Path | None:
     """Park an idea as ONE incubator bullet. Long-form content (brainstorm output,
     deferred review findings, phase sketches) goes to a linked note file under
@@ -454,6 +465,7 @@ def add_idea(root: Path, title: str, body: str | None = None) -> Path | None:
     if not title:
         raise ValueError("idea title must not be empty")
     read_config(root)  # fail early with a clear error if not initialized
+    _strip_incubator_placeholder(root)
     stub = f"- {title}"
     note_path = None
     if body and body.strip():
@@ -930,12 +942,11 @@ def roadmap_health(root: Path) -> list[str]:
 def status(root: Path) -> dict:
     cfg = read_config(root)
     by_id = {i["id"]: i for i in cfg["items"]}
-    progress: dict[int, tuple[int, int]] = {}
+    # Full progress map first — blockedBy for early ids must see later deps' progress.
+    progress = _progress_map(root, cfg)
     items = []
     for item in cfg["items"]:
-        path = roadmap_dir(root) / item["file"]
-        done, total = count_progress(path) if path.exists() else (0, 0)
-        progress[item["id"]] = (done, total)
+        done, total = progress.get(item["id"], (0, 0))
         pct = round(100 * done / total) if total else 0
         blocked_by = _incomplete_deps(item, progress, by_id)
         row = {**item, "done": done, "total": total, "pct": pct,
@@ -1162,6 +1173,7 @@ def promote_idea(root: Path, *, match: str | None = None, index: int | None = No
     """
     if match and index is not None:
         raise ValueError("pass only one of --match / --index")
+    _strip_incubator_placeholder(root)
     bullets = list_incubator_bullets(root)
     if not bullets:
         raise ValueError("Idea Incubator is empty — nothing to promote")

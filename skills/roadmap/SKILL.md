@@ -133,22 +133,27 @@ On invocation, detect state and pick a phase:
 - `init [--name N] [--adopt]` — scaffold (adopt = existing repo, non-destructive)
 - `new --type T --title "..." [--version V] [--note "..."] [--audience public|internal]` — scaffold + register a plan
 - `idea --title "..." [--body "..." | --body-file PATH]` — park an idea: one incubator bullet; a body becomes a linked `.roadmap/notes/` file
+- `promote [--match T | --index N] [--type T] …` — lift an incubator bullet into a tracked plan
 - `note --plan ID --text "..."` — set an item's user-facing changelog line (lints public notes)
 - `audience --plan ID --to public|internal` — route an item to the public or internal changelog
-- `check --plan ID --step N [--undo] [--all-done]` — flip checkboxes
+- `check --plan ID --step N [--undo] [--all-done]` — flip checkboxes (+ records `last_seen_sha`)
+- `next [--version V] [--force] [--json]` — next unfinished item (skips incomplete `dependsOn`)
+- `deps-check --plan ID [--force]` — warn if dependencies are incomplete
 - `remove --plan ID` — archive a plan, drop it, demote it to the Idea Incubator
-- `depends --plan ID --on IDS [--clear]` — set advisory dependency ordering
+- `depends --plan ID --on IDS [--clear]` — set dependency ordering (`next`/`build` honor it)
 - `reorder --version V --order IDS` — set display/build order within a version
 - `merge --into KEEP --from IDS` — fold duplicate items into one keeper
 - `retarget --to V (--from VERS | --plan IDS)` — re-stamp items onto another version
+- `orient [--json] [--hook]` — session orientation (project, progress, next item)
+- `drift-check` — nudge if commits landed without a check-off
 - `sync` — recompute progress + re-render ROADMAP.md **and both changelogs** (safe anytime)
-- `upgrade` — refresh this project's CLAUDE.md rules to the installed skill version
+- `upgrade` — refresh this project's `CLAUDE.md` + `AGENTS.md` rules to the installed skill version
 - `changelog [--internal] [--backfill]` — print the public (or `--internal`) changelog + audit warnings; `--backfill` dates past versions from git tags
 - `release --version V [--tag] [--force]` — bump version (optional; changelog is automatic)
-- `status [--json]` — print current state (warns when ROADMAP.md is outgrowing its bounds)
+- `status [--json]` — print current state (shows `blocked by […]` when deps incomplete)
 - `import PATH` — extract checklist lines from a file into a plan
 
 ## Optional automation
-A Stop hook (`hooks/roadmap-sync.sh`) can run `sync` automatically each session. It is
-opt-in — see README. The CLI commands already `sync` after every mutation, so the hook is
-only a safety net.
+- **Stop** (`hooks/roadmap-sync.sh`): `sync` + `drift-check` each turn — safety net + catchup nudge.
+- **SessionStart** (`hooks/roadmap-orient.sh`): injects current version + next item into context.
+Both are opt-in via the installer (`--no-hook` / `--no-orient`). CLI mutations already `sync`.

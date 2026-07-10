@@ -180,7 +180,9 @@ PY
 }
 
 if [ "$agent" = "grok" ]; then
-  mkdir -p "$base/hooks"
+  if [ "$hook" = "1" ] || [ "$orient" = "1" ]; then
+    mkdir -p "$base/hooks"
+  fi
   if [ "$hook" = "1" ]; then
     hook_path="$skills_dest/roadmap/hooks/roadmap-sync.sh"
     if [ -f "$hook_path" ]; then

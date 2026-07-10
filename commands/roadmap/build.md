@@ -22,7 +22,12 @@ These flags compose. `--auto --worktree --pr` on a version is the fully hands-of
 isolate → loop the whole version → open a PR for review. They are agent-interpreted directives
 (parsed from the argument here), not flags on the CLI.
 
-Build the selected item(s) **one item at a time, in ascending id order**. For each item:
+Build the selected item(s) **one item at a time, in ascending id / `order` field order**.
+Prefer `python3 <roadmap.py> next` when the user wants "whatever is next" — it skips items
+blocked by incomplete `dependsOn` targets. For each item:
+0. `python3 <roadmap.py> deps-check --plan <id>` — warns (does not hard-block) when
+   dependencies are incomplete. Prefer finishing blockers first; only continue on the
+   user's say-so.
 1. Read its plan file `.roadmap/plans/<id>-*.md` (Target Scope, Architectural Blueprint,
    Step-by-Step Checklist). If the plan links a **Spec** or **Detailed plan** (e.g. paths
    under `docs/superpowers/`), open and follow those as the authoritative implementation
@@ -31,10 +36,13 @@ Build the selected item(s) **one item at a time, in ascending id order**. For ea
    skill (fresh subagent per step + review), else `executing-plans` (inline checkpoints),
    else implement directly with TDD. Build/tests MUST pass before a step is checked off.
 3. After each passing step: `python3 <roadmap.py> check --plan <id> --step <n>`
-   (auto-syncs `ROADMAP.md`), then commit code + roadmap together in one micro-commit.
+   (auto-syncs `ROADMAP.md`, records `last_seen_sha` for drift detection), then commit
+   code + roadmap together in one micro-commit.
 4. When the item is complete: if `--auto` was given, report briefly and continue to the next
    item; otherwise **pause for a checkpoint** — report what shipped and let the user confirm
    before starting the next item.
+
+**Agent slash names:** Claude Code → `/roadmap:build`; Grok → `/roadmap-build`.
 
 When the version's items are all done: if `--pr` was given, follow the PR gate below;
 otherwise run `status` and suggest `/roadmap:review` then `/roadmap:release <next version>`.

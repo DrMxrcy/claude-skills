@@ -37,7 +37,7 @@ def test_install_hook_is_idempotent(tmp_path):
 
 
 def test_install_no_hook_leaves_settings_untouched(tmp_path):
-    res = _run(tmp_path, "--project", "--no-hook")
+    res = _run(tmp_path, "--project", "--no-hook", "--no-orient")
     assert res.returncode == 0, res.stderr
     assert (tmp_path / ".claude/skills/roadmap/SKILL.md").exists()
     assert not (tmp_path / ".claude/settings.json").exists()
@@ -112,12 +112,23 @@ def test_install_grok_project_copies_skill_and_wires_native_hook(tmp_path):
     data = json.loads((tmp_path / ".grok/hooks/roadmap-sync.json").read_text())
     cmds = [h["command"] for e in data["hooks"]["Stop"] for h in e["hooks"]]
     assert any("roadmap-sync.sh" in c for c in cmds)
+    orient = json.loads((tmp_path / ".grok/hooks/roadmap-orient.json").read_text())
+    ocmds = [h["command"] for e in orient["hooks"]["SessionStart"] for h in e["hooks"]]
+    assert any("roadmap-orient.sh" in c for c in ocmds)
 
 
 def test_install_grok_no_hook_flag(tmp_path):
-    _run(tmp_path, "--project", "--grok", "--no-hook")
+    _run(tmp_path, "--project", "--grok", "--no-hook", "--no-orient")
     assert (tmp_path / ".grok/skills/roadmap/SKILL.md").exists()
     assert not (tmp_path / ".grok/hooks").exists()
+
+
+def test_install_claude_wires_session_start_orient(tmp_path):
+    _run(tmp_path, "--project")
+    data = json.loads((tmp_path / ".claude/settings.json").read_text())
+    start = data["hooks"]["SessionStart"]
+    cmds = [h["command"] for e in start for h in e["hooks"]]
+    assert any("roadmap-orient.sh" in c for c in cmds)
 
 
 def test_install_grok_flat_command_files(tmp_path):
@@ -137,9 +148,13 @@ def test_install_grok_flat_command_files(tmp_path):
 
 
 def test_install_grok_writes_claude_md_rules(tmp_path):
-    # Grok Build reads CLAUDE.md natively, so the rules block still applies.
+    # Grok Build reads CLAUDE.md + AGENTS.md; both get the dual-name rules block.
     _run(tmp_path, "--project", "--grok")
-    assert "roadmap:rules:start" in (tmp_path / "CLAUDE.md").read_text()
+    for name in ("CLAUDE.md", "AGENTS.md"):
+        text = (tmp_path / name).read_text()
+        assert "roadmap:rules:start" in text
+        assert "/roadmap-<cmd>" in text
+        assert "/roadmap:<cmd>" in text
 
 
 def test_install_grok_global_uses_home(tmp_path):
@@ -171,6 +186,9 @@ def test_install_writes_claude_md_rules(tmp_path):
     cm = (tmp_path / "CLAUDE.md").read_text()
     assert "roadmap:rules:start" in cm
     assert "Work one checklist item at a time" in cm
+    assert "/roadmap-<cmd>" in cm
+    agents = (tmp_path / "AGENTS.md").read_text()
+    assert "roadmap:rules:start" in agents
 
 
 def test_install_claude_md_is_idempotent(tmp_path):
