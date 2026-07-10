@@ -184,38 +184,16 @@ if [ "$commands" = "1" ]; then
 fi
 
 # Add roadmap rules to CLAUDE.md (idempotent) so the discipline applies even when
-# the skill is not explicitly invoked. Project scope only.
+# the skill is not explicitly invoked. Project scope only. Delegates to the installed
+# CLI so the rules text has a single source of truth (RULES_BLOCK in roadmap.py).
 if [ "$claude_md" = "1" ]; then
-  read -r -d '' rules_block <<'BLOCK' || true
-<!-- roadmap:rules:start -->
-## Roadmap tracking
-This project tracks work in `ROADMAP.md` via the **roadmap** skill (`/roadmap:*` commands).
-- At the start of a work session, run `/roadmap:status` (or read `ROADMAP.md`) to see current progress before continuing.
-- New features or found bugs become roadmap items via `/roadmap:plan` before coding; park stray ideas in the Idea Incubator — nothing is built off-roadmap.
-- No functional code without an active plan in `.roadmap/plans/`. Work one checklist item at a time; do not multitask across features/bugs.
-- When building an item, follow its linked Spec / Detailed plan as the authoritative how-to (the checklist is just the tracker).
-- Mark a step done only after its build/tests pass, and commit the code + roadmap update together; if work was done outside the commands, run `/roadmap:catchup` to reconcile.
-- Update status only through the roadmap CLI / `/roadmap:done`; never hand-edit `ROADMAP.md`.
-<!-- roadmap:rules:end -->
-BLOCK
-  "$PYTHON" - "$PWD/CLAUDE.md" "$rules_block" <<'PY'
-import os, sys
-path, block = sys.argv[1], sys.argv[2].rstrip("\n")
-start, end = "<!-- roadmap:rules:start -->", "<!-- roadmap:rules:end -->"
-existing = open(path, encoding="utf-8").read() if os.path.exists(path) else ""
-if start in existing and end in existing:
-    after = existing.split(end, 1)[1].lstrip("\n")
-    new = existing.split(start)[0] + block + "\n" + after
-    action = "Updated"
-elif existing.strip():
-    new = existing.rstrip() + "\n\n" + block + "\n"
-    action = "Appended"
-else:
-    new = block + "\n"
-    action = "Created"
-with open(path, "w", encoding="utf-8") as f:
-    f.write(new)
-print(f"{action} roadmap rules in {path}")
+  "$PYTHON" - "$skills_dest/roadmap/scripts/roadmap.py" <<'PY'
+import importlib.util, pathlib, sys
+spec = importlib.util.spec_from_file_location("roadmap", sys.argv[1])
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+path = mod.ensure_claude_md_rules(pathlib.Path.cwd())
+print(f"Ensured roadmap rules in {path}")
 PY
 fi
 

@@ -14,7 +14,7 @@ RULES_BLOCK = """<!-- roadmap:rules:start -->
 ## Roadmap tracking
 This project tracks work in `ROADMAP.md` via the **roadmap** skill (`/roadmap:*` commands).
 - At the start of a work session, run `/roadmap:status` (or read `ROADMAP.md`) to see current progress before continuing.
-- New features or found bugs become roadmap items via `/roadmap:plan` before coding; park stray ideas in the Idea Incubator — nothing is built off-roadmap.
+- New features or found bugs become roadmap items via `/roadmap:plan` before coding; park stray ideas in the Idea Incubator via `/roadmap:idea` (one bullet each — long write-ups become linked `.roadmap/notes/` files, never inline prose) — nothing is built off-roadmap.
 - No functional code without an active plan in `.roadmap/plans/`. Work one checklist item at a time; do not multitask across features/bugs.
 - When building an item, follow its linked Spec / Detailed plan as the authoritative how-to (the checklist is just the tracker).
 - Mark a step done only after its build/tests pass, and commit the code + roadmap update together; if work was done outside the commands, run `/roadmap:catchup` to reconcile.
@@ -151,6 +151,9 @@ def render_region(cfg: dict, progress: dict) -> str:
     by_version: dict[str, list] = {}
     for item in cfg["items"]:
         by_version.setdefault(item["version"], []).append(item)
+    collapse = cfg.get("settings", {}).get("collapseShipped", True)
+    dates = cfg.get("versionDates", {})
+    current = _norm_version(cfg["currentVersion"])
     lines = ["## 📊 Versions", ""]
     for version in sorted(by_version, key=_version_key):
         items = sorted(by_version[version],
@@ -160,6 +163,16 @@ def render_region(cfg: dict, progress: dict) -> str:
         t = sum(y for _, y in done_total)
         pct = round(100 * d / t) if t else 0
         marker = "x" if t and d == t else " "
+        # Collapse shipped history: fully-done versions strictly below the current
+        # one render as a single summary line (details live in CHANGELOG.internal.md
+        # and .roadmap/plans/). The current/future versions always render in full.
+        if collapse and marker == "x" and _version_key(version) < _version_key(current):
+            n = len(items)
+            shipped = f" · shipped {dates[version]}" if version in dates else ""
+            lines.append(f"### [x] v{version} — 100% · {n} item{'s' if n != 1 else ''}"
+                         f"{shipped} ([history](CHANGELOG.internal.md))")
+            lines.append("")
+            continue
         lines.append(f"### [{marker}] v{version} — {pct}%")
         for item in items:
             done, total = progress.get(item["id"], (0, 0))
@@ -399,21 +412,50 @@ def set_depends(root: Path, plan_id: int, on: list[int], clear: bool = False) ->
 INCUBATOR_RE = re.compile(r"(?im)^#{1,6}\s+.*idea incubator.*$")
 
 
-def _incubator_stub(root: Path, plan_id: int, title: str, archived: str | None = None) -> None:
-    """Append a breadcrumb for a removed item under the free-form Idea Incubator heading,
-    linking the archived plan file when one was kept. Edits ROADMAP.md directly (outside the
-    roadmap:auto markers, which sync owns)."""
+def _incubator_append(root: Path, stub: str) -> None:
+    """Append one bullet under the free-form Idea Incubator heading, creating the
+    heading if missing. Edits ROADMAP.md directly (outside the roadmap:auto markers,
+    which sync owns)."""
     rm = root / "ROADMAP.md"
     text = rm.read_text(encoding="utf-8")
-    stub = f"- (was #{plan_id}) {title}"
-    if archived:
-        stub += f" ([archived plan]({archived}))"
     m = INCUBATOR_RE.search(text)
     if m:
         new = text[:m.end()] + "\n" + stub + text[m.end():]
     else:
         new = text.rstrip() + f"\n\n## 💡 Idea Incubator\n{stub}\n"
     atomic_write(rm, new)
+
+
+def _incubator_stub(root: Path, plan_id: int, title: str, archived: str | None = None) -> None:
+    """Breadcrumb for a removed item, linking the archived plan file when one was kept."""
+    stub = f"- (was #{plan_id}) {title}"
+    if archived:
+        stub += f" ([archived plan]({archived}))"
+    _incubator_append(root, stub)
+
+
+def add_idea(root: Path, title: str, body: str | None = None) -> Path | None:
+    """Park an idea as ONE incubator bullet. Long-form content (brainstorm output,
+    deferred review findings, phase sketches) goes to a linked note file under
+    .roadmap/notes/ so ROADMAP.md itself stays short."""
+    title = title.strip()
+    if not title:
+        raise ValueError("idea title must not be empty")
+    read_config(root)  # fail early with a clear error if not initialized
+    stub = f"- {title}"
+    note_path = None
+    if body and body.strip():
+        slug = slugify(title) or "idea"
+        notes = roadmap_dir(root) / "notes"
+        base = f"{datetime.date.today().isoformat()}-{slug}"
+        dest, n = notes / f"{base}.md", 2
+        while dest.exists():
+            dest, n = notes / f"{base}-{n}.md", n + 1
+        atomic_write(dest, f"# {title}\n\n{body.strip()}\n")
+        note_path = dest
+        stub += f" ([notes]({dest.relative_to(root)}))"
+    _incubator_append(root, stub)
+    return note_path
 
 
 def remove_item(root: Path, plan_id: int) -> None:
@@ -700,31 +742,33 @@ def _grouped_lines(entries: dict[str, list[tuple[bool, str]]]) -> list[str]:
 def render_public_changelog(root: Path) -> tuple[str, list[str]]:
     """Render the PUBLIC CHANGELOG.md: only audience=public items, rendered from their
     user-facing `note` ONLY (never the raw title). A public item with no note is skipped;
-    if it has already shipped (complete) that omission is returned as a warning. Versions
-    that also shipped internal-only work get one roll-up line instead of listing it.
-    Returns (markdown, warnings)."""
+    if it has already shipped (complete) that omission is returned as a warning and the
+    item is covered by the roll-up line, so a shipped version never vanishes from the
+    public changelog. Versions that also shipped internal-only work get one roll-up line
+    instead of listing it. Returns (markdown, warnings)."""
     warnings: list[str] = []
     out = ["# Changelog", ""]
     for _version, header, rows in _changelog_versions(root):
         sections: dict[str, list[tuple[bool, str]]] = {}
-        has_internal = False
+        rolled_up = False
         for row in rows:
             it = row["item"]
             if item_audience(it) != "public":
-                has_internal = True
+                rolled_up = True
                 continue
             note = it.get("note")
             if not note:
                 if row["complete"]:
                     warnings.append(
                         f"#{it['id']} \"{it['title']}\" is public but has no note; "
-                        f"omitted from CHANGELOG.md. Add one: "
+                        f"rolled up as behind-the-scenes work in CHANGELOG.md. Add one: "
                         f"roadmap note --plan {it['id']} --text \"...\"")
+                    rolled_up = True
                 continue
             section = TYPE_SECTION.get(it["type"], "⚡ Improved")
             sections.setdefault(section, []).append((row["complete"], note))
         lines = _grouped_lines(sections)
-        if has_internal:
+        if rolled_up:
             lines += [ROLLUP_LINE, ""]
         if not lines:
             continue                       # nothing public to show for this version
@@ -828,6 +872,47 @@ def release(root: Path, version: str, tag: bool = False, force: bool = False) ->
         if result.returncode != 0:
             print(f"Warning: 'git tag v{version}' failed (exit {result.returncode}); "
                   "version recorded in config but not tagged.", file=sys.stderr)
+
+
+MAX_ROADMAP_LINES = 150
+MAX_FREEFORM_LINES = 40
+MAX_FREEFORM_CHARS = 4000
+
+
+def roadmap_health(root: Path) -> list[str]:
+    """Size warnings for ROADMAP.md: the dashboard should stay skimmable. The auto
+    region is bounded by collapsing shipped versions; the free-form region only stays
+    short if prose lives in .roadmap/notes/ files instead of inline. Checked by both
+    line count and character volume (prose dumps often sit on few, very long lines)."""
+    rm = root / "ROADMAP.md"
+    if not rm.exists():
+        return []
+    lines = rm.read_text(encoding="utf-8").splitlines()
+    warnings = []
+    in_auto = False
+    freeform = chars = 0
+    for line in lines:
+        if AUTO_START in line:
+            in_auto = True
+        elif AUTO_END in line:
+            in_auto = False
+        elif not in_auto and line.strip():
+            freeform += 1
+            chars += len(line)
+    if freeform > MAX_FREEFORM_LINES or chars > MAX_FREEFORM_CHARS:
+        size = (f"{freeform} lines (> {MAX_FREEFORM_LINES})"
+                if freeform > MAX_FREEFORM_LINES
+                else f"{chars} characters (> {MAX_FREEFORM_CHARS})")
+        warnings.append(
+            f"ROADMAP.md free-form region is {size}. Move long-form notes into linked "
+            "files via `roadmap.py idea --title ... --body-file ...` and keep one "
+            "bullet per idea.")
+    if len(lines) > MAX_ROADMAP_LINES:
+        warnings.append(
+            f"ROADMAP.md is {len(lines)} lines (> {MAX_ROADMAP_LINES}). Shipped versions "
+            "collapse automatically on sync (settings.collapseShipped); trim the "
+            "free-form region into .roadmap/notes/ files.")
+    return warnings
 
 
 def status(root: Path) -> dict:
@@ -986,6 +1071,12 @@ def main(argv: list[str]) -> int:
     p_rm = sub.add_parser("remove")
     p_rm.add_argument("--plan", type=int, required=True)
 
+    p_idea = sub.add_parser("idea")
+    p_idea.add_argument("--title", required=True)
+    p_idea.add_argument("--body", help="long-form content -> .roadmap/notes/ file")
+    p_idea.add_argument("--body-file", dest="body_file",
+                        help="read long-form content from a file")
+
     p_cl = sub.add_parser("changelog")
     p_cl.add_argument("--backfill", action="store_true")
     p_cl.add_argument("--internal", action="store_true",
@@ -1044,6 +1135,13 @@ def main(argv: list[str]) -> int:
         if args.command == "remove":
             remove_item(root, args.plan)
             return 0
+        if args.command == "idea":
+            body = args.body
+            if args.body_file:
+                body = Path(args.body_file).read_text(encoding="utf-8")
+            note = add_idea(root, args.title, body)
+            print(f"Parked idea: {args.title}" + (f" (notes: {note})" if note else ""))
+            return 0
         if args.command == "retarget":
             retarget(root, args.to,
                      from_versions=[v for v in args.from_versions.split(",") if v.strip()] or None,
@@ -1074,6 +1172,8 @@ def main(argv: list[str]) -> int:
                 for it in st["items"]:
                     print(f"  #{it['id']} {it['title']} [{it['type']}] "
                           f"{it['pct']}% ({it['status']})")
+            for w in roadmap_health(root):
+                print(f"warning: {w}", file=sys.stderr)
             return 0
     except (ValueError, FileNotFoundError) as e:
         print(f"Error: {e}", file=sys.stderr)

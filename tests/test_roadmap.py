@@ -872,3 +872,138 @@ def test_internal_changelog_falls_back_to_title(roadmap, repo):
     roadmap.new_item(repo, "chore", "Bump deps")               # internal, no note
     roadmap.check_step(repo, 1, None, all_done=True)
     assert "Bump deps" in (repo / "CHANGELOG.internal.md").read_text()  # title fallback
+
+
+# ---- collapse shipped versions -------------------------------------------------
+
+def test_shipped_versions_collapse_below_current(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "Old thing", version="0.0.1")
+    roadmap.check_step(repo, 1, None, all_done=True)
+    roadmap.new_item(repo, "feature", "New thing", version="0.1.0")
+    roadmap.release(repo, "0.1.0")
+    managed = (repo / "ROADMAP.md").read_text().split(
+        roadmap.AUTO_START)[1].split(roadmap.AUTO_END)[0]
+    assert "#1 Old thing" not in managed                  # collapsed away
+    assert "### [x] v0.0.1 — 100% · 1 item" in managed    # summary line
+    assert "shipped" in managed                           # versionDates date shown
+    assert "CHANGELOG.internal.md" in managed             # history pointer
+    assert "#2 New thing" in managed                      # current version expanded
+
+
+def test_done_current_and_future_versions_stay_expanded(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "Current work", version="0.0.1")
+    roadmap.check_step(repo, 1, None, all_done=True)      # current version 100%
+    roadmap.new_item(repo, "feature", "Future done", version="0.1.0")
+    roadmap.check_step(repo, 2, None, all_done=True)      # future version 100%
+    managed = (repo / "ROADMAP.md").read_text().split(
+        roadmap.AUTO_START)[1].split(roadmap.AUTO_END)[0]
+    assert "#1 Current work" in managed                   # == current: never collapses
+    assert "#2 Future done" in managed                    # > current: awaits review/release
+
+
+def test_collapse_opt_out_setting(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "Old thing", version="0.0.1")
+    roadmap.check_step(repo, 1, None, all_done=True)
+    cfg = roadmap.read_config(repo)
+    cfg["settings"]["collapseShipped"] = False
+    roadmap.write_config(repo, cfg)
+    roadmap.release(repo, "0.1.0")
+    managed = (repo / "ROADMAP.md").read_text().split(
+        roadmap.AUTO_START)[1].split(roadmap.AUTO_END)[0]
+    assert "#1 Old thing" in managed                      # opted out: full render
+
+
+# ---- idea command ---------------------------------------------------------------
+
+def test_idea_adds_single_bullet(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    note = roadmap.add_idea(repo, "Dark mode toggle")
+    assert note is None
+    rm = (repo / "ROADMAP.md").read_text()
+    freeform = rm.split(roadmap.AUTO_START)[0]
+    assert "- Dark mode toggle" in freeform
+    assert not (repo / ".roadmap/notes").exists()
+
+
+def test_idea_with_body_writes_linked_note_file(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    note = roadmap.add_idea(repo, "Season Pass tier", body="Long brainstorm...\nmany lines")
+    assert note is not None and note.exists()
+    assert note.parent == repo / ".roadmap/notes"
+    text = note.read_text()
+    assert text.startswith("# Season Pass tier") and "Long brainstorm..." in text
+    freeform = (repo / "ROADMAP.md").read_text().split(roadmap.AUTO_START)[0]
+    assert "- Season Pass tier ([notes](.roadmap/notes/" in freeform
+    assert "many lines" not in freeform                   # body stays out of ROADMAP.md
+
+
+def test_idea_note_filenames_dedupe(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    a = roadmap.add_idea(repo, "Same title", body="one")
+    b = roadmap.add_idea(repo, "Same title", body="two")
+    assert a != b and a.exists() and b.exists()
+    assert b.name.endswith("-2.md")
+
+
+def test_idea_empty_title_raises(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    with pytest.raises(ValueError):
+        roadmap.add_idea(repo, "   ")
+
+
+def test_cli_idea_body_file(roadmap, repo, monkeypatch, capsys):
+    roadmap.init_project(repo, "P")
+    src = repo / "brainstorm.md"
+    src.write_text("full write-up\n")
+    monkeypatch.chdir(repo)
+    assert roadmap.main(["idea", "--title", "Widget", "--body-file", str(src)]) == 0
+    out = capsys.readouterr().out
+    assert "Parked idea: Widget" in out and ".roadmap/notes/" in out
+
+
+# ---- roadmap_health size warnings ----------------------------------------------
+
+def test_health_quiet_on_small_roadmap(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    assert roadmap.roadmap_health(repo) == []
+
+
+def test_health_warns_on_long_freeform_region(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    rm = repo / "ROADMAP.md"
+    filler = "\n".join(f"- idea {i}" for i in range(50))
+    rm.write_text(rm.read_text().replace(roadmap.AUTO_START, filler + "\n" + roadmap.AUTO_START))
+    msgs = roadmap.roadmap_health(repo)
+    assert any("free-form" in m for m in msgs)
+
+
+def test_health_warns_on_total_length(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    rm = repo / "ROADMAP.md"
+    rm.write_text(rm.read_text() + "\n" * 200)            # blank lines: total, not free-form
+    msgs = roadmap.roadmap_health(repo)
+    assert len(msgs) == 1                                 # only the total-length warning
+    assert "ROADMAP.md is" in msgs[0]
+
+
+def test_shipped_unnoted_public_item_rolls_up_not_vanishes(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "Login")            # public, but no note
+    roadmap.check_step(repo, 1, None, all_done=True)
+    text, warnings = roadmap.render_public_changelog(repo)
+    assert "## v0.0.1" in text                            # version block still present
+    assert "Login" not in text                            # raw title never leaks
+    assert "behind-the-scenes" in text.lower()            # covered by the roll-up line
+    assert any("#1" in w and "no note" in w for w in warnings)
+
+
+def test_health_warns_on_freeform_char_volume(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    rm = repo / "ROADMAP.md"
+    prose = "- huge brainstorm bullet " + "x" * 5000     # few lines, many chars
+    rm.write_text(rm.read_text().replace(roadmap.AUTO_START, prose + "\n" + roadmap.AUTO_START))
+    msgs = roadmap.roadmap_health(repo)
+    assert any("free-form" in m and "characters" in m for m in msgs)

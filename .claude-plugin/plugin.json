@@ -1,6 +1,8 @@
 {
   "name": "claude-skills",
-  "version": "0.0.1",
+  "version": "0.7.0",
   "description": "Local roadmap tracking and planning skills for AI-assisted development.",
-  "skills": ["skills/roadmap"]
+  "skills": [
+    "skills/roadmap"
+  ]
 }

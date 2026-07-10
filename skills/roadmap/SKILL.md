@@ -20,6 +20,11 @@ python3 "$RM" <command>
 ## Working guardrails (apply whenever this skill is active)
 - At the start of a session, run `roadmap.py status` to orient on current progress before continuing.
 - New features or found bugs become roadmap items (`/roadmap:plan`) before coding; park stray ideas in the Idea Incubator — nothing is built off-roadmap.
+- **Incubator hygiene — ROADMAP.md stays skimmable.** One bullet per parked idea, added via
+  `roadmap.py idea --title "..."`. Long-form content — brainstorm output, deferred review
+  findings, phase sketches, option analyses — goes to a linked `.roadmap/notes/` file
+  (`idea --body/--body-file`) or a spec under `docs/`, and gets ONE linked bullet; never
+  paste prose walls into ROADMAP.md. `status` warns when the file outgrows these bounds.
 - One trackable item at a time. No multitasking across features/bugs.
 - No functional code without an active plan file in `.roadmap/plans/`.
 - Run the build/tests for a step BEFORE you `check` it.
@@ -35,6 +40,8 @@ On invocation, detect state and pick a phase:
    - Greenfield: `roadmap.py init --name "<name>"`.
 
 2. **User brings an idea/plan** → Break it down.
+   - Not ready to build yet? Park it instead: `roadmap.py idea --title "<one-liner>"
+     [--body-file <write-up>]` — one incubator bullet, long content in a linked notes file.
    - Classify **type**: feature | bug | refactor | chore (this picks the template).
    - Choose the **target version** by semver — type drives the bump:
      bug fix → **patch** (x.y.**Z**); backward-compatible feature → **minor** (x.**Y**.0);
@@ -78,10 +85,15 @@ On invocation, detect state and pick a phase:
      once they hit 100%, grouped by version. `release` is **optional** — use it to pin a new
      current version or `git tag` (`--tag`); it no longer owns the changelog. Run
      `roadmap.py changelog [--internal]` anytime to print the latest.
+   - After `release` pins a newer current version, shipped versions **collapse to one
+     summary line** on the dashboard (count + ship date + changelog pointer) — full detail
+     stays in `CHANGELOG.internal.md` and `.roadmap/plans/`. Opt out with
+     `settings.collapseShipped: false` in `.roadmap/config.json`.
 
 ## Command reference
 - `init [--name N] [--adopt]` — scaffold (adopt = existing repo, non-destructive)
 - `new --type T --title "..." [--version V] [--note "..."] [--audience public|internal]` — scaffold + register a plan
+- `idea --title "..." [--body "..." | --body-file PATH]` — park an idea: one incubator bullet; a body becomes a linked `.roadmap/notes/` file
 - `note --plan ID --text "..."` — set an item's user-facing changelog line (lints public notes)
 - `audience --plan ID --to public|internal` — route an item to the public or internal changelog
 - `check --plan ID --step N [--undo] [--all-done]` — flip checkboxes
@@ -94,7 +106,7 @@ On invocation, detect state and pick a phase:
 - `upgrade` — refresh this project's CLAUDE.md rules to the installed skill version
 - `changelog [--internal] [--backfill]` — print the public (or `--internal`) changelog + audit warnings; `--backfill` dates past versions from git tags
 - `release --version V [--tag] [--force]` — bump version (optional; changelog is automatic)
-- `status [--json]` — print current state
+- `status [--json]` — print current state (warns when ROADMAP.md is outgrowing its bounds)
 - `import PATH` — extract checklist lines from a file into a plan
 
 ## Optional automation
