@@ -12,9 +12,10 @@
 #   ./install.sh --global        # ~/.claude (all projects); skips CLAUDE.md
 #   ./install.sh --grok          # target Grok Build: ./.grok (or ~/.grok with --global)
 #   ./install.sh --link          # symlink instead of copy (good for development)
-#   ./install.sh --no-hook       # do not wire the auto-sync Stop hook
-#   ./install.sh --no-commands   # do not install the /roadmap:* slash commands
-#   ./install.sh --no-claude-md  # do not add roadmap rules to CLAUDE.md
+#   ./install.sh --no-hook       # do not wire the auto-sync Stop hook (sync + drift-check)
+#   ./install.sh --no-orient     # do not wire the SessionStart orient hook
+#   ./install.sh --no-commands   # do not install the /roadmap:* (Claude) / /roadmap-* (Grok) slash commands
+#   ./install.sh --no-claude-md  # do not add roadmap rules to CLAUDE.md / AGENTS.md
 #   ./install.sh --init          # also run `roadmap init` in the current directory
 #   ./install.sh -h | --help     # show this help
 #
@@ -33,6 +34,7 @@ scope="project"
 agent="claude"
 link=0
 hook=1
+orient=1
 do_init=0
 commands=1
 claude_md=1
@@ -44,25 +46,25 @@ for arg in "$@"; do
     --claude) agent="claude" ;;
     --link) link=1 ;;
     --no-hook) hook=0 ;;
+    --no-orient) orient=0 ;;
     --no-commands) commands=0 ;;
     --no-claude-md) claude_md=0 ;;
     --init) do_init=1 ;;
     -h|--help)
       cat <<'EOF'
-install.sh — import this repo's skills + /roadmap:* slash commands into a Claude
-Code (or Grok Build) directory, wire the roadmap auto-sync Stop hook, and add
-roadmap rules to CLAUDE.md (no manual copying or settings edits).
+install.sh — import this repo's skills + slash commands into Claude Code or Grok
+Build, wire Stop (sync+drift) and SessionStart (orient) hooks, and add roadmap
+rules to CLAUDE.md + AGENTS.md (no manual copying or settings edits).
 
-  ./install.sh            install into ./.claude (this project): skills,
-                          /roadmap:* commands, Stop hook, CLAUDE.md rules
-  --global                install into ~/.claude (all projects); skips CLAUDE.md
-  --grok                  target Grok Build instead: ./.grok (or ~/.grok with
-                          --global), native .grok/hooks JSON, no command files
-                          (skills surface as /roadmap in Grok)
+  ./install.sh            install into ./.claude (this project)
+  --global                install into ~/.claude (all projects); skips project rules
+  --grok                  target Grok Build: ./.grok (or ~/.grok with --global),
+                          native hooks JSON, flat /roadmap-* slash commands
   --link                  symlink instead of copy (development)
-  --no-hook               do not wire the auto-sync Stop hook
-  --no-commands           do not install the /roadmap:* slash commands
-  --no-claude-md          do not add roadmap rules to CLAUDE.md
+  --no-hook               do not wire the Stop hook (sync + drift-check)
+  --no-orient             do not wire the SessionStart orient hook
+  --no-commands           do not install slash commands
+  --no-claude-md          do not add roadmap rules to CLAUDE.md / AGENTS.md
   --init                  also run `roadmap init` in the current directory
 
 Remote (no clone):
@@ -139,31 +141,20 @@ if [ "$installed" -eq 0 ]; then
   exit 1
 fi
 
-# Wire the roadmap auto-sync Stop hook (idempotent) unless --no-hook.
-# Claude Code: merge into settings.json. Grok Build: native .grok/hooks JSON
-# (Grok also reads .claude/settings.json hooks, but the native file survives
-# without any Claude-compat shim).
-if [ "$hook" = "1" ] && [ "$agent" = "grok" ]; then
-  hook_path="$skills_dest/roadmap/hooks/roadmap-sync.sh"
-  if [ -f "$hook_path" ]; then
-    mkdir -p "$base/hooks"
-    cat > "$base/hooks/roadmap-sync.json" <<EOF
-{
-  "hooks": {
-    "Stop": [
-      { "hooks": [ { "type": "command", "command": "bash \"$hook_path\"" } ] }
-    ]
-  }
-}
-EOF
-    echo "Wired roadmap Stop hook into $base/hooks/roadmap-sync.json"
-  fi
-elif [ "$hook" = "1" ]; then
-  hook_path="$skills_dest/roadmap/hooks/roadmap-sync.sh"
-  if [ -f "$hook_path" ]; then
-    "$PYTHON" - "$settings" "bash \"$hook_path\"" <<'PY'
+# Wire lifecycle hooks (idempotent) unless opted out.
+# Claude Code: merge into settings.json.
+# Grok Build: native .grok/hooks/*.json (also reads .claude/settings.json, but
+# native files survive without a Claude-compat shim).
+#
+#   Stop         → roadmap-sync.sh  (sync + drift-check nudge)
+#   SessionStart → roadmap-orient.sh (inject current version + next item)
+chmod +x "$skills_dest/roadmap/hooks/"*.sh 2>/dev/null || true
+
+_wire_claude_hook() {
+  # $1 = settings path, $2 = event name (Stop|SessionStart), $3 = command string
+  "$PYTHON" - "$1" "$2" "$3" <<'PY'
 import json, os, sys
-settings_path, cmd = sys.argv[1], sys.argv[2]
+settings_path, event, cmd = sys.argv[1], sys.argv[2], sys.argv[3]
 data = {}
 if os.path.exists(settings_path):
     with open(settings_path) as f:
@@ -173,42 +164,115 @@ if os.path.exists(settings_path):
             print(f"Warning: {settings_path} is not valid JSON; left unchanged.", file=sys.stderr)
             sys.exit(0)
 
-stop = data.setdefault("hooks", {}).setdefault("Stop", [])
+bucket = data.setdefault("hooks", {}).setdefault(event, [])
 present = any(h.get("command") == cmd
-             for entry in stop for h in entry.get("hooks", []))
+             for entry in bucket for h in entry.get("hooks", []))
 if present:
-    print(f"Stop hook already configured in {settings_path}")
+    print(f"{event} hook already configured in {settings_path}")
 else:
-    stop.append({"hooks": [{"type": "command", "command": cmd}]})
-    os.makedirs(os.path.dirname(settings_path), exist_ok=True)
+    bucket.append({"hooks": [{"type": "command", "command": cmd}]})
+    os.makedirs(os.path.dirname(settings_path) or ".", exist_ok=True)
     with open(settings_path, "w") as f:
         json.dump(data, f, indent=2)
         f.write("\n")
-    print(f"Wired roadmap Stop hook into {settings_path}")
+    print(f"Wired roadmap {event} hook into {settings_path}")
 PY
+}
+
+if [ "$agent" = "grok" ]; then
+  mkdir -p "$base/hooks"
+  if [ "$hook" = "1" ]; then
+    hook_path="$skills_dest/roadmap/hooks/roadmap-sync.sh"
+    if [ -f "$hook_path" ]; then
+      cat > "$base/hooks/roadmap-sync.json" <<EOF
+{
+  "hooks": {
+    "Stop": [
+      { "hooks": [ { "type": "command", "command": "bash \"$hook_path\"" } ] }
+    ]
+  }
+}
+EOF
+      echo "Wired roadmap Stop hook into $base/hooks/roadmap-sync.json"
+    fi
+  fi
+  if [ "$orient" = "1" ]; then
+    orient_path="$skills_dest/roadmap/hooks/roadmap-orient.sh"
+    if [ -f "$orient_path" ]; then
+      cat > "$base/hooks/roadmap-orient.json" <<EOF
+{
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [ { "type": "command", "command": "bash \"$orient_path\"" } ] }
+    ]
+  }
+}
+EOF
+      echo "Wired roadmap SessionStart orient hook into $base/hooks/roadmap-orient.json"
+    fi
+  fi
+else
+  if [ "$hook" = "1" ]; then
+    hook_path="$skills_dest/roadmap/hooks/roadmap-sync.sh"
+    [ -f "$hook_path" ] && _wire_claude_hook "$settings" "Stop" "bash \"$hook_path\""
+  fi
+  if [ "$orient" = "1" ]; then
+    orient_path="$skills_dest/roadmap/hooks/roadmap-orient.sh"
+    [ -f "$orient_path" ] && _wire_claude_hook "$settings" "SessionStart" "bash \"$orient_path\""
   fi
 fi
 
-# Install the /roadmap:* slash commands (namespaced dirs under commands/) unless
-# --no-commands. Claude Code only — Grok Build has no commands/*.md equivalent;
-# it surfaces the installed skill itself as the /roadmap slash command.
-if [ "$commands" = "1" ] && [ "$agent" = "grok" ]; then
-  echo "Skipped command files: Grok Build exposes the skill as /roadmap directly."
-elif [ "$commands" = "1" ]; then
+# Install slash commands unless --no-commands.
+#
+# Claude Code discovers nested commands/<ns>/<cmd>.md as /ns:cmd
+#   e.g. commands/roadmap/next.md → /roadmap:next
+# Grok Build only discovers *flat* commands/*.md (filename stem = command name);
+# nested dirs are ignored, and ":" in names is not accepted (normalized away).
+# So we also install flat aliases as <ns>-<cmd>.md → /ns-cmd
+#   e.g. commands/roadmap/next.md → roadmap-next.md → /roadmap-next
+#
+# Claude installs get both layouts (Claude users keep /roadmap:*, Grok reading
+# .claude/commands via compat gets /roadmap-*). Pure --grok installs get flat only.
+if [ "$commands" = "1" ]; then
   cmd_src="$(dirname "$SRC_DIR")/commands"
   if [ -d "$cmd_src" ]; then
     mkdir -p "$base/commands"
+    flat_count=0
     for cdir in "$cmd_src"/*/; do
       [ -d "$cdir" ] || continue
       cname="$(basename "$cdir")"
-      rm -rf "$base/commands/$cname"
-      if [ "$link" = "1" ]; then
-        ln -s "${cdir%/}" "$base/commands/$cname"
-      else
-        cp -R "${cdir%/}" "$base/commands/$cname"
+
+      # Nested layout for Claude Code (/ns:cmd). Skip for pure Grok installs —
+      # Grok never loads nested command dirs, so nested copies only waste space.
+      if [ "$agent" != "grok" ]; then
+        rm -rf "$base/commands/$cname"
+        if [ "$link" = "1" ]; then
+          ln -s "${cdir%/}" "$base/commands/$cname"
+        else
+          cp -R "${cdir%/}" "$base/commands/$cname"
+        fi
       fi
+
+      # Flat namespaced layout for Grok (/ns-cmd). Also useful on Claude Code as
+      # hyphenated aliases that show up in autocomplete the same way.
+      for f in "$cdir"*.md; do
+        [ -f "$f" ] || continue
+        stem="$(basename "$f" .md)"
+        dest="$base/commands/${cname}-${stem}.md"
+        if [ "$link" = "1" ]; then
+          # Absolute target so the link survives even if CWD changes later.
+          ln -sfn "$(cd "$(dirname "$f")" && pwd)/$(basename "$f")" "$dest"
+        else
+          cp "$f" "$dest"
+        fi
+        flat_count=$((flat_count + 1))
+      done
     done
-    echo "Installed commands -> $base/commands (try /roadmap:init, /roadmap:plan, /roadmap:status)"
+    if [ "$agent" = "grok" ]; then
+      echo "Installed $flat_count Grok commands -> $base/commands (try /roadmap-init, /roadmap-next, /roadmap-build)"
+    else
+      echo "Installed commands -> $base/commands (Claude: /roadmap:init; Grok-compat: /roadmap-init, /roadmap-next)"
+    fi
   fi
 fi
 

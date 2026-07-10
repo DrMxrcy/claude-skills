@@ -81,6 +81,11 @@ def test_install_copies_slash_commands(tmp_path):
     assert (cmds / "init.md").exists()
     assert (cmds / "plan.md").exists()
     assert (cmds / "status.md").exists()
+    # Flat Grok-compat aliases ship alongside the nested Claude layout
+    flat = tmp_path / ".claude/commands"
+    assert (flat / "roadmap-init.md").exists()
+    assert (flat / "roadmap-next.md").exists()
+    assert (flat / "roadmap-build.md").exists()
 
 
 def test_install_no_commands_flag(tmp_path):
@@ -94,6 +99,8 @@ def test_install_ships_all_commands(tmp_path):
     src = {p.name for p in (REPO / "commands/roadmap").glob("*.md")}
     dest = {p.name for p in (tmp_path / ".claude/commands/roadmap").glob("*.md")}
     assert src and src == dest          # every command in the repo gets installed
+    flat = {p.name for p in (tmp_path / ".claude/commands").glob("roadmap-*.md")}
+    assert flat == {f"roadmap-{n}" for n in src}
 
 
 def test_install_grok_project_copies_skill_and_wires_native_hook(tmp_path):
@@ -113,10 +120,20 @@ def test_install_grok_no_hook_flag(tmp_path):
     assert not (tmp_path / ".grok/hooks").exists()
 
 
-def test_install_grok_skips_command_files(tmp_path):
-    # Grok Build has no commands/*.md equivalent; the skill itself is /roadmap.
+def test_install_grok_flat_command_files(tmp_path):
+    # Grok only discovers flat commands/*.md (not nested ns/cmd.md → /ns:cmd).
+    # Installer ships roadmap-<cmd>.md → /roadmap-<cmd> (e.g. /roadmap-next).
     _run(tmp_path, "--project", "--grok")
-    assert not (tmp_path / ".grok/commands").exists()
+    cmds = tmp_path / ".grok/commands"
+    assert (cmds / "roadmap-init.md").exists()
+    assert (cmds / "roadmap-next.md").exists()
+    assert (cmds / "roadmap-build.md").exists()
+    assert (cmds / "roadmap-status.md").exists()
+    # Nested Claude layout is intentionally omitted on pure Grok installs
+    assert not (cmds / "roadmap").exists()
+    src = {p.stem for p in (REPO / "commands/roadmap").glob("*.md")}
+    flat = {p.stem.removeprefix("roadmap-") for p in cmds.glob("roadmap-*.md")}
+    assert src and src == flat
 
 
 def test_install_grok_writes_claude_md_rules(tmp_path):

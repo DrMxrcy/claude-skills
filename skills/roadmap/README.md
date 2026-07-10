@@ -11,9 +11,12 @@ deterministic Python CLI makes every mechanical edit so the dashboard never drif
 > Install via the repo root [`install.sh`](../../README.md#install). After installing, start a
 > fresh Claude Code session so the skill and `/roadmap:*` commands load.
 >
-> **Grok Build:** a project install works there out of the box (Grok reads `.claude/`), or
-> use `install.sh --grok` for a native `.grok/` install — the skill surfaces as `/roadmap`
-> and the same phase routing applies. Verify with `grok inspect`.
+> **Grok Build:** use `install.sh --grok` for a native `.grok/` install (or a normal Claude
+> install — flat aliases land in `.claude/commands/` for Grok's Claude-compat scan). Grok
+> does **not** discover nested `commands/roadmap/*.md`, so the installer ships flat files
+> that appear as **`/roadmap-next`**, **`/roadmap-build`**, **`/roadmap-status`**, etc.
+> (hyphen, not colon). Bare `/roadmap` + args (`/roadmap next`) also works. Verify with
+> `grok inspect`.
 
 ## The loop
 
@@ -42,24 +45,28 @@ safety cap — see the autonomous section in [`commands/roadmap/build.md`](../..
 
 ## Slash commands
 
-| Command | Does |
+Names differ by agent: Claude Code uses a colon (`/roadmap:next`); Grok Build uses a
+hyphen (`/roadmap-next`). Both forms are installed where that agent can discover them.
+Bare `/roadmap <subcommand>` also routes correctly.
+
+| Command (Claude / Grok) | Does |
 |---|---|
-| `/roadmap:init` | Initialize tracking (auto-detects adopt for existing repos) |
-| `/roadmap:plan <idea>` | Brainstorm an idea into a tracked, versioned plan; links its spec/detailed plan |
-| `/roadmap:idea <idea>` | Park an idea in the Idea Incubator — one bullet; long write-ups become linked `.roadmap/notes/` files |
-| `/roadmap:build [id\|version] [--auto] [--worktree] [--pr]` | Build one item, a whole version/phase, or the current version — step-by-step, tests before each check; `--auto` skips per-item checkpoints, `--worktree` isolates in a git worktree, `--pr` opens a PR at 100% (never merges to main) |
-| `/roadmap:next` | Build the next unfinished item in the current version |
-| `/roadmap:catchup [id]` | Reconcile the roadmap with work done outside the commands (checks off completed steps) |
-| `/roadmap:status` | Show versions, items, types, and progress |
-| `/roadmap:done <id> [step]` | Mark a step/item done and resync |
-| `/roadmap:remove <id>` | Remove a tracked item — archive its plan, demote it to the Idea Incubator |
-| `/roadmap:retarget --to V (--from VERS \| --plan IDS)` | Re-stamp items onto another version (e.g. consolidate shipped work into one release on a branch) |
-| `/roadmap:review [version]` | Verify a finished phase against its specs + code review before release |
-| `/roadmap:release <version>` | Optional: pin a new current version / `git tag` (changelog is automatic) |
-| `/roadmap:changelog [version]` | Print the live changelog; backfill past versions' dates from git tags / notes from history |
-| `/roadmap:reevaluate [version]` | Audit the codebase against the roadmap — surface missed/duplicate/stale work and resequence |
-| `/roadmap:sync` | Recompute progress and re-render `ROADMAP.md` |
-| `/roadmap:upgrade` | Refresh this project's `CLAUDE.md` rules to the installed skill version (after a global update) |
+| `/roadmap:init` · `/roadmap-init` | Initialize tracking (auto-detects adopt for existing repos) |
+| `/roadmap:plan <idea>` · `/roadmap-plan` | Brainstorm an idea into a tracked, versioned plan; links its spec/detailed plan |
+| `/roadmap:idea <idea>` · `/roadmap-idea` | Park an idea in the Idea Incubator — one bullet; long write-ups become linked `.roadmap/notes/` files |
+| `/roadmap:build [id\|version] [--auto] [--worktree] [--pr]` · `/roadmap-build` | Build one item, a whole version/phase, or the current version — step-by-step, tests before each check; `--auto` skips per-item checkpoints, `--worktree` isolates in a git worktree, `--pr` opens a PR at 100% (never merges to main) |
+| `/roadmap:next` · `/roadmap-next` | Build the next unfinished item in the current version |
+| `/roadmap:catchup [id]` · `/roadmap-catchup` | Reconcile the roadmap with work done outside the commands (checks off completed steps) |
+| `/roadmap:status` · `/roadmap-status` | Show versions, items, types, and progress |
+| `/roadmap:done <id> [step]` · `/roadmap-done` | Mark a step/item done and resync |
+| `/roadmap:remove <id>` · `/roadmap-remove` | Remove a tracked item — archive its plan, demote it to the Idea Incubator |
+| `/roadmap:retarget …` · `/roadmap-retarget` | Re-stamp items onto another version (e.g. consolidate shipped work into one release on a branch) |
+| `/roadmap:review [version]` · `/roadmap-review` | Verify a finished phase against its specs + code review before release |
+| `/roadmap:release <version>` · `/roadmap-release` | Optional: pin a new current version / `git tag` (changelog is automatic) |
+| `/roadmap:changelog [version]` · `/roadmap-changelog` | Print the live changelog; backfill past versions' dates from git tags / notes from history |
+| `/roadmap:reevaluate [version]` · `/roadmap-reevaluate` | Audit the codebase against the roadmap — surface missed/duplicate/stale work and resequence |
+| `/roadmap:sync` · `/roadmap-sync` | Recompute progress and re-render `ROADMAP.md` |
+| `/roadmap:upgrade` · `/roadmap-upgrade` | Refresh this project's `CLAUDE.md` rules to the installed skill version (after a global update) |
 
 The CLI also has `version` (prints the installed skill version, e.g. to confirm an update applied).
 

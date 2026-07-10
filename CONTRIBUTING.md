@@ -8,8 +8,10 @@ This is a multi-skill repo. To add one:
    - `SKILL.md` with YAML frontmatter (`name`, `description`) — this is what agents load.
    - `README.md` — detailed docs for the skill.
    - Any `scripts/`, `templates/`, `references/`, `hooks/` it needs.
-2. **Add slash commands** (optional) under `commands/<name>/*.md`. Each file becomes
-   `/<name>:<file>`. The installer copies every `commands/<dir>/` into `.claude/commands/`.
+2. **Add slash commands** (optional) under `commands/<name>/*.md`. Claude Code loads nested
+   files as `/<name>:<file>`. Grok Build only discovers **flat** `commands/*.md`, so the
+   installer also ships each file as `<name>-<file>.md` → `/<name>-<file>` (e.g.
+   `/roadmap-next`). On pure `--grok` installs, only the flat form is written.
 3. **List it** in the Skills table in the root `README.md`, linking to `skills/<name>/README.md`.
 4. **Tests:** add `tests/test_<name>.py` (pytest, stdlib-only fixtures in `tests/conftest.py`).
 

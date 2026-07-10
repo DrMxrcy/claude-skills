@@ -10,16 +10,22 @@ AUTO_END = "<!-- roadmap:auto:end -->"
 
 RULES_START = "<!-- roadmap:rules:start -->"
 RULES_END = "<!-- roadmap:rules:end -->"
+# Dual slash forms: Claude Code uses /roadmap:<cmd>; Grok (and other flat-command
+# agents) use /roadmap-<cmd>. Bare /roadmap <cmd> also routes via the skill.
 RULES_BLOCK = """<!-- roadmap:rules:start -->
 ## Roadmap tracking
-This project tracks work in `ROADMAP.md` via the **roadmap** skill (`/roadmap:*` commands).
-- At the start of a work session, run `/roadmap:status` (or read `ROADMAP.md`) to see current progress before continuing.
-- New features or found bugs become roadmap items via `/roadmap:plan` before coding; park stray ideas in the Idea Incubator via `/roadmap:idea` (one bullet each — long write-ups become linked `.roadmap/notes/` files, never inline prose) — nothing is built off-roadmap.
-- No functional code without an active plan in `.roadmap/plans/`. Work one checklist item at a time; do not multitask across features/bugs.
+This project tracks work in `ROADMAP.md` via the **roadmap** skill.
+- **Slash names:** Claude Code → `/roadmap:<cmd>` (e.g. `/roadmap:status`); Grok Build and other flat-command agents → `/roadmap-<cmd>` (e.g. `/roadmap-status`). Bare `/roadmap <cmd>` also works on either.
+- At the start of a work session, run `roadmap.py orient` or `/roadmap:status` / `/roadmap-status` (or read `ROADMAP.md`) before continuing.
+- New features or found bugs become roadmap items via `/roadmap:plan` / `/roadmap-plan` before coding; park stray ideas in the Idea Incubator via `/roadmap:idea` / `/roadmap-idea` (one bullet each — long write-ups become linked `.roadmap/notes/` files, never inline prose) — nothing is built off-roadmap. Promote parked ideas with `/roadmap:promote` / `/roadmap-promote`.
+- No functional code without an active plan in `.roadmap/plans/`. Work one checklist item at a time; do not multitask across features/bugs. Respect `dependsOn` — build dependencies first (`roadmap.py next` skips blocked items).
 - When building an item, follow its linked Spec / Detailed plan as the authoritative how-to (the checklist is just the tracker).
-- Mark a step done only after its build/tests pass, and commit the code + roadmap update together; if work was done outside the commands, run `/roadmap:catchup` to reconcile.
-- Update status only through the roadmap CLI / `/roadmap:done`; never hand-edit `ROADMAP.md`.
+- Mark a step done only after its build/tests pass, and commit the code + roadmap update together; if work was done outside the commands, run `/roadmap:catchup` / `/roadmap-catchup` to reconcile.
+- Update status only through the roadmap CLI / `/roadmap:done` / `/roadmap-done`; never hand-edit `ROADMAP.md`.
 <!-- roadmap:rules:end -->"""
+
+# Agent-neutral project instruction files that receive the same rules block.
+RULES_FILES = ("CLAUDE.md", "AGENTS.md")
 
 
 def get_version() -> str:
@@ -316,6 +322,8 @@ def check_step(root: Path, plan_id: int, step: int | None,
         raise ValueError(f"plan {plan_id} step {step} out of range (1..{n})")
     atomic_write(path, "\n".join(out) + "\n")
     sync(root)
+    if not undo:
+        _record_last_seen_sha(root)
 
 
 TEMPLATE_BY_TYPE = {"feature": "feature-plan.md", "chore": "feature-plan.md",
@@ -390,8 +398,8 @@ def set_audience(root: Path, plan_id: int, audience: str) -> None:
 
 
 def set_depends(root: Path, plan_id: int, on: list[int], clear: bool = False) -> None:
-    """Set (or clear) an item's `dependsOn` list. Advisory ordering metadata consumed by
-    /roadmap:reevaluate and retargeted by merge/remove."""
+    """Set (or clear) an item's `dependsOn` list. Consumed by `next` (skips blocked),
+    `build` (warns), /roadmap:reevaluate, and retargeted by merge/remove."""
     cfg = read_config(root)
     by_id = {i["id"]: i for i in cfg["items"]}
     if plan_id not in by_id:
@@ -405,6 +413,10 @@ def set_depends(root: Path, plan_id: int, on: list[int], clear: bool = False) ->
     for d in on:
         if d not in by_id:
             raise ValueError(f"no plan with id {d}")
+    # Reject trivial cycles (self already handled; A→B→A via one hop of existing edges)
+    for d in on:
+        if plan_id in (by_id[d].get("dependsOn") or []):
+            raise ValueError(f"dependency cycle: #{plan_id} ↔ #{d}")
     by_id[plan_id]["dependsOn"] = list(dict.fromkeys(on))
     write_config(root, cfg)
 
@@ -917,15 +929,282 @@ def roadmap_health(root: Path) -> list[str]:
 
 def status(root: Path) -> dict:
     cfg = read_config(root)
+    by_id = {i["id"]: i for i in cfg["items"]}
+    progress: dict[int, tuple[int, int]] = {}
     items = []
     for item in cfg["items"]:
         path = roadmap_dir(root) / item["file"]
         done, total = count_progress(path) if path.exists() else (0, 0)
+        progress[item["id"]] = (done, total)
         pct = round(100 * done / total) if total else 0
-        items.append({**item, "done": done, "total": total, "pct": pct,
-                      "status": derive_status(done, total)})
+        blocked_by = _incomplete_deps(item, progress, by_id)
+        row = {**item, "done": done, "total": total, "pct": pct,
+               "status": derive_status(done, total),
+               "dependsOn": list(item.get("dependsOn") or []),
+               "blockedBy": blocked_by}
+        items.append(row)
     return {"project": cfg["project"], "currentVersion": cfg["currentVersion"],
             "items": items}
+
+
+def _item_done(progress: dict[int, tuple[int, int]], plan_id: int) -> bool:
+    done, total = progress.get(plan_id, (0, 0))
+    return total > 0 and done == total
+
+
+def _incomplete_deps(item: dict, progress: dict[int, tuple[int, int]],
+                     by_id: dict[int, dict]) -> list[int]:
+    """Dependency ids that exist and are not 100% complete."""
+    out = []
+    for d in item.get("dependsOn") or []:
+        if d not in by_id:
+            continue
+        if not _item_done(progress, d):
+            out.append(d)
+    return out
+
+
+def _progress_map(root: Path, cfg: dict | None = None) -> dict[int, tuple[int, int]]:
+    cfg = cfg or read_config(root)
+    progress = {}
+    for item in cfg["items"]:
+        path = roadmap_dir(root) / item["file"]
+        progress[item["id"]] = count_progress(path) if path.exists() else (0, 0)
+    return progress
+
+
+def incomplete_deps(root: Path, plan_id: int) -> list[int]:
+    """Return dependency plan ids that are not yet 100% complete."""
+    cfg = read_config(root)
+    by_id = {i["id"]: i for i in cfg["items"]}
+    if plan_id not in by_id:
+        raise ValueError(f"no plan with id {plan_id}")
+    return _incomplete_deps(by_id[plan_id], _progress_map(root, cfg), by_id)
+
+
+def warn_incomplete_deps(root: Path, plan_id: int, force: bool = False) -> list[int]:
+    """Warn when building an item whose dependencies are incomplete. Returns blocker ids.
+    Non-blocking unless the caller chooses to stop; --force silences the warning."""
+    blocked = incomplete_deps(root, plan_id)
+    if blocked and not force:
+        print(f"warning: #{plan_id} depends on incomplete item(s) {blocked}; "
+              f"prefer finishing them first (`roadmap.py next`), or continue carefully",
+              file=sys.stderr)
+    return blocked
+
+
+def next_item(root: Path, version: str | None = None,
+              force: bool = False, quiet: bool = False) -> dict | None:
+    """Pick the next unfinished item in `version` (default: currentVersion).
+
+    Order: explicit `order` field, then id. Skips items whose `dependsOn` targets are
+    not 100% complete (unless force=True). Prints skipped blocked items to stderr
+    unless quiet=True. Returns an enriched status row, or None if every item is done
+    / only blocked remain.
+    """
+    st = status(root)
+    ver = _norm_version(version or st["currentVersion"])
+    candidates = [i for i in st["items"] if i["version"] == ver and i["pct"] < 100]
+    candidates.sort(key=lambda i: (i.get("order", i["id"]), i["id"]))
+    skipped = []
+    for item in candidates:
+        blocked = item.get("blockedBy") or []
+        if blocked and not force:
+            skipped.append((item["id"], blocked))
+            continue
+        if skipped and not quiet:
+            for sid, deps in skipped:
+                print(f"skipping #{sid} (blocked by {deps})", file=sys.stderr)
+        return item
+    if skipped and not quiet:
+        for sid, deps in skipped:
+            print(f"skipping #{sid} (blocked by {deps})", file=sys.stderr)
+        print(f"no unblocked unfinished items in v{ver}", file=sys.stderr)
+        return None
+    return None
+
+
+def _git_head(root: Path) -> str | None:
+    try:
+        out = subprocess.run(["git", "rev-parse", "HEAD"], cwd=str(root),
+                             capture_output=True, text=True)
+        if out.returncode == 0 and out.stdout.strip():
+            return out.stdout.strip()
+    except FileNotFoundError:
+        pass
+    return None
+
+
+def _record_last_seen_sha(root: Path) -> None:
+    """Stamp config with current HEAD after a successful check-off (clears drift nudge)."""
+    head = _git_head(root)
+    if not head:
+        return
+    try:
+        cfg = read_config(root)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return
+    if cfg.get("last_seen_sha") == head:
+        return
+    cfg["last_seen_sha"] = head
+    write_config(root, cfg)
+
+
+def drift_check(root: Path) -> str | None:
+    """If the repo has commits since last check-off and the current version still has
+    unfinished work, return a nudge message; otherwise None. Never raises; safe no-op
+    without .roadmap/ or git."""
+    try:
+        cfg = read_config(root)
+    except (FileNotFoundError, json.JSONDecodeError, KeyError):
+        return None
+    head = _git_head(root)
+    if not head:
+        return None
+    last = cfg.get("last_seen_sha")
+    if not last or last == head:
+        return None
+    # Count commits between last seen and HEAD (best-effort)
+    n = 0
+    try:
+        out = subprocess.run(
+            ["git", "rev-list", "--count", f"{last}..HEAD"],
+            cwd=str(root), capture_output=True, text=True)
+        if out.returncode == 0 and out.stdout.strip().isdigit():
+            n = int(out.stdout.strip())
+    except FileNotFoundError:
+        return None
+    if n <= 0:
+        return None
+    st = status(root)
+    ver = st["currentVersion"]
+    unfinished = [i for i in st["items"] if i["version"] == ver and i["pct"] < 100]
+    if not unfinished:
+        return None
+    return (f"⚠ {n} commit(s) since last roadmap check-off — "
+            f"run /roadmap:catchup or /roadmap-catchup?")
+
+
+def orient(root: Path) -> dict | None:
+    """Session orientation: project, current version, progress, next unblocked item.
+    Returns None (and prints nothing) when .roadmap/ is absent — safe for hooks."""
+    if not (roadmap_dir(root) / "config.json").exists():
+        return None
+    st = status(root)
+    ver = st["currentVersion"]
+    in_ver = [i for i in st["items"] if i["version"] == ver]
+    steps_done = sum(i["done"] for i in in_ver)
+    steps_total = sum(i["total"] for i in in_ver)
+    items_done = sum(1 for i in in_ver if i["pct"] == 100)
+    nxt = next_item(root, version=ver, quiet=True)
+    return {
+        "project": st["project"],
+        "currentVersion": ver,
+        "stepsDone": steps_done,
+        "stepsTotal": steps_total,
+        "itemsDone": items_done,
+        "itemsTotal": len(in_ver),
+        "next": ({"id": nxt["id"], "title": nxt["title"], "type": nxt["type"],
+                  "pct": nxt["pct"], "blockedBy": nxt.get("blockedBy") or []}
+                 if nxt else None),
+    }
+
+
+def format_orient(payload: dict) -> str:
+    lines = [
+        f"Roadmap: {payload['project']} — v{payload['currentVersion']}",
+        f"Progress: {payload['itemsDone']}/{payload['itemsTotal']} items · "
+        f"{payload['stepsDone']}/{payload['stepsTotal']} steps",
+    ]
+    nxt = payload.get("next")
+    if nxt:
+        lines.append(f"Next: #{nxt['id']} {nxt['title']} [{nxt['type']}] — {nxt['pct']}%")
+    else:
+        lines.append("Next: (none — current version complete or all remaining items blocked)")
+    return "\n".join(lines)
+
+
+INCUBATOR_BULLET_RE = re.compile(r"^(\s*[-*+]\s+)(.+)$")
+
+
+def list_incubator_bullets(root: Path) -> list[dict]:
+    """Parse free-form Idea Incubator bullets (outside roadmap:auto markers)."""
+    rm = root / "ROADMAP.md"
+    if not rm.exists():
+        return []
+    text = rm.read_text(encoding="utf-8")
+    m = INCUBATOR_RE.search(text)
+    if not m:
+        return []
+    bullets = []
+    for line in text[m.end():].splitlines():
+        if re.match(r"^#{1,6}\s+", line):
+            break
+        bm = INCUBATOR_BULLET_RE.match(line)
+        if not bm:
+            continue
+        body = bm.group(2).strip()
+        # Title is the line without a trailing markdown link
+        title = re.sub(r"\s*\([^)]*\)\s*$", "", body).strip()
+        title = re.sub(r"\s*\[[^\]]*\]\([^)]*\)\s*$", "", title).strip()
+        bullets.append({"line": line, "body": body, "title": title or body})
+    return bullets
+
+
+def promote_idea(root: Path, *, match: str | None = None, index: int | None = None,
+                 type_: str = "feature", version: str | None = None,
+                 note: str = "", audience: str | None = None) -> Path:
+    """Lift one Idea Incubator bullet into a tracked plan item and remove that bullet.
+
+    Select by 1-based --index or by --match substring against the bullet title.
+    Exactly one selector required when multiple bullets exist; a single bullet can be
+    promoted with no selector.
+    """
+    if match and index is not None:
+        raise ValueError("pass only one of --match / --index")
+    bullets = list_incubator_bullets(root)
+    if not bullets:
+        raise ValueError("Idea Incubator is empty — nothing to promote")
+    chosen = None
+    if index is not None:
+        if index < 1 or index > len(bullets):
+            raise ValueError(f"--index {index} out of range (1..{len(bullets)})")
+        chosen = bullets[index - 1]
+    elif match:
+        hits = [b for b in bullets if match.lower() in b["title"].lower()
+                or match.lower() in b["body"].lower()]
+        if not hits:
+            raise ValueError(f"no incubator bullet matches {match!r}")
+        if len(hits) > 1:
+            raise ValueError(
+                f"{len(hits)} bullets match {match!r}; use a tighter --match or --index")
+        chosen = hits[0]
+    elif len(bullets) == 1:
+        chosen = bullets[0]
+    else:
+        listing = "\n".join(f"  {i}. {b['title']}" for i, b in enumerate(bullets, 1))
+        raise ValueError(
+            f"multiple incubator bullets — pass --index N or --match TEXT:\n{listing}")
+
+    title = chosen["title"]
+    path = new_item(root, type_, title, version=version, note=note, audience=audience)
+
+    # Remove only the chosen bullet from ROADMAP.md (free-form incubator region).
+    rm = root / "ROADMAP.md"
+    text = rm.read_text(encoding="utf-8")
+    new_lines, removed = [], False
+    target = chosen["line"].rstrip("\n")
+    for line in text.splitlines(keepends=True):
+        if not removed and line.rstrip("\n") == target:
+            removed = True
+            continue
+        if not removed and chosen["body"] in line and INCUBATOR_BULLET_RE.match(
+                line.rstrip("\n")):
+            removed = True
+            continue
+        new_lines.append(line)
+    atomic_write(rm, "".join(new_lines))
+    return path
 
 
 def import_file(root: Path, src: Path) -> list[Path]:
@@ -955,13 +1234,8 @@ def import_file(root: Path, src: Path) -> list[Path]:
     return [path]
 
 
-def ensure_claude_md_rules(root: Path) -> Path:
-    """Idempotently add the roadmap rules block to CLAUDE.md (creating it if absent).
-
-    Runs on every init so the always-on guardrails land in the project regardless of
-    how the skill was installed (install.sh, `npx skills add`, or a manual copy).
-    """
-    path = root / "CLAUDE.md"
+def _apply_rules_block(path: Path) -> None:
+    """Idempotently write RULES_BLOCK into path (create or replace markers)."""
     existing = path.read_text(encoding="utf-8") if path.exists() else ""
     if RULES_START in existing and RULES_END in existing:
         after = existing.split(RULES_END, 1)[1].lstrip("\n")
@@ -971,7 +1245,27 @@ def ensure_claude_md_rules(root: Path) -> Path:
     else:
         new = RULES_BLOCK + "\n"
     atomic_write(path, new)
-    return path
+
+
+def ensure_claude_md_rules(root: Path) -> Path:
+    """Idempotently add the roadmap rules block to CLAUDE.md (creating it if absent).
+
+    Also writes the same block to AGENTS.md so Grok, Codex, Cursor, and other
+    agent-neutral readers pick up the same guardrails. Returns the CLAUDE.md path
+    for backward compatibility with install.sh / tests.
+    """
+    ensure_project_rules(root)
+    return root / "CLAUDE.md"
+
+
+def ensure_project_rules(root: Path) -> list[Path]:
+    """Write the roadmap rules block into every agent instruction file we know about."""
+    written = []
+    for name in RULES_FILES:
+        path = root / name
+        _apply_rules_block(path)
+        written.append(path)
+    return written
 
 
 def init_project(root: Path, name: str, adopt: bool = False, claude_md: bool = True) -> dict:
@@ -991,23 +1285,24 @@ def init_project(root: Path, name: str, adopt: bool = False, claude_md: bool = T
         existing = roadmap_md.read_text(encoding="utf-8").rstrip()
         atomic_write(roadmap_md, f"{existing}\n\n{AUTO_START}\n{AUTO_END}\n")
     if claude_md:
-        ensure_claude_md_rules(root)
+        ensure_project_rules(root)
     sync(root)
     return cfg
 
 
 def upgrade(root: Path) -> None:
-    """Project-level: refresh this project's CLAUDE.md rules block to the current skill
-    version and resync. Run after updating the skill globally (the global install does
-    not touch project CLAUDE.md files)."""
+    """Project-level: refresh CLAUDE.md + AGENTS.md rules to the current skill version
+    and resync. Run after updating the skill globally (global install does not touch
+    per-project instruction files)."""
     cfg = read_config(root)
     old = cfg.get("skillVersion", "unknown")
     new = get_version()
-    ensure_claude_md_rules(root)
+    paths = ensure_project_rules(root)
     cfg["skillVersion"] = new
     write_config(root, cfg)
     sync(root)
-    print(f"Refreshed roadmap rules in {root / 'CLAUDE.md'} ({old} → v{new})")
+    names = ", ".join(p.name for p in paths)
+    print(f"Refreshed roadmap rules in {names} ({old} → v{new})")
 
 
 def main(argv: list[str]) -> int:
@@ -1047,6 +1342,32 @@ def main(argv: list[str]) -> int:
 
     p_st = sub.add_parser("status")
     p_st.add_argument("--json", action="store_true", dest="as_json")
+
+    p_next = sub.add_parser("next", help="print the next unblocked unfinished item")
+    p_next.add_argument("--version", help="target version (default: current)")
+    p_next.add_argument("--json", action="store_true", dest="as_json")
+    p_next.add_argument("--force", action="store_true",
+                        help="ignore dependsOn blockers")
+
+    p_orient = sub.add_parser("orient", help="session orientation (safe no-op without .roadmap/)")
+    p_orient.add_argument("--json", action="store_true", dest="as_json")
+    p_orient.add_argument("--hook", action="store_true",
+                          help="emit Claude SessionStart additionalContext JSON")
+
+    sub.add_parser("drift-check", help="nudge if commits landed without check-off")
+
+    p_promote = sub.add_parser("promote", help="lift an Idea Incubator bullet into a plan")
+    p_promote.add_argument("--match", help="substring match against incubator bullet title")
+    p_promote.add_argument("--index", type=int, help="1-based index into incubator bullets")
+    p_promote.add_argument("--type", default="feature")
+    p_promote.add_argument("--version")
+    p_promote.add_argument("--note", default="")
+    p_promote.add_argument("--audience", choices=["public", "internal"])
+
+    p_deps = sub.add_parser("deps-check",
+                            help="warn if a plan's dependsOn targets are incomplete")
+    p_deps.add_argument("--plan", type=int, required=True)
+    p_deps.add_argument("--force", action="store_true")
 
     sub.add_parser("sync")
     sub.add_parser("version")
@@ -1142,6 +1463,52 @@ def main(argv: list[str]) -> int:
             note = add_idea(root, args.title, body)
             print(f"Parked idea: {args.title}" + (f" (notes: {note})" if note else ""))
             return 0
+        if args.command == "promote":
+            path = promote_idea(root, match=args.match, index=args.index,
+                                type_=args.type, version=args.version,
+                                note=args.note, audience=args.audience)
+            print(path)
+            return 0
+        if args.command == "next":
+            item = next_item(root, version=args.version, force=args.force)
+            if item is None:
+                print("No unfinished unblocked items.")
+                return 0
+            if args.as_json:
+                print(json.dumps(item, indent=2))
+            else:
+                print(f"#{item['id']} {item['title']} [{item['type']}] "
+                      f"v{item['version']} — {item['pct']}% "
+                      f"(.roadmap/{item['file']})")
+            return 0
+        if args.command == "orient":
+            payload = orient(root)
+            if payload is None:
+                return 0
+            text = format_orient(payload)
+            if args.hook:
+                # Claude Code SessionStart: inject as additionalContext
+                print(json.dumps({
+                    "hookSpecificOutput": {
+                        "hookEventName": "SessionStart",
+                        "additionalContext": text,
+                    }
+                }))
+            elif args.as_json:
+                print(json.dumps(payload, indent=2))
+            else:
+                print(text)
+            return 0
+        if args.command == "drift-check":
+            msg = drift_check(root)
+            if msg:
+                print(msg)
+            return 0
+        if args.command == "deps-check":
+            blocked = warn_incomplete_deps(root, args.plan, force=args.force)
+            if args.force or not blocked:
+                print(f"#{args.plan}: ok" + (" (force)" if args.force and blocked else ""))
+            return 0
         if args.command == "retarget":
             retarget(root, args.to,
                      from_versions=[v for v in args.from_versions.split(",") if v.strip()] or None,
@@ -1170,8 +1537,10 @@ def main(argv: list[str]) -> int:
             else:
                 print(f"{st['project']} — v{st['currentVersion']}")
                 for it in st["items"]:
+                    block = (f" blocked by {it['blockedBy']}"
+                             if it.get("blockedBy") else "")
                     print(f"  #{it['id']} {it['title']} [{it['type']}] "
-                          f"{it['pct']}% ({it['status']})")
+                          f"{it['pct']}% ({it['status']}){block}")
             for w in roadmap_health(root):
                 print(f"warning: {w}", file=sys.stderr)
             return 0

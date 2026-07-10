@@ -1,6 +1,7 @@
 ---
 name: roadmap
-description: Use when planning features/bugs/refactors, tracking a project roadmap, breaking an idea or plan into trackable units, marking work done, or cutting a version. Maintains a versioned ROADMAP.md + .roadmap/ plan files via a deterministic CLI. Triggers on "roadmap", "plan this feature", "track this", "break this down", "mark done", "cut a version", "import into roadmap".
+description: Use when planning features/bugs/refactors, tracking a project roadmap, breaking an idea or plan into trackable units, marking work done, or cutting a version. Maintains a versioned ROADMAP.md + .roadmap/ plan files via a deterministic CLI. Triggers on "roadmap", "plan this feature", "track this", "break this down", "mark done", "cut a version", "import into roadmap", /roadmap, /roadmap-next, /roadmap-build, /roadmap-status.
+argument-hint: "[status|next|build|plan|idea|init|done|review|release|sync|…] [args]"
 ---
 
 # Roadmap
@@ -17,6 +18,43 @@ Resolve it once and reuse `$RM` (run from the project root):
 for d in .claude .grok .agents "$HOME/.claude" "$HOME/.grok" "$HOME/.agents"; do RM="$d/skills/roadmap/scripts/roadmap.py"; [ -f "$RM" ] && break; done
 python3 "$RM" <command>
 ```
+
+## Slash commands (agent-specific names)
+
+| Action | Claude Code | Grok Build |
+|---|---|---|
+| Init | `/roadmap:init` | `/roadmap-init` |
+| Plan an idea | `/roadmap:plan …` | `/roadmap-plan …` |
+| Build next item | `/roadmap:next` | `/roadmap-next` |
+| Build item/version | `/roadmap:build …` | `/roadmap-build …` |
+| Status | `/roadmap:status` | `/roadmap-status` |
+| (and the rest) | `/roadmap:<cmd>` | `/roadmap-<cmd>` |
+
+Grok only discovers **flat** `commands/*.md` files (filename stem = command name). Nested
+Claude-style `commands/roadmap/next.md` → `/roadmap:next` does **not** appear in Grok's
+slash list. The installer ships flat aliases (`roadmap-next.md` → `/roadmap-next`).
+
+**Also works:** invoke this skill with a subcommand as the argument — `/roadmap next`,
+`/roadmap build 1.0.0`, `/roadmap status` — and route exactly like the dedicated command.
+
+## Subcommand routing (when invoked as `/roadmap` with args)
+
+If the user message / `$ARGUMENTS` starts with one of these verbs, run that flow and stop
+(do not fall through to generic phase detection):
+
+| First token | Do this |
+|---|---|
+| `status` | `roadmap.py status` (+ summarize) |
+| `sync` | `roadmap.py sync` |
+| `next` | Build the lowest-id unfinished item in the **current** version (same as `/roadmap-next`) |
+| `build` | Build the rest of the args (id / version / empty / flags) — same as `/roadmap-build` |
+| `plan` | Brainstorm remaining args into a tracked plan |
+| `idea` | Park remaining args in the Idea Incubator |
+| `init` | Initialize / adopt |
+| `done` | Mark step/item done |
+| `remove` / `retarget` / `review` / `release` / `changelog` / `catchup` / `reevaluate` / `upgrade` | Follow that command's flow |
+
+If there are no args (bare `/roadmap`), use **Phase routing** below.
 
 ## Working guardrails (apply whenever this skill is active)
 - At the start of a session, run `roadmap.py status` to orient on current progress before continuing.

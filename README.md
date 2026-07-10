@@ -31,10 +31,20 @@ curl -fsSL https://raw.githubusercontent.com/DrMxrcy/claude-skills/main/install.
 ```
 
 This targets `./.grok/` (or `~/.grok/` with `--global`), wires the auto-sync Stop hook as
-native `.grok/hooks/roadmap-sync.json`, and still writes the `CLAUDE.md` rules block (Grok
-reads it natively). Grok has no `commands/*.md` equivalent — the skill surfaces directly as
-the `/roadmap` slash command, and its phase routing covers what the `/roadmap:*` subcommands
-do elsewhere. Verify discovery with `grok inspect`.
+native `.grok/hooks/roadmap-sync.json`, still writes the `CLAUDE.md` rules block (Grok reads
+it natively), and installs **flat** slash commands Grok can actually discover:
+
+| Claude Code | Grok Build |
+|---|---|
+| `/roadmap:next` | `/roadmap-next` |
+| `/roadmap:build` | `/roadmap-build` |
+| `/roadmap:status` | `/roadmap-status` |
+| `/roadmap:<cmd>` | `/roadmap-<cmd>` |
+
+Grok only loads flat `commands/*.md` (nested `commands/roadmap/*.md` never show up in the
+slash menu). A default Claude install also drops the flat aliases into `.claude/commands/`
+so Grok's Claude-compat path gets `/roadmap-next` too. Bare `/roadmap` still works with
+subcommand args (`/roadmap next`). Verify with `grok inspect`.
 
 ## Updating
 
