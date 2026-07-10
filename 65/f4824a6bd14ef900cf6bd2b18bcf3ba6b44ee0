@@ -1,0 +1,62 @@
+commands/roadmap/idea.md
+  s_c3e01b13306b4a::t_fe96a64238222b 1-31
+skills/roadmap/README.md
+  s_c3e01b13306b4a::t_463370366c9c0d 211-212
+  s_c3e01b13306b4a::t_29ec131f3da8ca 179-183
+  s_c3e01b13306b4a::t_c86353f407e6eb 45
+  s_c3e01b13306b4a::t_2909eebe0dc83f 142
+  s_c3e01b13306b4a::t_93c159d9bc26fa 220-226
+.claude-plugin/plugin.json
+  s_c3e01b13306b4a::t_4d3e326f81dca9 3,5-7
+install.sh
+  s_c3e01b13306b4a::t_02c689edc718d6 187-188,190-196
+tests/test_cli_e2e.py
+  s_c3e01b13306b4a::t_1dc0029b088991 29-30
+  s_c3e01b13306b4a::t_8fe59e8f67e6bc 26-27
+  s_c3e01b13306b4a::t_7961e2c470763e 14-15
+skills/roadmap/VERSION
+  s_c3e01b13306b4a::t_4d3e326f81dca9 1
+tests/test_roadmap.py
+  s_c3e01b13306b4a::t_24e9ada1629aa6 988-989
+  s_c3e01b13306b4a::t_19565dcaf58ad0 990-1000
+  s_c3e01b13306b4a::t_0aa555dc5af46c 875-987
+  s_c3e01b13306b4a::t_9f2949b369cf0c 1001-1009
+skills/roadmap/templates/ROADMAP.md
+  s_c3e01b13306b4a::t_80ebe45dea19be 4-5
+skills/roadmap/scripts/roadmap.py
+  s_c3e01b13306b4a::t_c3923ef380cc12 154-156,170-175
+  s_c3e01b13306b4a::t_5bab79f08c81dc 879,885-886,893,901-905,907-909
+  s_c3e01b13306b4a::t_40a8b41d870d1c 1138-1144
+  s_c3e01b13306b4a::t_f8078c3497d592 745-748,753,757,764,766,771
+  s_c3e01b13306b4a::t_582cffa306c9f6 1074-1079
+  s_c3e01b13306b4a::t_37fecbeba9db7a 166-169
+  s_c3e01b13306b4a::t_133108b333a077 877-878,880-884,887-892,894-900,906,910-917
+  s_c3e01b13306b4a::t_7a4dae130d469b 415-418,429-458
+  s_c3e01b13306b4a::t_2937bf97eb481f 1175-1176
+  s_c3e01b13306b4a::t_e6bf9924fbce0d 17
+  s_c3e01b13306b4a::t_37de0a60fcb010 459-460
+skills/roadmap/references/state-model.md
+  s_c3e01b13306b4a::t_735a1116da9485 6-7,14-15,17-18
+skills/roadmap/SKILL.md
+  s_c3e01b13306b4a::t_fba5b8c40c06b1 88-91
+  s_c3e01b13306b4a::t_7e26a42999277d 23-27
+  s_c3e01b13306b4a::t_bb11d2125c0604 96
+  s_c3e01b13306b4a::t_85f695f40b0019 43-44
+  s_c3e01b13306b4a::t_27ec5a27a86373 109
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "65f4824a6bd14ef900cf6bd2b18bcf3ba6b44ee0",
+  "prompts": {},
+  "sessions": {
+    "s_c3e01b13306b4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "46aca194-d4f2-48b2-b6c7-6384e27be68b",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
