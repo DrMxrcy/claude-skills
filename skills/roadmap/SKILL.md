@@ -199,7 +199,7 @@ On invocation, detect state and pick a phase:
 - `orient [--json] [--hook]` — session orientation (project, progress, next item, drift)
 - `handoff [--json]` — multi-coder switch brief (orient + git dirty + checklist)
 - `drift-check` — nudge if commits landed without a check-off
-- `tidy [--json]` — report-only free-form/incubator hygiene analysis (long bullets, nested blocks, dupes vs tracked items, stray prose); `/roadmap:tidy` applies the grooming
+- `tidy [--json] [--externalize [PATH]]` — report-only free-form/incubator hygiene analysis (long bullets, nested blocks, dupes vs tracked items, stray prose); `--externalize` moves the incubator into a linked external file (default `.roadmap/IDEAS.md`; `idea`/`promote`/`remove` follow via `settings.incubatorFile`); `/roadmap:tidy` applies the grooming + idea curation
 - `sync` — recompute progress + re-render ROADMAP.md **and both changelogs** (safe anytime)
 - `upgrade` — refresh this project's `CLAUDE.md` + `AGENTS.md` rules to the installed skill version
 - `changelog [--internal] [--backfill]` — print the public (or `--internal`) changelog + audit warnings; `--backfill` dates past versions from git tags

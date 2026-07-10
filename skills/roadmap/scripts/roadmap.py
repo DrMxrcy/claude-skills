@@ -451,20 +451,34 @@ def set_depends(root: Path, plan_id: int, on: list[int], clear: bool = False) ->
 
 
 INCUBATOR_RE = re.compile(r"(?im)^#{1,6}\s+.*idea incubator.*$")
+INCUBATOR_HEADING = "## 💡 Idea Incubator"
+
+
+def incubator_file(root: Path) -> Path:
+    """Where Idea Incubator bullets live: ROADMAP.md by default, or the external file
+    named by settings.incubatorFile (set by `tidy --externalize`)."""
+    try:
+        rel = read_config(root).get("settings", {}).get("incubatorFile")
+    except (ValueError, FileNotFoundError):
+        rel = None
+    return (root / rel) if rel else (root / "ROADMAP.md")
 
 
 def _incubator_append(root: Path, stub: str) -> None:
     """Append one bullet under the free-form Idea Incubator heading, creating the
-    heading if missing. Edits ROADMAP.md directly (outside the roadmap:auto markers,
-    which sync owns)."""
-    rm = root / "ROADMAP.md"
-    text = rm.read_text(encoding="utf-8")
+    heading (or the external incubator file) if missing. Edits happen outside the
+    roadmap:auto markers, which sync owns."""
+    target = incubator_file(root)
+    if not target.exists():
+        atomic_write(target, f"{INCUBATOR_HEADING}\n{stub}\n")
+        return
+    text = target.read_text(encoding="utf-8")
     m = INCUBATOR_RE.search(text)
     if m:
         new = text[:m.end()] + "\n" + stub + text[m.end():]
     else:
-        new = text.rstrip() + f"\n\n## 💡 Idea Incubator\n{stub}\n"
-    atomic_write(rm, new)
+        new = text.rstrip() + f"\n\n{INCUBATOR_HEADING}\n{stub}\n"
+    atomic_write(target, new)
 
 
 def _incubator_stub(root: Path, plan_id: int, title: str, archived: str | None = None) -> None:
@@ -477,13 +491,13 @@ def _incubator_stub(root: Path, plan_id: int, title: str, archived: str | None =
 
 def _strip_incubator_placeholder(root: Path) -> None:
     """Remove the template placeholder bullet so real ideas stand alone."""
-    rm = root / "ROADMAP.md"
-    if not rm.exists():
+    target = incubator_file(root)
+    if not target.exists():
         return
-    text = rm.read_text(encoding="utf-8")
+    text = target.read_text(encoding="utf-8")
     new = re.sub(r"(?m)^\s*[-*+]\s+\(add ideas here\)\s*\n?", "", text)
     if new != text:
-        atomic_write(rm, new)
+        atomic_write(target, new)
 
 
 def add_idea(root: Path, title: str, body: str | None = None) -> Path | None:
@@ -990,10 +1004,46 @@ def _norm_title(s: str) -> str:
     return re.sub(r"[^a-z0-9 ]+", "", s.lower()).strip()
 
 
+def externalize_incubator(root: Path, file: str = ".roadmap/IDEAS.md") -> Path:
+    """Move the Idea Incubator region out of ROADMAP.md into `file` (verbatim,
+    lossless), leave one linked bullet on the dashboard, and record
+    settings.incubatorFile so idea/promote/remove target the new home."""
+    cfg = read_config(root)
+    settings = cfg.setdefault("settings", {})
+    if settings.get("incubatorFile"):
+        raise ValueError(f"incubator is already external: {settings['incubatorFile']}")
+    dest = root / file
+    if dest.exists():
+        raise ValueError(f"{file} already exists — pick another path")
+    rm = root / "ROADMAP.md"
+    text = rm.read_text(encoding="utf-8") if rm.exists() else ""
+    link = (f"- Parked ideas live in [{file}]({file}) — "
+            "`roadmap.py idea` / `promote` target it.\n")
+    kept, moved, in_region = [], [], False
+    for ln in text.splitlines(keepends=True):
+        if not in_region and INCUBATOR_RE.match(ln.rstrip("\n")):
+            in_region = True
+            kept.append(ln if ln.endswith("\n") else ln + "\n")
+            kept.append(link)
+            continue
+        if in_region and (AUTO_START in ln or re.match(r"^#{1,6}\s", ln)):
+            in_region = False
+        (moved if in_region else kept).append(ln)
+    if not any(INCUBATOR_RE.match(l.rstrip("\n")) for l in kept):
+        kept.append(f"\n{INCUBATOR_HEADING}\n{link}")
+    body = "".join(moved).strip("\n")
+    atomic_write(dest, f"{INCUBATOR_HEADING}\n" + (body + "\n" if body else ""))
+    atomic_write(rm, "".join(kept))
+    settings["incubatorFile"] = file
+    write_config(root, cfg)
+    return dest
+
+
 def tidy_report(root: Path) -> dict:
-    """Analyze the free-form region of ROADMAP.md (Idea Incubator + surrounding prose)
-    and report what needs grooming. Report-only by design: scripts never rewrite the
-    free-form region — the /roadmap:tidy command flow applies the judgment edits."""
+    """Analyze the free-form region of ROADMAP.md (Idea Incubator + surrounding prose,
+    plus the external incubator file when settings.incubatorFile is set) and report
+    what needs grooming. Report-only by design: scripts never rewrite the free-form
+    region — the /roadmap:tidy command flow applies the judgment edits."""
     import difflib
     rm = root / "ROADMAP.md"
     report = {"clean": True, "warnings": [], "bullets": [],
@@ -1006,10 +1056,15 @@ def tidy_report(root: Path) -> dict:
     except (ValueError, FileNotFoundError, KeyError):
         tracked = []
 
+    src_lines = _freeform_lines(rm.read_text(encoding="utf-8"))
+    inc = incubator_file(root)
+    if inc != rm and inc.exists():
+        src_lines += inc.read_text(encoding="utf-8").splitlines()
+
     bullets, prose = [], report["prose"]
     cur = None
     seen_h1 = in_comment = False
-    for line in _freeform_lines(rm.read_text(encoding="utf-8")):
+    for line in src_lines:
         stripped = line.strip()
         if in_comment:
             in_comment = "-->" not in stripped
@@ -1364,8 +1419,9 @@ INCUBATOR_BULLET_RE = re.compile(r"^(\s*[-*+]\s+)(.+)$")
 
 
 def list_incubator_bullets(root: Path) -> list[dict]:
-    """Parse free-form Idea Incubator bullets (outside roadmap:auto markers)."""
-    rm = root / "ROADMAP.md"
+    """Parse free-form Idea Incubator bullets (from ROADMAP.md, or the external
+    incubator file when settings.incubatorFile is set)."""
+    rm = incubator_file(root)
     if not rm.exists():
         return []
     text = rm.read_text(encoding="utf-8")
@@ -1426,8 +1482,8 @@ def promote_idea(root: Path, *, match: str | None = None, index: int | None = No
     title = chosen["title"]
     path = new_item(root, type_, title, version=version, note=note, audience=audience)
 
-    # Remove only the chosen bullet from ROADMAP.md (free-form incubator region).
-    rm = root / "ROADMAP.md"
+    # Remove only the chosen bullet from the incubator (free-form region).
+    rm = incubator_file(root)
     text = rm.read_text(encoding="utf-8")
     new_lines, removed = [], False
     target = chosen["line"].rstrip("\n")
@@ -1618,6 +1674,10 @@ def main(argv: list[str]) -> int:
     p_tidy = sub.add_parser(
         "tidy", help="report free-form / Idea Incubator hygiene issues (report-only)")
     p_tidy.add_argument("--json", action="store_true", dest="as_json")
+    p_tidy.add_argument("--externalize", nargs="?", const=".roadmap/IDEAS.md",
+                        metavar="PATH",
+                        help="move the Idea Incubator into PATH (default "
+                             ".roadmap/IDEAS.md), leaving a link in ROADMAP.md")
 
     p_imp = sub.add_parser("import")
     p_imp.add_argument("path")
@@ -1688,6 +1748,11 @@ def main(argv: list[str]) -> int:
             upgrade(root)
             return 0
         if args.command == "tidy":
+            if args.externalize:
+                dest = externalize_incubator(root, args.externalize)
+                print(f"Idea Incubator moved to {dest.relative_to(root)} — ROADMAP.md "
+                      "keeps a link; idea/promote/remove now target it.")
+                return 0
             rep = tidy_report(root)
             if args.as_json:
                 print(json.dumps(rep, indent=2))

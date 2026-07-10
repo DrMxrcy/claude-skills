@@ -1095,6 +1095,67 @@ def test_cli_tidy_json(roadmap, repo, monkeypatch, capsys):
     assert "needs grooming" in out and "/roadmap:tidy" in out
 
 
+# ---- externalized incubator -------------------------------------------------------
+
+def test_externalize_moves_bullets_and_leaves_link(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.add_idea(repo, "First parked idea")
+    dest = roadmap.externalize_incubator(repo)
+    assert dest == repo / ".roadmap/IDEAS.md"
+    ideas = dest.read_text()
+    assert "First parked idea" in ideas
+    rm_text = (repo / "ROADMAP.md").read_text()
+    assert "First parked idea" not in rm_text
+    assert ".roadmap/IDEAS.md" in rm_text                 # link bullet stays
+    cfg = roadmap.read_config(repo)
+    assert cfg["settings"]["incubatorFile"] == ".roadmap/IDEAS.md"
+
+
+def test_externalize_twice_raises(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.externalize_incubator(repo)
+    with pytest.raises(ValueError):
+        roadmap.externalize_incubator(repo)
+
+
+def test_idea_and_promote_target_external_file(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.externalize_incubator(repo)
+    roadmap.add_idea(repo, "External parked idea")
+    ideas = repo / ".roadmap/IDEAS.md"
+    assert "External parked idea" in ideas.read_text()
+    assert "External parked idea" not in (repo / "ROADMAP.md").read_text()
+    path = roadmap.promote_idea(repo, match="External parked")
+    assert path.exists()
+    assert "External parked idea" not in ideas.read_text()
+
+
+def test_remove_demotes_to_external_file(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.externalize_incubator(repo)
+    roadmap.new_item(repo, "feature", "Doomed thing")
+    roadmap.remove_item(repo, 1)
+    assert "(was #1) Doomed thing" in (repo / ".roadmap/IDEAS.md").read_text()
+    assert "(was #1)" not in (repo / "ROADMAP.md").read_text()
+
+
+def test_tidy_report_covers_external_file(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.externalize_incubator(repo)
+    ideas = repo / ".roadmap/IDEAS.md"
+    ideas.write_text(ideas.read_text() + "- prose wall idea " + "w" * 300 + "\n")
+    rep = roadmap.tidy_report(repo)
+    assert any("long-no-link" in b["flags"] for b in rep["bullets"])
+
+
+def test_externalized_dashboard_is_tidy_clean(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.add_idea(repo, "Some idea")
+    roadmap.externalize_incubator(repo)
+    rep = roadmap.tidy_report(repo)
+    assert rep["clean"] is True
+
+
 # --- next / depends gating / promote / orient / drift / multi-agent rules ------
 
 def test_next_item_skips_blocked_dependency(roadmap, repo, capsys):

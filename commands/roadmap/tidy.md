@@ -1,36 +1,50 @@
 ---
-description: Groom the Idea Incubator & free-form region — one linked bullet per idea, prose into notes files
-argument-hint: (no args)
+description: Groom the Idea Incubator & free-form region — notes files, curation vs the roadmap, optional externalize
+argument-hint: [--externalize]
 ---
 
 Groom the **free-form region** of `ROADMAP.md` — the Idea Incubator plus any phase
 sketches, deferred/conditional sections, and stray prose outside the `roadmap:auto`
 markers — back to skimmable, with the **roadmap** skill.
 
-This is the ONE sanctioned direct edit of `ROADMAP.md`: scripts never rewrite the
-free-form region, so the grooming judgment is yours. **Never touch anything between
+This is the ONE sanctioned direct edit of the free-form region: scripts never rewrite it,
+so the grooming judgment is yours. **Never touch anything between
 `<!-- roadmap:auto:start -->` and `<!-- roadmap:auto:end -->`** — that region belongs to
-`sync`.
+`sync`. If `settings.incubatorFile` is set, the incubator lives in that external file
+(e.g. `.roadmap/IDEAS.md`) — groom there too.
 
 1. Run `python3 <roadmap.py> tidy` (add `--json` for structured output) — a deterministic,
    report-only hygiene analysis: over-long bullets, nested sub-bullet blocks, bullets that
-   duplicate tracked items, prose paragraphs outside any bullet, size warnings.
-2. Read the free-form region, `.roadmap/notes/`, and `python3 <roadmap.py> status --json`,
-   then draft a grooming plan:
+   duplicate tracked items, prose paragraphs outside any bullet, size warnings. Covers the
+   external incubator file when one is configured.
+2. **Format pass (lossless — apply freely):**
    - **Prose-wall bullet or nested block** → write the FULL body to
      `.roadmap/notes/<date>-<slug>.md` and shrink the bullet to one line:
      `- <title> ([notes](.roadmap/notes/<file>.md))`.
    - **Multi-idea section** (phase sketches, "deferred / conditional" lists) → one linked
-     bullet per idea, same treatment; a shared write-up may live in one notes file.
-   - **Duplicate of a tracked item** → replace with `→ #<id>` or drop the bullet; if it is
-     really untracked work, promote it instead (`roadmap.py promote` / `/roadmap:plan`).
-   - **Shipped or stale residue** → flag it for the user; never silently delete.
-3. **Lossless by default:** every line removed from `ROADMAP.md` must land verbatim in a
-   notes file (or already exist in one) — tidy reorganizes, it does not destroy. Only the
-   user may approve true deletions.
-4. Interactive session: present the plan, apply on approval. Non-interactive (`--auto`,
-   hooks, autonomous run): apply the lossless moves directly and leave
-   flagged-for-deletion items in place with a note in your summary.
+     bullet per idea; a shared write-up may live in one notes file.
+   - Every line removed must land verbatim in a notes file (or already exist in one) —
+     this pass reorganizes, it never destroys.
+3. **Curation pass (reevaluate ideas against the current roadmap — lossy, needs
+   approval):** read `python3 <roadmap.py> status --json` plus recent git history, then
+   for each idea bullet propose one of:
+   - **Shipped / superseded** by a tracked item or commit → drop the bullet (cite the
+     item id or commit).
+   - **Duplicate / overlapping ideas** → merge into ONE bullet (union of their notes
+     files, cross-linked).
+   - **Ripe** (unblocked, fits the current version's theme) → promote it:
+     `python3 <roadmap.py> promote --match "<title>" [--type T --version V]`.
+   - **Still valid, still parked** → leave alone.
+   Interactive session: present the proposals and apply on approval. Non-interactive
+   (`--auto`, hooks, autonomous run): apply only merges whose bullets are verbatim-level
+   duplicates; report the rest — never drop an idea without the user.
+4. **Dashboard still too busy? Externalize the incubator:**
+   `python3 <roadmap.py> tidy --externalize [PATH]` mechanically moves the whole
+   incubator into `PATH` (default `.roadmap/IDEAS.md`), leaves one linked bullet in
+   `ROADMAP.md`, and records `settings.incubatorFile` so `idea` / `promote` / `remove`
+   target the new home automatically. Lossless and instant — offer it when the user
+   wants ROADMAP.md to be a pure dashboard, or when the idea list stays long even after
+   grooming.
 5. Re-run `python3 <roadmap.py> tidy` to confirm clean (or explain what remains), run
    `python3 <roadmap.py> sync`, and commit the roadmap + notes files together.
 
