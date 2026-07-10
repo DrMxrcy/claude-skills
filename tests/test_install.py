@@ -187,10 +187,13 @@ def test_install_writes_claude_md_rules(tmp_path):
     assert "roadmap:rules:start" in cm
     assert "One item at a time" in cm
     assert "Quality-first build" in cm
+    assert "Micro-commit" in cm
+    assert "Abrupt switch" in cm
     assert "/roadmap-<cmd>" in cm
     agents = (tmp_path / "AGENTS.md").read_text()
     assert "roadmap:rules:start" in agents
     assert "high-quality" in agents
+    assert "rate-limit" in agents or "Rate limits" in agents
 
 
 def test_install_claude_md_is_idempotent(tmp_path):

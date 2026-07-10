@@ -341,6 +341,10 @@ def test_init_creates_claude_md_rules(roadmap, repo):
     assert "One item at a time" in cm
     assert "Quality-first build" in cm
     assert "high-quality" in cm
+    assert "handoff` is optional" in cm or "handoff is optional" in cm
+    assert "Micro-commit" in cm
+    assert "Abrupt switch" in cm
+    assert "rate-limit" in cm or "Rate limits" in cm
 
 
 def test_init_claude_md_idempotent_and_preserves_content(roadmap, repo):
@@ -1190,6 +1194,8 @@ def test_init_writes_agents_md_and_dual_slash_names(roadmap, repo):
         assert "/roadmap-<cmd>" in text
         assert "Quality-first build" in text
         assert "spec review" in text
+        assert "Micro-commit" in text
+        assert "Abrupt switch" in text
 
 
 def test_rules_block_in_example(roadmap):

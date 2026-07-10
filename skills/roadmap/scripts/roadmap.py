@@ -15,16 +15,37 @@ RULES_END = "<!-- roadmap:rules:end -->"
 # This block is the always-on harness: same discipline for Claude, Grok, Codex, etc.
 RULES_BLOCK = """<!-- roadmap:rules:start -->
 ## Roadmap tracking
-This project uses the **roadmap** skill so AI coders (Claude Code, Grok Build, and others) stay **on-task** and ship **high-quality** code — not ad-hoc thrash. The living source of truth is `ROADMAP.md` + `.roadmap/plans/` via the deterministic CLI.
+This project uses the **roadmap** skill so AI coders (Claude Code, Grok Build, and others) stay **on-task** and ship **high-quality** code — not ad-hoc thrash. Living truth is **git**: `ROADMAP.md` + `.roadmap/` (plans, config) + `CHANGELOG*.md` via the deterministic CLI only.
+
+### Surfaces (every agent)
 - **Slash names:** Claude Code → `/roadmap:<cmd>` (e.g. `/roadmap:status`); Grok Build → `/roadmap-<cmd>` (e.g. `/roadmap-status`). Bare `/roadmap <cmd>` works on either.
-- **Orient first:** at session start run `roadmap.py orient` or `/roadmap:status` / `/roadmap-status` (or read `ROADMAP.md`) before writing code.
-- **Nothing off-roadmap:** new features/bugs become items via `/roadmap:plan` / `/roadmap-plan` before coding; park ideas with `/roadmap:idea` / `/roadmap-idea` (one bullet; long write-ups → linked `.roadmap/notes/`). Promote with `/roadmap:promote` / `/roadmap-promote`.
+- **CLI resolve once:** probe `.claude|.grok|.agents` skills paths (project then `$HOME`); never hand-edit `ROADMAP.md`.
+
+### Always on-task
+- **Orient first:** at session start run `roadmap.py orient` (or `/roadmap:status` / `/roadmap-status`, or read `ROADMAP.md`) before writing code. SessionStart orient may inject this automatically.
+- **Nothing off-roadmap:** features/bugs → `/roadmap:plan` / `/roadmap-plan` before coding; park ideas with `/roadmap:idea` / `/roadmap-idea` (one bullet; long write-ups → linked `.roadmap/notes/`). Promote with `/roadmap:promote` / `/roadmap-promote`.
 - **One item at a time.** Active plan in `.roadmap/plans/` required for functional code. No multitasking across features/bugs. Respect `dependsOn` (`roadmap.py next` skips blocked items).
-- **Quality-first build (default for `/roadmap:build` / `/roadmap-build`, including `--auto`):** for each checklist step — optional explore research → one implementer subagent → **spec review** subagent → **quality review** subagent → parent runs real build/tests → only then `check` + **micro-commit code+roadmap immediately**. Parent owns all `roadmap.py` calls; children never edit `ROADMAP.md`. `--auto` skips user pauses between items, **not** reviews or tests. Prefer superpowers `subagent-driven-development` when available.
 - **Specs are law:** follow each plan's linked Spec / Detailed plan; the checklist is the tracker, not the design.
-- **Never hand-edit `ROADMAP.md`.** Use the CLI / `/roadmap:done` / `/roadmap-done`. If work happened outside the loop, `/roadmap:catchup` / `/roadmap-catchup` after verifying tests.
-- **Multi-coder sync / rate limits:** the **git repo** is the shared brain — formal `handoff` is optional. Micro-commit after every checked step so a rate-limit mid-session loses at most one unfinished step. On any new agent (or after rate-limit): `git pull` if needed → `roadmap.py orient` or `handoff` (SessionStart orient also runs) → if dirty, commit or inspect → if drift, catchup after tests → continue `next`/`build` from the plan checklist. Never keep a private parallel plan in chat.
-- **Ship clean:** before release, `/roadmap:review` / `/roadmap-review` the version (spec + code review).
+
+### Quality-first build (default for `/roadmap:build` / `/roadmap-build`, including `--auto`)
+- Per checklist step: optional **explore** research → **one** implementer subagent → **spec review** subagent → **quality review** subagent → parent runs real build/tests → only then `roadmap.py check` → **micro-commit code+roadmap immediately** (one commit per checked step).
+- **Parent owns all `roadmap.py` calls**; children never edit `ROADMAP.md` or run `check`.
+- **No parallel implementers** on the same working tree by default (conflicts hide bugs).
+- **`--auto`** skips *user* pauses between items only — **never** skip reviews or tests.
+- Prefer superpowers `subagent-driven-development` when available; else native subagents (Grok `spawn_subagent`, Claude Task).
+
+### Multi-coder sync & rate limits
+- **Git is the shared brain** across Claude ↔ Grok ↔ any agent. Chat memory is not a plan.
+- **Formal `handoff` is optional.** Rate limits, crashes, and killed sessions are normal.
+- **Micro-commit after every successful `check`** so a rate-limit loses at most the in-flight step, never a whole item.
+- **Abrupt switch / resume (no prior handoff):** open the other agent in the same repo → `git status` (commit any left code+roadmap) → `roadmap.py orient` or `handoff` (SessionStart orient counts) → if drift, `/roadmap:catchup` / `/roadmap-catchup` after tests → continue from the **next unchecked plan step** via `/roadmap:next` / `/roadmap-next` or build. Do **not** re-derive the plan from the dead chat.
+- **Ideal leave (when you can):** after a checked step commit is already done; optional `roadmap.py handoff` + `git push`.
+- **Never** maintain a private parallel plan outside `.roadmap/`.
+
+### Integrity
+- **Never hand-edit `ROADMAP.md`.** Use CLI / `/roadmap:done` / `/roadmap-done`.
+- **Catchup** only after verifying tests for steps done outside the loop.
+- **Ship clean:** before release, `/roadmap:review` / `/roadmap-review` (spec + code review); curate public notes via changelog/audience.
 <!-- roadmap:rules:end -->"""
 
 # Agent-neutral project instruction files that receive the same rules block.
