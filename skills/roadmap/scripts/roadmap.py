@@ -812,8 +812,9 @@ def render_public_changelog(root: Path) -> tuple[str, list[str]]:
     user-facing `note` ONLY (never the raw title). A public item with no note is skipped;
     if it has already shipped (complete) that omission is returned as a warning and the
     item is covered by the roll-up line, so a shipped version never vanishes from the
-    public changelog. Versions that also shipped internal-only work get one roll-up line
-    instead of listing it. Returns (markdown, warnings)."""
+    public changelog. The roll-up line appears ONLY when a version has nothing public to
+    show — versions with real public bullets stay clean (less is more); internal work
+    remains fully logged in CHANGELOG.internal.md. Returns (markdown, warnings)."""
     warnings: list[str] = []
     out = ["# Changelog", ""]
     for _version, header, rows in _changelog_versions(root):
@@ -836,12 +837,41 @@ def render_public_changelog(root: Path) -> tuple[str, list[str]]:
             section = TYPE_SECTION.get(it["type"], "⚡ Improved")
             sections.setdefault(section, []).append((row["complete"], note))
         lines = _grouped_lines(sections)
-        if rolled_up:
+        if rolled_up and not lines:
             lines += [ROLLUP_LINE, ""]
         if not lines:
             continue                       # nothing public to show for this version
         out += [header, "", *lines]
     return "\n".join(out).rstrip() + "\n", warnings
+
+
+def changelog_json(root: Path) -> list[dict]:
+    """Structured public changelog for app builds (in-app changelog screens, "What's
+    New" popups). Same selection rules as render_public_changelog — public audience,
+    note text only — but as data: one object per version, newest first. Callers
+    filtering for a popup should keep `released == true` versions only."""
+    cfg = read_config(root)
+    version_dates = cfg.get("versionDates", {})
+    out = []
+    for version, _header, rows in _changelog_versions(root):
+        sections: dict[str, list[dict]] = {}
+        rollup = False
+        released = bool(rows) and all(r["complete"] for r in rows)
+        for row in rows:
+            it = row["item"]
+            if item_audience(it) != "public" or not it.get("note"):
+                rollup = True
+                continue
+            section = TYPE_SECTION.get(it["type"], "⚡ Improved")
+            # strip the emoji prefix for machine keys: "✨ New" -> "New"
+            key = section.split(" ", 1)[1] if " " in section else section
+            sections.setdefault(key, []).append(
+                {"text": it["note"], "pending": not row["complete"]})
+        if not sections and not rollup:
+            continue
+        out.append({"version": version, "date": version_dates.get(version),
+                    "released": released, "sections": sections, "rollup": rollup})
+    return out
 
 
 def render_internal_changelog(root: Path) -> str:
@@ -1709,6 +1739,9 @@ def main(argv: list[str]) -> int:
     p_cl.add_argument("--backfill", action="store_true")
     p_cl.add_argument("--internal", action="store_true",
                       help="print CHANGELOG.internal.md instead of the public CHANGELOG.md")
+    p_cl.add_argument("--json", action="store_true", dest="as_json",
+                      help="emit the public changelog as structured JSON "
+                           "(for in-app changelog screens / What's New popups)")
 
     p_rt = sub.add_parser("retarget")
     p_rt.add_argument("--to", required=True)
@@ -1850,6 +1883,9 @@ def main(argv: list[str]) -> int:
                 sync(root, quiet=True)
             for m in audit_public_notes(root):
                 print(f"warning: {m}", file=sys.stderr)
+            if args.as_json:
+                print(json.dumps(changelog_json(root), indent=2))
+                return 0
             cl = root / ("CHANGELOG.internal.md" if args.internal else "CHANGELOG.md")
             if cl.exists():
                 print(cl.read_text(encoding="utf-8"), end="")

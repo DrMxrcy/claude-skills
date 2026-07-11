@@ -8,13 +8,20 @@ Curate the changelog via the **roadmap** skill. Target: $ARGUMENTS (default: cur
 There are **two** changelogs, both rendered deterministically by the CLI:
 - `CHANGELOG.md` — **public**. Only `audience: public` items, rendered from each item's
   user-facing `note` (never the raw title). Ready to paste into the App Store "What's New"
-  or a website changelog. Versions that also shipped internal-only work get one rolled-up
-  "behind-the-scenes" line instead of listing it.
+  or a website changelog. **Less is more:** a version with real public bullets shows only
+  those; the "behind-the-scenes" roll-up line appears only when a version shipped nothing
+  public to say.
 - `CHANGELOG.internal.md` — **internal**. Every item, with the raw title as a fallback —
   the full dev-facing work log.
 
 **Show / copy:** `python3 <roadmap.py> changelog` prints the public file; add `--internal`
 for the full log. If the section is already curated, it's ready to paste.
+
+**In-app consumption:** `python3 <roadmap.py> changelog --json` emits the public changelog
+as structured data — `[{version, date, released, sections: {New/Fixed/Improved:
+[{text, pending}]}, rollup}]` — for build pipelines feeding an in-app changelog screen or
+"What's New" popup. Popups should filter to `released: true` and typically show only the
+newest version's entries.
 
 **Auto-routing.** The CLI already does the high-confidence calls for you: an item with no
 explicit `audience` whose note/title trips an admin, compliance, security-disclosure, or

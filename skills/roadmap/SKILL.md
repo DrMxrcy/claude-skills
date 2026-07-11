@@ -205,7 +205,7 @@ On invocation, detect state and pick a phase:
 - `tidy [--json] [--externalize [PATH]]` — report-only free-form/incubator hygiene analysis (long bullets, nested blocks, dupes vs tracked items, stray prose); `--externalize` moves the incubator into a linked external file (default `.roadmap/IDEAS.md`; `idea`/`promote`/`remove` follow via `settings.incubatorFile`); `/roadmap:tidy` applies the grooming + idea curation
 - `sync` — recompute progress + re-render ROADMAP.md **and both changelogs** (safe anytime)
 - `upgrade` — refresh this project's `CLAUDE.md` + `AGENTS.md` rules to the installed skill version
-- `changelog [--internal] [--backfill]` — print the public (or `--internal`) changelog + audit warnings; `--backfill` dates past versions from git tags
+- `changelog [--internal] [--backfill] [--json]` — print the public (or `--internal`) changelog + audit warnings; `--backfill` dates past versions from git tags; `--json` emits structured data (versions, dates, sections, pending flags) for in-app changelog screens / What's New popups
 - `release --version V [--tag] [--force]` — bump version (optional; changelog is automatic)
 - `status [--json]` — print current state (shows `blocked by […]` when deps incomplete)
 - `import PATH` — extract checklist lines from a file into a plan

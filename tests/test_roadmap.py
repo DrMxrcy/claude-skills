@@ -793,7 +793,9 @@ def test_internal_item_excluded_from_public_but_in_internal(roadmap, repo):
     public = (repo / "CHANGELOG.md").read_text()
     internal = (repo / "CHANGELOG.internal.md").read_text()
     assert "Sign in with email" in public and "Cache rewrite" not in public
-    assert roadmap.ROLLUP_LINE in public                       # internal work rolled up
+    # Versions with real public bullets stay clean — no roll-up line (less is more);
+    # the internal work is still fully logged in CHANGELOG.internal.md.
+    assert roadmap.ROLLUP_LINE not in public
     assert "Cache rewrite" in internal and "Sign in with email" in internal
 
 
@@ -1093,6 +1095,44 @@ def test_cli_tidy_json(roadmap, repo, monkeypatch, capsys):
     assert roadmap.main(["tidy"]) == 0
     out = capsys.readouterr().out
     assert "needs grooming" in out and "/roadmap:tidy" in out
+
+
+# ---- changelog --json --------------------------------------------------------------
+
+def test_changelog_json_structure(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "Login", note="Sign in with email")
+    roadmap.new_item(repo, "bug", "Crash", note="Fixed a crash on launch")
+    roadmap.new_item(repo, "refactor", "Cache", note="Cache rewrite")   # internal
+    roadmap.check_step(repo, 1, None, all_done=True)
+    roadmap.check_step(repo, 2, None, all_done=True)
+    roadmap.check_step(repo, 3, None, all_done=True)
+    data = roadmap.changelog_json(repo)
+    assert len(data) == 1
+    v = data[0]
+    assert v["version"] == "0.0.1" and v["released"] is True and v["date"]
+    assert v["sections"]["New"] == [{"text": "Sign in with email", "pending": False}]
+    assert v["sections"]["Fixed"] == [{"text": "Fixed a crash on launch", "pending": False}]
+    assert v["rollup"] is True                       # the internal refactor
+    assert "Cache rewrite" not in json.dumps(v)      # internal note never leaks
+
+
+def test_changelog_json_pending_and_unreleased(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "Half done", note="Coming soon thing")
+    data = roadmap.changelog_json(repo)
+    assert data[0]["released"] is False and data[0]["date"] is None
+    assert data[0]["sections"]["New"][0]["pending"] is True
+
+
+def test_cli_changelog_json(roadmap, repo, monkeypatch, capsys):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "Login", note="Sign in with email")
+    roadmap.check_step(repo, 1, None, all_done=True)
+    monkeypatch.chdir(repo)
+    assert roadmap.main(["changelog", "--json"]) == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data[0]["sections"]["New"][0]["text"] == "Sign in with email"
 
 
 # ---- externalized incubator -------------------------------------------------------
