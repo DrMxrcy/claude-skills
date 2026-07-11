@@ -1,0 +1,26 @@
+skills/roadmap/scripts/roadmap.py
+  s_4f7fc8e942d306::t_c6269edc39d5ee 32
+skills/roadmap/references/state-model.md
+  s_4f7fc8e942d306::t_73a7d89cd144b3 7
+  s_4f7fc8e942d306::t_9a4b525dad3324 20
+skills/roadmap/SKILL.md
+  s_4f7fc8e942d306::t_8a82e0c6645694 81-83
+skills/roadmap/VERSION
+  s_4f7fc8e942d306::t_0528e4e5ac30f8 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.11",
+  "base_commit_sha": "6f4489e59c8f48d1ec3e8ffda2d6fb172f7b4832",
+  "prompts": {},
+  "sessions": {
+    "s_4f7fc8e942d306": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4176f2a3-2ba7-4da1-91aa-9d0bb80f4ac8",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
