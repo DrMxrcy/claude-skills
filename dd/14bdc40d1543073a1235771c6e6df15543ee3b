@@ -1,0 +1,33 @@
+tests/test_roadmap.py
+  s_4f7fc8e942d306::t_f8392537e0e1c5 796-798
+  s_4f7fc8e942d306::t_4bf9498e5638cc 1100-1137
+commands/roadmap/changelog.md
+  s_4f7fc8e942d306::t_deffba68f0f1dc 11-13,20-24
+  s_4f7fc8e942d306::t_6878ab837ed582 25
+skills/roadmap/scripts/roadmap.py
+  s_4f7fc8e942d306::t_54da38a634d6f6 1886-1888
+  s_4f7fc8e942d306::t_61eb933a48e176 1742-1744
+  s_4f7fc8e942d306::t_4be1817c492b72 840,848-874
+  s_4f7fc8e942d306::t_1b664133f28fe1 815-817
+  s_4f7fc8e942d306::t_d99e421a93f4a5 875-876
+skills/roadmap/SKILL.md
+  s_4f7fc8e942d306::t_a9e4116d0e6b74 208
+skills/roadmap/VERSION
+  s_4f7fc8e942d306::t_f6d9731785c89e 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.11",
+  "base_commit_sha": "dd14bdc40d1543073a1235771c6e6df15543ee3b",
+  "prompts": {},
+  "sessions": {
+    "s_4f7fc8e942d306": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4176f2a3-2ba7-4da1-91aa-9d0bb80f4ac8",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
