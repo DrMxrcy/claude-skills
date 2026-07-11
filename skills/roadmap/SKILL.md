@@ -78,6 +78,9 @@ If there are no args (bare `/roadmap`), use **Phase routing** below.
   paste prose walls into ROADMAP.md. `status` warns when the file outgrows these bounds;
   groom it back with `/roadmap:tidy` · `/roadmap-tidy` (`roadmap.py tidy` prints the
   report — the only sanctioned direct edit of the free-form region, never the auto region).
+  The incubator itself may live in an external file (`settings.incubatorFile`, usually
+  `.roadmap/IDEAS.md` via `tidy --externalize`) — the CLI resolves the location; groom
+  and read ideas wherever it points.
 - One trackable item at a time. No multitasking across features/bugs.
 - No functional code without an active plan file in `.roadmap/plans/`.
 - Run the build/tests for a step BEFORE you `check` it.

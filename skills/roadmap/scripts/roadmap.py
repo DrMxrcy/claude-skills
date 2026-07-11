@@ -29,6 +29,7 @@ This project uses the **roadmap** skill so AI coders (Claude Code, Grok Build, a
 ### Always on-task
 - **Orient first:** at session start run `roadmap.py orient` (or `/roadmap:status` / `/roadmap-status`, or read `ROADMAP.md`) before writing code. SessionStart orient may inject this automatically.
 - **Nothing off-roadmap:** features/bugs → `/roadmap:plan` / `/roadmap-plan` before coding; park ideas with `/roadmap:idea` / `/roadmap-idea` (one bullet; long write-ups → linked `.roadmap/notes/`). Promote with `/roadmap:promote` / `/roadmap-promote`.
+- **Incubator hygiene:** the Idea Incubator may live in `ROADMAP.md` or an external file (`settings.incubatorFile`, usually `.roadmap/IDEAS.md`) — the CLI resolves it; never hardcode the location. When it gets messy, groom with `/roadmap:tidy` / `/roadmap-tidy` (prose → notes files, curate ideas vs the roadmap; `tidy --externalize` moves it out of `ROADMAP.md`).
 - **One item at a time.** Active plan in `.roadmap/plans/` required for functional code. No multitasking across features/bugs. Respect `dependsOn` (`roadmap.py next` skips blocked items).
 - **Specs are law:** follow each plan's linked Spec / Detailed plan; the checklist is the tracker, not the design.
 
