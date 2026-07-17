@@ -1,0 +1,101 @@
+tests/test_install_agent.py
+  s_d343c3018bcc78::t_72cafb80a298d6 1-96
+skills/agent/README.md
+  s_d343c3018bcc78::t_676cc7b1eef9b2 1-61
+skills/agent/references/orchestration-policy.md
+  s_d343c3018bcc78::t_cfc9a9855f7cdd 1-25
+tests/test_install.py
+  s_d343c3018bcc78::t_b0cb29bb5c8b45 40-42
+.claude-plugin/plugin.json
+  s_d343c3018bcc78::t_262b3305a93b0a 4,6-7
+tests/test_roadmap.py
+  s_94d44090ce4e99::t_52edec72b003b0 1493-1549
+  s_94d44090ce4e99::t_2bb70ae1c10424 849-909
+tests/test_cli_e2e.py
+  s_94d44090ce4e99::t_028349f7262192 31-42
+  s_94d44090ce4e99::t_52edec72b003b0 43-56
+commands/roadmap/changelog.md
+  s_94d44090ce4e99::t_e6fa67e54817a2 52-56
+  s_94d44090ce4e99::t_edca1fcafa4739 9-13,15-16,22,24-25,28-45,92-95,99-102
+.gitignore
+  s_d343c3018bcc78::t_19de830689d8d0 4
+skills/agent/SKILL.md
+  s_d343c3018bcc78::t_3a7272ccfaf04b 1-66
+commands/roadmap/done.md
+  s_94d44090ce4e99::t_e6fa67e54817a2 18-21
+skills/roadmap/SKILL.md
+  s_94d44090ce4e99::t_83161807eff944 146-149
+  s_94d44090ce4e99::t_df3a4fe5716b40 176-179
+  s_94d44090ce4e99::t_b1ee49a1f1493e 181-189,206
+  s_94d44090ce4e99::t_e6fa67e54817a2 205
+skills/roadmap/scripts/roadmap.py
+  s_94d44090ce4e99::t_2a8fcfa0b27e8c 363-381
+  s_94d44090ce4e99::t_b234453da9adfd 949,952,966,968-969,971-973
+  s_94d44090ce4e99::t_8d393cc71e1bb1 1821-1822
+  s_94d44090ce4e99::t_0f97cb66086ee8 412-415,419
+  s_94d44090ce4e99::t_5b08adaf4971c3 782,786-796
+  s_94d44090ce4e99::t_e5104eb89fc8c3 383,388-389
+  s_94d44090ce4e99::t_b0cdfbb0c68294 1953-1954
+  s_94d44090ce4e99::t_dd10c5af232b0c 1897-1900
+  s_94d44090ce4e99::t_a2fb562e11c35f 1589-1590
+  s_94d44090ce4e99::t_6487c8e4dea9f1 439-477
+  s_94d44090ce4e99::t_96e4f6e8e5cf92 1759-1760,1765-1766
+  s_94d44090ce4e99::t_9ab3b831df476d 906,908-914
+  s_94d44090ce4e99::t_9f26775fc4b626 1888,1892
+  s_94d44090ce4e99::t_f9c16f5363ca23 1772-1781
+  s_94d44090ce4e99::t_372c73c1277cc6 1001,1003-1009,1011-1012
+  s_94d44090ce4e99::t_a2a780a45babc3 813-818,820-830
+  s_94d44090ce4e99::t_ed310b288a8b46 1625-1626
+  s_94d44090ce4e99::t_980da77292225f 754
+  s_44277f9322a351::t_8ca017e9ec5da7 797
+skills/agent/VERSION
+  s_d343c3018bcc78::t_386288fef3e4c2 1
+install.sh
+  s_d343c3018bcc78::t_60e68a2455918b 20-21
+  s_d343c3018bcc78::t_9e765c4d2d39e9 45-46
+  s_d343c3018bcc78::t_77b60ebdb6cd63 383-420,432-435
+  s_d343c3018bcc78::t_fb68815f3fc7c9 60-61
+  s_d343c3018bcc78::t_f6078b02b57f76 216-269
+  s_d343c3018bcc78::t_91a9a403200094 80-81
+skills/agent/.claude/agents/security-executor.md
+  s_d343c3018bcc78::t_219a8dd60ea76f 8-22
+  s_d343c3018bcc78::t_819bd63433c5c1 5-7
+  s_d343c3018bcc78::t_107d9b45eca228 23-25
+  s_d343c3018bcc78::t_13bbb5a1b5d7fb 1-4,26-27
+commands/roadmap/release.md
+  s_94d44090ce4e99::t_486af3d1bdec93 20-26
+skills/roadmap/VERSION
+  s_94d44090ce4e99::t_57cde15aacc2c9 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "7f3c2140fb6e84be2a17394bf8970318ac8e8185",
+  "prompts": {},
+  "sessions": {
+    "s_44277f9322a351": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2e52e9be-52d4-4e77-8341-6c75f3a40c28",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    },
+    "s_94d44090ce4e99": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e8324ce2-889f-4e20-9a25-b8583b9b42ba",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    },
+    "s_d343c3018bcc78": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c67ab28d-a1a5-419b-afef-e68ffc80e9ca",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
