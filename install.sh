@@ -17,6 +17,8 @@
 #   ./install.sh --no-orient     # do not wire the SessionStart orient hook
 #   ./install.sh --no-commands   # do not install the /roadmap:* (Claude) / /roadmap-* (Grok) slash commands
 #   ./install.sh --no-claude-md  # do not add roadmap rules to CLAUDE.md / AGENTS.md
+#   ./install.sh --no-agent      # do not install the cost-tiered agent orchestration fleet (Claude)
+#   ./install.sh --no-model      # do not set a default main-session model in settings.json
 #   ./install.sh --init          # also run `roadmap init` in the current directory
 #   ./install.sh -h | --help     # show this help
 #
@@ -40,6 +42,8 @@ orient=1
 do_init=0
 commands=1
 claude_md=1
+agent_fleet=1
+model_wire=1
 pass_args=()
 for arg in "$@"; do
   case "$arg" in
@@ -53,6 +57,8 @@ for arg in "$@"; do
     --no-orient) orient=0; pass_args+=("$arg") ;;
     --no-commands) commands=0; pass_args+=("$arg") ;;
     --no-claude-md) claude_md=0; pass_args+=("$arg") ;;
+    --no-agent) agent_fleet=0; pass_args+=("$arg") ;;
+    --no-model) model_wire=0; pass_args+=("$arg") ;;
     --init) do_init=1; pass_args+=("$arg") ;;
     -h|--help)
       cat <<'EOF'
@@ -71,6 +77,8 @@ rules to CLAUDE.md + AGENTS.md (no manual copying or settings edits).
   --no-orient             do not wire the SessionStart orient hook
   --no-commands           do not install slash commands
   --no-claude-md          do not add roadmap rules to CLAUDE.md / AGENTS.md
+  --no-agent              do not install the cost-tiered agent orchestration fleet (Claude)
+  --no-model              do not set a default main-session model in settings.json
   --init                  also run `roadmap init` in the current directory
 
 Remote (no clone):
@@ -205,6 +213,60 @@ else:
 PY
 }
 
+# Idempotently merge a marker-delimited block from a source file into a target
+# instruction file (CLAUDE.md / AGENTS.md). Updates the block in place if the markers
+# already exist, otherwise appends it — never rewrites the rest of the file.
+#   $1 target path  $2 source file (contains the block WITH markers)  $3 start  $4 end
+_merge_block() {
+  "$PYTHON" - "$1" "$2" "$3" "$4" <<'PY'
+import os, sys
+target, src, start, end = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+block = open(src, encoding="utf-8").read().strip()
+existing = open(target, encoding="utf-8").read() if os.path.exists(target) else ""
+if start in existing and end in existing:
+    before = existing.split(start)[0]
+    after = existing.split(end, 1)[1].lstrip("\n")
+    new = before + block + ("\n\n" + after if after.strip() else "\n")
+    action = "Updated"
+elif existing.strip():
+    new = existing.rstrip() + "\n\n" + block + "\n"
+    action = "Added"
+else:
+    new = block + "\n"
+    action = "Created"
+os.makedirs(os.path.dirname(target) or ".", exist_ok=True)
+with open(target, "w", encoding="utf-8") as f:
+    f.write(new)
+print(f"{action} orchestration policy in {target}")
+PY
+}
+
+# Pin a sensible main-session model + fallback chain — but ONLY when the user has not
+# already chosen a model, so an explicit setting is never overridden.
+_wire_model() {
+  "$PYTHON" - "$1" <<'PY'
+import json, os, sys
+path = sys.argv[1]
+data = {}
+if os.path.exists(path):
+    try:
+        data = json.load(open(path, encoding="utf-8"))
+    except json.JSONDecodeError:
+        print(f"Warning: {path} is not valid JSON; left model settings unchanged.", file=sys.stderr)
+        sys.exit(0)
+if "model" in data:
+    print(f"Main-session model already set to {data['model']!r} in {path}; left unchanged.")
+    sys.exit(0)
+data["model"] = "opus"
+data.setdefault("fallbackModel", ["sonnet", "haiku"])
+os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+with open(path, "w", encoding="utf-8") as f:
+    json.dump(data, f, indent=2)
+    f.write("\n")
+print(f"Pinned main-session model 'opus' (fallback: sonnet, haiku) in {path}")
+PY
+}
+
 if [ "$agent" = "grok" ]; then
   if [ "$hook" = "1" ] || [ "$orient" = "1" ]; then
     mkdir -p "$base/hooks"
@@ -318,6 +380,44 @@ print(f"Ensured roadmap rules in {path}")
 PY
 fi
 
+# Install the cost-tiered orchestration fleet (Claude only) unless --no-agent.
+# Copies the project subagents into <base>/agents/, merges the orchestration policy
+# into CLAUDE.md + AGENTS.md (idempotent; updates a marked block, never rewrites the
+# file), and pins a default model when none is set. The named-tier agents use Claude's
+# .claude/agents/ format, so this step is skipped for Grok installs.
+fleet_installed=0
+if [ "$agent_fleet" = "1" ] && [ "$agent" = "claude" ] && [ -d "$skills_dest/agent/.claude/agents" ]; then
+  agents_dest="$base/agents"
+  mkdir -p "$agents_dest"
+  copied=0
+  for af in "$skills_dest/agent/.claude/agents/"*.md; do
+    [ -f "$af" ] || continue
+    if [ "$link" = "1" ]; then
+      ln -sfn "$(cd "$(dirname "$af")" && pwd)/$(basename "$af")" "$agents_dest/$(basename "$af")"
+    else
+      cp "$af" "$agents_dest/$(basename "$af")"
+    fi
+    copied=$((copied + 1))
+  done
+  echo "Installed $copied orchestration agent(s) -> $agents_dest"
+  fleet_installed=1
+
+  # Merge the orchestration policy into CLAUDE.md + AGENTS.md (project scope only —
+  # like the roadmap rules, we never write a global CLAUDE.md). Honors --no-claude-md.
+  if [ "$claude_md" = "1" ]; then
+    policy_src="$skills_dest/agent/references/orchestration-policy.md"
+    if [ -f "$policy_src" ]; then
+      for target in CLAUDE.md AGENTS.md; do
+        _merge_block "$PWD/$target" "$policy_src" \
+          "<!-- agent:orchestration:start -->" "<!-- agent:orchestration:end -->"
+      done
+    fi
+  fi
+
+  # Pin a default main-session model (non-destructive) unless --no-model.
+  [ "$model_wire" = "1" ] && _wire_model "$settings"
+fi
+
 if [ "$do_init" = "1" ]; then
   echo "Running roadmap init in $PWD ..."
   "$PYTHON" "$skills_dest/roadmap/scripts/roadmap.py" init
@@ -329,4 +429,8 @@ if [ "$agent" = "grok" ]; then
   echo "Start a new Grok Build session to pick up the skill(s); run 'grok inspect' to verify discovery."
 else
   echo "Start a new Claude Code session to pick up the skill(s)."
+  if [ "$fleet_installed" = "1" ]; then
+    echo "The orchestration fleet registers on the NEXT session. Until then, dispatch"
+    echo "'general-purpose' with a model override (opus/sonnet/haiku) and the same brief."
+  fi
 fi

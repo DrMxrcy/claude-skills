@@ -1,8 +1,9 @@
 {
   "name": "claude-skills",
   "version": "0.8.0",
-  "description": "Local roadmap tracking and planning skills for AI-assisted development.",
+  "description": "Local roadmap tracking, planning, and cost-tiered agent orchestration skills for AI-assisted development.",
   "skills": [
-    "skills/roadmap"
+    "skills/roadmap",
+    "skills/agent"
   ]
 }

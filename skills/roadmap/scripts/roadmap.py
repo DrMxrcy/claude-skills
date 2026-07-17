@@ -360,12 +360,33 @@ TEMPLATE_BY_TYPE = {"feature": "feature-plan.md", "chore": "feature-plan.md",
                     "bug": "bug-investigation.md", "refactor": "refactor-debt.md"}
 
 
+def _refuse_status_note(item: dict, note: str, force: bool) -> None:
+    """Refuse (ValueError) a note that would render PUBLIC but is structurally a
+    status/progress dump. `item` may be a candidate dict (new item / new note applied) —
+    audience is judged with the candidate note so auto-demoted items pass through
+    untouched (they render internal anyway)."""
+    if force or not note or item_audience(item) != "public":
+        return
+    tells = status_tells(note)
+    if tells:
+        raise ValueError(
+            f"note refused — this reads like a status/progress dump, not a release note "
+            f"({', '.join(tells)}). CHANGELOG.md is pasted into the App Store \"What's New\": "
+            f"write ONE plain sentence of user benefit — no dates, step numbers, version "
+            f"refs, file paths, issue refs, or ALL-CAPS status words. Progress notes belong "
+            f"in the plan file, not the changelog. Alternatively mark the item internal "
+            f"(roadmap audience --plan {item.get('id', '<id>')} --to internal) or re-run "
+            f"with --force if this text really should ship to end users.")
+
+
 def new_item(root: Path, type_: str, title: str, version: str | None = None,
-             note: str = "", audience: str | None = None) -> Path:
+             note: str = "", audience: str | None = None, force: bool = False) -> Path:
     if type_ not in TEMPLATE_BY_TYPE:
         raise ValueError(f"unknown type {type_!r}; choose from {sorted(TEMPLATE_BY_TYPE)}")
     cfg = read_config(root)
     item_id = cfg["nextId"]
+    _refuse_status_note({"id": item_id, "title": title, "type": type_,
+                         "note": note, "audience": audience}, note, force)
     version = _norm_version(version or cfg["currentVersion"])
     slug = slugify(title)
     if not slug:
@@ -388,12 +409,14 @@ def new_item(root: Path, type_: str, title: str, version: str | None = None,
     return path
 
 
-def set_note(root: Path, plan_id: int, text: str) -> None:
-    """Set an item's user-facing changelog note, then re-render. If the item renders to the
-    PUBLIC changelog, lint the note for internal language and warn (non-blocking)."""
+def set_note(root: Path, plan_id: int, text: str, force: bool = False) -> None:
+    """Set an item's user-facing changelog note, then re-render. A note that would render
+    PUBLIC but is structurally a status dump (dates, step/version refs, paths, shouted
+    status words) is REFUSED unless --force; softer internal wording only warns."""
     cfg = read_config(root)
     for item in cfg["items"]:
         if item["id"] == plan_id:
+            _refuse_status_note({**item, "note": text}, text, force)
             item["note"] = text
             write_config(root, cfg)
             blob = f"{text} {item['title']}"
@@ -411,6 +434,45 @@ def set_note(root: Path, plan_id: int, text: str) -> None:
             sync(root)
             return
     raise ValueError(f"no plan with id {plan_id}")
+
+
+def set_release_summary(root: Path, version: str, text: str | None = None,
+                        clear: bool = False, force: bool = False) -> None:
+    """Set (or clear) a version's public release-notes blurb. When a version has a blurb,
+    the PUBLIC changelog renders it INSTEAD of per-item bullets — the blurb is the App
+    Store "What's New" text; per-item detail stays in CHANGELOG.internal.md. Same
+    status-dump gate as item notes (--force overrides); softer wording only warns."""
+    version = _norm_version(version)
+    cfg = read_config(root)
+    summaries = cfg.setdefault("releaseNotes", {})
+    if clear:
+        summaries.pop(version, None)
+        write_config(root, cfg)
+        sync(root)
+        return
+    if text is None:
+        raise ValueError("pass --text (or --clear to remove the summary)")
+    known = {i["version"] for i in cfg["items"]}
+    if version not in known and version not in summaries:
+        raise ValueError(f"no items target version {version} "
+                         f"(known: {', '.join(sorted(known, key=_version_key))})")
+    if not force:
+        tells = status_tells(text)
+        if tells:
+            raise ValueError(
+                f"summary refused — reads like a status/progress dump, not release notes "
+                f"({', '.join(tells)}). The blurb ships verbatim to end users: keep it a "
+                f"short, warm 'What's New' — no dates, step numbers, version refs, paths, "
+                f"issue refs, or ALL-CAPS status words (the version header is added for "
+                f"you). Re-run with --force if the text really should ship as-is.")
+    summaries[version] = text.strip()
+    write_config(root, cfg)
+    tells = lint_note(text, cfg.get("settings", {}).get("internalTerms", []))
+    if tells:
+        print(f"warning: v{version} summary has internal-sounding wording "
+              f"({', '.join(tells)}); it ships verbatim to end users — consider rephrasing.",
+              file=sys.stderr)
+    sync(root)
 
 
 def set_audience(root: Path, plan_id: int, audience: str) -> None:
@@ -689,7 +751,7 @@ WARN_JARGON = [
     "polling", "cron", "webhook", "ci", "lint", "linter", "env var",
     "environment variable", "api key", "n+1", "regression",
     "under the hood", "data feed", "data feeds", "headliner index", "walk-through",
-    "walkthrough index",
+    "walkthrough index", "audit", "audits", "ota", "de-slop",
 ]
 WARN_TELLS = [*WARN_VENDORS, *WARN_JARGON]
 
@@ -717,9 +779,21 @@ DEMOTE_PLUMBING = [     # SEO/infra plumbing & internal milestones — no user-v
 DEMOTE_TELLS = [*DEMOTE_ADMIN, *DEMOTE_COMPLIANCE, *DEMOTE_SECURITY, *DEMOTE_PLUMBING]
 
 _PATH_RE = re.compile(r"\b[\w.-]+\.(?:ts|tsx|js|jsx|mjs|cjs|py|go|rs|java|rb|php|"
-                      r"json|ya?ml|toml|sql|sh|css|scss)\b")          # foo/bar.ts
+                      r"json|ya?ml|toml|sql|sh|css|scss|md|swift|kt)\b")  # foo/bar.ts
 _SEG_RE = re.compile(r"\b\w+(?:/\w+){2,}\b")                          # a/b/c paths
 _REF_RE = re.compile(r"#\d+")                                        # issue refs (#77)
+
+# STATUS tier = status-dump tells — progress-report text (date stamps, plan-step refs,
+# version numbers, shouted status words) that belongs in the plan file or a commit message,
+# never in a release note. Any hit is structural evidence the note wasn't written for end
+# users, so `note` / `new --note` REFUSE to save it on a public item (override: --force).
+_STATUS_RES = [
+    re.compile(r"\b\d{4}-\d{2}-\d{2}\b"),                 # ISO date stamps (2026-07-15)
+    re.compile(r"\bStep\s+\d+\b"),                        # plan-step refs ("Step 9")
+    re.compile(r"\bv\d+\.\d+(?:\.\d+)?\b"),               # version refs (v1.6.0)
+    re.compile(r"\b(?:DONE|WIP|TODO|BLOCKED|DEFERRED|DESCOPED|DESCOPE|ACCEPTED|"
+               r"SHIPPED|MERGED|FIXED|QA|TBD)\b"),        # shouted status words
+]
 
 
 def _word_hits(text: str, terms: list[str]) -> list[str]:
@@ -736,11 +810,24 @@ def _dedupe(seq: list[str]) -> list[str]:
     return out
 
 
-def lint_note(text: str, extra_terms: list[str] | None = None) -> list[str]:
-    """Every internal tell in a would-be PUBLIC note, for display/warnings — issue refs,
-    source-file paths, vendor/jargon (warn tier), and scope/disclosure words (demote tier).
-    Empty list == looks clean. Advisory: callers warn, they never block."""
+def status_tells(text: str) -> list[str]:
+    """Structural status-dump evidence in a would-be PUBLIC note: issue refs, source/doc
+    paths, ISO dates, plan-step refs, version numbers, shouted status words. Unlike the
+    advisory word lists, any hit here means the text is a progress report rather than a
+    release note, so `note` / `new --note` refuse to save it on a public item (--force
+    overrides)."""
     hits = _REF_RE.findall(text) + _PATH_RE.findall(text) + _SEG_RE.findall(text)
+    for rx in _STATUS_RES:
+        hits += rx.findall(text)
+    return _dedupe(hits)
+
+
+def lint_note(text: str, extra_terms: list[str] | None = None) -> list[str]:
+    """Every internal tell in a would-be PUBLIC note, for display/warnings — status-dump
+    tells (issue refs, paths, dates, step/version refs, shouted status), vendor/jargon
+    (warn tier), and scope/disclosure words (demote tier). Empty list == looks clean.
+    Advisory here; the status-dump subset also hard-blocks in `note` / `new --note`."""
+    hits = status_tells(text)
     hits += _word_hits(text, [*WARN_TELLS, *DEMOTE_TELLS, *(extra_terms or [])])
     return _dedupe(hits)
 
@@ -816,8 +903,15 @@ def render_public_changelog(root: Path) -> tuple[str, list[str]]:
     show — versions with real public bullets stay clean (less is more); internal work
     remains fully logged in CHANGELOG.internal.md. Returns (markdown, warnings)."""
     warnings: list[str] = []
+    summaries = read_config(root).get("releaseNotes", {})
     out = ["# Changelog", ""]
-    for _version, header, rows in _changelog_versions(root):
+    for version, header, rows in _changelog_versions(root):
+        blurb = summaries.get(version)
+        if blurb:
+            # A curated per-version blurb IS the public release notes — item bullets
+            # (and their missing-note warnings) don't apply; detail lives internally.
+            out += [header, "", blurb, ""]
+            continue
         sections: dict[str, list[tuple[bool, str]]] = {}
         rolled_up = False
         for row in rows:
@@ -852,8 +946,10 @@ def changelog_json(root: Path) -> list[dict]:
     filtering for a popup should keep `released == true` versions only."""
     cfg = read_config(root)
     version_dates = cfg.get("versionDates", {})
+    summaries = cfg.get("releaseNotes", {})
     out = []
     for version, _header, rows in _changelog_versions(root):
+        blurb = summaries.get(version)
         sections: dict[str, list[dict]] = {}
         rollup = False
         released = bool(rows) and all(r["complete"] for r in rows)
@@ -867,10 +963,14 @@ def changelog_json(root: Path) -> list[dict]:
             key = section.split(" ", 1)[1] if " " in section else section
             sections.setdefault(key, []).append(
                 {"text": it["note"], "pending": not row["complete"]})
-        if not sections and not rollup:
+        if not sections and not rollup and not blurb:
             continue
+        # `notes` is the curated per-version blurb; when present it supersedes
+        # `sections` for user-facing display (mirrors CHANGELOG.md).
         out.append({"version": version, "date": version_dates.get(version),
-                    "released": released, "sections": sections, "rollup": rollup})
+                    "released": released, "notes": blurb,
+                    "sections": {} if blurb else sections,
+                    "rollup": False if blurb else rollup})
     return out
 
 
@@ -898,8 +998,18 @@ def audit_public_notes(root: Path) -> list[str]:
     note, and lint existing public notes for internal language. Used by /roadmap:changelog."""
     cfg = read_config(root)
     extra = cfg.get("settings", {}).get("internalTerms", [])
+    summaries = cfg.get("releaseNotes", {})
     msgs = []
+    # Completed versions still rendering raw item bullets: suggest a curated blurb —
+    # the public changelog should read like App Store "What's New", not an item list.
+    for version, _header, rows in _changelog_versions(root):
+        if rows and all(r["complete"] for r in rows) and not summaries.get(version):
+            msgs.append(f"v{version} has no release-notes summary — the public changelog "
+                        f"lists raw item bullets. Write one short user-facing blurb: "
+                        f"roadmap summary --version {version} --text \"...\"")
     for it in sorted(cfg["items"], key=lambda i: i["id"]):
+        if summaries.get(it["version"]):
+            continue   # version ships a curated blurb; per-item notes are internal-only
         explicit = it.get("audience")
         blob = f"{it.get('note', '')} {it['title']}"
         eff = item_audience(it)
@@ -1476,7 +1586,8 @@ def list_incubator_bullets(root: Path) -> list[dict]:
 
 def promote_idea(root: Path, *, match: str | None = None, index: int | None = None,
                  type_: str = "feature", version: str | None = None,
-                 note: str = "", audience: str | None = None) -> Path:
+                 note: str = "", audience: str | None = None,
+                 force: bool = False) -> Path:
     """Lift one Idea Incubator bullet into a tracked plan item and remove that bullet.
 
     Select by 1-based --index or by --match substring against the bullet title.
@@ -1511,7 +1622,8 @@ def promote_idea(root: Path, *, match: str | None = None, index: int | None = No
             f"multiple incubator bullets — pass --index N or --match TEXT:\n{listing}")
 
     title = chosen["title"]
-    path = new_item(root, type_, title, version=version, note=note, audience=audience)
+    path = new_item(root, type_, title, version=version, note=note, audience=audience,
+                    force=force)
 
     # Remove only the chosen bullet from the incubator (free-form region).
     rm = incubator_file(root)
@@ -1644,14 +1756,28 @@ def main(argv: list[str]) -> int:
     p_new.add_argument("--version")
     p_new.add_argument("--note", default="")
     p_new.add_argument("--audience", choices=["public", "internal"])
+    p_new.add_argument("--force", action="store_true",
+                       help="save a public note even if it reads like a status dump")
 
     p_note = sub.add_parser("note")
     p_note.add_argument("--plan", type=int, required=True)
     p_note.add_argument("--text", required=True)
+    p_note.add_argument("--force", action="store_true",
+                        help="save a public note even if it reads like a status dump")
 
     p_aud = sub.add_parser("audience")
     p_aud.add_argument("--plan", type=int, required=True)
     p_aud.add_argument("--to", required=True, choices=["public", "internal"])
+
+    p_sum = sub.add_parser("summary",
+                           help="set a version's public release-notes blurb "
+                                "(renders instead of item bullets in CHANGELOG.md)")
+    p_sum.add_argument("--version", required=True)
+    p_sum.add_argument("--text")
+    p_sum.add_argument("--clear", action="store_true",
+                       help="remove the blurb (fall back to item bullets)")
+    p_sum.add_argument("--force", action="store_true",
+                       help="save even if the text reads like a status dump")
 
     p_check = sub.add_parser("check")
     p_check.add_argument("--plan", type=int, required=True)
@@ -1692,6 +1818,8 @@ def main(argv: list[str]) -> int:
     p_promote.add_argument("--version")
     p_promote.add_argument("--note", default="")
     p_promote.add_argument("--audience", choices=["public", "internal"])
+    p_promote.add_argument("--force", action="store_true",
+                           help="save a public note even if it reads like a status dump")
 
     p_deps = sub.add_parser("deps-check",
                             help="warn if a plan's dependsOn targets are incomplete")
@@ -1757,14 +1885,18 @@ def main(argv: list[str]) -> int:
             return 0
         if args.command == "new":
             path = new_item(root, args.type, args.title, args.version,
-                            note=args.note, audience=args.audience)
+                            note=args.note, audience=args.audience, force=args.force)
             print(path)
             return 0
         if args.command == "note":
-            set_note(root, args.plan, args.text)
+            set_note(root, args.plan, args.text, force=args.force)
             return 0
         if args.command == "audience":
             set_audience(root, args.plan, args.to)
+            return 0
+        if args.command == "summary":
+            set_release_summary(root, args.version, text=args.text,
+                                clear=args.clear, force=args.force)
             return 0
         if args.command == "check":
             check_step(root, args.plan, args.step, undo=args.undo, all_done=args.all_done)
@@ -1818,7 +1950,8 @@ def main(argv: list[str]) -> int:
         if args.command == "promote":
             path = promote_idea(root, match=args.match, index=args.index,
                                 type_=args.type, version=args.version,
-                                note=args.note, audience=args.audience)
+                                note=args.note, audience=args.audience,
+                                force=args.force)
             print(path)
             return 0
         if args.command == "next":

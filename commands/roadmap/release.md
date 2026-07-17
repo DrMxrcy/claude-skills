@@ -17,6 +17,13 @@ public items missing a note or worded internally. For each completed item:
 - Give every **public** item a clear, plain-language note (no vendor names, file paths, or
   issue refs): `python3 <roadmap.py> note --plan <id> --text "<user-facing summary>"`.
 
+Then write the outgoing version's **release-notes blurb** — the text end users actually see:
+`python3 <roadmap.py> summary --version <outgoing> --text "<What's New blurb>"`. Keep it
+stupid simple: patches get one generic line ("This release includes minor bug fixes and
+improvements."); bigger releases get a warm intro plus at most 3–4 highlights. The blurb
+replaces the item bullets in `CHANGELOG.md`; the full detail stays in
+`CHANGELOG.internal.md`.
+
 If notes are missing (e.g. you adopted an existing repo), backfill from git history
 (`git log v<previous>..HEAD --oneline`) — or run `/roadmap:changelog`.
 

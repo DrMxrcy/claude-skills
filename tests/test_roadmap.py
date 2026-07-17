@@ -846,6 +846,67 @@ def test_lint_note_flags_scope_and_compliance_terms(roadmap):
     assert "moderation" in [t.lower() for t in roadmap.lint_note("Moderation queue")]
 
 
+def test_status_tells_detects_status_dumps(roadmap):
+    # real leaks: a raw spec path, a step-progress dump, a dated acceptance note
+    assert roadmap.status_tells("docs/superpowers/specs/2026-07-13-composer-design.md")
+    assert "Step 9" in roadmap.status_tells("Step 9: glance view DONE & building")
+    tells = roadmap.status_tells(
+        "2026-07-15: ACCEPTED as done for v1.6.0. Steps 1-8 DESCOPED to a follow-up.")
+    assert "2026-07-15" in tells and "v1.6.0" in tells
+    assert "ACCEPTED" in tells and "DESCOPED" in tells
+    assert "2026-07-11" in roadmap.status_tells("Merged audit findings (2026-07-11)")
+
+
+def test_status_tells_clean_on_release_notes(roadmap):
+    assert roadmap.status_tells("Log rides straight from your wrist.") == []
+    assert roadmap.status_tells(
+        "Parkboxd now speaks Spanish — switch languages anytime in Settings.") == []
+    # lowercase prose words never trip the shouted-status tier
+    assert roadmap.status_tells("Everything you've done in one step-by-step recap") == []
+
+
+def test_lint_note_flags_md_paths_and_status(roadmap):
+    assert any(".md" in t for t in roadmap.lint_note("see design/spec/notes.md"))
+    assert "Step 3" in roadmap.lint_note("Step 3 shipped")
+
+
+def test_set_note_refuses_status_dump_on_public_item(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "Watch app", note="Log rides from your wrist.")
+    with pytest.raises(ValueError, match="status/progress dump"):
+        roadmap.set_note(repo, 1, "Step 9: SessionGlanceView DONE (build_sim green)")
+    # refused note never saved; the old one survives
+    assert roadmap.read_config(repo)["items"][0]["note"] == "Log rides from your wrist."
+
+
+def test_set_note_force_overrides_refusal(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "Watch app")
+    roadmap.set_note(repo, 1, "Step 9 DONE", force=True)
+    assert roadmap.read_config(repo)["items"][0]["note"] == "Step 9 DONE"
+
+
+def test_set_note_allows_status_text_on_internal_item(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "Watch app", audience="internal")
+    roadmap.set_note(repo, 1, "Step 9 DONE, complication DEFERRED")   # no raise
+    assert roadmap.read_config(repo)["items"][0]["note"].startswith("Step 9")
+
+
+def test_new_refuses_status_dump_note(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    with pytest.raises(ValueError, match="status/progress dump"):
+        roadmap.new_item(repo, "feature", "Composer redesign",
+                         note="docs/superpowers/specs/2026-07-13-composer-design.md")
+    cfg = roadmap.read_config(repo)
+    assert cfg["items"] == [] and cfg["nextId"] == 1     # nothing was created
+    # same note is fine when the item is internal, or with force
+    roadmap.new_item(repo, "feature", "Composer redesign",
+                     note="docs/superpowers/specs/2026-07-13-composer-design.md",
+                     audience="internal")
+    roadmap.new_item(repo, "feature", "Other", note="v1.6.0 stuff", force=True)
+
+
 def test_audit_flags_internal_scope_in_clean_looking_title(roadmap, repo):
     roadmap.init_project(repo, "P")
     # note reads user-facing, but the title reveals admin-only scope
@@ -1429,3 +1490,60 @@ def test_cli_handoff_json(roadmap, repo, monkeypatch, capsys):
     data = json.loads(capsys.readouterr().out)
     assert "skillVersionInstalled" in data
     assert data["project"] == "P"
+
+
+def test_summary_replaces_bullets_in_public_changelog(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "Trips", note="Share trips with friends.")
+    roadmap.check_step(repo, 1, None, all_done=True)
+    assert "Share trips with friends." in (repo / "CHANGELOG.md").read_text()
+    roadmap.set_release_summary(
+        repo, "0.0.1", "This release includes minor bug fixes and improvements.")
+    cl = (repo / "CHANGELOG.md").read_text()
+    assert "minor bug fixes and improvements" in cl
+    assert "Share trips with friends." not in cl        # blurb supersedes bullets
+    # internal log keeps the per-item detail
+    assert "Share trips with friends." in (repo / "CHANGELOG.internal.md").read_text()
+    # clearing falls back to bullets
+    roadmap.set_release_summary(repo, "0.0.1", clear=True)
+    assert "Share trips with friends." in (repo / "CHANGELOG.md").read_text()
+
+
+def test_summary_refuses_status_dump_unless_forced(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "Trips")
+    with pytest.raises(ValueError, match="status/progress dump"):
+        roadmap.set_release_summary(repo, "0.0.1", "2026-07-15: Step 3 DONE")
+    roadmap.set_release_summary(repo, "0.0.1", "Step 3 DONE", force=True)
+    assert "Step 3 DONE" in (repo / "CHANGELOG.md").read_text()
+
+
+def test_summary_rejects_unknown_version(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "Trips")
+    with pytest.raises(ValueError, match="no items target"):
+        roadmap.set_release_summary(repo, "9.9.9", "Nice things.")
+
+
+def test_changelog_json_carries_summary(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "Trips", note="Share trips with friends.")
+    roadmap.check_step(repo, 1, None, all_done=True)
+    roadmap.set_release_summary(repo, "0.0.1", "A smoother ride all around.")
+    (entry,) = roadmap.changelog_json(repo)
+    assert entry["notes"] == "A smoother ride all around."
+    assert entry["sections"] == {} and entry["rollup"] is False
+    assert entry["released"] is True
+
+
+def test_audit_suggests_summary_and_skips_summarized_items(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "Trips")           # public, no note
+    roadmap.check_step(repo, 1, None, all_done=True)
+    msgs = " ".join(roadmap.audit_public_notes(repo))
+    assert "has no release-notes summary" in msgs
+    assert "has no note" in msgs
+    roadmap.set_release_summary(repo, "0.0.1", "Minor bug fixes and improvements.")
+    msgs = " ".join(roadmap.audit_public_notes(repo))
+    assert "release-notes summary" not in msgs
+    assert "has no note" not in msgs      # blurb curates the version; item nags stop

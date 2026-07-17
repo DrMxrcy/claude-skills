@@ -6,22 +6,42 @@ argument-hint: <version | empty for current>
 Curate the changelog via the **roadmap** skill. Target: $ARGUMENTS (default: current version).
 
 There are **two** changelogs, both rendered deterministically by the CLI:
-- `CHANGELOG.md` — **public**. Only `audience: public` items, rendered from each item's
-  user-facing `note` (never the raw title). Ready to paste into the App Store "What's New"
-  or a website changelog. **Less is more:** a version with real public bullets shows only
-  those; the "behind-the-scenes" roll-up line appears only when a version shipped nothing
-  public to say.
+- `CHANGELOG.md` — **public**. Each version renders its curated **release-notes summary**
+  (`summary --version <v> --text "..."`) when one exists — a short, warm "What's New" blurb,
+  exactly what ships to the App Store. Only when a version has no summary does it fall back
+  to per-item bullets (`audience: public` items, from their `note`, never the raw title),
+  with a "behind-the-scenes" roll-up line when nothing public shipped.
 - `CHANGELOG.internal.md` — **internal**. Every item, with the raw title as a fallback —
-  the full dev-facing work log.
+  the full dev-facing work log. **This is where the detail lives.** The public file does
+  NOT need every change; the internal one records all of them.
 
 **Show / copy:** `python3 <roadmap.py> changelog` prints the public file; add `--internal`
 for the full log. If the section is already curated, it's ready to paste.
 
 **In-app consumption:** `python3 <roadmap.py> changelog --json` emits the public changelog
-as structured data — `[{version, date, released, sections: {New/Fixed/Improved:
+as structured data — `[{version, date, released, notes, sections: {New/Fixed/Improved:
 [{text, pending}]}, rollup}]` — for build pipelines feeding an in-app changelog screen or
-"What's New" popup. Popups should filter to `released: true` and typically show only the
+"What's New" popup. When `notes` (the curated blurb) is set it supersedes `sections` —
+display it verbatim. Popups should filter to `released: true` and typically show only the
 newest version's entries.
+
+**The summary IS the release notes — keep it stupid simple.** End users don't want an
+itemized list of everything on the roadmap; they want two friendly sentences. Write one
+blurb per released version (`summary --version <v> --text "..."`), calibrated to the size
+of the release:
+
+- **Patch release** → one generic line. *"This release includes minor bug fixes and
+  improvements."* or *"This update smooths out the ride — we've fixed a few display issues
+  and squashed some minor bugs for a more polished experience."* That's the whole entry.
+- **Minor/major release** → a short warm intro plus at most 3–4 named highlights, each a
+  feature name and one benefit sentence, closing with a generic *"Plus bug fixes and
+  behind-the-scenes improvements."* Never enumerate every item — the highlight reel, not
+  the inventory.
+- Don't repeat the version number in the text (the CLI renders the version header), and
+  keep the app's voice — friendly, a little playful, never a ticket.
+
+The per-item `note`/`audience` work below still matters: it keeps the internal log honest
+and gives you clean raw material to write the blurb from. But the blurb is what users see.
 
 **Auto-routing.** The CLI already does the high-confidence calls for you: an item with no
 explicit `audience` whose note/title trips an admin, compliance, security-disclosure, or
@@ -29,7 +49,11 @@ SEO-plumbing tell is **auto-routed to the internal changelog** (and reported in 
 explicit `audience --to public` always overrides this — but if you set public on something
 that still matches those tells, the audit flags it loudly as "likely miscategorized." Softer
 wording problems (vendor names, jargon, mechanism phrasing) only **warn** — those are usually
-public features that just need rephrasing, not reclassifying.
+public features that just need rephrasing, not reclassifying. One thing does hard-block:
+`note` **refuses** a public note that is structurally a status/progress dump (ISO dates,
+"Step N", version refs, file/spec paths, issue refs, ALL-CAPS status words like
+DONE/DESCOPED/ACCEPTED). Rewrite it as a benefit sentence, mark the item internal, or pass
+`--force` only when the text genuinely belongs in front of end users.
 
 **The north star: `CHANGELOG.md` *is* your App Store "What's New".** Write and curate it as if
 it will be pasted, unedited, straight into the App Store / Play Store release notes — because it
@@ -65,14 +89,17 @@ nothing is flagged. The lint is a seatbelt, not the rule.**
    ("truncated headliner index").
 
 **Operational loop:**
-1. `python3 <roadmap.py> changelog` → read the warnings: items auto-routed to internal
-   (confirm or override `--to public`), items marked public but matching internal signals
-   (almost always reclassify), public items with no note (dropped from `CHANGELOG.md`), and
-   notes that read internal (rephrase).
+1. `python3 <roadmap.py> changelog` → read the warnings: versions missing a release-notes
+   summary, items auto-routed to internal (confirm or override `--to public`), items marked
+   public but matching internal signals (almost always reclassify), public items with no
+   note, and notes that read internal (rephrase).
 2. Set audience where the auto-router didn't decide:
    `python3 <roadmap.py> audience --plan <id> --to public|internal`.
 3. Write each public note: `python3 <roadmap.py> note --plan <id> --text "<benefit>"`.
-4. Re-run until clean, then preview both files. `/roadmap:release` stamps the dated section;
+4. **Write the version blurb** from those notes:
+   `python3 <roadmap.py> summary --version <v> --text "<What's New blurb>"` — generic
+   one-liner for patches, intro + 3–4 highlights for big releases (sizing guide above).
+5. Re-run until clean, then preview both files. `/roadmap:release` stamps the dated section;
    this command just gets it clean.
 
 **The exclusions, and the principle behind each** (each sends an item to `internal` even when

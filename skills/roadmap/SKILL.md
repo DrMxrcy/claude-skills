@@ -143,7 +143,10 @@ On invocation, detect state and pick a phase:
      `--audience` routes the item: `public` → curated `CHANGELOG.md`, `internal` →
      `CHANGELOG.internal.md`. Omit it to take the type default (`feature`/`bug` → public,
      `refactor`/`chore` → internal) and override when judgment differs. The CLI auto-runs
-     `sync` and warns if a public note reads internal.
+     `sync` and warns if a public note reads internal. A public note that is structurally a
+     **status dump** (ISO dates, "Step N", version refs, file/spec paths, issue refs, or
+     ALL-CAPS status words like DONE/DESCOPED/ACCEPTED) is **refused** — rewrite it as one
+     plain benefit sentence, mark the item internal, or pass `--force`.
 
 3. **Working an item** → Execute (**quality-first multi-agent**).
    - Read the plan file. If it links a **Spec** or **Detailed plan** (e.g. paths under
@@ -170,10 +173,20 @@ On invocation, detect state and pick a phase:
      (`roadmap.py note --plan <id> --text "<plain-language summary>"`). Items with a
      high-confidence internal tell (admin/operator, compliance, security-disclosure, SEO
      plumbing) **auto-route to the internal changelog** unless you explicitly set them public;
-     softer wording tells only warn. `/roadmap:changelog` audits the version and reports
+     softer wording tells only warn, but `note` **refuses** a public note that is a status
+     dump (dates, step/version refs, paths, shouted status words) unless `--force` — status
+     text belongs in the plan checklist, never the changelog. `/roadmap:changelog` audits
+     the version and reports
      auto-routings, public items missing a note, and notes worded internally.
-   - Two changelogs render automatically on every `sync`: **`CHANGELOG.md`** (public — only
-     `audience: public` items, from their `note` only, never the raw title; versions with
+   - Give each released version a short public **release-notes blurb**:
+     `roadmap.py summary --version <v> --text "..."` — the App Store "What's New" text.
+     Keep it stupid simple: a generic one-liner for patches ("This release includes minor
+     bug fixes and improvements."), a warm intro + at most 3–4 highlights for big releases.
+     When a version has a blurb, `CHANGELOG.md` renders it INSTEAD of item bullets — the
+     per-item detail stays in the internal log.
+   - Two changelogs render automatically on every `sync`: **`CHANGELOG.md`** (public — each
+     version's curated blurb when set; otherwise `audience: public` items, from their `note`
+     only, never the raw title; versions with
      internal-only work get one "behind-the-scenes" roll-up line) and
      **`CHANGELOG.internal.md`** (every item, title fallback — the full dev log). Items appear
      once they hit 100%, grouped by version. `release` is **optional** — use it to pin a new
@@ -189,7 +202,8 @@ On invocation, detect state and pick a phase:
 - `new --type T --title "..." [--version V] [--note "..."] [--audience public|internal]` — scaffold + register a plan
 - `idea --title "..." [--body "..." | --body-file PATH]` — park an idea: one incubator bullet; a body becomes a linked `.roadmap/notes/` file
 - `promote [--match T | --index N] [--type T] …` — lift an incubator bullet into a tracked plan
-- `note --plan ID --text "..."` — set an item's user-facing changelog line (lints public notes)
+- `note --plan ID --text "..." [--force]` — set an item's user-facing changelog line (lints public notes; refuses status-dump text on public items)
+- `summary --version V --text "..." [--clear] [--force]` — set a version's public release-notes blurb; renders instead of item bullets in CHANGELOG.md (keep it stupid simple)
 - `audience --plan ID --to public|internal` — route an item to the public or internal changelog
 - `check --plan ID --step N [--undo] [--all-done]` — flip checkboxes (+ records `last_seen_sha`)
 - `next [--version V] [--force] [--json]` — next unfinished item (skips incomplete `dependsOn`)
