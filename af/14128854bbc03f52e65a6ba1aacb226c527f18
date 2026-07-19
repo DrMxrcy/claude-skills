@@ -1,0 +1,33 @@
+skills/agent/VERSION
+  s_94d44090ce4e99::t_3c5b19fb94ac02 1
+skills/agent/SKILL.md
+  s_94d44090ce4e99::t_2675eea812f2ea 86-89
+  s_94d44090ce4e99::t_f2205e2ca0fc0d 75-76,81
+  s_94d44090ce4e99::t_18333e8e5578b0 77-80
+tests/test_install_agent.py
+  s_94d44090ce4e99::t_2675eea812f2ea 106,110,121-138
+skills/agent/hooks/caveman-level.sh
+  s_94d44090ce4e99::t_18333e8e5578b0 22-25
+  s_94d44090ce4e99::t_2c20f53b52789b 1-21,26-33
+skills/agent/references/orchestration-policy.md
+  s_94d44090ce4e99::t_18333e8e5578b0 39
+install.sh
+  s_94d44090ce4e99::t_3c5b19fb94ac02 107,228,421-428
+  s_94d44090ce4e99::t_49b93a59276dd6 429
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "af14128854bbc03f52e65a6ba1aacb226c527f18",
+  "prompts": {},
+  "sessions": {
+    "s_94d44090ce4e99": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e8324ce2-889f-4e20-9a25-b8583b9b42ba",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
