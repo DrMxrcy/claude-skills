@@ -19,8 +19,8 @@ public items missing a note or worded internally. For each completed item:
 
 Then write the outgoing version's **release-notes blurb** — the text end users actually see:
 `python3 <roadmap.py> summary --version <outgoing> --text "<What's New blurb>"`. Keep it
-stupid simple: patches get one generic line ("This release includes minor bug fixes and
-improvements."); bigger releases get a warm intro plus at most 3–4 highlights. The blurb
+stupid simple but friendly: patches get two or three warm generic sentences; bigger
+releases get a warm intro plus 3–5 highlights and a friendly closer. The blurb
 replaces the item bullets in `CHANGELOG.md`; the full detail stays in
 `CHANGELOG.internal.md`.
 

@@ -180,8 +180,9 @@ On invocation, detect state and pick a phase:
      auto-routings, public items missing a note, and notes worded internally.
    - Give each released version a short public **release-notes blurb**:
      `roadmap.py summary --version <v> --text "..."` — the App Store "What's New" text.
-     Keep it stupid simple: a generic one-liner for patches ("This release includes minor
-     bug fixes and improvements."), a warm intro + at most 3–4 highlights for big releases.
+     Keep it stupid simple but friendly: two or three warm sentences for patches ("This
+     update smooths out the ride — we've fixed a few display issues and squashed some minor
+     bugs."), a warm intro + 3–5 highlights with a friendly closer for big releases.
      When a version has a blurb, `CHANGELOG.md` renders it INSTEAD of item bullets — the
      per-item detail stays in the internal log.
    - Two changelogs render automatically on every `sync`: **`CHANGELOG.md`** (public — each

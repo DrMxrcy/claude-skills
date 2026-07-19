@@ -22,14 +22,20 @@ version changes.
 
 ## The fleet (project subagents)
 
-| Agent | Model | Use for |
-|---|---|---|
-| `executor` | opus | Implementation needing judgment — features, bug fixes, design-sensitive refactors |
-| `verifier` | opus | Fresh-context **adversarial** verification — CONFIRMED / REFUTED / PARTIAL, never fixes |
-| `security-executor` | opus | ALL security-sensitive work — auth, secrets, headers, crypto, CVE triage |
-| `mech-executor` | sonnet | Fully-specified mechanical work — pattern refactors, tests, docs, bulk edits |
-| `scout` | haiku | Cheap read-only evidence — where/how is X, usages, config values, log summaries |
-| `Explore` | haiku | Broad read-only codebase exploration (overrides the built-in Explore so it stops inheriting the expensive main model) |
+| Agent | Model | Effort | Use for |
+|---|---|---|---|
+| `executor` | opus | high | Implementation needing judgment — features, bug fixes, design-sensitive refactors |
+| `verifier` | opus | medium | Fresh-context **adversarial** verification — CONFIRMED / REFUTED / PARTIAL, never fixes |
+| `security-executor` | opus | high | ALL security-sensitive work — auth, secrets, headers, crypto, CVE triage |
+| `mech-executor` | sonnet | low | Fully-specified mechanical work — pattern refactors, tests, docs, bulk edits |
+| `scout` | haiku | low | Cheap read-only evidence — where/how is X, usages, config values, log summaries |
+| `Explore` | haiku | low | Broad read-only codebase exploration (overrides the built-in Explore, which since Claude Code v2.1.198 inherits the parent model instead of defaulting to haiku) |
+
+Every agent pins **both** `model:` and `effort:` in frontmatter. Subagents inherit the
+main session's model *and* effort level when unset — an unlabeled agent silently runs at
+frontier price. Frontmatter is the only reliable per-role effort control (the Agent tool
+has no runtime effort parameter), and the fleet keeps the orchestrator free to run at
+low/medium effort by default, going high only for multi-step judgment.
 
 The full orchestration policy — who keeps what, one-shot delegation specs, the
 escalation rule, high-risk routing, and the final verification gate — is the CLAUDE.md
@@ -55,6 +61,29 @@ once per project you want the fleet in.
 The model wiring is non-destructive: it sets `model` / `fallbackModel` in
 settings.json **only when you have no `model` set**, so an explicit model choice is
 never overridden.
+
+## Optional accelerators (auto-detected, opt-in by installation)
+
+The policy layers two third-party tools **when — and only when — the user has installed
+them**; their presence is the opt-in, and the orchestrator never suggests installing
+them mid-task:
+
+- **caveman** ([juliusbrussee/caveman](https://github.com/juliusbrussee/caveman)) —
+  token-compression plugin. **Skills and levels only:** the integration uses the
+  plugin's skills, `/caveman` levels (`lite`/`full`/`ultra`/`wenyan`), and `cavecrew-*`
+  agents — the standalone npm tools (`caveman-code`, `caveman-shrink`) are out of
+  scope. When the plugin is in the session, subagent briefs honor the active level;
+  if no level is set, the orchestrator decides and sets one (`/caveman full` by
+  default, `lite` when the user reads reports directly, `ultra` for bulk scout
+  sweeps) and asks for caveman-terse reports (fragments, zero filler; code,
+  commands, paths, and errors kept verbatim), and `cavecrew-*` agents may take
+  scout-tier work. Compression is for prose reports only — artifacts, diffs, and
+  errors are never compressed. Note caveman's own honest-numbers caveat: it shrinks
+  *output* tokens, so the win is largest on chatty report-heavy delegation.
+- **codegraph** — code-index MCP. When the project has a `.codegraph/` index, evidence
+  tiers (scout / Explore / verifier) resolve structure questions — usages, callers,
+  impact, dependencies — via codegraph queries before any broad grep. Indexing is never
+  run by the orchestrator; that's the user's decision.
 
 ## Important: agents register only in NEW sessions
 

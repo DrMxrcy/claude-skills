@@ -30,18 +30,31 @@ itemized list of everything on the roadmap; they want two friendly sentences. Wr
 blurb per released version (`summary --version <v> --text "..."`), calibrated to the size
 of the release:
 
-- **Patch release** → one generic line. *"This release includes minor bug fixes and
-  improvements."* or *"This update smooths out the ride — we've fixed a few display issues
-  and squashed some minor bugs for a more polished experience."* That's the whole entry.
-- **Minor/major release** → a short warm intro plus at most 3–4 named highlights, each a
-  feature name and one benefit sentence, closing with a generic *"Plus bug fixes and
-  behind-the-scenes improvements."* Never enumerate every item — the highlight reel, not
-  the inventory.
+- **Patch release** → two or three warm sentences, generic is fine. *"This update smooths
+  out the ride. We've fixed display issues on some devices and squashed a few minor bugs
+  behind the scenes for a more polished experience. Thanks for rolling with us!"* That's
+  the whole entry.
+- **Minor/major release** → a warm one-or-two-sentence intro, then 3–5 named highlights —
+  a feature name plus one or two benefit sentences each — closing with something friendly
+  and generic (*"Plus bug fixes and behind-the-scenes improvements. Keep the feedback
+  coming!"*). A mid-size release can also be one flowing paragraph that walks through the
+  highlights conversationally. Never enumerate every item — the highlight reel, not the
+  inventory.
+- Err on the side of a fuller, friendlier paragraph over a terse line — the blurb should
+  feel like the team talking to fans, not a form field.
 - Don't repeat the version number in the text (the CLI renders the version header), and
   keep the app's voice — friendly, a little playful, never a ticket.
 
 The per-item `note`/`audience` work below still matters: it keeps the internal log honest
 and gives you clean raw material to write the blurb from. But the blurb is what users see.
+
+**Draft with a subagent.** For more than a version or two, delegate the writing: spawn a
+subagent (Claude Task / Codex / whatever the host offers) with (a) the per-version item
+list — titles + notes + audience — and (b) the sizing + voice rules above, including the
+hard constraints (no dates, step numbers, version refs, paths, issue refs, or ALL-CAPS
+status words — the CLI rejects them). Have it return one blurb per version as JSON, review
+the drafts yourself, then save each via `summary --version <v> --text "..."` — the gate
+still checks every save.
 
 **Auto-routing.** The CLI already does the high-confidence calls for you: an item with no
 explicit `audience` whose note/title trips an admin, compliance, security-disclosure, or

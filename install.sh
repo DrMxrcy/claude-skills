@@ -44,6 +44,7 @@ commands=1
 claude_md=1
 agent_fleet=1
 model_wire=1
+only=""
 pass_args=()
 for arg in "$@"; do
   case "$arg" in
@@ -59,6 +60,7 @@ for arg in "$@"; do
     --no-claude-md) claude_md=0; pass_args+=("$arg") ;;
     --no-agent) agent_fleet=0; pass_args+=("$arg") ;;
     --no-model) model_wire=0; pass_args+=("$arg") ;;
+    --only=*) only="${arg#--only=}"; pass_args+=("$arg") ;;
     --init) do_init=1; pass_args+=("$arg") ;;
     -h|--help)
       cat <<'EOF'
@@ -79,6 +81,9 @@ rules to CLAUDE.md + AGENTS.md (no manual copying or settings edits).
   --no-claude-md          do not add roadmap rules to CLAUDE.md / AGENTS.md
   --no-agent              do not install the cost-tiered agent orchestration fleet (Claude)
   --no-model              do not set a default main-session model in settings.json
+  --only=<skill[,skill]>  install only these skills (agent, roadmap) and skip the
+                          excluded skills' wiring — e.g. --only=agent when roadmap
+                          is already installed globally
   --init                  also run `roadmap init` in the current directory
 
 Remote (no clone):
@@ -91,6 +96,15 @@ EOF
     *) echo "Unknown option: $arg (try --help)" >&2; exit 1 ;;
   esac
 done
+
+# --only=<skill[,skill]> installs just those skills and skips the wiring that belongs
+# to the excluded ones (roadmap: hooks/commands/rules/init; agent: fleet). Use it when
+# a skill is already installed at another scope (e.g. roadmap installed globally).
+_want() {
+  [ -z "$only" ] && return 0
+  case ",$only," in *,"$1",*) return 0 ;; *) return 1 ;; esac
+}
+if ! _want roadmap; then hook=0; orient=0; do_init=0; fi
 
 # --both: install Claude then Grok with the same flags (keeps multi-coder skill in sync).
 if [ "$both" = "1" ]; then
@@ -158,6 +172,7 @@ installed=0
 for skill_dir in "$SRC_DIR"/*/; do
   [ -f "${skill_dir}SKILL.md" ] || continue
   name="$(basename "$skill_dir")"
+  _want "$name" || continue
   target="$skills_dest/$name"
   rm -rf "$target"
   if [ "$link" = "1" ]; then
@@ -323,7 +338,7 @@ fi
 #
 # Claude installs get both layouts (Claude users keep /roadmap:*, Grok reading
 # .claude/commands via compat gets /roadmap-*). Pure --grok installs get flat only.
-if [ "$commands" = "1" ]; then
+if [ "$commands" = "1" ] && _want roadmap; then
   cmd_src="$(dirname "$SRC_DIR")/commands"
   if [ -d "$cmd_src" ]; then
     mkdir -p "$base/commands"
@@ -369,7 +384,7 @@ fi
 # Add roadmap rules to CLAUDE.md (idempotent) so the discipline applies even when
 # the skill is not explicitly invoked. Project scope only. Delegates to the installed
 # CLI so the rules text has a single source of truth (RULES_BLOCK in roadmap.py).
-if [ "$claude_md" = "1" ]; then
+if [ "$claude_md" = "1" ] && _want roadmap; then
   "$PYTHON" - "$skills_dest/roadmap/scripts/roadmap.py" <<'PY'
 import importlib.util, pathlib, sys
 spec = importlib.util.spec_from_file_location("roadmap", sys.argv[1])
@@ -386,7 +401,7 @@ fi
 # file), and pins a default model when none is set. The named-tier agents use Claude's
 # .claude/agents/ format, so this step is skipped for Grok installs.
 fleet_installed=0
-if [ "$agent_fleet" = "1" ] && [ "$agent" = "claude" ] && [ -d "$skills_dest/agent/.claude/agents" ]; then
+if [ "$agent_fleet" = "1" ] && _want agent && [ "$agent" = "claude" ] && [ -d "$skills_dest/agent/.claude/agents" ]; then
   agents_dest="$base/agents"
   mkdir -p "$agents_dest"
   copied=0

@@ -1007,6 +1007,13 @@ def audit_public_notes(root: Path) -> list[str]:
             msgs.append(f"v{version} has no release-notes summary — the public changelog "
                         f"lists raw item bullets. Write one short user-facing blurb: "
                         f"roadmap summary --version {version} --text \"...\"")
+    # Orphaned blurbs: a summary for a version no items target (usually after retarget/
+    # remove) renders nowhere — clear it or move it to the absorbing version.
+    live = {i["version"] for i in cfg["items"]}
+    for version in sorted(set(summaries) - live, key=_version_key):
+        msgs.append(f"v{version} has a release-notes summary but no items target it "
+                    f"(retargeted away?) — it renders nowhere. Clear it: "
+                    f"roadmap summary --version {version} --clear")
     for it in sorted(cfg["items"], key=lambda i: i["id"]):
         if summaries.get(it["version"]):
             continue   # version ships a curated blurb; per-item notes are internal-only

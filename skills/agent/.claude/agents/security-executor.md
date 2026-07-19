@@ -1,6 +1,6 @@
 ---
 name: security-executor
-description: Use for ALL security-sensitive work — auth/permissions changes, secrets handling, CSP/security headers, crypto, defensive-security audits, vulnerability fixes, dependency-CVE triage. Route this work here instead of handling it in the main loop.
+description: Use for ALL security-sensitive work — auth/permissions changes, secrets handling, CSP/security headers, crypto, defensive-security audits, vulnerability fixes, dependency-CVE triage. Route this work here instead of handling it in the main loop. Not for general implementation — non-security work goes to executor or mech-executor.
 model: opus
 effort: high
 ---

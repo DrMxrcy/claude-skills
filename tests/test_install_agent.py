@@ -94,3 +94,27 @@ def test_existing_model_is_never_overridden(tmp_path):
     _run(tmp_path, "--project")
     data = json.loads((claude / "settings.json").read_text())
     assert data["model"] == "fable"
+
+
+def test_only_agent_skips_all_roadmap_wiring(tmp_path):
+    res = _run(tmp_path, "--project", "--only=agent")
+    assert res.returncode == 0, res.stderr
+    # agent skill + fleet + policy installed
+    assert (tmp_path / ".claude/skills/agent/SKILL.md").exists()
+    assert FLEET <= {p.name for p in (tmp_path / ".claude/agents").glob("*.md")}
+    assert START in (tmp_path / "CLAUDE.md").read_text()
+    # nothing roadmap: no skill copy, no commands, no hooks, no rules block
+    assert not (tmp_path / ".claude/skills/roadmap").exists()
+    assert not (tmp_path / ".claude/commands").exists()
+    settings = json.loads((tmp_path / ".claude/settings.json").read_text())
+    assert "hooks" not in settings
+    assert "roadmap" not in (tmp_path / "CLAUDE.md").read_text().lower()
+
+
+def test_only_roadmap_skips_fleet_and_policy(tmp_path):
+    res = _run(tmp_path, "--project", "--only=roadmap")
+    assert res.returncode == 0, res.stderr
+    assert (tmp_path / ".claude/skills/roadmap/SKILL.md").exists()
+    assert not (tmp_path / ".claude/skills/agent").exists()
+    assert not (tmp_path / ".claude/agents").exists()
+    assert START not in (tmp_path / "CLAUDE.md").read_text()

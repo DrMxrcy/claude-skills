@@ -1547,3 +1547,14 @@ def test_audit_suggests_summary_and_skips_summarized_items(roadmap, repo):
     msgs = " ".join(roadmap.audit_public_notes(repo))
     assert "release-notes summary" not in msgs
     assert "has no note" not in msgs      # blurb curates the version; item nags stop
+
+
+def test_audit_flags_orphaned_summary(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "Trips")
+    roadmap.set_release_summary(repo, "0.0.1", "Nice things await.")
+    roadmap.retarget(repo, "0.0.2", plan_ids=[1])   # 0.0.1 loses its only item
+    msgs = " ".join(roadmap.audit_public_notes(repo))
+    assert "renders nowhere" in msgs and "0.0.1" in msgs
+    roadmap.set_release_summary(repo, "0.0.1", clear=True)
+    assert "renders nowhere" not in " ".join(roadmap.audit_public_notes(repo))
