@@ -103,11 +103,11 @@ def test_only_agent_skips_all_roadmap_wiring(tmp_path):
     assert (tmp_path / ".claude/skills/agent/SKILL.md").exists()
     assert FLEET <= {p.name for p in (tmp_path / ".claude/agents").glob("*.md")}
     assert START in (tmp_path / "CLAUDE.md").read_text()
-    # nothing roadmap: no skill copy, no commands, no hooks, no rules block
+    # nothing roadmap: no skill copy, no commands, no roadmap hooks, no rules block
     assert not (tmp_path / ".claude/skills/roadmap").exists()
     assert not (tmp_path / ".claude/commands").exists()
     settings = json.loads((tmp_path / ".claude/settings.json").read_text())
-    assert "hooks" not in settings
+    assert "roadmap" not in json.dumps(settings.get("hooks", {}))
     assert "roadmap" not in (tmp_path / "CLAUDE.md").read_text().lower()
 
 
@@ -118,3 +118,21 @@ def test_only_roadmap_skips_fleet_and_policy(tmp_path):
     assert not (tmp_path / ".claude/skills/agent").exists()
     assert not (tmp_path / ".claude/agents").exists()
     assert START not in (tmp_path / "CLAUDE.md").read_text()
+
+
+def test_agent_install_wires_caveman_level_hook(tmp_path):
+    res = _run(tmp_path, "--project", "--only=agent")
+    assert res.returncode == 0, res.stderr
+    settings = json.loads((tmp_path / ".claude/settings.json").read_text())
+    blob = json.dumps(settings.get("hooks", {}).get("SessionStart", []))
+    assert "caveman-level.sh" in blob
+    hook = tmp_path / ".claude/skills/agent/hooks/caveman-level.sh"
+    assert hook.exists() and os.access(hook, os.X_OK)
+
+
+def test_caveman_hook_noops_without_plugin(tmp_path):
+    _run(tmp_path, "--project", "--only=agent")
+    hook = tmp_path / ".claude/skills/agent/hooks/caveman-level.sh"
+    env = {**os.environ, "HOME": str(tmp_path / "fakehome")}
+    res = subprocess.run(["bash", str(hook)], env=env, capture_output=True, text=True)
+    assert res.returncode == 0 and res.stdout.strip() == ""

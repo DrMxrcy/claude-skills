@@ -104,6 +104,7 @@ _want() {
   [ -z "$only" ] && return 0
   case ",$only," in *,"$1",*) return 0 ;; *) return 1 ;; esac
 }
+agent_hook=$hook
 if ! _want roadmap; then hook=0; orient=0; do_init=0; fi
 
 # --both: install Claude then Grok with the same flags (keeps multi-coder skill in sync).
@@ -224,7 +225,7 @@ else:
     with open(settings_path, "w") as f:
         json.dump(data, f, indent=2)
         f.write("\n")
-    print(f"Wired roadmap {event} hook into {settings_path}")
+    print(f"Wired {event} hook into {settings_path}")
 PY
 }
 
@@ -416,6 +417,15 @@ if [ "$agent_fleet" = "1" ] && _want agent && [ "$agent" = "claude" ] && [ -d "$
   done
   echo "Installed $copied orchestration agent(s) -> $agents_dest"
   fleet_installed=1
+
+  # SessionStart hook: forces the caveman-level decision at orientation. The script
+  # no-ops when the caveman plugin is absent, so wiring it is always safe. Honors
+  # --no-hook.
+  if [ "$agent_hook" = "1" ]; then
+    chmod +x "$skills_dest/agent/hooks/"*.sh 2>/dev/null || true
+    cl_hook="$skills_dest/agent/hooks/caveman-level.sh"
+    [ -f "$cl_hook" ] && _wire_claude_hook "$settings" "SessionStart" "bash \"$cl_hook\""
+  fi
 
   # Merge the orchestration policy into CLAUDE.md + AGENTS.md (project scope only —
   # like the roadmap rules, we never write a global CLAUDE.md). Honors --no-claude-md.

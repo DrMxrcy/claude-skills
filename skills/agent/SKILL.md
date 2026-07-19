@@ -72,14 +72,21 @@ them mid-task:
   token-compression plugin. **Skills and levels only:** the integration uses the
   plugin's skills, `/caveman` levels (`lite`/`full`/`ultra`/`wenyan`), and `cavecrew-*`
   agents — the standalone npm tools (`caveman-code`, `caveman-shrink`) are out of
-  scope. When the plugin is in the session, subagent briefs honor the active level;
-  if no level is set, the orchestrator decides and sets one (`/caveman full` by
-  default, `lite` when the user reads reports directly, `ultra` for bulk scout
-  sweeps) and asks for caveman-terse reports (fragments, zero filler; code,
+  scope. When the plugin is in the session, the orchestrator decides the level
+  **during session orientation** — if the user hasn't set one explicitly, it chooses
+  and sets one up front by session shape — `ultra` for orchestration-heavy sessions
+  (multi-agent build chains, `--auto` runs, bulk sweeps), `full` for ordinary mixed
+  work, `lite` when the user reads agent reports directly; the plugin's own session
+  default doesn't count as decided and asks for caveman-terse reports (fragments, zero
+  filler; code,
   commands, paths, and errors kept verbatim), and `cavecrew-*` agents may take
   scout-tier work. Compression is for prose reports only — artifacts, diffs, and
   errors are never compressed. Note caveman's own honest-numbers caveat: it shrinks
   *output* tokens, so the win is largest on chatty report-heavy delegation.
+  The installer wires a **SessionStart hook** (`hooks/caveman-level.sh`) that surfaces
+  the current level and the decision prompt at session start — so the choice happens
+  mechanically at orientation, not by hoping the policy paragraph gets read. The hook
+  no-ops when the plugin is absent; skip it with `--no-hook`.
 - **codegraph** — code-index MCP. When the project has a `.codegraph/` index, evidence
   tiers (scout / Explore / verifier) resolve structure questions — usages, callers,
   impact, dependencies — via codegraph queries before any broad grep. Indexing is never
