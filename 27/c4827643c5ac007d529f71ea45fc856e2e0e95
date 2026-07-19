@@ -1,0 +1,64 @@
+skills/roadmap/SKILL.md
+  s_94d44090ce4e99::t_7c78903432b4ec 183-185
+skills/agent/VERSION
+  s_94d44090ce4e99::t_530162b7d63c77 1
+skills/agent/.claude/agents/Explore.md
+  s_94d44090ce4e99::t_3a1067b45d8b4a 13
+tests/test_roadmap.py
+  s_94d44090ce4e99::t_048ce08ca84c88 1550-1560
+skills/agent/.claude/agents/verifier.md
+  s_94d44090ce4e99::t_3a1067b45d8b4a 12
+skills/agent/SKILL.md
+  s_94d44090ce4e99::t_328c0e44e90c5c 75-78
+  s_6f40b6baa90d37::t_1bdc396523ffb6 25-38
+  s_94d44090ce4e99::t_fd609593f4ad5e 72-74,79-82
+  s_94d44090ce4e99::t_a6659a3acfa9b1 65-71,83-87
+commands/roadmap/changelog.md
+  s_94d44090ce4e99::t_0f35df2078aef4 51-58
+  s_94d44090ce4e99::t_7c78903432b4ec 33-44
+skills/roadmap/scripts/roadmap.py
+  s_94d44090ce4e99::t_048ce08ca84c88 1010-1016
+skills/agent/.claude/agents/scout.md
+  s_94d44090ce4e99::t_82318e64783e40 21
+install.sh
+  s_94d44090ce4e99::t_bdf68f8b6ce1b8 47,63,175,341,387,404
+  s_94d44090ce4e99::t_85479cc152d264 84-86,100-107
+  s_94d44090ce4e99::t_a6c713260b7b62 108
+skills/agent/.claude/agents/security-executor.md
+  s_6f40b6baa90d37::t_4c6537ff8bf67c 3
+skills/agent/references/orchestration-policy.md
+  s_94d44090ce4e99::t_0801a2f03a1159 38,40-41
+  s_6f40b6baa90d37::t_3ab607da8f54f4 16-26
+  s_6f40b6baa90d37::t_c3c45b700b2480 34-37
+  s_94d44090ce4e99::t_d52410c4973935 39
+commands/roadmap/release.md
+  s_94d44090ce4e99::t_7c78903432b4ec 22-23
+skills/agent/.claude/agents/executor.md
+  s_6f40b6baa90d37::t_ef19e7d1f06b5d 5
+tests/test_install_agent.py
+  s_94d44090ce4e99::t_8a6cc3d2f6f042 97-120
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "27c4827643c5ac007d529f71ea45fc856e2e0e95",
+  "prompts": {},
+  "sessions": {
+    "s_6f40b6baa90d37": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "32d15065-d8d9-44fc-9fdf-703b6ea7bb83",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    },
+    "s_94d44090ce4e99": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e8324ce2-889f-4e20-9a25-b8583b9b42ba",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
