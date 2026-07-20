@@ -1,0 +1,28 @@
+skills/roadmap/scripts/rmlib/dashboard.html
+  s_800bb7c09e26d5::t_2a0b4e29cad5fd 7,19,33,39-46,70-71,83,101-107,128,130-134,192-193,240,253-255,257-258,261-274
+  s_800bb7c09e26d5::t_a21a76ef5f6826 275
+skills/roadmap/scripts/rmlib/dashboard.py
+  s_800bb7c09e26d5::t_a680481c9d9445 207
+  s_800bb7c09e26d5::t_939d8ab5d7b929 182,184-185,187-192
+  s_800bb7c09e26d5::t_17d819cc3020e8 104-148
+  s_800bb7c09e26d5::t_123ac81fbc649a 280-283
+skills/roadmap/scripts/rmlib/parse.py
+  s_800bb7c09e26d5::t_f81ab136ea2dcd 49-52
+  s_800bb7c09e26d5::t_f97e1a54c0a835 11-15,22-29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "0fa0384a90c44104c7a4a7dcc75d394e1e8cf636",
+  "prompts": {},
+  "sessions": {
+    "s_800bb7c09e26d5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8c3fdd2d-2025-4af0-82b6-e2e6dca123af",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
