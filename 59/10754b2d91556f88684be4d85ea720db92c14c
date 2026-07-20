@@ -1,0 +1,22 @@
+skills/roadmap/scripts/rmops.py
+  s_800bb7c09e26d5::t_72b67d5156dead 1-463
+skills/roadmap/scripts/roadmap.py
+  s_800bb7c09e26d5::t_72b67d5156dead 34-52,73-80
+  s_800bb7c09e26d5::t_8ff2c98d0c451f 149-150
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "5910754b2d91556f88684be4d85ea720db92c14c",
+  "prompts": {},
+  "sessions": {
+    "s_800bb7c09e26d5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8c3fdd2d-2025-4af0-82b6-e2e6dca123af",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
