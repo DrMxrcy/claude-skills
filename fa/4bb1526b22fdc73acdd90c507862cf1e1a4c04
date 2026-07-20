@@ -1,0 +1,26 @@
+skills/roadmap/scripts/roadmap.py
+  s_800bb7c09e26d5::t_e2e22f8757251a 1827,1829-1830,1832-1842
+  s_800bb7c09e26d5::t_d5a10d51b7e138 1965
+  s_800bb7c09e26d5::t_3efeb4d04675cf 2040-2057
+  s_800bb7c09e26d5::t_7ccd49d073704d 1889-1905,1907,1909,1912,1926-1938
+  s_800bb7c09e26d5::t_d9316f2a1453d1 1882-1886
+  s_800bb7c09e26d5::t_a6bd493215f961 2146-2156
+tests/test_roadmap_serve.py
+  s_800bb7c09e26d5::t_ba2a3b376568e0 72-94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "fa4bb1526b22fdc73acdd90c507862cf1e1a4c04",
+  "prompts": {},
+  "sessions": {
+    "s_800bb7c09e26d5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8c3fdd2d-2025-4af0-82b6-e2e6dca123af",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
