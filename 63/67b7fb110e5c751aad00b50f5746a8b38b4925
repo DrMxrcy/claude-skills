@@ -1,0 +1,23 @@
+skills/roadmap/scripts/roadmap.py
+  s_800bb7c09e26d5::t_f2a0fa5c153c51 1903-1904
+  s_800bb7c09e26d5::t_b5af022dd1970e 1862-1867
+  s_800bb7c09e26d5::t_411f83273d8a67 1874
+  s_800bb7c09e26d5::t_6c46c66a6f32bb 1894
+  s_800bb7c09e26d5::t_88cdbdb52aee99 1835
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "6367b7fb110e5c751aad00b50f5746a8b38b4925",
+  "prompts": {},
+  "sessions": {
+    "s_800bb7c09e26d5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8c3fdd2d-2025-4af0-82b6-e2e6dca123af",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
