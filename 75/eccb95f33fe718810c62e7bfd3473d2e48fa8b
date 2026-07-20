@@ -1,0 +1,22 @@
+skills/roadmap/scripts/roadmap.py
+  s_800bb7c09e26d5::t_80bb14c4a533d3 1794-1798,1938
+  s_800bb7c09e26d5::t_66e1d6b3d0f06c 1901
+skills/roadmap/scripts/dashboard.html
+  s_800bb7c09e26d5::t_855fb8b8806229 1-206
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "75eccb95f33fe718810c62e7bfd3473d2e48fa8b",
+  "prompts": {},
+  "sessions": {
+    "s_800bb7c09e26d5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8c3fdd2d-2025-4af0-82b6-e2e6dca123af",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
