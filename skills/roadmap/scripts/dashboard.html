@@ -13,8 +13,10 @@
   * { box-sizing:border-box; }
   body { margin:0; background:var(--bg); color:var(--fg);
     font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
-  header { padding:20px 24px; border-bottom:1px solid var(--line);
-    display:flex; align-items:baseline; gap:16px; flex-wrap:wrap; }
+  header { position:sticky; top:0; z-index:5; background:var(--bg);
+    padding:14px 24px 12px; border-bottom:1px solid var(--line); }
+  .wrap { max-width:1500px; margin:0 auto; }
+  .hrow { display:flex; align-items:baseline; gap:16px; flex-wrap:wrap; }
   header h1 { font-size:16px; margin:0; font-weight:600; }
   header .ver { color:var(--accent); }
   header .overall { margin-left:auto; color:var(--muted); font-size:12px; }
@@ -22,8 +24,21 @@
     background:var(--done); margin-right:6px; vertical-align:middle;
     transition:background .3s; }
   #stale.off { background:var(--todo); }
-  main { max-width:820px; margin:0 auto; padding:20px 24px 60px; }
-  .ver-group { margin-bottom:26px; }
+  .hbar { height:4px; background:var(--bar); border-radius:2px; margin-top:10px;
+    overflow:hidden; }
+  .hbar > i { display:block; height:100%; width:0; background:var(--done);
+    transition:width .3s; }
+  .counts { margin-top:9px; color:var(--muted); font-size:12px;
+    display:flex; gap:16px; flex-wrap:wrap; }
+  .chip { display:inline-flex; align-items:center; gap:6px; }
+  .chip .cdot { width:8px; height:8px; border-radius:50%; background:var(--todo); }
+  .chip .cdot.done { background:var(--done); }
+  .chip .cdot.active { background:var(--active); }
+  .chip .cdot.blocked { background:var(--blocked); }
+  main { max-width:1500px; margin:0 auto; padding:20px 24px 60px; }
+  /* Flow version groups into as many columns as the width allows. */
+  #app { column-width:380px; column-gap:28px; }
+  .ver-group { break-inside:avoid; margin:0 0 22px; }
   .ver-head { display:flex; align-items:center; gap:10px; cursor:pointer;
     padding:6px 0; user-select:none; }
   .ver-head h2 { font-size:13px; margin:0; letter-spacing:.02em; }
@@ -59,7 +74,7 @@
     border-radius:4px; padding:1px 5px; flex:none; }
   .blockedby { font-size:11px; color:var(--blocked); flex:none; }
   .right { display:flex; align-items:center; gap:10px; }
-  .bar { width:120px; height:6px; background:var(--bar); border-radius:3px;
+  .bar { width:90px; height:6px; background:var(--bar); border-radius:3px;
     overflow:hidden; }
   .bar > i { display:block; height:100%; background:var(--done);
     transition:width .3s; }
@@ -69,11 +84,17 @@
 </head>
 <body>
 <header>
-  <h1><span id="stale" title="live"></span><span id="project">roadmap</span>
-    <span class="ver" id="cver"></span></h1>
-  <span class="overall" id="overall"></span>
+  <div class="wrap">
+    <div class="hrow">
+      <h1><span id="stale" title="live"></span><span id="project">roadmap</span>
+        <span class="ver" id="cver"></span></h1>
+      <span class="overall" id="overall"></span>
+    </div>
+    <div class="hbar"><i id="hbarfill"></i></div>
+    <div class="counts" id="counts"></div>
+  </div>
 </header>
-<main id="app"><div class="empty">connecting…</div></main>
+<main><div id="app"><div class="empty">connecting…</div></div></main>
 <script>
 // All text goes in via textContent — no innerHTML, no injection surface.
 const DOT = s => ({done:"done",active:"active",blocked:"blocked"}[s]||"todo");
@@ -178,6 +199,18 @@ function render(d){
   const tt = items.reduce((a,i)=>a+(i.total||0),0);
   document.getElementById("overall").textContent =
     tt ? Math.round(100*td/tt)+"% overall ("+td+"/"+tt+")" : "";
+  document.getElementById("hbarfill").style.width = (tt?100*td/tt:0)+"%";
+  const chip = (n,label,cls) => {
+    const c = el("span","chip");
+    c.appendChild(el("span","cdot"+(cls?" "+cls:"")));
+    c.appendChild(txt("span",null, n+" "+label));
+    return c;
+  };
+  document.getElementById("counts").replaceChildren(
+    chip(items.length, "items", null),
+    chip(items.filter(i=>i.pct===100).length, "done", "done"),
+    chip(items.filter(i=>i.status==="active").length, "active", "active"),
+    chip(items.filter(i=>i.blockedBy&&i.blockedBy.length).length, "blocked", "blocked"));
   const app = document.getElementById("app");
   if(!items.length){
     app.replaceChildren(txt("div","empty", d.error||"no roadmap items yet"));
