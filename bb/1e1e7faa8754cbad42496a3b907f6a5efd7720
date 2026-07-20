@@ -1,0 +1,20 @@
+CONTRIBUTING.md
+  s_800bb7c09e26d5::t_49ccf64df3af26 24-26,29-31
+  s_800bb7c09e26d5::t_118c74579c74b0 32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "bb1e1e7faa8754cbad42496a3b907f6a5efd7720",
+  "prompts": {},
+  "sessions": {
+    "s_800bb7c09e26d5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8c3fdd2d-2025-4af0-82b6-e2e6dca123af",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
