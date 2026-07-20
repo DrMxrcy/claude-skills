@@ -139,13 +139,18 @@ def test_second_serve_same_project_points_at_existing(served, capsys):
     assert base.split(":")[-1] in out  # same port reported
 
 
-def test_different_projects_get_different_ports(dashboard, tmp_path):
+def test_project_port_is_deterministic_and_in_range(dashboard, tmp_path):
     a = tmp_path / "proj-a"
-    b = tmp_path / "proj-b"
-    a.mkdir(); b.mkdir()
-    (a / ".roadmap").mkdir(); (b / ".roadmap").mkdir()
-    assert dashboard._project_port(a) != dashboard._project_port(b) or \
-        a.resolve() == b.resolve()  # distinct paths -> (almost always) distinct ports
+    a.mkdir()
+    p1 = dashboard._project_port(a)
+    p2 = dashboard._project_port(a)
+    assert p1 == p2                                   # same project -> same port
+    assert dashboard.DEFAULT_PORT <= p1 < dashboard.DEFAULT_PORT + dashboard.PORT_SPAN
+    # A different path maps through the hash independently (may collide 1/SPAN,
+    # so we assert it still lands in range rather than strict distinctness).
+    b = tmp_path / "proj-b"; b.mkdir()
+    assert dashboard.DEFAULT_PORT <= dashboard._project_port(b) < \
+        dashboard.DEFAULT_PORT + dashboard.PORT_SPAN
 
 
 def test_serve_no_roadmap_is_noop(roadmap, tmp_path, capsys):
