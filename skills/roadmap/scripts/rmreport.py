@@ -3,7 +3,6 @@ git helpers they rely on. Layer: rmcore + rmsync (read-only, no mutations)."""
 from __future__ import annotations
 import json
 import subprocess
-import sys
 from pathlib import Path
 from rmcore import (
     get_version, read_config, roadmap_dir, write_config)

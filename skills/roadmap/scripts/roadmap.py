@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """roadmap — deterministic CLI for the roadmap skill (Python 3 stdlib only)."""
 from __future__ import annotations
-import argparse, datetime, json, os, re, subprocess, sys, tempfile
+import argparse, json, sys
 from pathlib import Path
 
 # Submodules live beside this file; ensure this dir is importable whether we are

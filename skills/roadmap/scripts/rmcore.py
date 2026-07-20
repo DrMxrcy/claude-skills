@@ -1,7 +1,7 @@
 """roadmap core — shared primitives (paths, config, versions, templates).
 Lowest layer; imports only the stdlib so every other module can depend on it."""
 from __future__ import annotations
-import datetime, json, os, re, subprocess, tempfile
+import json, os, re, subprocess, tempfile
 from pathlib import Path
 
 
