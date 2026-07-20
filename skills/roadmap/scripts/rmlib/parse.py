@@ -3,7 +3,7 @@ Pure/leaf layer: depends only on rmcore."""
 from __future__ import annotations
 import re
 from pathlib import Path
-from rmcore import read_config, roadmap_dir
+from rmlib.core import read_config, roadmap_dir
 
 
 STEP_RE = re.compile(r"^(\s*[-*]\s+)\[( |x|X)\](.*)$")

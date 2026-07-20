@@ -17,8 +17,8 @@ def roadmap():
 
 @pytest.fixture
 def dashboard():
-    """Import the dashboard module (sibling of roadmap.py)."""
-    path = SCRIPT.parent / "dashboard.py"
+    """Import the dashboard module (rmlib package, beside roadmap.py)."""
+    path = SCRIPT.parent / "rmlib" / "dashboard.py"
     spec = importlib.util.spec_from_file_location("roadmap_dashboard", path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)

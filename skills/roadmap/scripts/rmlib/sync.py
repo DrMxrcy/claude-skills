@@ -5,12 +5,12 @@ from __future__ import annotations
 import datetime
 import sys
 from pathlib import Path
-from rmcore import (
+from rmlib.core import (
     AUTO_END, AUTO_START, _norm_version, _set_frontmatter, _version_key,
     atomic_write, derive_status, read_config, roadmap_dir, write_config)
-from rmparse import (
+from rmlib.parse import (
     count_progress)
-from rmchangelog import (
+from rmlib.changelog import (
     render_internal_changelog, render_public_changelog)
 
 

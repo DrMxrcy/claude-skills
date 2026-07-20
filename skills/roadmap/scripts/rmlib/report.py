@@ -4,9 +4,9 @@ from __future__ import annotations
 import json
 import subprocess
 from pathlib import Path
-from rmcore import (
+from rmlib.core import (
     get_version, read_config, roadmap_dir, write_config)
-from rmsync import (
+from rmlib.sync import (
     next_item, status)
 
 

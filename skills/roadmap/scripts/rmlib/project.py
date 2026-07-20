@@ -2,11 +2,11 @@
 Layer: rmcore + rmsync."""
 from __future__ import annotations
 from pathlib import Path
-from rmcore import (
+from rmlib.core import (
     AUTO_END, AUTO_START, RULES_BLOCK, RULES_END, RULES_FILES, RULES_START,
     _norm_version, _render_template, atomic_write, detect_version,
     get_version, read_config, roadmap_dir, write_config)
-from rmsync import (
+from rmlib.sync import (
     sync)
 
 

@@ -4,8 +4,8 @@ from __future__ import annotations
 import datetime
 import re
 from pathlib import Path
-from rmsync import roadmap_health
-from rmcore import (
+from rmlib.sync import roadmap_health
+from rmlib.core import (
     AUTO_END, AUTO_START, atomic_write, read_config, roadmap_dir, slugify,
     write_config)
 

@@ -5,7 +5,8 @@ import json, os, re, subprocess, tempfile
 from pathlib import Path
 
 
-TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
+# core.py lives in scripts/rmlib/, so templates/ and VERSION are three levels up.
+TEMPLATES_DIR = Path(__file__).resolve().parent.parent.parent / "templates"
 AUTO_START = "<!-- roadmap:auto:start -->"
 AUTO_END = "<!-- roadmap:auto:end -->"
 
@@ -60,7 +61,7 @@ RULES_FILES = ("CLAUDE.md", "AGENTS.md")
 
 
 def get_version() -> str:
-    vf = Path(__file__).resolve().parent.parent / "VERSION"
+    vf = Path(__file__).resolve().parent.parent.parent / "VERSION"
     return vf.read_text(encoding="utf-8").strip() if vf.exists() else "unknown"
 
 

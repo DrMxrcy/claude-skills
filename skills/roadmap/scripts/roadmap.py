@@ -7,52 +7,32 @@ from pathlib import Path
 # Submodules live beside this file; ensure this dir is importable whether we are
 # run as a script or imported under another name (tests load us via importlib).
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from rmcore import (  # noqa: E402  (re-exported so callers/tests keep roadmap.X)
+from rmlib.core import (  # noqa: E402  (re-exported so callers/tests keep roadmap.X)
     TEMPLATES_DIR, AUTO_START, AUTO_END, RULES_START, RULES_END, RULES_BLOCK,
     RULES_FILES, get_version, roadmap_dir, find_root, atomic_write, read_config,
     write_config, slugify, _render_template, _version_from_pyproject,
     detect_version, derive_status, _set_frontmatter, _norm_version, _version_key)
 
 
-from rmsync import (  # noqa: E402
+from rmlib.sync import (  # noqa: E402
     _incomplete_deps, _item_done, _next_current_version, _progress_map,
     _version_complete, incomplete_deps, next_item, render_region,
     roadmap_health, status, sync, warn_incomplete_deps, MAX_ROADMAP_LINES,
     MAX_FREEFORM_LINES, MAX_FREEFORM_CHARS)
 
 
-
-
-
-
-
-
-from rmparse import (  # noqa: E402
+from rmlib.parse import (  # noqa: E402
     STEP_RE, _is_fence, parse_plan, count_progress, _plan_path)
 
 
-from rmops import (  # noqa: E402
+from rmlib.ops import (  # noqa: E402
     TEMPLATE_BY_TYPE, _incomplete_items, _refuse_status_note,
     backfill_changelog, check_step, import_file, merge_items, new_item,
     promote_idea, release, remove_item, reorder, retarget, set_audience,
     set_depends, set_note, set_release_summary)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-from rmincubator import (  # noqa: E402
+from rmlib.incubator import (  # noqa: E402
     DUPLICATE_RATIO, INCUBATOR_BULLET_RE, INCUBATOR_HEADING, INCUBATOR_RE,
     MAX_BULLET_CHARS, MD_LINK_RE, _freeform_lines, _incubator_append,
     _incubator_stub, _norm_title, _strip_incubator_placeholder, add_idea,
@@ -60,28 +40,8 @@ from rmincubator import (  # noqa: E402
     list_incubator_bullets, tidy_report)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # type → user-facing changelog section (App Store / website friendly)
-from rmchangelog import (  # noqa: E402
+from rmlib.changelog import (  # noqa: E402
     TYPE_SECTION, SECTION_ORDER, DEFAULT_AUDIENCE, ROLLUP_LINE,
     WARN_VENDORS, WARN_JARGON, WARN_TELLS, DEMOTE_ADMIN, DEMOTE_COMPLIANCE,
     DEMOTE_SECURITY, DEMOTE_PLUMBING, DEMOTE_TELLS, _PATH_RE, _SEG_RE,
@@ -91,76 +51,49 @@ from rmchangelog import (  # noqa: E402
     audit_public_notes)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-from rmreport import (  # noqa: E402
+from rmlib.report import (  # noqa: E402
     _git_dirty, _git_head, _record_last_seen_sha, drift_check,
     format_orient, handoff, orient)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-from rmproject import (  # noqa: E402
+from rmlib.project import (  # noqa: E402
     _apply_rules_block, ensure_claude_md_rules, ensure_project_rules,
     init_project, upgrade)
 
 
-
-
-
-
-
-
+__all__ = [  # public facade: names re-exported for callers/tests/hooks (roadmap.X)
+    'TEMPLATES_DIR', 'AUTO_START', 'AUTO_END', 'RULES_START', 'RULES_END',
+    'RULES_BLOCK', 'RULES_FILES', 'get_version', 'roadmap_dir',
+    'find_root', 'atomic_write', 'read_config', 'write_config', 'slugify',
+    '_render_template', '_version_from_pyproject', 'detect_version',
+    'derive_status', '_set_frontmatter', '_norm_version', '_version_key',
+    '_incomplete_deps', '_item_done', '_next_current_version',
+    '_progress_map', '_version_complete', 'incomplete_deps', 'next_item',
+    'render_region', 'roadmap_health', 'status', 'sync',
+    'warn_incomplete_deps', 'MAX_ROADMAP_LINES', 'MAX_FREEFORM_LINES',
+    'MAX_FREEFORM_CHARS', 'STEP_RE', '_is_fence', 'parse_plan',
+    'count_progress', '_plan_path', 'TEMPLATE_BY_TYPE',
+    '_incomplete_items', '_refuse_status_note', 'backfill_changelog',
+    'check_step', 'import_file', 'merge_items', 'new_item', 'promote_idea',
+    'release', 'remove_item', 'reorder', 'retarget', 'set_audience',
+    'set_depends', 'set_note', 'set_release_summary', 'DUPLICATE_RATIO',
+    'INCUBATOR_BULLET_RE', 'INCUBATOR_HEADING', 'INCUBATOR_RE',
+    'MAX_BULLET_CHARS', 'MD_LINK_RE', '_freeform_lines',
+    '_incubator_append', '_incubator_stub', '_norm_title',
+    '_strip_incubator_placeholder', 'add_idea', 'externalize_incubator',
+    'format_tidy', 'incubator_file', 'list_incubator_bullets',
+    'tidy_report', 'TYPE_SECTION', 'SECTION_ORDER', 'DEFAULT_AUDIENCE',
+    'ROLLUP_LINE', 'WARN_VENDORS', 'WARN_JARGON', 'WARN_TELLS',
+    'DEMOTE_ADMIN', 'DEMOTE_COMPLIANCE', 'DEMOTE_SECURITY',
+    'DEMOTE_PLUMBING', 'DEMOTE_TELLS', '_PATH_RE', '_SEG_RE', '_REF_RE',
+    '_STATUS_RES', '_word_hits', '_dedupe', 'status_tells', 'lint_note',
+    'demote_tells', 'item_audience', '_changelog_versions',
+    '_grouped_lines', 'render_public_changelog', 'changelog_json',
+    'render_internal_changelog', 'audit_public_notes', '_git_dirty',
+    '_git_head', '_record_last_seen_sha', 'drift_check', 'format_orient',
+    'handoff', 'orient', '_apply_rules_block', 'ensure_claude_md_rules',
+    'ensure_project_rules', 'init_project', 'upgrade', 'serve', 'main'
+]
 
 
 def serve(root: Path, port: int | None = None, open_browser: bool = True) -> int:
@@ -169,7 +102,7 @@ def serve(root: Path, port: int | None = None, open_browser: bool = True) -> int
     script and when it is imported under a different module name (tests)."""
     import importlib.util
     import types
-    path = Path(__file__).resolve().parent / "dashboard.py"
+    path = Path(__file__).resolve().parent / "rmlib" / "dashboard.py"
     spec = importlib.util.spec_from_file_location("roadmap_dashboard", path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)

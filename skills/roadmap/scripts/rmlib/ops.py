@@ -7,18 +7,18 @@ import subprocess
 import sys
 import datetime
 from pathlib import Path
-from rmcore import (
+from rmlib.core import (
     _norm_version, _render_template, _set_frontmatter, _version_key,
     atomic_write, read_config, roadmap_dir, slugify, write_config)
-from rmparse import (
+from rmlib.parse import (
     STEP_RE, _is_fence, _plan_path, count_progress, parse_plan)
-from rmchangelog import (
+from rmlib.changelog import (
     demote_tells, item_audience, lint_note, status_tells)
-from rmsync import (
+from rmlib.sync import (
     sync)
-from rmreport import (
+from rmlib.report import (
     _record_last_seen_sha)
-from rmincubator import (
+from rmlib.incubator import (
     INCUBATOR_BULLET_RE, _incubator_stub, _strip_incubator_placeholder,
     incubator_file, list_incubator_bullets)
 

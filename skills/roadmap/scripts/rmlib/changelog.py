@@ -3,8 +3,8 @@ linting, and public/internal audience routing. Layer: rmcore + rmparse."""
 from __future__ import annotations
 import re
 from pathlib import Path
-from rmcore import read_config, roadmap_dir, _version_key
-from rmparse import count_progress
+from rmlib.core import read_config, roadmap_dir, _version_key
+from rmlib.parse import count_progress
 
 
 TYPE_SECTION = {"feature": "✨ New", "bug": "🐛 Fixed",
