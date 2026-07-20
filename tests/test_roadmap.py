@@ -962,16 +962,54 @@ def test_shipped_versions_collapse_below_current(roadmap, repo):
     assert "#2 New thing" in managed                      # current version expanded
 
 
-def test_done_current_and_future_versions_stay_expanded(roadmap, repo):
+def test_done_versions_auto_advance_current_to_newest(roadmap, repo):
+    # A shipped version sitting above a completed current means current fell
+    # behind — it auto-advances to the newest shipped version, collapsing below.
     roadmap.init_project(repo, "P")
     roadmap.new_item(repo, "feature", "Current work", version="0.0.1")
-    roadmap.check_step(repo, 1, None, all_done=True)      # current version 100%
+    roadmap.check_step(repo, 1, None, all_done=True)      # v0.0.1 100%
     roadmap.new_item(repo, "feature", "Future done", version="0.1.0")
-    roadmap.check_step(repo, 2, None, all_done=True)      # future version 100%
+    roadmap.check_step(repo, 2, None, all_done=True)      # v0.1.0 100%
+    assert roadmap.read_config(repo)["currentVersion"] == "0.1.0"
     managed = (repo / "ROADMAP.md").read_text().split(
         roadmap.AUTO_START)[1].split(roadmap.AUTO_END)[0]
-    assert "#1 Current work" in managed                   # == current: never collapses
-    assert "#2 Future done" in managed                    # > current: awaits review/release
+    assert "#2 Future done" in managed                    # current, expanded
+    assert "#1 Current work" not in managed               # below current: collapsed
+
+
+def test_auto_advance_lands_on_next_unfinished_version(roadmap, repo):
+    # The reported case: current stuck on a shipped version while a later version
+    # also shipped and an even later one is still open. current should jump to the
+    # lowest still-open version above (skipping the shipped ones in between).
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "a", version="1.5.6")
+    roadmap.check_step(repo, 1, None, all_done=True)
+    roadmap.release(repo, "1.5.6")                        # current = 1.5.6 (shipped)
+    # Simulate falling behind: add + finish 1.6.0 and open 1.6.1 before any sync
+    # advances current, by writing config directly, then sync once.
+    roadmap.new_item(repo, "feature", "b", version="1.6.0")
+    roadmap.new_item(repo, "feature", "c", version="1.6.1")
+    cfg = roadmap.read_config(repo)
+    cfg["currentVersion"] = "1.5.6"                       # force the stale pointer
+    roadmap.write_config(repo, cfg)
+    roadmap.check_step(repo, 2, None, all_done=True)      # 1.6.0 -> 100%; 1.6.1 open
+    cfg = roadmap.read_config(repo)
+    cfg["currentVersion"] = "1.5.6"                       # still stale before catch-up
+    roadmap.write_config(repo, cfg)
+    roadmap.sync(repo)
+    assert roadmap.read_config(repo)["currentVersion"] == "1.6.1"
+
+
+def test_auto_advance_opt_out_setting(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "Current work", version="0.0.1")
+    roadmap.check_step(repo, 1, None, all_done=True)
+    cfg = roadmap.read_config(repo)
+    cfg["settings"]["autoAdvanceVersion"] = False
+    roadmap.write_config(repo, cfg)
+    roadmap.new_item(repo, "feature", "Future done", version="0.1.0")
+    roadmap.check_step(repo, 2, None, all_done=True)
+    assert roadmap.read_config(repo)["currentVersion"] == "0.0.1"   # pinned
 
 
 def test_collapse_opt_out_setting(roadmap, repo):

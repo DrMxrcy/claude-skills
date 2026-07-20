@@ -22,15 +22,17 @@ def served(roadmap, repo, monkeypatch):
     holder = {}
 
     def run():
-        # Patch ThreadingHTTPServer to capture the instance so we can shut it.
+        # Replace the base with a subclass that records each instance, so the
+        # Server subclass created inside serve() still subclasses cleanly and we
+        # can grab the instance to shut it down in teardown.
         orig = http.server.ThreadingHTTPServer
 
-        def capture(*a, **k):
-            srv = orig(*a, **k)
-            holder["srv"] = srv
-            return srv
+        class Capturing(orig):
+            def __init__(self, *a, **k):
+                super().__init__(*a, **k)
+                holder["srv"] = self
 
-        monkeypatch.setattr(http.server, "ThreadingHTTPServer", capture)
+        monkeypatch.setattr(http.server, "ThreadingHTTPServer", Capturing)
         roadmap.serve(repo, port=None, open_browser=False)
 
     t = threading.Thread(target=run, daemon=True)

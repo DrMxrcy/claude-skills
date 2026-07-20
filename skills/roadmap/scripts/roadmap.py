@@ -221,6 +221,41 @@ def render_region(cfg: dict, progress: dict) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+def _version_complete(vitems: list, progress: dict) -> bool:
+    """A version is complete when it has items and every one is 100% done."""
+    if not vitems:
+        return False
+    for i in vitems:
+        done, total = progress.get(i["id"], (0, 0))
+        if not (total > 0 and done == total):
+            return False
+    return True
+
+
+def _next_current_version(cfg: dict, by_version: dict, progress: dict):
+    """If the current version is fully shipped, the version current should point
+    at next: the lowest later version that is not yet complete, or (if every
+    later version is also complete) the newest one. None = leave current as-is.
+
+    Only advances a *completed* current version, so a freshly `release`-d empty
+    future version (no items yet) is never skipped."""
+    cur = cfg["currentVersion"]
+    if not _version_complete(by_version.get(cur, []), progress):
+        return None
+    above = sorted((v for v in by_version if _version_key(v) > _version_key(cur)),
+                   key=_version_key)
+    # Only follow the work forward once a *shipped* (100%) version sits above the
+    # current one — i.e. current has fallen behind a completed release. A freshly
+    # added, still-incomplete next version alone is left to release()/build flow,
+    # so an explicit release isn't pre-empted.
+    if not any(_version_complete(by_version[v], progress) for v in above):
+        return None
+    for v in above:
+        if not _version_complete(by_version[v], progress):
+            return v            # land on the lowest still-open version above
+    return above[-1]            # everything above is shipped too → newest
+
+
 def sync(root: Path, quiet: bool = False) -> None:
     cfg = read_config(root)
     # Self-heal: enforce the canonical (no-'v') version form on stored data so a
@@ -264,6 +299,14 @@ def sync(root: Path, quiet: bool = False) -> None:
     for stale in [v for v in version_dates if v not in by_version]:
         del version_dates[stale]
         changed = True
+    # Auto-advance currentVersion: once the current version ships 100%, current
+    # should follow the work to the next unfinished version — no hand-editing,
+    # no stale pointer. Opt out with settings.autoAdvanceVersion = false.
+    if cfg.get("settings", {}).get("autoAdvanceVersion", True):
+        nxt = _next_current_version(cfg, by_version, progress)
+        if nxt and nxt != cfg["currentVersion"]:
+            cfg["currentVersion"] = nxt
+            changed = True
     if changed:
         write_config(root, cfg)
     body = render_region(cfg, progress) if cfg["items"] else \
@@ -1815,9 +1858,9 @@ const DOT = s => ({done:"done",active:"active",blocked:"blocked"}[s]||"todo");
 const el = (tag,cls) => { const e=document.createElement(tag);
   if(cls) e.className=cls; return e; };
 const txt = (tag,cls,s) => { const e=el(tag,cls); e.textContent=s; return e; };
-const collapsed = new Set(JSON.parse(localStorage.getItem("rm-collapsed")||"[]"));
-const saveCollapsed = () => localStorage.setItem("rm-collapsed",
-  JSON.stringify([...collapsed]));
+// Everything starts collapsed; the set tracks which versions the user opened.
+const open = new Set(JSON.parse(localStorage.getItem("rm-open")||"[]"));
+const saveOpen = () => localStorage.setItem("rm-open", JSON.stringify([...open]));
 const stale = off => document.getElementById("stale").classList.toggle("off", off);
 
 function itemRow(it){
@@ -1843,7 +1886,7 @@ function verSection(v, items, cur){
   const gd = items.reduce((a,i)=>a+(i.done||0),0);
   const gt = items.reduce((a,i)=>a+(i.total||0),0);
   const sec = el("section","ver-group");
-  if(collapsed.has(v) && v!==cur) sec.classList.add("collapsed");
+  if(!open.has(v)) sec.classList.add("collapsed");   // collapsed unless opened
   sec.dataset.v = v;
   const head = el("div","ver-head");
   head.appendChild(txt("span","chev","▾"));
@@ -1852,8 +1895,8 @@ function verSection(v, items, cur){
     (gt?Math.round(100*gd/gt):0)+"% · "+gd+"/"+gt));
   head.onclick = () => {
     sec.classList.toggle("collapsed");
-    sec.classList.contains("collapsed") ? collapsed.add(v) : collapsed.delete(v);
-    saveCollapsed();
+    sec.classList.contains("collapsed") ? open.delete(v) : open.add(v);
+    saveOpen();
   };
   sec.appendChild(head);
   const box = el("div","items");
@@ -1907,7 +1950,9 @@ def _status_line(st: dict) -> str:
     pct = round(100 * td / tt) if tt else 0
     active = sum(1 for i in items if i.get("status") == "active")
     ver = st.get("currentVersion") or "?"
-    return f"v{ver} {pct}% ({td}/{tt}) · {active} active"
+    nvers = len({i.get("version") for i in items})
+    return (f"current v{ver} · {pct}% ({td}/{tt}) · {active} active"
+            f" · {nvers} version{'s' if nvers != 1 else ''}")
 
 
 def _roadmap_signature(root: Path):
@@ -2036,6 +2081,18 @@ def serve(root: Path, port: int | None = None, open_browser: bool = True) -> int
         def log_message(self, *args) -> None:  # silence per-request logging
             pass
 
+    class Server(http.server.ThreadingHTTPServer):
+        daemon_threads = True   # worker threads die with the process
+
+        def handle_error(self, request, client_address) -> None:
+            # A browser closing an SSE stream resets the socket — that is normal,
+            # not an error. Swallow it instead of dumping a traceback.
+            exc = sys.exc_info()[1]
+            if isinstance(exc, (ConnectionResetError, BrokenPipeError,
+                                ConnectionAbortedError)):
+                return
+            super().handle_error(request, client_address)
+
     if port is None:
         preferred = _project_port(root)
         # Already serving THIS project in another terminal? Point at it, don't
@@ -2055,8 +2112,7 @@ def serve(root: Path, port: int | None = None, open_browser: bool = True) -> int
         httpd = None
         for candidate in range(preferred, preferred + PORT_SPAN):
             try:
-                httpd = http.server.ThreadingHTTPServer(
-                    ("127.0.0.1", candidate), Handler)
+                httpd = Server(("127.0.0.1", candidate), Handler)
                 break
             except OSError:
                 continue
@@ -2066,7 +2122,7 @@ def serve(root: Path, port: int | None = None, open_browser: bool = True) -> int
             return 1
     else:
         try:
-            httpd = http.server.ThreadingHTTPServer(("127.0.0.1", port), Handler)
+            httpd = Server(("127.0.0.1", port), Handler)
         except OSError as e:
             print(f"Error: cannot bind 127.0.0.1:{port} — {e}", file=sys.stderr)
             return 1
