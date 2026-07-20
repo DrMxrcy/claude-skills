@@ -69,6 +69,35 @@ def test_install_piped_without_local_repo(tmp_path):
     assert (tmp_path / ".claude/skills/roadmap/SKILL.md").exists()
 
 
+def test_install_global_adds_claude_roadmap_cli(tmp_path):
+    env = {**os.environ, "PYTHON": "python3", "HOME": str(tmp_path)}
+    res = subprocess.run(["bash", str(INSTALL), "--global", "--only=roadmap"],
+                         cwd=tmp_path, env=env, capture_output=True, text=True)
+    assert res.returncode == 0, res.stderr
+    shim = tmp_path / ".local/bin/claude-roadmap"
+    assert shim.exists(), res.stdout
+    body = shim.read_text()
+    assert "roadmap/scripts/roadmap.py" in body
+    assert os.access(shim, os.X_OK)
+
+
+def test_install_project_skips_cli_by_default(tmp_path):
+    env = {**os.environ, "PYTHON": "python3", "HOME": str(tmp_path)}
+    res = subprocess.run(["bash", str(INSTALL), "--project"],
+                         cwd=tmp_path, env=env, capture_output=True, text=True)
+    assert res.returncode == 0, res.stderr
+    assert not (tmp_path / ".local/bin/claude-roadmap").exists()
+
+
+def test_install_no_cli_flag_suppresses_shim(tmp_path):
+    env = {**os.environ, "PYTHON": "python3", "HOME": str(tmp_path)}
+    res = subprocess.run(["bash", str(INSTALL), "--global", "--only=roadmap",
+                          "--no-cli"], cwd=tmp_path, env=env,
+                         capture_output=True, text=True)
+    assert res.returncode == 0, res.stderr
+    assert not (tmp_path / ".local/bin/claude-roadmap").exists()
+
+
 def test_install_global_uses_home(tmp_path):
     env = {**os.environ, "PYTHON": "python3.11", "HOME": str(tmp_path)}
     res = subprocess.run(["bash", str(INSTALL), "--global"],

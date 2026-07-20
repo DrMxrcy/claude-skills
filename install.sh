@@ -44,6 +44,7 @@ commands=1
 claude_md=1
 agent_fleet=1
 model_wire=1
+cli=-1          # -1 = auto (on for --global); 0/1 = forced by --no-cli/--cli
 only=""
 pass_args=()
 for arg in "$@"; do
@@ -60,6 +61,8 @@ for arg in "$@"; do
     --no-claude-md) claude_md=0; pass_args+=("$arg") ;;
     --no-agent) agent_fleet=0; pass_args+=("$arg") ;;
     --no-model) model_wire=0; pass_args+=("$arg") ;;
+    --cli) cli=1; pass_args+=("$arg") ;;
+    --no-cli) cli=0; pass_args+=("$arg") ;;
     --only=*) only="${arg#--only=}"; pass_args+=("$arg") ;;
     --init) do_init=1; pass_args+=("$arg") ;;
     -h|--help)
@@ -81,6 +84,9 @@ rules to CLAUDE.md + AGENTS.md (no manual copying or settings edits).
   --no-claude-md          do not add roadmap rules to CLAUDE.md / AGENTS.md
   --no-agent              do not install the cost-tiered agent orchestration fleet (Claude)
   --no-model              do not set a default main-session model in settings.json
+  --cli                   install a 'claude-roadmap' command on PATH (default with
+                          --global) so you can run 'claude-roadmap serve' anywhere
+  --no-cli                do not install the 'claude-roadmap' PATH command
   --only=<skill[,skill]>  install only these skills (agent, roadmap) and skip the
                           excluded skills' wiring — e.g. --only=agent when roadmap
                           is already installed globally
@@ -273,13 +279,13 @@ if os.path.exists(path):
 if "model" in data:
     print(f"Main-session model already set to {data['model']!r} in {path}; left unchanged.")
     sys.exit(0)
-data["model"] = "opus"
-data.setdefault("fallbackModel", ["sonnet", "haiku"])
+data["model"] = "fable"
+data.setdefault("fallbackModel", ["opus"])
 os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
 with open(path, "w", encoding="utf-8") as f:
     json.dump(data, f, indent=2)
     f.write("\n")
-print(f"Pinned main-session model 'opus' (fallback: sonnet, haiku) in {path}")
+print(f"Pinned main-session model 'fable' (fallback: opus) in {path}")
 PY
 }
 
@@ -441,6 +447,35 @@ if [ "$agent_fleet" = "1" ] && _want agent && [ "$agent" = "claude" ] && [ -d "$
 
   # Pin a default main-session model (non-destructive) unless --no-model.
   [ "$model_wire" = "1" ] && _wire_model "$settings"
+fi
+
+# Optional 'claude-roadmap' PATH command. Default on for --global: the script
+# resolves the project from your CWD (find_root), so one command serves every
+# project — e.g. `claude-roadmap serve` or `claude-roadmap status` anywhere.
+if [ "$cli" = "-1" ]; then
+  if [ "$scope" = "global" ]; then cli=1; else cli=0; fi
+fi
+if [ "$cli" = "1" ] && [ "$agent" = "claude" ]; then
+  rp_script="$skills_dest/roadmap/scripts/roadmap.py"
+  if [ -f "$rp_script" ]; then
+    bindir="$HOME/.local/bin"
+    mkdir -p "$bindir"
+    shim="$bindir/claude-roadmap"
+    cat > "$shim" <<SHIM
+#!/usr/bin/env bash
+# Installed by claude-skills install.sh — runs the roadmap CLI against your CWD.
+exec "${PYTHON:-python3}" "$rp_script" "\$@"
+SHIM
+    chmod +x "$shim"
+    echo "Installed CLI:    claude-roadmap -> $shim"
+    case ":$PATH:" in
+      *":$bindir:"*) : ;;
+      *)
+        echo "  Note: $bindir is not on PATH. Add it (zsh):"
+        echo "    echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.zshrc && source ~/.zshrc"
+        ;;
+    esac
+  fi
 fi
 
 if [ "$do_init" = "1" ]; then
