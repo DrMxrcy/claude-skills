@@ -139,12 +139,12 @@ def test_second_serve_same_project_points_at_existing(served, capsys):
     assert base.split(":")[-1] in out  # same port reported
 
 
-def test_different_projects_get_different_ports(roadmap, tmp_path):
+def test_different_projects_get_different_ports(dashboard, tmp_path):
     a = tmp_path / "proj-a"
     b = tmp_path / "proj-b"
     a.mkdir(); b.mkdir()
     (a / ".roadmap").mkdir(); (b / ".roadmap").mkdir()
-    assert roadmap._project_port(a) != roadmap._project_port(b) or \
+    assert dashboard._project_port(a) != dashboard._project_port(b) or \
         a.resolve() == b.resolve()  # distinct paths -> (almost always) distinct ports
 
 

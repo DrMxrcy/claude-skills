@@ -16,6 +16,16 @@ def roadmap():
 
 
 @pytest.fixture
+def dashboard():
+    """Import the dashboard module (sibling of roadmap.py)."""
+    path = SCRIPT.parent / "dashboard.py"
+    spec = importlib.util.spec_from_file_location("roadmap_dashboard", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+@pytest.fixture
 def repo(tmp_path):
     """A hermetic temp git repo (no commit/tag signing, so tests don't touch the
     user's GPG/SSH signing agent)."""

@@ -186,8 +186,17 @@ function render(d){
   const groups = {};
   for(const it of items){ (groups[it.version] ||= []).push(it); }
   const cur = d.currentVersion;
+  // Numeric semver compare (descending) so 0.10.0 sorts above 0.9.0, not below.
+  const vkey = v => String(v).split(".").map(n=>parseInt(n,10)||0);
+  const vcmp = (a,b) => {
+    const A=vkey(a), B=vkey(b);
+    for(let i=0; i<Math.max(A.length,B.length); i++){
+      const diff=(B[i]||0)-(A[i]||0); if(diff) return diff;
+    }
+    return 0;
+  };
   const vers = Object.keys(groups).sort((a,b)=>
-    a===cur?-1:b===cur?1:(a<b?1:-1));
+    a===cur?-1:b===cur?1:vcmp(a,b));
   app.replaceChildren(...vers.map(v=>verSection(v, groups[v], cur)));
 }
 
