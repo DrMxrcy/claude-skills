@@ -1,0 +1,30 @@
+skills/roadmap/scripts/roadmap.py
+  s_800bb7c09e26d5::t_d13763df2419c1 302-309
+  s_800bb7c09e26d5::t_39e30af4ae9ede 2084-2095,2115,2125
+  s_800bb7c09e26d5::t_c4a652973311e2 1953-1955
+  s_800bb7c09e26d5::t_d43fa03dcc1fc9 224-244,246,254,257-258
+  s_800bb7c09e26d5::t_6f7c7a07602dc7 1889
+  s_800bb7c09e26d5::t_5ed250048d8a2b 1898-1899
+  s_800bb7c09e26d5::t_cccc1e45bb9554 1861-1863
+  s_800bb7c09e26d5::t_66258997ab670b 245,247-253,255-256
+tests/test_roadmap.py
+  s_800bb7c09e26d5::t_4fb0357d77bf7e 965-967,970,972-973,976-1012
+tests/test_roadmap_serve.py
+  s_800bb7c09e26d5::t_08aa0c7e0df89a 25-27,30-33,35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "79b072824acd63bf08caff82bd5737a79e71a38d",
+  "prompts": {},
+  "sessions": {
+    "s_800bb7c09e26d5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8c3fdd2d-2025-4af0-82b6-e2e6dca123af",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
