@@ -1791,213 +1791,11 @@ def upgrade(root: Path) -> None:
     print(f"Refreshed roadmap rules in {names} ({old} → v{new})")
 
 
-DASHBOARD_HTML = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>roadmap</title>
-<style>
-  :root {
-    --bg:#0e1116; --line:#232a34; --fg:#e6edf3; --muted:#8b98a5;
-    --bar:#242c38; --done:#3fb950; --active:#d29922; --blocked:#f85149;
-    --todo:#4b5563; --accent:#58a6ff;
-  }
-  * { box-sizing:border-box; }
-  body { margin:0; background:var(--bg); color:var(--fg);
-    font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
-  header { padding:20px 24px; border-bottom:1px solid var(--line);
-    display:flex; align-items:baseline; gap:16px; flex-wrap:wrap; }
-  header h1 { font-size:16px; margin:0; font-weight:600; }
-  header .ver { color:var(--accent); }
-  header .overall { margin-left:auto; color:var(--muted); font-size:12px; }
-  #stale { display:inline-block; width:8px; height:8px; border-radius:50%;
-    background:var(--done); margin-right:6px; vertical-align:middle;
-    transition:background .3s; }
-  #stale.off { background:var(--todo); }
-  main { max-width:820px; margin:0 auto; padding:20px 24px 60px; }
-  .ver-group { margin-bottom:26px; }
-  .ver-head { display:flex; align-items:center; gap:10px; cursor:pointer;
-    padding:6px 0; user-select:none; }
-  .ver-head h2 { font-size:13px; margin:0; letter-spacing:.02em; }
-  .ver-head .vpct { color:var(--muted); font-size:12px; margin-left:auto; }
-  .ver-group.collapsed .items { display:none; }
-  .chev { color:var(--muted); transition:transform .15s; }
-  .ver-group.collapsed .chev { transform:rotate(-90deg); }
-  .item-wrap { border-top:1px solid var(--line); }
-  .item { display:grid; grid-template-columns:14px 1fr auto;
-    gap:10px; align-items:start; padding:7px 0; cursor:pointer; }
-  .item:hover { background:rgba(255,255,255,.02); }
-  .dot { margin-top:5px; }
-  .icaret { color:var(--muted); flex:none; font-size:10px; width:10px;
-    display:inline-block; }
-  .steps { padding:2px 0 12px 26px; display:flex; flex-direction:column;
-    gap:4px; }
-  .steps .note { color:var(--muted); margin-bottom:4px; font-style:normal; }
-  .step { display:flex; gap:8px; align-items:baseline; font-size:13px; }
-  .step .box { flex:none; color:var(--todo); }
-  .step .box.done { color:var(--done); }
-  .step .stext.done { color:var(--muted); text-decoration:line-through; }
-  .steps .file { color:var(--muted); font-size:11px; margin-top:6px; }
-  .steps .muted { color:var(--muted); }
-  .dot { width:9px; height:9px; border-radius:50%; background:var(--todo); }
-  .dot.done { background:var(--done); }
-  .dot.active { background:var(--active); }
-  .dot.blocked { background:var(--blocked); }
-  .title { display:flex; align-items:baseline; gap:8px; min-width:0;
-    flex-wrap:wrap; }
-  .title .num { color:var(--muted); flex:none; font-variant-numeric:tabular-nums; }
-  .title .t { white-space:normal; overflow-wrap:anywhere; flex:1 1 auto; }
-  .badge { font-size:10px; color:var(--muted); border:1px solid var(--line);
-    border-radius:4px; padding:1px 5px; flex:none; }
-  .blockedby { font-size:11px; color:var(--blocked); flex:none; }
-  .right { display:flex; align-items:center; gap:10px; }
-  .bar { width:120px; height:6px; background:var(--bar); border-radius:3px;
-    overflow:hidden; }
-  .bar > i { display:block; height:100%; background:var(--done);
-    transition:width .3s; }
-  .frac { color:var(--muted); font-size:12px; min-width:38px; text-align:right; }
-  .empty { color:var(--muted); padding:40px 0; text-align:center; }
-</style>
-</head>
-<body>
-<header>
-  <h1><span id="stale" title="live"></span><span id="project">roadmap</span>
-    <span class="ver" id="cver"></span></h1>
-  <span class="overall" id="overall"></span>
-</header>
-<main id="app"><div class="empty">connecting…</div></main>
-<script>
-// All text goes in via textContent — no innerHTML, no injection surface.
-const DOT = s => ({done:"done",active:"active",blocked:"blocked"}[s]||"todo");
-const el = (tag,cls) => { const e=document.createElement(tag);
-  if(cls) e.className=cls; return e; };
-const txt = (tag,cls,s) => { const e=el(tag,cls); e.textContent=s; return e; };
-// Default: the current version is expanded, all others collapsed. `prefs` holds
-// only the versions the user explicitly toggled, so it overrides the default and
-// auto-advance still opens whatever the new current version is.
-const prefs = JSON.parse(localStorage.getItem("rm-prefs")||"{}");
-const savePrefs = () => localStorage.setItem("rm-prefs", JSON.stringify(prefs));
-const isOpen = (v,cur) => (v in prefs) ? prefs[v] : (v === cur);
-// Items the user drilled into (checklist expanded). Persisted across reloads.
-const openItems = new Set(JSON.parse(localStorage.getItem("rm-open-items")||"[]"));
-const saveOpenItems = () => localStorage.setItem("rm-open-items",
-  JSON.stringify([...openItems]));
-let LAST = null;   // last status payload, for instant re-render on toggle
-const stale = off => document.getElementById("stale").classList.toggle("off", off);
-
-function loadSteps(id, panel){
-  fetch("/api/item?id="+id,{cache:"no-store"}).then(r=>r.json()).then(d=>{
-    panel.replaceChildren();
-    if(d.error){ panel.appendChild(txt("div","muted", d.error)); return; }
-    if(d.note) panel.appendChild(txt("div","note", d.note));
-    if(!d.steps || !d.steps.length)
-      panel.appendChild(txt("div","muted","no checklist steps in this plan"));
-    for(const s of (d.steps||[])){
-      const line = el("div","step");
-      line.appendChild(txt("span","box"+(s.done?" done":""), s.done?"✓":"○"));
-      line.appendChild(txt("span","stext"+(s.done?" done":""), s.text));
-      panel.appendChild(line);
-    }
-    if(d.file) panel.appendChild(txt("div","file", ".roadmap/"+d.file));
-  }).catch(()=>{ panel.replaceChildren(txt("div","muted","failed to load")); });
-}
-
-function itemRow(it){
-  const wrap = el("div","item-wrap");
-  const row = el("div","item");
-  const isO = openItems.has(it.id);
-  row.appendChild(el("span","dot "+DOT(it.status)));
-  const title = el("span","title");
-  title.appendChild(txt("span","icaret", isO?"▾":"▸"));
-  title.appendChild(txt("span","num", "#"+it.id));
-  title.appendChild(txt("span","t", it.title));
-  title.appendChild(txt("span","badge", it.type));
-  if(it.blockedBy && it.blockedBy.length)
-    title.appendChild(txt("span","blockedby",
-      "blocked by "+it.blockedBy.map(x=>"#"+x).join(",")));
-  row.appendChild(title);
-  const right = el("span","right");
-  const bar = el("span","bar"); const fill = el("i");
-  fill.style.width = (it.pct||0)+"%"; bar.appendChild(fill);
-  right.appendChild(bar);
-  right.appendChild(txt("span","frac", (it.done||0)+"/"+(it.total||0)));
-  row.appendChild(right);
-  row.onclick = () => {
-    openItems.has(it.id) ? openItems.delete(it.id) : openItems.add(it.id);
-    saveOpenItems();
-    if(LAST) render(LAST);
-  };
-  wrap.appendChild(row);
-  if(isO){
-    const panel = el("div","steps");
-    panel.appendChild(txt("div","muted","loading…"));
-    wrap.appendChild(panel);
-    loadSteps(it.id, panel);
-  }
-  return wrap;
-}
-
-function verSection(v, items, cur){
-  const gd = items.reduce((a,i)=>a+(i.done||0),0);
-  const gt = items.reduce((a,i)=>a+(i.total||0),0);
-  const sec = el("section","ver-group");
-  if(!isOpen(v,cur)) sec.classList.add("collapsed");   // current open, rest closed
-  sec.dataset.v = v;
-  const head = el("div","ver-head");
-  head.appendChild(txt("span","chev","▾"));
-  head.appendChild(txt("h2",null,"v"+v+(v===cur?" · current":"")));
-  head.appendChild(txt("span","vpct",
-    (gt?Math.round(100*gd/gt):0)+"% · "+gd+"/"+gt));
-  head.onclick = () => {
-    sec.classList.toggle("collapsed");
-    prefs[v] = !sec.classList.contains("collapsed");
-    savePrefs();
-  };
-  sec.appendChild(head);
-  const box = el("div","items");
-  for(const it of items) box.appendChild(itemRow(it));
-  sec.appendChild(box);
-  return sec;
-}
-
-function render(d){
-  LAST = d;
-  document.getElementById("project").textContent = d.project || "roadmap";
-  document.getElementById("cver").textContent =
-    d.currentVersion ? "v"+d.currentVersion : "";
-  const items = d.items || [];
-  const td = items.reduce((a,i)=>a+(i.done||0),0);
-  const tt = items.reduce((a,i)=>a+(i.total||0),0);
-  document.getElementById("overall").textContent =
-    tt ? Math.round(100*td/tt)+"% overall ("+td+"/"+tt+")" : "";
-  const app = document.getElementById("app");
-  if(!items.length){
-    app.replaceChildren(txt("div","empty", d.error||"no roadmap items yet"));
-    return;
-  }
-  const groups = {};
-  for(const it of items){ (groups[it.version] ||= []).push(it); }
-  const cur = d.currentVersion;
-  const vers = Object.keys(groups).sort((a,b)=>
-    a===cur?-1:b===cur?1:(a<b?1:-1));
-  app.replaceChildren(...vers.map(v=>verSection(v, groups[v], cur)));
-}
-
-// Server-Sent Events: server pushes a fresh status on every .roadmap change.
-// EventSource auto-reconnects on drop, so a closed terminal just goes stale-grey.
-let es;
-function connect(){
-  es = new EventSource("/events");
-  es.onmessage = ev => { try { render(JSON.parse(ev.data)); stale(false); }
-    catch(_){} };
-  es.onerror = () => stale(true);
-}
-connect();
-</script>
-</body>
-</html>
-"""
+def _dashboard_html() -> str:
+    """The dashboard page, kept in a sibling file so this module stays
+    focused on the CLI. Read fresh each serve() start."""
+    return (Path(__file__).resolve().parent / "dashboard.html").read_text(
+        encoding="utf-8")
 
 
 def _status_line(st: dict) -> str:
@@ -2100,6 +1898,7 @@ def serve(root: Path, port: int | None = None, open_browser: bool = True) -> int
         return 0
 
     root_id = str(root.resolve())
+    dashboard_html = _dashboard_html()
 
     class Handler(http.server.BaseHTTPRequestHandler):
         def _send(self, code: int, body: bytes, ctype: str) -> None:
@@ -2136,7 +1935,7 @@ def serve(root: Path, port: int | None = None, open_browser: bool = True) -> int
         def do_GET(self) -> None:  # noqa: N802
             path = self.path.split("?", 1)[0]
             if path == "/":
-                self._send(200, DASHBOARD_HTML.encode("utf-8"),
+                self._send(200, dashboard_html.encode("utf-8"),
                            "text/html; charset=utf-8")
             elif path == "/events":
                 self._sse()
