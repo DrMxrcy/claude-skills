@@ -1,0 +1,33 @@
+tests/test_install.py
+  s_800bb7c09e26d5::t_de735683dd87f5 72-100
+install.sh
+  s_800bb7c09e26d5::t_d1b760e3d44711 64-65
+  s_94d44090ce4e99::t_dddcb17273233a 282-283,288
+  s_800bb7c09e26d5::t_38ff9f85deb6c6 87-89
+  s_800bb7c09e26d5::t_49c0d3ba8fe6a6 47
+  s_800bb7c09e26d5::t_abdcd3881c8d10 452-480
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "1bd4a2d45aa61801a291678862c337c420bd0251",
+  "prompts": {},
+  "sessions": {
+    "s_800bb7c09e26d5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8c3fdd2d-2025-4af0-82b6-e2e6dca123af",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    },
+    "s_94d44090ce4e99": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e8324ce2-889f-4e20-9a25-b8583b9b42ba",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
