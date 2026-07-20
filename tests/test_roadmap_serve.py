@@ -69,6 +69,29 @@ def test_api_status_matches_status_fn(served):
     assert json.loads(body) == roadmap.status(repo)
 
 
+def test_api_item_returns_steps(served):
+    base, roadmap, repo = served
+    status, ctype, body = _get(base + "/api/item?id=1")
+    assert status == 200
+    d = json.loads(body)
+    assert d["id"] == 1
+    assert d["title"] == "First thing"
+    assert isinstance(d["steps"], list)          # checklist steps from the plan
+    assert all("done" in s and "text" in s for s in d["steps"])
+
+
+def test_api_item_missing_id(served):
+    base, _, _ = served
+    _, _, body = _get(base + "/api/item")
+    assert json.loads(body)["error"] == "missing id"
+
+
+def test_api_item_unknown_id(served):
+    base, _, _ = served
+    _, _, body = _get(base + "/api/item?id=999")
+    assert "no item" in json.loads(body)["error"]
+
+
 def test_unknown_path_404(served):
     base, _, _ = served
     with pytest.raises(urllib.error.HTTPError) as e:

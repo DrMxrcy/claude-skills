@@ -1824,10 +1824,22 @@ DASHBOARD_HTML = """<!doctype html>
   .ver-group.collapsed .items { display:none; }
   .chev { color:var(--muted); transition:transform .15s; }
   .ver-group.collapsed .chev { transform:rotate(-90deg); }
+  .item-wrap { border-top:1px solid var(--line); }
   .item { display:grid; grid-template-columns:14px 1fr auto;
-    gap:10px; align-items:start; padding:7px 0;
-    border-top:1px solid var(--line); }
+    gap:10px; align-items:start; padding:7px 0; cursor:pointer; }
+  .item:hover { background:rgba(255,255,255,.02); }
   .dot { margin-top:5px; }
+  .icaret { color:var(--muted); flex:none; font-size:10px; width:10px;
+    display:inline-block; }
+  .steps { padding:2px 0 12px 26px; display:flex; flex-direction:column;
+    gap:4px; }
+  .steps .note { color:var(--muted); margin-bottom:4px; font-style:normal; }
+  .step { display:flex; gap:8px; align-items:baseline; font-size:13px; }
+  .step .box { flex:none; color:var(--todo); }
+  .step .box.done { color:var(--done); }
+  .step .stext.done { color:var(--muted); text-decoration:line-through; }
+  .steps .file { color:var(--muted); font-size:11px; margin-top:6px; }
+  .steps .muted { color:var(--muted); }
   .dot { width:9px; height:9px; border-radius:50%; background:var(--todo); }
   .dot.done { background:var(--done); }
   .dot.active { background:var(--active); }
@@ -1867,12 +1879,37 @@ const txt = (tag,cls,s) => { const e=el(tag,cls); e.textContent=s; return e; };
 const prefs = JSON.parse(localStorage.getItem("rm-prefs")||"{}");
 const savePrefs = () => localStorage.setItem("rm-prefs", JSON.stringify(prefs));
 const isOpen = (v,cur) => (v in prefs) ? prefs[v] : (v === cur);
+// Items the user drilled into (checklist expanded). Persisted across reloads.
+const openItems = new Set(JSON.parse(localStorage.getItem("rm-open-items")||"[]"));
+const saveOpenItems = () => localStorage.setItem("rm-open-items",
+  JSON.stringify([...openItems]));
+let LAST = null;   // last status payload, for instant re-render on toggle
 const stale = off => document.getElementById("stale").classList.toggle("off", off);
 
+function loadSteps(id, panel){
+  fetch("/api/item?id="+id,{cache:"no-store"}).then(r=>r.json()).then(d=>{
+    panel.replaceChildren();
+    if(d.error){ panel.appendChild(txt("div","muted", d.error)); return; }
+    if(d.note) panel.appendChild(txt("div","note", d.note));
+    if(!d.steps || !d.steps.length)
+      panel.appendChild(txt("div","muted","no checklist steps in this plan"));
+    for(const s of (d.steps||[])){
+      const line = el("div","step");
+      line.appendChild(txt("span","box"+(s.done?" done":""), s.done?"✓":"○"));
+      line.appendChild(txt("span","stext"+(s.done?" done":""), s.text));
+      panel.appendChild(line);
+    }
+    if(d.file) panel.appendChild(txt("div","file", ".roadmap/"+d.file));
+  }).catch(()=>{ panel.replaceChildren(txt("div","muted","failed to load")); });
+}
+
 function itemRow(it){
+  const wrap = el("div","item-wrap");
   const row = el("div","item");
+  const isO = openItems.has(it.id);
   row.appendChild(el("span","dot "+DOT(it.status)));
   const title = el("span","title");
+  title.appendChild(txt("span","icaret", isO?"▾":"▸"));
   title.appendChild(txt("span","num", "#"+it.id));
   title.appendChild(txt("span","t", it.title));
   title.appendChild(txt("span","badge", it.type));
@@ -1886,7 +1923,19 @@ function itemRow(it){
   right.appendChild(bar);
   right.appendChild(txt("span","frac", (it.done||0)+"/"+(it.total||0)));
   row.appendChild(right);
-  return row;
+  row.onclick = () => {
+    openItems.has(it.id) ? openItems.delete(it.id) : openItems.add(it.id);
+    saveOpenItems();
+    if(LAST) render(LAST);
+  };
+  wrap.appendChild(row);
+  if(isO){
+    const panel = el("div","steps");
+    panel.appendChild(txt("div","muted","loading…"));
+    wrap.appendChild(panel);
+    loadSteps(it.id, panel);
+  }
+  return wrap;
 }
 
 function verSection(v, items, cur){
@@ -1913,6 +1962,7 @@ function verSection(v, items, cur){
 }
 
 function render(d){
+  LAST = d;
   document.getElementById("project").textContent = d.project || "roadmap";
   document.getElementById("cver").textContent =
     d.currentVersion ? "v"+d.currentVersion : "";
@@ -1985,6 +2035,24 @@ def _safe_status(root: Path) -> dict:
     except (ValueError, FileNotFoundError, OSError) as e:
         return {"project": None, "currentVersion": None, "items": [],
                 "error": str(e)}
+
+
+def _item_detail(root: Path, item_id: int) -> dict:
+    """Full detail for one item: its plan checklist steps + note. Fetched lazily
+    by the dashboard when a row is expanded, so status payloads stay small."""
+    try:
+        cfg = read_config(root)
+        item = next((i for i in cfg["items"] if i["id"] == item_id), None)
+        if item is None:
+            return {"error": f"no item #{item_id}"}
+        pp = roadmap_dir(root) / item["file"]
+        plan = parse_plan(pp) if pp.exists() else {"steps": [], "meta": {}}
+        return {"id": item_id, "title": item["title"], "type": item["type"],
+                "version": item["version"], "note": item.get("note"),
+                "file": item["file"],
+                "steps": [{"done": d, "text": t} for d, t in plan["steps"]]}
+    except (ValueError, FileNotFoundError, OSError) as e:
+        return {"error": str(e)}
 
 
 DEFAULT_PORT = 4700
@@ -2074,6 +2142,17 @@ def serve(root: Path, port: int | None = None, open_browser: bool = True) -> int
                 self._sse()
             elif path == "/api/status":
                 self._send(200, json.dumps(_safe_status(root)).encode("utf-8"),
+                           "application/json")
+            elif path == "/api/item":
+                query = self.path.split("?", 1)[1] if "?" in self.path else ""
+                iid = None
+                for pair in query.split("&"):
+                    k, _, v = pair.partition("=")
+                    if k == "id" and v.isdigit():
+                        iid = int(v)
+                payload = ({"error": "missing id"} if iid is None
+                           else _item_detail(root, iid))
+                self._send(200, json.dumps(payload).encode("utf-8"),
                            "application/json")
             elif path == "/api/changelog":
                 try:
