@@ -1,0 +1,42 @@
+skills/roadmap/scripts/rmlib/sync.py
+  s_800bb7c09e26d5::t_ae85a52615676b 1-305
+skills/roadmap/scripts/rmlib/__init__.py
+  s_800bb7c09e26d5::t_907d1b8d61e731 1
+skills/roadmap/scripts/rmlib/changelog.py
+  s_800bb7c09e26d5::t_ae85a52615676b 1-334
+skills/roadmap/scripts/rmlib/ops.py
+  s_800bb7c09e26d5::t_ae85a52615676b 1-463
+skills/roadmap/scripts/rmlib/core.py
+  s_800bb7c09e26d5::t_c4dfb2889c04a9 8-9
+  s_800bb7c09e26d5::t_a08169989f122c 64
+skills/roadmap/scripts/roadmap.py
+  s_800bb7c09e26d5::t_3ce6ea25f417e5 105
+  s_800bb7c09e26d5::t_ae85a52615676b 10,17,24,28,35,44,54,59
+  s_800bb7c09e26d5::t_f49352bdc38645 64-96
+skills/roadmap/scripts/rmlib/project.py
+  s_800bb7c09e26d5::t_ae85a52615676b 1-81
+tests/conftest.py
+  s_800bb7c09e26d5::t_1f2838f8d03660 20-21
+skills/roadmap/scripts/rmlib/parse.py
+  s_800bb7c09e26d5::t_ae85a52615676b 1-48
+skills/roadmap/scripts/rmlib/report.py
+  s_800bb7c09e26d5::t_ae85a52615676b 1-176
+skills/roadmap/scripts/rmlib/incubator.py
+  s_800bb7c09e26d5::t_ae85a52615676b 1-290
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "893214be9c3b9c99160277cfaa51aa9bca1c2e47",
+  "prompts": {},
+  "sessions": {
+    "s_800bb7c09e26d5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8c3fdd2d-2025-4af0-82b6-e2e6dca123af",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
