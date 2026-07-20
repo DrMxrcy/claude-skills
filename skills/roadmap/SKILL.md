@@ -56,6 +56,7 @@ If the user message / `$ARGUMENTS` starts with one of these verbs, run that flow
 | First token | Do this |
 |---|---|
 | `status` | `roadmap.py status` (+ summarize) |
+| `serve` | `roadmap.py serve` — local live web dashboard (SSE push, read-only; one per project) |
 | `sync` | `roadmap.py sync` |
 | `next` | Build the lowest-id unfinished item in the **current** version (same as `/roadmap-next`) |
 | `handoff` | Multi-coder switch brief (sync state when leaving Claude for Grok or vice versa) |

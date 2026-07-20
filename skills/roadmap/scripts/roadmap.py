@@ -1748,6 +1748,359 @@ def upgrade(root: Path) -> None:
     print(f"Refreshed roadmap rules in {names} ({old} → v{new})")
 
 
+DASHBOARD_HTML = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>roadmap</title>
+<style>
+  :root {
+    --bg:#0e1116; --line:#232a34; --fg:#e6edf3; --muted:#8b98a5;
+    --bar:#242c38; --done:#3fb950; --active:#d29922; --blocked:#f85149;
+    --todo:#4b5563; --accent:#58a6ff;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+    font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+  header { padding:20px 24px; border-bottom:1px solid var(--line);
+    display:flex; align-items:baseline; gap:16px; flex-wrap:wrap; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  header .ver { color:var(--accent); }
+  header .overall { margin-left:auto; color:var(--muted); font-size:12px; }
+  #stale { display:inline-block; width:8px; height:8px; border-radius:50%;
+    background:var(--done); margin-right:6px; vertical-align:middle;
+    transition:background .3s; }
+  #stale.off { background:var(--todo); }
+  main { max-width:820px; margin:0 auto; padding:20px 24px 60px; }
+  .ver-group { margin-bottom:26px; }
+  .ver-head { display:flex; align-items:center; gap:10px; cursor:pointer;
+    padding:6px 0; user-select:none; }
+  .ver-head h2 { font-size:13px; margin:0; letter-spacing:.02em; }
+  .ver-head .vpct { color:var(--muted); font-size:12px; margin-left:auto; }
+  .ver-group.collapsed .items { display:none; }
+  .chev { color:var(--muted); transition:transform .15s; }
+  .ver-group.collapsed .chev { transform:rotate(-90deg); }
+  .item { display:grid; grid-template-columns:14px 1fr auto;
+    gap:10px; align-items:center; padding:7px 0;
+    border-top:1px solid var(--line); }
+  .dot { width:9px; height:9px; border-radius:50%; background:var(--todo); }
+  .dot.done { background:var(--done); }
+  .dot.active { background:var(--active); }
+  .dot.blocked { background:var(--blocked); }
+  .title { display:flex; align-items:center; gap:8px; min-width:0; }
+  .title .t { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .badge { font-size:10px; color:var(--muted); border:1px solid var(--line);
+    border-radius:4px; padding:1px 5px; flex:none; }
+  .blockedby { font-size:11px; color:var(--blocked); flex:none; }
+  .right { display:flex; align-items:center; gap:10px; }
+  .bar { width:120px; height:6px; background:var(--bar); border-radius:3px;
+    overflow:hidden; }
+  .bar > i { display:block; height:100%; background:var(--done);
+    transition:width .3s; }
+  .frac { color:var(--muted); font-size:12px; min-width:38px; text-align:right; }
+  .empty { color:var(--muted); padding:40px 0; text-align:center; }
+</style>
+</head>
+<body>
+<header>
+  <h1><span id="stale" title="live"></span><span id="project">roadmap</span>
+    <span class="ver" id="cver"></span></h1>
+  <span class="overall" id="overall"></span>
+</header>
+<main id="app"><div class="empty">connecting…</div></main>
+<script>
+// All text goes in via textContent — no innerHTML, no injection surface.
+const DOT = s => ({done:"done",active:"active",blocked:"blocked"}[s]||"todo");
+const el = (tag,cls) => { const e=document.createElement(tag);
+  if(cls) e.className=cls; return e; };
+const txt = (tag,cls,s) => { const e=el(tag,cls); e.textContent=s; return e; };
+const collapsed = new Set(JSON.parse(localStorage.getItem("rm-collapsed")||"[]"));
+const saveCollapsed = () => localStorage.setItem("rm-collapsed",
+  JSON.stringify([...collapsed]));
+const stale = off => document.getElementById("stale").classList.toggle("off", off);
+
+function itemRow(it){
+  const row = el("div","item");
+  row.appendChild(el("span","dot "+DOT(it.status)));
+  const title = el("span","title");
+  title.appendChild(txt("span","t", it.title));
+  title.appendChild(txt("span","badge", it.type));
+  if(it.blockedBy && it.blockedBy.length)
+    title.appendChild(txt("span","blockedby",
+      "blocked by "+it.blockedBy.map(x=>"#"+x).join(",")));
+  row.appendChild(title);
+  const right = el("span","right");
+  const bar = el("span","bar"); const fill = el("i");
+  fill.style.width = (it.pct||0)+"%"; bar.appendChild(fill);
+  right.appendChild(bar);
+  right.appendChild(txt("span","frac", (it.done||0)+"/"+(it.total||0)));
+  row.appendChild(right);
+  return row;
+}
+
+function verSection(v, items, cur){
+  const gd = items.reduce((a,i)=>a+(i.done||0),0);
+  const gt = items.reduce((a,i)=>a+(i.total||0),0);
+  const sec = el("section","ver-group");
+  if(collapsed.has(v) && v!==cur) sec.classList.add("collapsed");
+  sec.dataset.v = v;
+  const head = el("div","ver-head");
+  head.appendChild(txt("span","chev","▾"));
+  head.appendChild(txt("h2",null,"v"+v+(v===cur?" · current":"")));
+  head.appendChild(txt("span","vpct",
+    (gt?Math.round(100*gd/gt):0)+"% · "+gd+"/"+gt));
+  head.onclick = () => {
+    sec.classList.toggle("collapsed");
+    sec.classList.contains("collapsed") ? collapsed.add(v) : collapsed.delete(v);
+    saveCollapsed();
+  };
+  sec.appendChild(head);
+  const box = el("div","items");
+  for(const it of items) box.appendChild(itemRow(it));
+  sec.appendChild(box);
+  return sec;
+}
+
+function render(d){
+  document.getElementById("project").textContent = d.project || "roadmap";
+  document.getElementById("cver").textContent =
+    d.currentVersion ? "v"+d.currentVersion : "";
+  const items = d.items || [];
+  const td = items.reduce((a,i)=>a+(i.done||0),0);
+  const tt = items.reduce((a,i)=>a+(i.total||0),0);
+  document.getElementById("overall").textContent =
+    tt ? Math.round(100*td/tt)+"% overall ("+td+"/"+tt+")" : "";
+  const app = document.getElementById("app");
+  if(!items.length){
+    app.replaceChildren(txt("div","empty", d.error||"no roadmap items yet"));
+    return;
+  }
+  const groups = {};
+  for(const it of items){ (groups[it.version] ||= []).push(it); }
+  const cur = d.currentVersion;
+  const vers = Object.keys(groups).sort((a,b)=>
+    a===cur?-1:b===cur?1:(a<b?1:-1));
+  app.replaceChildren(...vers.map(v=>verSection(v, groups[v], cur)));
+}
+
+// Server-Sent Events: server pushes a fresh status on every .roadmap change.
+// EventSource auto-reconnects on drop, so a closed terminal just goes stale-grey.
+let es;
+function connect(){
+  es = new EventSource("/events");
+  es.onmessage = ev => { try { render(JSON.parse(ev.data)); stale(false); }
+    catch(_){} };
+  es.onerror = () => stale(true);
+}
+connect();
+</script>
+</body>
+</html>
+"""
+
+
+def _status_line(st: dict) -> str:
+    items = st.get("items", [])
+    td = sum(i.get("done", 0) for i in items)
+    tt = sum(i.get("total", 0) for i in items)
+    pct = round(100 * td / tt) if tt else 0
+    active = sum(1 for i in items if i.get("status") == "active")
+    ver = st.get("currentVersion") or "?"
+    return f"v{ver} {pct}% ({td}/{tt}) · {active} active"
+
+
+def _roadmap_signature(root: Path):
+    """Cheap change token: newest mtime across .roadmap/ and ROADMAP.md."""
+    latest = 0.0
+    try:
+        for f in roadmap_dir(root).rglob("*"):
+            try:
+                latest = max(latest, f.stat().st_mtime)
+            except OSError:
+                pass
+        rm = root / "ROADMAP.md"
+        if rm.exists():
+            latest = max(latest, rm.stat().st_mtime)
+    except OSError:
+        pass
+    return latest
+
+
+def _safe_status(root: Path) -> dict:
+    try:
+        return status(root)
+    except (ValueError, FileNotFoundError, OSError) as e:
+        return {"project": None, "currentVersion": None, "items": [],
+                "error": str(e)}
+
+
+DEFAULT_PORT = 4700
+PORT_SPAN = 40
+
+
+def _project_port(root: Path) -> int:
+    """Stable preferred port derived from the project path, so the same project
+    always maps to the same port (one dashboard per project) while different
+    projects land on different ports and coexist."""
+    import hashlib
+    h = hashlib.md5(str(root.resolve()).encode("utf-8")).hexdigest()
+    return DEFAULT_PORT + int(h, 16) % PORT_SPAN
+
+
+def _running_dashboard(root: Path, port: int):
+    """Return the URL if a dashboard for THIS project is already serving on
+    `port`, else None. Matched via the X-Roadmap-Root response header."""
+    import urllib.request
+    try:
+        req = urllib.request.Request(f"http://127.0.0.1:{port}/api/status")
+        with urllib.request.urlopen(req, timeout=0.4) as r:
+            if r.headers.get("X-Roadmap-Root") == str(root.resolve()):
+                return f"http://127.0.0.1:{port}"
+    except Exception:
+        return None
+    return None
+
+
+def serve(root: Path, port: int | None = None, open_browser: bool = True) -> int:
+    """Run a local, read-only web dashboard that pushes live updates via SSE.
+
+    One dashboard per project: port=None derives a stable port from the project
+    path. If this project is already being served (in another terminal), point
+    at that instance instead of starting a duplicate. Different projects get
+    different ports and run side by side. An explicit --port is honored strictly.
+    """
+    import http.server
+    import threading
+    import time
+    import webbrowser
+
+    if not roadmap_dir(root).exists():
+        print("No .roadmap/ here — run `roadmap init` first, then `roadmap serve`.")
+        return 0
+
+    root_id = str(root.resolve())
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def _send(self, code: int, body: bytes, ctype: str) -> None:
+            self.send_response(code)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Roadmap-Root", root_id)
+            self.end_headers()
+            self.wfile.write(body)
+
+        def _sse(self) -> None:
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Connection", "keep-alive")
+            self.send_header("X-Roadmap-Root", root_id)
+            self.end_headers()
+            last_sig = None
+            try:
+                while True:
+                    sig = _roadmap_signature(root)
+                    if sig != last_sig:
+                        last_sig = sig
+                        data = "data: " + json.dumps(_safe_status(root)) + "\n\n"
+                        self.wfile.write(data.encode("utf-8"))
+                    else:
+                        self.wfile.write(b": ping\n\n")   # keepalive / disconnect probe
+                    self.wfile.flush()
+                    time.sleep(1)
+            except (BrokenPipeError, ConnectionResetError):
+                return
+
+        def do_GET(self) -> None:  # noqa: N802
+            path = self.path.split("?", 1)[0]
+            if path == "/":
+                self._send(200, DASHBOARD_HTML.encode("utf-8"),
+                           "text/html; charset=utf-8")
+            elif path == "/events":
+                self._sse()
+            elif path == "/api/status":
+                self._send(200, json.dumps(_safe_status(root)).encode("utf-8"),
+                           "application/json")
+            elif path == "/api/changelog":
+                try:
+                    payload = changelog_json(root)
+                except (ValueError, FileNotFoundError, OSError) as e:
+                    payload = {"error": str(e)}
+                self._send(200, json.dumps(payload).encode("utf-8"),
+                           "application/json")
+            else:
+                self._send(404, b"not found", "text/plain")
+
+        def log_message(self, *args) -> None:  # silence per-request logging
+            pass
+
+    if port is None:
+        preferred = _project_port(root)
+        # Already serving THIS project in another terminal? Point at it, don't
+        # start a duplicate. Scan the span in case it landed on a fallback port.
+        for candidate in range(preferred, preferred + PORT_SPAN):
+            existing = _running_dashboard(root, candidate)
+            if existing:
+                print(f"This project is already being served → {existing}"
+                      "  (one dashboard per project)")
+                if open_browser:
+                    try:
+                        webbrowser.open(existing)
+                    except Exception:
+                        pass
+                return 0
+        # Bind the project's stable port; if taken by something else, scan up.
+        httpd = None
+        for candidate in range(preferred, preferred + PORT_SPAN):
+            try:
+                httpd = http.server.ThreadingHTTPServer(
+                    ("127.0.0.1", candidate), Handler)
+                break
+            except OSError:
+                continue
+        if httpd is None:
+            print(f"Error: no free port in {preferred}-{preferred + PORT_SPAN - 1} "
+                  "(too many dashboards running?)", file=sys.stderr)
+            return 1
+    else:
+        try:
+            httpd = http.server.ThreadingHTTPServer(("127.0.0.1", port), Handler)
+        except OSError as e:
+            print(f"Error: cannot bind 127.0.0.1:{port} — {e}", file=sys.stderr)
+            return 1
+    port = httpd.server_address[1]
+
+    # Mirror live progress into the terminal running `serve`.
+    def watch_terminal() -> None:
+        last = _roadmap_signature(root)
+        while True:
+            time.sleep(1)
+            sig = _roadmap_signature(root)
+            if sig != last:
+                last = sig
+                print(f"  ↻ {_status_line(_safe_status(root))}", flush=True)
+
+    threading.Thread(target=watch_terminal, daemon=True).start()
+
+    url = f"http://127.0.0.1:{port}"
+    print(f"roadmap dashboard → {url}  (Ctrl-C to stop)")
+    print(f"  {_status_line(_safe_status(root))}", flush=True)
+    if open_browser:
+        try:
+            webbrowser.open(url)
+        except Exception:
+            pass
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print("\nstopped.")
+    finally:
+        httpd.server_close()
+    return 0
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(prog="roadmap")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -1799,6 +2152,13 @@ def main(argv: list[str]) -> int:
 
     p_st = sub.add_parser("status")
     p_st.add_argument("--json", action="store_true", dest="as_json")
+
+    p_srv = sub.add_parser("serve",
+                           help="local live web dashboard (SSE push, read-only)")
+    p_srv.add_argument("--port", type=int, default=None,
+                       help="fixed port; default auto-scans from 4700")
+    p_srv.add_argument("--no-open", action="store_false", dest="open_browser",
+                       help="do not open a browser window")
 
     p_next = sub.add_parser("next", help="print the next unblocked unfinished item")
     p_next.add_argument("--version", help="target version (default: current)")
@@ -2049,6 +2409,8 @@ def main(argv: list[str]) -> int:
             for w in roadmap_health(root):
                 print(f"warning: {w}", file=sys.stderr)
             return 0
+        if args.command == "serve":
+            return serve(root, port=args.port, open_browser=args.open_browser)
     except (ValueError, FileNotFoundError) as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
