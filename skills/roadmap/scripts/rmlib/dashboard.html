@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>roadmap</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%230e1116'/%3E%3Crect x='3' y='4' width='10' height='2' rx='1' fill='%233fb950'/%3E%3Crect x='3' y='7' width='7' height='2' rx='1' fill='%23d29922'/%3E%3Crect x='3' y='10' width='4' height='2' rx='1' fill='%234b5563'/%3E%3C/svg%3E">
 <style>
   :root {
     --bg:#0e1116; --line:#232a34; --fg:#e6edf3; --muted:#8b98a5;
@@ -15,7 +16,7 @@
     font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
   header { position:sticky; top:0; z-index:5; background:var(--bg);
     padding:14px 24px 12px; border-bottom:1px solid var(--line); }
-  .wrap { max-width:1500px; margin:0 auto; }
+  .wrap { max-width:960px; margin:0 auto; }
   .hrow { display:flex; align-items:baseline; gap:16px; flex-wrap:wrap; }
   header h1 { font-size:16px; margin:0; font-weight:600; }
   header .ver { color:var(--accent); }
@@ -29,20 +30,21 @@
   .hbar > i { display:block; height:100%; width:0; background:var(--done);
     transition:width .3s; }
   .counts { margin-top:9px; color:var(--muted); font-size:12px;
-    display:flex; gap:16px; flex-wrap:wrap; }
+    display:flex; gap:16px; flex-wrap:wrap; align-items:center; }
   .chip { display:inline-flex; align-items:center; gap:6px; }
   .chip .cdot { width:8px; height:8px; border-radius:50%; background:var(--todo); }
   .chip .cdot.done { background:var(--done); }
   .chip .cdot.active { background:var(--active); }
   .chip .cdot.blocked { background:var(--blocked); }
-  main { max-width:1500px; margin:0 auto; padding:20px 24px 60px; }
-  /* Current version: full width + prominent. Others: a packed card grid. */
-  #app { display:flex; flex-direction:column; gap:20px; }
-  .vgrid { display:grid; gap:14px 24px; align-items:start;
-    grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); }
+  .ctrls { margin-left:auto; display:flex; gap:8px; align-items:center; }
+  #search { background:var(--bar); border:1px solid var(--line); color:var(--fg);
+    border-radius:6px; padding:4px 9px; font:inherit; font-size:12px; width:190px; }
+  #search::placeholder { color:var(--muted); }
+  .lnk { color:var(--muted); cursor:pointer; user-select:none; font-size:12px; }
+  .lnk:hover { color:var(--fg); }
+  main { max-width:960px; margin:0 auto; padding:18px 24px 60px; }
+  #app { display:flex; flex-direction:column; gap:18px; }
   .ver-group { margin:0; }
-  .ver-group.card { border:1px solid var(--line); border-radius:8px;
-    padding:4px 14px 8px; background:#12161d; }
   .ver-head { display:flex; align-items:center; gap:10px; cursor:pointer;
     padding:6px 0; user-select:none; }
   .ver-head h2 { font-size:13px; margin:0; letter-spacing:.02em; }
@@ -54,7 +56,6 @@
   .item { display:grid; grid-template-columns:14px 1fr auto;
     gap:10px; align-items:start; padding:7px 0; cursor:pointer; }
   .item:hover { background:rgba(255,255,255,.02); }
-  .dot { margin-top:5px; }
   .icaret { color:var(--muted); flex:none; font-size:10px; width:10px;
     display:inline-block; }
   .steps { padding:2px 0 12px 26px; display:flex; flex-direction:column;
@@ -66,7 +67,8 @@
   .step .stext.done { color:var(--muted); text-decoration:line-through; }
   .steps .file { color:var(--muted); font-size:11px; margin-top:6px; }
   .steps .muted { color:var(--muted); }
-  .dot { width:9px; height:9px; border-radius:50%; background:var(--todo); }
+  .dot { width:9px; height:9px; border-radius:50%; background:var(--todo);
+    margin-top:5px; }
   .dot.done { background:var(--done); }
   .dot.active { background:var(--active); }
   .dot.blocked { background:var(--blocked); }
@@ -78,7 +80,7 @@
     border-radius:4px; padding:1px 5px; flex:none; }
   .blockedby { font-size:11px; color:var(--blocked); flex:none; }
   .right { display:flex; align-items:center; gap:10px; }
-  .bar { width:90px; height:6px; background:var(--bar); border-radius:3px;
+  .bar { width:110px; height:6px; background:var(--bar); border-radius:3px;
     overflow:hidden; }
   .bar > i { display:block; height:100%; background:var(--done);
     transition:width .3s; }
@@ -96,6 +98,13 @@
     </div>
     <div class="hbar"><i id="hbarfill"></i></div>
     <div class="counts" id="counts"></div>
+    <div class="counts">
+      <div class="ctrls">
+        <input id="search" type="search" placeholder="filter items or #id…">
+        <span class="lnk" id="expandAll">expand all</span>
+        <span class="lnk" id="collapseAll">collapse all</span>
+      </div>
+    </div>
   </div>
 </header>
 <main><div id="app"><div class="empty">connecting…</div></div></main>
@@ -116,7 +125,13 @@ const openItems = new Set(JSON.parse(localStorage.getItem("rm-open-items")||"[]"
 const saveOpenItems = () => localStorage.setItem("rm-open-items",
   JSON.stringify([...openItems]));
 let LAST = null;   // last status payload, for instant re-render on toggle
+let QUERY = "";    // active search filter
 const stale = off => document.getElementById("stale").classList.toggle("off", off);
+const matches = it => {
+  if(!QUERY) return true;
+  const q = QUERY.replace(/^#/,"");
+  return (""+it.id).includes(q) || (it.title||"").toLowerCase().includes(q);
+};
 
 function loadSteps(id, panel){
   fetch("/api/item?id="+id,{cache:"no-store"}).then(r=>r.json()).then(d=>{
@@ -174,7 +189,8 @@ function verSection(v, items, cur){
   const gd = items.reduce((a,i)=>a+(i.done||0),0);
   const gt = items.reduce((a,i)=>a+(i.total||0),0);
   const sec = el("section","ver-group");
-  if(!isOpen(v,cur)) sec.classList.add("collapsed");   // current open, rest closed
+  // While searching, force every shown group open so matches are visible.
+  if(!QUERY && !isOpen(v,cur)) sec.classList.add("collapsed");
   sec.dataset.v = v;
   const head = el("div","ver-head");
   head.appendChild(txt("span","chev","▾"));
@@ -221,7 +237,7 @@ function render(d){
     return;
   }
   const groups = {};
-  for(const it of items){ (groups[it.version] ||= []).push(it); }
+  for(const it of items){ if(matches(it)) (groups[it.version] ||= []).push(it); }
   const cur = d.currentVersion;
   // Numeric semver compare (descending) so 0.10.0 sorts above 0.9.0, not below.
   const vkey = v => String(v).split(".").map(n=>parseInt(n,10)||0);
@@ -234,20 +250,28 @@ function render(d){
   };
   const vers = Object.keys(groups).sort((a,b)=>
     a===cur?-1:b===cur?1:vcmp(a,b));
-  // Current version spans full width up top; the rest pack into a card grid.
-  app.replaceChildren();
-  const rest = [];
-  for(const v of vers){
-    const sec = verSection(v, groups[v], cur);
-    if(v === cur){ app.appendChild(sec); }
-    else { sec.classList.add("card"); rest.push(sec); }
+  if(!vers.length){
+    app.replaceChildren(txt("div","empty","no items match “"+QUERY+"”"));
+    return;
   }
-  if(rest.length){
-    const grid = el("div","vgrid");
-    rest.forEach(s=>grid.appendChild(s));
-    app.appendChild(grid);
-  }
+  // One clean column, current version first.
+  app.replaceChildren(...vers.map(v=>verSection(v, groups[v], cur)));
 }
+
+document.getElementById("search").addEventListener("input", e => {
+  QUERY = e.target.value.trim().toLowerCase();
+  if(LAST) render(LAST);
+});
+document.getElementById("expandAll").onclick = () => {
+  if(!LAST) return;
+  for(const it of (LAST.items||[])) prefs[it.version] = true;
+  savePrefs(); render(LAST);
+};
+document.getElementById("collapseAll").onclick = () => {
+  if(!LAST) return;
+  for(const it of (LAST.items||[])) prefs[it.version] = false;
+  savePrefs(); render(LAST);
+};
 
 // Server-Sent Events: server pushes a fresh status on every .roadmap change.
 // EventSource auto-reconnects on drop, so a closed terminal just goes stale-grey.

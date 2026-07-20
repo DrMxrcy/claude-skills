@@ -101,6 +101,51 @@ def _running_dashboard(root: Path, port: int):
     return None
 
 
+class _Broadcaster:
+    """Single background watcher shared by every SSE client and the terminal.
+
+    Scans the roadmap change-signature once per second total (not once per
+    client), recomputes the status snapshot only when it actually changes, and
+    wakes all waiting clients. Clients block on the condition instead of each
+    polling the filesystem, so N open tabs cost the same as one.
+    """
+
+    def __init__(self, rm, root: Path):
+        self.rm, self.root = rm, root
+        self.cond = threading.Condition()
+        self.version = 0
+        self.json = json.dumps(_safe_status(rm, root))
+        self._sig = _roadmap_signature(rm, root)
+
+    def start(self) -> None:
+        threading.Thread(target=self._run, daemon=True).start()
+
+    def _run(self) -> None:
+        while True:
+            time.sleep(1)
+            sig = _roadmap_signature(self.rm, self.root)
+            if sig == self._sig:
+                continue
+            self._sig = sig
+            data = _safe_status(self.rm, self.root)
+            snap = json.dumps(data)
+            with self.cond:
+                self.json = snap
+                self.version += 1
+                self.cond.notify_all()
+            print(f"  ↻ {_status_line(data)}", flush=True)
+
+    def snapshot(self):
+        with self.cond:
+            return self.version, self.json
+
+    def wait(self, last_version: int, timeout: float):
+        with self.cond:
+            if self.version == last_version:
+                self.cond.wait(timeout)
+            return self.version, self.json
+
+
 def serve(rm, root: Path, port: int | None = None,
           open_browser: bool = True) -> int:
     """Run a local, read-only web dashboard that pushes live updates via SSE.
@@ -134,18 +179,20 @@ def serve(rm, root: Path, port: int | None = None,
             self.send_header("Connection", "keep-alive")
             self.send_header("X-Roadmap-Root", root_id)
             self.end_headers()
-            last_sig = None
+            ver, snap = bcast.snapshot()
             try:
+                self.wfile.write(("data: " + snap + "\n\n").encode("utf-8"))
+                self.wfile.flush()
                 while True:
-                    sig = _roadmap_signature(rm, root)
-                    if sig != last_sig:
-                        last_sig = sig
-                        data = "data: " + json.dumps(_safe_status(rm, root)) + "\n\n"
-                        self.wfile.write(data.encode("utf-8"))
+                    # Block until the shared watcher reports a change (or 15s
+                    # keepalive). No per-client filesystem polling.
+                    new_ver, new_snap = bcast.wait(ver, 15)
+                    if new_ver != ver:
+                        ver = new_ver
+                        self.wfile.write(("data: " + new_snap + "\n\n").encode("utf-8"))
                     else:
                         self.wfile.write(b": ping\n\n")   # keepalive / disconnect probe
                     self.wfile.flush()
-                    time.sleep(1)
             except (BrokenPipeError, ConnectionResetError):
                 return
 
@@ -157,7 +204,7 @@ def serve(rm, root: Path, port: int | None = None,
             elif path == "/events":
                 self._sse()
             elif path == "/api/status":
-                self._send(200, json.dumps(_safe_status(rm, root)).encode("utf-8"),
+                self._send(200, bcast.snapshot()[1].encode("utf-8"),
                            "application/json")
             elif path == "/api/item":
                 query = self.path.split("?", 1)[1] if "?" in self.path else ""
@@ -230,17 +277,10 @@ def serve(rm, root: Path, port: int | None = None,
             return 1
     port = httpd.server_address[1]
 
-    # Mirror live progress into the terminal running `serve`.
-    def watch_terminal() -> None:
-        last = _roadmap_signature(rm, root)
-        while True:
-            time.sleep(1)
-            sig = _roadmap_signature(rm, root)
-            if sig != last:
-                last = sig
-                print(f"  ↻ {_status_line(_safe_status(rm, root))}", flush=True)
-
-    threading.Thread(target=watch_terminal, daemon=True).start()
+    # One shared watcher drives every SSE client and mirrors progress to this
+    # terminal — a single filesystem scan per second regardless of open tabs.
+    bcast = _Broadcaster(rm, root)
+    bcast.start()
 
     url = f"http://127.0.0.1:{port}"
     print(f"roadmap dashboard → {url}  (Ctrl-C to stop)")

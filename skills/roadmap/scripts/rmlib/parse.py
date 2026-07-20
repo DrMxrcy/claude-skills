@@ -8,12 +8,25 @@ from rmlib.core import read_config, roadmap_dir
 
 STEP_RE = re.compile(r"^(\s*[-*]\s+)\[( |x|X)\](.*)$")
 
+# Parse results are cached by (path, mtime, size). A short CLI run barely touches
+# it, but a long-lived `serve` process re-parses only the plan that actually
+# changed on each push instead of every plan on every status() call.
+_CACHE: dict = {}
+
 
 def _is_fence(line: str) -> bool:
     return line.lstrip().startswith("```")
 
 
 def parse_plan(path: Path) -> dict:
+    try:
+        st = path.stat()
+        key = (str(path), st.st_mtime_ns, st.st_size)
+        hit = _CACHE.get(str(path))
+        if hit and hit[0] == key:
+            return hit[1]
+    except OSError:
+        key = None
     text = path.read_text(encoding="utf-8")
     meta = {}
     m = re.match(r"^---\n(.*?)\n---\n", text, re.DOTALL)
@@ -33,7 +46,10 @@ def parse_plan(path: Path) -> dict:
         sm = STEP_RE.match(line)
         if sm:
             steps.append((sm.group(2).lower() == "x", sm.group(3).strip()))
-    return {"meta": meta, "steps": steps}
+    result = {"meta": meta, "steps": steps}
+    if key is not None:
+        _CACHE[str(path)] = (key, result)
+    return result
 
 
 def count_progress(path: Path) -> tuple[int, int]:
