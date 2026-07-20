@@ -36,9 +36,13 @@
   .chip .cdot.active { background:var(--active); }
   .chip .cdot.blocked { background:var(--blocked); }
   main { max-width:1500px; margin:0 auto; padding:20px 24px 60px; }
-  /* Flow version groups into as many columns as the width allows. */
-  #app { column-width:380px; column-gap:28px; }
-  .ver-group { break-inside:avoid; margin:0 0 22px; }
+  /* Current version: full width + prominent. Others: a packed card grid. */
+  #app { display:flex; flex-direction:column; gap:20px; }
+  .vgrid { display:grid; gap:14px 24px; align-items:start;
+    grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); }
+  .ver-group { margin:0; }
+  .ver-group.card { border:1px solid var(--line); border-radius:8px;
+    padding:4px 14px 8px; background:#12161d; }
   .ver-head { display:flex; align-items:center; gap:10px; cursor:pointer;
     padding:6px 0; user-select:none; }
   .ver-head h2 { font-size:13px; margin:0; letter-spacing:.02em; }
@@ -230,7 +234,19 @@ function render(d){
   };
   const vers = Object.keys(groups).sort((a,b)=>
     a===cur?-1:b===cur?1:vcmp(a,b));
-  app.replaceChildren(...vers.map(v=>verSection(v, groups[v], cur)));
+  // Current version spans full width up top; the rest pack into a card grid.
+  app.replaceChildren();
+  const rest = [];
+  for(const v of vers){
+    const sec = verSection(v, groups[v], cur);
+    if(v === cur){ app.appendChild(sec); }
+    else { sec.classList.add("card"); rest.push(sec); }
+  }
+  if(rest.length){
+    const grid = el("div","vgrid");
+    rest.forEach(s=>grid.appendChild(s));
+    app.appendChild(grid);
+  }
 }
 
 // Server-Sent Events: server pushes a fresh status on every .roadmap change.
