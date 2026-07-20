@@ -1,0 +1,21 @@
+skills/roadmap/scripts/rmproject.py
+  s_800bb7c09e26d5::t_93140d3740fadf 1-81
+skills/roadmap/scripts/roadmap.py
+  s_800bb7c09e26d5::t_93140d3740fadf 554-556
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "9547787b4acae2aa97ae06ef10a2a8b731ca56ba",
+  "prompts": {},
+  "sessions": {
+    "s_800bb7c09e26d5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8c3fdd2d-2025-4af0-82b6-e2e6dca123af",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
