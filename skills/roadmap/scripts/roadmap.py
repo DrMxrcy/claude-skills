@@ -1825,15 +1825,17 @@ DASHBOARD_HTML = """<!doctype html>
   .chev { color:var(--muted); transition:transform .15s; }
   .ver-group.collapsed .chev { transform:rotate(-90deg); }
   .item { display:grid; grid-template-columns:14px 1fr auto;
-    gap:10px; align-items:center; padding:7px 0;
+    gap:10px; align-items:start; padding:7px 0;
     border-top:1px solid var(--line); }
+  .dot { margin-top:5px; }
   .dot { width:9px; height:9px; border-radius:50%; background:var(--todo); }
   .dot.done { background:var(--done); }
   .dot.active { background:var(--active); }
   .dot.blocked { background:var(--blocked); }
-  .title { display:flex; align-items:center; gap:8px; min-width:0; }
+  .title { display:flex; align-items:baseline; gap:8px; min-width:0;
+    flex-wrap:wrap; }
   .title .num { color:var(--muted); flex:none; font-variant-numeric:tabular-nums; }
-  .title .t { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .title .t { white-space:normal; overflow-wrap:anywhere; flex:1 1 auto; }
   .badge { font-size:10px; color:var(--muted); border:1px solid var(--line);
     border-radius:4px; padding:1px 5px; flex:none; }
   .blockedby { font-size:11px; color:var(--blocked); flex:none; }
