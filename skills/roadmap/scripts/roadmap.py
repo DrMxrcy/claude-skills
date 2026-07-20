@@ -1832,6 +1832,7 @@ DASHBOARD_HTML = """<!doctype html>
   .dot.active { background:var(--active); }
   .dot.blocked { background:var(--blocked); }
   .title { display:flex; align-items:center; gap:8px; min-width:0; }
+  .title .num { color:var(--muted); flex:none; font-variant-numeric:tabular-nums; }
   .title .t { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .badge { font-size:10px; color:var(--muted); border:1px solid var(--line);
     border-radius:4px; padding:1px 5px; flex:none; }
@@ -1858,15 +1859,19 @@ const DOT = s => ({done:"done",active:"active",blocked:"blocked"}[s]||"todo");
 const el = (tag,cls) => { const e=document.createElement(tag);
   if(cls) e.className=cls; return e; };
 const txt = (tag,cls,s) => { const e=el(tag,cls); e.textContent=s; return e; };
-// Everything starts collapsed; the set tracks which versions the user opened.
-const open = new Set(JSON.parse(localStorage.getItem("rm-open")||"[]"));
-const saveOpen = () => localStorage.setItem("rm-open", JSON.stringify([...open]));
+// Default: the current version is expanded, all others collapsed. `prefs` holds
+// only the versions the user explicitly toggled, so it overrides the default and
+// auto-advance still opens whatever the new current version is.
+const prefs = JSON.parse(localStorage.getItem("rm-prefs")||"{}");
+const savePrefs = () => localStorage.setItem("rm-prefs", JSON.stringify(prefs));
+const isOpen = (v,cur) => (v in prefs) ? prefs[v] : (v === cur);
 const stale = off => document.getElementById("stale").classList.toggle("off", off);
 
 function itemRow(it){
   const row = el("div","item");
   row.appendChild(el("span","dot "+DOT(it.status)));
   const title = el("span","title");
+  title.appendChild(txt("span","num", "#"+it.id));
   title.appendChild(txt("span","t", it.title));
   title.appendChild(txt("span","badge", it.type));
   if(it.blockedBy && it.blockedBy.length)
@@ -1886,7 +1891,7 @@ function verSection(v, items, cur){
   const gd = items.reduce((a,i)=>a+(i.done||0),0);
   const gt = items.reduce((a,i)=>a+(i.total||0),0);
   const sec = el("section","ver-group");
-  if(!open.has(v)) sec.classList.add("collapsed");   // collapsed unless opened
+  if(!isOpen(v,cur)) sec.classList.add("collapsed");   // current open, rest closed
   sec.dataset.v = v;
   const head = el("div","ver-head");
   head.appendChild(txt("span","chev","▾"));
@@ -1895,8 +1900,8 @@ function verSection(v, items, cur){
     (gt?Math.round(100*gd/gt):0)+"% · "+gd+"/"+gt));
   head.onclick = () => {
     sec.classList.toggle("collapsed");
-    sec.classList.contains("collapsed") ? open.delete(v) : open.add(v);
-    saveOpen();
+    prefs[v] = !sec.classList.contains("collapsed");
+    savePrefs();
   };
   sec.appendChild(head);
   const box = el("div","items");
