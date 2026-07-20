@@ -21,9 +21,14 @@ The installer (`install.sh`) auto-discovers every skill under `skills/` (any dir
 ## Running tests
 
 ```bash
-python3 -m pytest -q          # use python3.11 if your python3 lacks a working stdlib
-bash -n install.sh            # shell syntax check
+python3 -m pytest -q                          # ~32s serial
+python3 -m pytest -n auto -q                   # ~8s parallel (needs pytest-xdist)
+bash -n install.sh                             # shell syntax check
 ```
+
+The suite is parallel-safe (each test gets an isolated `tmp_path`); `-n auto`
+across cores is ~4× faster. With `uv`:
+`uv run --with pytest --with pytest-xdist python -m pytest -n auto -q`.
 
 ## Conventions
 
