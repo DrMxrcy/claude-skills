@@ -27,7 +27,8 @@ default to **implement → spec review → quality review → tests → check** 
 > **OpenAI Codex:** use `install.sh --codex`, then invoke the skill as **`$roadmap status`**,
 > **`$roadmap next`**, **`$roadmap build …`**, etc. Codex's slash-command list is fixed;
 > installed skills do not add `/roadmap-*` entries. You can also choose Roadmap in the
-> skills UI.
+> skills UI. A bare **`$roadmap`** prints the available actions; it does not open a nested
+> autocomplete menu.
 
 ## The loop
 

@@ -17,6 +17,9 @@ def test_build_script_runs_and_bundles_skill():
     res = _build()
     assert res.returncode == 0, res.stderr
     assert (PLUGIN / "skills" / "roadmap" / "SKILL.md").exists()
+    skill = (PLUGIN / "skills" / "roadmap" / "SKILL.md").read_text()
+    assert "bare `$roadmap`" in skill
+    assert "$roadmap status" in skill
 
 
 def test_plugin_manifest_valid_and_version_synced():

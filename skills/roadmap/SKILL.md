@@ -72,7 +72,19 @@ If the user message / `$ARGUMENTS` starts with one of these verbs, run that flow
 | `done` | Mark step/item done |
 | `remove` / `retarget` / `review` / `release` / `changelog` / `catchup` / `reevaluate` / `tidy` / `upgrade` | Follow that command's flow |
 
-If there are no args (bare `/roadmap`), use **Phase routing** below.
+If the user explicitly invokes bare `$roadmap` with no task text, print this compact menu
+and stop; Codex skill mentions do not provide nested autocomplete:
+
+```text
+$roadmap status                 Show roadmap progress
+$roadmap next                   Build one unfinished item
+$roadmap build [id|version]     Build an item or version (`--auto` chains items)
+$roadmap plan <idea>            Create a tracked plan
+$roadmap idea <idea>            Park an idea
+$roadmap review [version]       Review completed work
+```
+
+If there are no args on bare `/roadmap` in Claude/Grok, use **Phase routing** below.
 
 ## Working guardrails (apply whenever this skill is active)
 - At the start of a session, run `roadmap.py orient` / `handoff` (or status) before writing code.

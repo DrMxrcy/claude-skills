@@ -1,6 +1,6 @@
 {
   "name": "roadmap",
-  "version": "0.14.1",
+  "version": "0.14.2",
   "description": "Keep AI coders on-task while shipping high-quality code \u2014 versioned ROADMAP.md + .roadmap/ driven by a deterministic CLI, with quality-first multi-agent review.",
   "author": {
     "name": "DrMxrcy",

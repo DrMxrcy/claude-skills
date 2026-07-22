@@ -70,6 +70,8 @@ $roadmap build 1.0.0 --auto
 Start a fresh Codex CLI session after installation. You can also select Roadmap from
 Codex's skills UI. The plugin installation described in
 [`codex-plugin/README.md`](codex-plugin/README.md) provides the same skill and hooks.
+A bare `$roadmap` prints a compact action list; Codex does not provide nested skill-command
+autocomplete.
 
 ## Updating
 

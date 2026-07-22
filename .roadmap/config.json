@@ -1,7 +1,7 @@
 {
   "project": "claude-skills",
-  "currentVersion": "0.14.1",
-  "nextId": 2,
+  "currentVersion": "0.14.2",
+  "nextId": 3,
   "items": [
     {
       "id": 1,
@@ -12,15 +12,26 @@
       "file": "plans/001-use-codex-skill-invocation-instead-of-unsupported-slash-commands.md",
       "note": "Roadmap now opens correctly from Codex using its native skill picker.",
       "audience": "public"
+    },
+    {
+      "id": 2,
+      "slug": "consolidate-codex-hooks-into-config-toml",
+      "title": "Consolidate Codex hooks into config.toml",
+      "type": "bug",
+      "version": "0.14.2",
+      "file": "plans/002-consolidate-codex-hooks-into-config-toml.md",
+      "note": "Codex starts cleanly without duplicate hook configuration warnings.",
+      "audience": "public"
     }
   ],
   "settings": {
     "autoCommit": true,
     "gitTagOnRelease": false
   },
-  "skillVersion": "0.14.1",
-  "last_seen_sha": "dbb972ed41be8af91f7d91e248e6ac304d6397ed",
+  "skillVersion": "0.14.2",
+  "last_seen_sha": "7cf3ece5f34a6b0ad1f98c7745197c34b105b131",
   "versionDates": {
-    "0.14.1": "2026-07-22"
+    "0.14.1": "2026-07-22",
+    "0.14.2": "2026-07-22"
   }
 }

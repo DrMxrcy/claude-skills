@@ -2,6 +2,7 @@
 import json
 import os
 import subprocess
+import tomllib
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -82,16 +83,16 @@ def test_codex_install_skips_fleet(tmp_path):
     assert START not in agents_md                        # ...but not the fleet policy
 
 
-def test_codex_wires_hooks_json(tmp_path):
+def test_codex_wires_hooks_in_config_toml(tmp_path):
     _run(tmp_path, "--project", "--codex")
-    hooks_json = tmp_path / ".codex/hooks.json"          # codex config-folder root
-    assert hooks_json.exists()
-    data = json.loads(hooks_json.read_text())
+    config = tmp_path / ".codex/config.toml"
+    data = tomllib.loads(config.read_text())
     hooks = data.get("hooks", {})
-    stop = json.dumps(hooks.get("Stop", []))             # PascalCase event keys
+    stop = json.dumps(hooks.get("Stop", []))
     start = json.dumps(hooks.get("SessionStart", []))
     assert "roadmap-sync.sh" in stop
     assert "roadmap-orient.sh" in start
+    assert not (tmp_path / ".codex/hooks.json").exists()
     # no claude settings.json is created for a codex install
     assert not (tmp_path / ".codex/settings.json").exists()
 
@@ -99,12 +100,22 @@ def test_codex_wires_hooks_json(tmp_path):
 def test_codex_global_install_migrates_legacy_hook_paths(tmp_path):
     codex = tmp_path / ".codex"
     codex.mkdir()
+    (codex / "config.toml").write_text(
+        'model = "gpt-test"\n\n'
+        '[[hooks.Stop]]\n\n'
+        '[[hooks.Stop.hooks]]\n'
+        'type = "command"\n'
+        'command = "already-in-toml"\n'
+    )
     legacy = str(codex / "skills/roadmap/hooks")
     hooks = {
         "hooks": {
             "Stop": [
                 {"hooks": [{"type": "command", "command": f'bash "{legacy}/roadmap-sync.sh"'}]},
-                {"hooks": [{"type": "command", "command": "keep-this-hook"}]},
+                {
+                    "matcher": "*",
+                    "hooks": [{"type": "command", "command": "keep-this-hook", "timeout": 30}],
+                },
             ],
             "SessionStart": [
                 {"hooks": [{"type": "command", "command": f'bash "{legacy}/roadmap-orient.sh"'}]},
@@ -118,9 +129,15 @@ def test_codex_global_install_migrates_legacy_hook_paths(tmp_path):
         ["bash", str(INSTALL), "--global", "--codex", "--only=roadmap"],
         cwd=tmp_path, env=env, capture_output=True, text=True,
     )
+    again = subprocess.run(
+        ["bash", str(INSTALL), "--global", "--codex", "--only=roadmap"],
+        cwd=tmp_path, env=env, capture_output=True, text=True,
+    )
 
     assert res.returncode == 0, res.stderr
-    installed = json.loads((codex / "hooks.json").read_text())
+    assert again.returncode == 0, again.stderr
+    config_text = (codex / "config.toml").read_text()
+    installed = tomllib.loads(config_text)
     blob = json.dumps(installed)
     supported = str(tmp_path / ".agents/skills/roadmap/hooks")
     assert blob.count(f"{supported}/roadmap-sync.sh") == 1
@@ -128,6 +145,11 @@ def test_codex_global_install_migrates_legacy_hook_paths(tmp_path):
     assert f"{legacy}/roadmap-sync.sh" not in blob
     assert f"{legacy}/roadmap-orient.sh" not in blob
     assert "keep-this-hook" in blob
+    assert "already-in-toml" in blob
+    migrated = next(group for group in installed["hooks"]["Stop"]
+                    if group.get("matcher") == "*")
+    assert migrated["hooks"][0]["timeout"] == 30
+    assert not (codex / "hooks.json").exists()
 
 
 def test_codex_uses_skill_invocation_not_custom_prompts(tmp_path):

@@ -79,7 +79,7 @@ hooks, and add roadmap rules to CLAUDE.md + AGENTS.md.
                           native hooks JSON, flat /roadmap-* slash commands
   --codex                 target OpenAI Codex CLI: ./.codex (or ~/.codex with --global),
                           roadmap skill in .agents/skills (global), rules in AGENTS.md,
-                          and Stop/SessionStart hooks.json. Invoke with $roadmap.
+                          and Stop/SessionStart hooks in config.toml. Invoke with $roadmap.
                           CLI only — not the ChatGPT app.
   --both                  install Claude + Grok at the same skill version (recommended
                           when you switch between AI coders)
@@ -183,7 +183,7 @@ settings="$base/settings.json"
 
 # Codex loads user skills from ~/.agents/skills (its current root); ~/.codex/skills is
 # only a deprecated fallback. For a global Codex install, put skills on the supported
-# path while hooks.json and prompts stay under ~/.codex ($base).
+# path while config.toml and other Codex state stay under ~/.codex ($base).
 if [ "$agent" = "codex" ] && [ "$scope" = "global" ]; then
   skills_dest="$HOME/.agents/skills"
 fi
@@ -281,6 +281,123 @@ else:
 PY
 }
 
+_wire_codex_hooks() {
+  # $1 config.toml, $2 legacy hooks.json, $3 Stop command (or empty),
+  # $4 SessionStart command (or empty). Codex warns when both representations
+  # exist, so migrate every JSON hook into TOML before removing hooks.json.
+  "$PYTHON" - "$1" "$2" "$3" "$4" <<'PY'
+import json, os, re, sys, tempfile
+
+config_path, json_path, stop_cmd, start_cmd = sys.argv[1:5]
+begin = "# roadmap:codex-hooks:start"
+end = "# roadmap:codex-hooks:end"
+migration_begin = "# roadmap:hooks-json-migration:start"
+migration_end = "# roadmap:hooks-json-migration:end"
+
+
+def toml_value(value):
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return repr(value)
+    if isinstance(value, str):
+        return json.dumps(value, ensure_ascii=False)
+    if isinstance(value, list):
+        return "[" + ", ".join(toml_value(item) for item in value) + "]"
+    raise TypeError(f"unsupported hook value: {value!r}")
+
+
+def render_groups(groups):
+    lines = []
+    for event, group in groups:
+        hooks = group.get("hooks", [])
+        if not hooks:
+            continue
+        lines.append(f"[[hooks.{event}]]")
+        for key, value in group.items():
+            if key == "hooks" or value is None:
+                continue
+            lines.append(f"{key} = {toml_value(value)}")
+        for hook in hooks:
+            lines.extend(("", f"[[hooks.{event}.hooks]]"))
+            for key, value in hook.items():
+                if value is not None:
+                    lines.append(f"{key} = {toml_value(value)}")
+        lines.append("")
+    return "\n".join(lines).rstrip()
+
+
+os.makedirs(os.path.dirname(config_path) or ".", exist_ok=True)
+base = open(config_path, encoding="utf-8").read() if os.path.exists(config_path) else ""
+managed_re = re.compile(
+    rf"\n?{re.escape(begin)}.*?{re.escape(end)}\n?", re.DOTALL
+)
+base = managed_re.sub("\n", base).rstrip()
+
+migrated = []
+if os.path.exists(json_path):
+    try:
+        legacy = json.load(open(json_path, encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"Warning: could not migrate {json_path}: {exc}", file=sys.stderr)
+        sys.exit(1)
+    for event, groups in legacy.get("hooks", {}).items():
+        for group in groups:
+            kept = []
+            for hook in group.get("hooks", []):
+                command = hook.get("command", "")
+                if "/skills/roadmap/hooks/roadmap-sync.sh" in command:
+                    continue
+                if "/skills/roadmap/hooks/roadmap-orient.sh" in command:
+                    continue
+                # Avoid duplicating a hook already represented in config.toml.
+                if command and command in base:
+                    continue
+                kept.append(hook)
+            if kept:
+                copied = dict(group)
+                copied["hooks"] = kept
+                migrated.append((event, copied))
+
+parts = [base] if base else []
+rendered_migration = render_groups(migrated)
+if rendered_migration:
+    parts.append(f"{migration_begin}\n{rendered_migration}\n{migration_end}")
+
+roadmap_groups = []
+if stop_cmd:
+    roadmap_groups.append(("Stop", {"hooks": [{"type": "command", "command": stop_cmd}]}))
+if start_cmd:
+    roadmap_groups.append(("SessionStart", {"hooks": [{"type": "command", "command": start_cmd}]}))
+rendered_roadmap = render_groups(roadmap_groups)
+if rendered_roadmap:
+    parts.append(f"{begin}\n{rendered_roadmap}\n{end}")
+
+updated = "\n\n".join(part for part in parts if part).rstrip() + "\n"
+try:
+    import tomllib
+except ImportError:
+    tomllib = None
+if tomllib is not None:
+    tomllib.loads(updated)
+
+fd, tmp_path = tempfile.mkstemp(prefix="config.toml.", dir=os.path.dirname(config_path) or ".")
+try:
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        handle.write(updated)
+    os.replace(tmp_path, config_path)
+finally:
+    if os.path.exists(tmp_path):
+        os.unlink(tmp_path)
+
+if os.path.exists(json_path):
+    os.unlink(json_path)
+    print(f"Migrated Codex hooks from {json_path} into {config_path}")
+else:
+    print(f"Wired roadmap hooks into {config_path}")
+PY
+}
+
 # Idempotently merge a marker-delimited block from a source file into a target
 # instruction file (CLAUDE.md / AGENTS.md). Updates the block in place if the markers
 # already exist, otherwise appends it — never rewrites the rest of the file.
@@ -369,14 +486,22 @@ EOF
       echo "Wired roadmap SessionStart orient hook into $base/hooks/roadmap-orient.json"
     fi
   fi
+elif [ "$agent" = "codex" ]; then
+  stop_command=""; start_command=""
+  if [ "$hook" = "1" ]; then
+    hook_path="$skills_dest/roadmap/hooks/roadmap-sync.sh"
+    [ -f "$hook_path" ] && stop_command="bash \"$hook_path\""
+  fi
+  if [ "$orient" = "1" ]; then
+    orient_path="$skills_dest/roadmap/hooks/roadmap-orient.sh"
+    [ -f "$orient_path" ] && start_command="bash \"$orient_path\""
+  fi
+  if [ -n "$stop_command" ] || [ -n "$start_command" ]; then
+    _wire_codex_hooks "$base/config.toml" "$base/hooks.json" "$stop_command" "$start_command"
+  fi
 else
-  # Claude Code reads .claude/settings.json; Codex CLI reads a dedicated hooks.json
-  # at its config-folder root (~/.codex or the project .codex/). Both use the same
-  # { "hooks": { "<Event>": [ { "hooks": [ {type,command} ] } ] } } envelope with
-  # PascalCase Stop / SessionStart event keys, so _wire_claude_hook serves both —
-  # only the target file differs.
+  # Claude Code reads .claude/settings.json using the JSON hooks envelope.
   hooks_target="$settings"
-  [ "$agent" = "codex" ] && hooks_target="$base/hooks.json"
   if [ "$hook" = "1" ]; then
     hook_path="$skills_dest/roadmap/hooks/roadmap-sync.sh"
     [ -f "$hook_path" ] && _wire_claude_hook "$hooks_target" "Stop" "bash \"$hook_path\""
@@ -563,7 +688,7 @@ if [ "$agent" = "grok" ]; then
   echo "Start a new Grok Build session to pick up the skill(s); run 'grok inspect' to verify discovery."
 elif [ "$agent" = "codex" ]; then
   echo "Start a new Codex CLI session to pick up the skill(s). Roadmap rules land in AGENTS.md;"
-  echo "Stop/SessionStart hooks live in $base/hooks.json. Invoke roadmap as: \$roadmap status"
+  echo "Stop/SessionStart hooks live in $base/config.toml. Invoke roadmap as: \$roadmap status"
   echo "Other examples: \$roadmap next  |  \$roadmap build 1.0.0 --auto"
   echo "Note: the ChatGPT desktop app has no filesystem/skill hook — CLI only."
 else

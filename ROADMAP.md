@@ -6,10 +6,12 @@
 - (add ideas here)
 
 <!-- roadmap:auto:start -->
-**Current version: v0.14.1**
+**Current version: v0.14.2**
 
 ## 📊 Versions
 
-### [x] v0.14.1 — 100%
-- [x] **#1 Use Codex skill invocation instead of unsupported slash commands** `bug` — 100% ([plan](.roadmap/plans/001-use-codex-skill-invocation-instead-of-unsupported-slash-commands.md))
+### [x] v0.14.1 — 100% · 1 item · shipped 2026-07-22 ([history](CHANGELOG.internal.md))
+
+### [x] v0.14.2 — 100%
+- [x] **#2 Consolidate Codex hooks into config.toml** `bug` — 100% ([plan](.roadmap/plans/002-consolidate-codex-hooks-into-config-toml.md))
 <!-- roadmap:auto:end -->
