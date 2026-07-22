@@ -6,7 +6,7 @@ description: >
   trackable units, building with quality-first multi-agent review, marking done, or cutting a
   version. Maintains versioned ROADMAP.md + .roadmap/ via a deterministic CLI. Triggers on
   "roadmap", "plan this feature", "track this", "build the next item", "mark done", "cut a
-  version", /roadmap, /roadmap-next, /roadmap-build, /roadmap-status.
+  version", $roadmap, /roadmap, /roadmap-next, /roadmap-build, /roadmap-status.
 argument-hint: "[status|next|build|plan|idea|init|done|review|release|sync|…] [args]"
 ---
 
@@ -29,26 +29,31 @@ for d in .claude .grok .agents "$HOME/.claude" "$HOME/.grok" "$HOME/.agents"; do
 python3 "$RM" <command>
 ```
 
-## Slash commands (agent-specific names)
+## Invocation (agent-specific names)
 
-| Action | Claude Code | Grok Build | Either |
+| Action | Claude Code | Grok Build | OpenAI Codex |
 |---|---|---|---|
-| Init | `/roadmap:init` | `/roadmap-init` | `/roadmap init` |
-| Plan | `/roadmap:plan …` | `/roadmap-plan …` | `/roadmap plan …` |
-| Next item | `/roadmap:next` | `/roadmap-next` | `/roadmap next` |
-| Build | `/roadmap:build …` | `/roadmap-build …` | `/roadmap build …` |
-| Status | `/roadmap:status` | `/roadmap-status` | `/roadmap status` |
-| (rest) | `/roadmap:<cmd>` | `/roadmap-<cmd>` | `/roadmap <cmd>` |
+| Init | `/roadmap:init` | `/roadmap-init` | `$roadmap init` |
+| Plan | `/roadmap:plan …` | `/roadmap-plan …` | `$roadmap plan …` |
+| Next item | `/roadmap:next` | `/roadmap-next` | `$roadmap next` |
+| Build | `/roadmap:build …` | `/roadmap-build …` | `$roadmap build …` |
+| Status | `/roadmap:status` | `/roadmap-status` | `$roadmap status` |
+| (rest) | `/roadmap:<cmd>` | `/roadmap-<cmd>` | `$roadmap <cmd>` |
 
 **When recommending a command to the user, always list hyphen (Grok) and/or bare form —
 never colon-only.** Grok only discovers flat `commands/roadmap-*.md`; nested
 `commands/roadmap/next.md` → `/roadmap:next` does **not** show in Grok's menu.
 `--auto` only on **build** (not next).
 
-**Also works:** invoke this skill with a subcommand as the argument — `/roadmap next`,
-`/roadmap build 1.0.0`, `/roadmap status` — and route exactly like the dedicated command.
+Codex has a fixed built-in slash-command list; skills do not add dynamic slash commands.
+Use `$roadmap <cmd>` or select Roadmap from Codex's skills UI.
 
-## Subcommand routing (when invoked as `/roadmap` with args)
+**Also works on Claude/Grok:** invoke this skill with a subcommand as the argument —
+`/roadmap next`, `/roadmap build 1.0.0`, `/roadmap status` — and route exactly like the
+dedicated command. On Codex, use the equivalent `$roadmap next`, `$roadmap build 1.0.0`,
+or `$roadmap status`.
+
+## Subcommand routing (when invoked with arguments)
 
 If the user message / `$ARGUMENTS` starts with one of these verbs, run that flow and stop
 (do not fall through to generic phase detection):

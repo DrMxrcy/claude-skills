@@ -11,7 +11,7 @@
 #   ./install.sh                 # ./.claude: skills + /roadmap:* commands + hook + CLAUDE.md
 #   ./install.sh --global        # ~/.claude (all projects); skips CLAUDE.md
 #   ./install.sh --grok          # target Grok Build: ./.grok (or ~/.grok with --global)
-#   ./install.sh --codex         # target OpenAI Codex CLI: ./.codex (or ~/.codex with --global)
+#   ./install.sh --codex         # target OpenAI Codex CLI: skill + hooks + AGENTS.md rules
 #   ./install.sh --both          # install Claude + Grok (same skill version; keeps coders in sync)
 #   ./install.sh --link          # symlink instead of copy (good for development)
 #   ./install.sh --no-hook       # do not wire the auto-sync Stop hook (sync + drift-check)
@@ -69,17 +69,18 @@ for arg in "$@"; do
     --init) do_init=1; pass_args+=("$arg") ;;
     -h|--help)
       cat <<'EOF'
-install.sh — import this repo's skills + slash commands into Claude Code or Grok
-Build, wire Stop (sync+drift) and SessionStart (orient) hooks, and add roadmap
-rules to CLAUDE.md + AGENTS.md (no manual copying or settings edits).
+install.sh — import this repo's skills into Claude Code, Grok Build, or OpenAI Codex;
+install supported agent commands, wire Stop (sync+drift) and SessionStart (orient)
+hooks, and add roadmap rules to CLAUDE.md + AGENTS.md.
 
   ./install.sh            install into ./.claude (this project)
   --global                install into ~/.claude (all projects); skips project rules
   --grok                  target Grok Build: ./.grok (or ~/.grok with --global),
                           native hooks JSON, flat /roadmap-* slash commands
   --codex                 target OpenAI Codex CLI: ./.codex (or ~/.codex with --global),
-                          roadmap rules in AGENTS.md, Stop/SessionStart hooks.json,
-                          flat /roadmap-* prompts. CLI only — not the ChatGPT app.
+                          roadmap skill in .agents/skills (global), rules in AGENTS.md,
+                          and Stop/SessionStart hooks.json. Invoke with $roadmap.
+                          CLI only — not the ChatGPT app.
   --both                  install Claude + Grok at the same skill version (recommended
                           when you switch between AI coders)
   --link                  symlink instead of copy (development)
@@ -355,7 +356,7 @@ else
   fi
 fi
 
-# Install slash commands unless --no-commands.
+# Install agent-supported command files unless --no-commands.
 #
 # Claude Code discovers nested commands/<ns>/<cmd>.md as /ns:cmd
 #   e.g. commands/roadmap/next.md → /roadmap:next
@@ -366,14 +367,23 @@ fi
 #
 # Claude installs get both layouts (Claude users keep /roadmap:*, Grok reading
 # .claude/commands via compat gets /roadmap-*). Pure --grok installs get flat only.
-if [ "$commands" = "1" ] && _want roadmap; then
+# Codex has a fixed built-in slash-command list and invokes installed skills with
+# $<skill-name>, so it must not receive legacy .codex/prompts files.
+if [ "$agent" = "codex" ] && _want roadmap; then
+  # Clean up files written by roadmap v0.14.0 without touching other custom prompts.
+  for legacy_prompt in "$base/prompts"/roadmap-*.md; do
+    [ -e "$legacy_prompt" ] || [ -L "$legacy_prompt" ] || continue
+    rm -f "$legacy_prompt"
+  done
+  rmdir "$base/prompts" 2>/dev/null || true
+fi
+
+if [ "$commands" = "1" ] && _want roadmap && [ "$agent" != "codex" ]; then
   cmd_src="$(dirname "$SRC_DIR")/commands"
   if [ -d "$cmd_src" ]; then
-    # Codex discovers custom prompts as /<name> from a prompts/ dir; Claude & Grok
-    # read commands/. All get the flat <ns>-<cmd> layout; only Claude also gets the
-    # nested <ns>/<cmd> dir (/ns:cmd) — Grok and Codex ignore nested command dirs.
+    # Claude and Grok read commands/. Both get the flat <ns>-<cmd> layout; only
+    # Claude also gets the nested <ns>/<cmd> dir (/ns:cmd).
     flat_dir="$base/commands"
-    [ "$agent" = "codex" ] && flat_dir="$base/prompts"
     mkdir -p "$flat_dir"
     flat_count=0
     for cdir in "$cmd_src"/*/; do
@@ -390,7 +400,7 @@ if [ "$commands" = "1" ] && _want roadmap; then
         fi
       fi
 
-      # Flat namespaced layout for Grok/Codex (/ns-cmd). Also useful on Claude Code
+      # Flat namespaced layout for Grok (/ns-cmd). Also useful on Claude Code
       # as hyphenated aliases that show up in autocomplete the same way.
       for f in "$cdir"*.md; do
         [ -f "$f" ] || continue
@@ -407,8 +417,6 @@ if [ "$commands" = "1" ] && _want roadmap; then
     done
     if [ "$agent" = "grok" ]; then
       echo "Installed $flat_count Grok commands -> $flat_dir (try /roadmap-init, /roadmap-next, /roadmap-build)"
-    elif [ "$agent" = "codex" ]; then
-      echo "Installed $flat_count Codex prompts -> $flat_dir (try /roadmap-init, /roadmap-next, /roadmap-build)"
     else
       echo "Installed commands -> $flat_dir (Claude: /roadmap:init; Grok-compat: /roadmap-init, /roadmap-next)"
     fi
@@ -524,7 +532,8 @@ if [ "$agent" = "grok" ]; then
   echo "Start a new Grok Build session to pick up the skill(s); run 'grok inspect' to verify discovery."
 elif [ "$agent" = "codex" ]; then
   echo "Start a new Codex CLI session to pick up the skill(s). Roadmap rules land in AGENTS.md;"
-  echo "Stop/SessionStart hooks in $base/hooks.json; prompts as /roadmap-* (from $base/prompts)."
+  echo "Stop/SessionStart hooks live in $base/hooks.json. Invoke roadmap as: \$roadmap status"
+  echo "Other examples: \$roadmap next  |  \$roadmap build 1.0.0 --auto"
   echo "Note: the ChatGPT desktop app has no filesystem/skill hook — CLI only."
 else
   echo "Start a new Claude Code session to pick up the skill(s)."

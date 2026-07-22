@@ -1,8 +1,8 @@
 # roadmap
 
 **Mission: keep AI coders on-task while high-quality code ships** — whether the driver is
-**Claude Code**, **Grok Build**, or another agent. Same slash-command intent (colon vs
-hyphen names), same quality-first multi-agent build protocol, same anti-drift CLI.
+**Claude Code**, **Grok Build**, **OpenAI Codex**, or another agent. Same command intent,
+agent-native invocation, quality-first multi-agent build protocol, and anti-drift CLI.
 
 A persistent tracking layer for AI-assisted development. You bring an idea or plan; the skill
 breaks it into small, type-tagged, **versioned** units, links them into a living `ROADMAP.md`,
@@ -23,6 +23,11 @@ default to **implement → spec review → quality review → tests → check** 
 > that appear as **`/roadmap-next`**, **`/roadmap-build`**, **`/roadmap-status`**, etc.
 > (hyphen, not colon). Bare `/roadmap` + args (`/roadmap next`) also works. Verify with
 > `grok inspect`.
+>
+> **OpenAI Codex:** use `install.sh --codex`, then invoke the skill as **`$roadmap status`**,
+> **`$roadmap next`**, **`$roadmap build …`**, etc. Codex's slash-command list is fixed;
+> installed skills do not add `/roadmap-*` entries. You can also choose Roadmap in the
+> skills UI.
 
 ## The loop
 
@@ -51,13 +56,14 @@ a PR at 100% without merging to main. Optional
 [`ralph-loop`](https://github.com/anthropics/claude-code/tree/main/plugins/ralph-wiggum)
 harness: see [`commands/roadmap/build.md`](../../commands/roadmap/build.md).
 
-## Slash commands
+## Agent commands
 
 Names differ by agent: Claude Code uses a colon (`/roadmap:next`); Grok Build uses a
-hyphen (`/roadmap-next`). Both forms are installed where that agent can discover them.
-Bare `/roadmap <subcommand>` also routes correctly.
+hyphen (`/roadmap-next`); Codex invokes the skill (`$roadmap next`). Claude and Grok
+command files are installed where each agent can discover them. Bare
+`/roadmap <subcommand>` also routes correctly on Claude and Grok.
 
-| Command (Claude / Grok) | Does |
+| Command (Claude / Grok; Codex uses `$roadmap <action>`) | Does |
 |---|---|
 | `/roadmap:init` · `/roadmap-init` | Initialize tracking (auto-detects adopt for existing repos) |
 | `/roadmap:plan <idea>` · `/roadmap-plan` | Brainstorm an idea into a tracked, versioned plan; links its spec/detailed plan |

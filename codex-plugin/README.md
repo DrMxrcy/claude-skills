@@ -39,4 +39,8 @@ SessionStart hooks fire. Roadmap discipline rules still live in `AGENTS.md`
 (add them per-project with `install.sh --codex --project`, or globally with
 `install.sh --codex --global`).
 
+Codex plugins do not add dynamic slash commands. Invoke the installed skill with
+`$roadmap`, for example `$roadmap status`, `$roadmap next`, or
+`$roadmap build 1.0.0 --auto`; alternatively, select Roadmap from Codex's skills UI.
+
 > The ChatGPT desktop app cannot load filesystem plugins — this is Codex CLI only.

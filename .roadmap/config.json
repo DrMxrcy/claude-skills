@@ -1,0 +1,26 @@
+{
+  "project": "claude-skills",
+  "currentVersion": "0.14.1",
+  "nextId": 2,
+  "items": [
+    {
+      "id": 1,
+      "slug": "use-codex-skill-invocation-instead-of-unsupported-slash-commands",
+      "title": "Use Codex skill invocation instead of unsupported slash commands",
+      "type": "bug",
+      "version": "0.14.1",
+      "file": "plans/001-use-codex-skill-invocation-instead-of-unsupported-slash-commands.md",
+      "note": "Roadmap now opens correctly from Codex using its native skill picker.",
+      "audience": "public"
+    }
+  ],
+  "settings": {
+    "autoCommit": true,
+    "gitTagOnRelease": false
+  },
+  "skillVersion": "0.14.1",
+  "last_seen_sha": "c6875c7fd8274b3ae9475f2a0c6a447f29d8b142",
+  "versionDates": {
+    "0.14.1": "2026-07-22"
+  }
+}

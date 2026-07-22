@@ -1,7 +1,7 @@
 # claude-skills
 
 A collection of installable [Agent Skills](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview)
-for AI-assisted coding — **Claude Code, Grok Build, and compatible agents**. The flagship
+for AI-assisted coding — **Claude Code, Grok Build, OpenAI Codex, and compatible agents**. The flagship
 **roadmap** skill keeps AI coders on-task with a versioned plan + quality-first multi-agent
 build loop (implement → review → tests → check) so speed does not cost quality.
 
@@ -19,7 +19,7 @@ curl -fsSL https://raw.githubusercontent.com/DrMxrcy/claude-skills/main/install.
 
 - **Global** (all projects): append `| bash -s -- --global`
 - **From a clone:** `./install.sh`
-- **Flags:** `--global`, `--grok`, **`--both`** (Claude + Grok same version — best when switching coders), `--link`, `--no-hook`, `--no-orient`, `--no-commands`, `--no-claude-md`, `--init`
+- **Flags:** `--global`, `--grok`, `--codex`, **`--both`** (Claude + Grok same version — best when switching coders), `--link`, `--no-hook`, `--no-orient`, `--no-commands`, `--no-claude-md`, `--init`
 
 Then start a fresh Claude Code session so the skills and commands load. Replace `<owner>` /
 `DrMxrcy` with your fork's owner if you republish (or set `SKILLS_REPO=owner/repo`).
@@ -50,6 +50,27 @@ slash menu). A default Claude install also drops the flat aliases into `.claude/
 so Grok's Claude-compat path gets `/roadmap-next` too. Bare `/roadmap` still works with
 subcommand args (`/roadmap next`). Verify with `grok inspect`.
 
+### OpenAI Codex
+
+Install the roadmap skill and lifecycle hooks for Codex CLI with:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/DrMxrcy/claude-skills/main/install.sh | bash -s -- --codex
+```
+
+Codex has a fixed built-in slash-command menu, so installed skills do not add
+`/roadmap-*` entries. Invoke the skill with `$roadmap` followed by the action instead:
+
+```text
+$roadmap status
+$roadmap next
+$roadmap build 1.0.0 --auto
+```
+
+Start a fresh Codex CLI session after installation. You can also select Roadmap from
+Codex's skills UI. The plugin installation described in
+[`codex-plugin/README.md`](codex-plugin/README.md) provides the same skill and hooks.
+
 ## Updating
 
 Re-run the install command — it's idempotent and is the update path (or `git pull && ./install.sh`
@@ -61,7 +82,7 @@ afterward.
 
 | Skill | What it does | Docs |
 |---|---|---|
-| **roadmap** | On-task + high-quality AI coding harness: versioned plans, dual-agent slash commands (`/roadmap:*` · `/roadmap-*`), quality-first multi-agent build (`--auto` still reviews), anti-drift CLI. | [skills/roadmap/README.md](skills/roadmap/README.md) |
+| **roadmap** | On-task + high-quality AI coding harness: versioned plans, native agent invocation (`/roadmap:*`, `/roadmap-*`, or Codex `$roadmap`), quality-first multi-agent build (`--auto` still reviews), anti-drift CLI. | [skills/roadmap/README.md](skills/roadmap/README.md) |
 
 ## Repository layout
 

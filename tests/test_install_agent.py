@@ -96,12 +96,25 @@ def test_codex_wires_hooks_json(tmp_path):
     assert not (tmp_path / ".codex/settings.json").exists()
 
 
-def test_codex_installs_flat_prompts(tmp_path):
-    _run(tmp_path, "--project", "--codex")
-    prompts = tmp_path / ".codex/prompts"                # codex discovers /<name> here
-    assert (prompts / "roadmap-next.md").exists()        # flat <ns>-<cmd> layout
-    assert not (prompts / "roadmap").exists()            # codex ignores nested dirs
-    assert not (tmp_path / ".codex/commands").exists()   # prompts, not commands
+def test_codex_uses_skill_invocation_not_custom_prompts(tmp_path):
+    prompts = tmp_path / ".codex/prompts"
+    prompts.mkdir(parents=True)
+    (prompts / "roadmap-status.md").write_text("legacy unsupported prompt")
+    (prompts / "keep-me.md").write_text("unrelated prompt")
+
+    res = _run(tmp_path, "--project", "--codex")
+    assert res.returncode == 0, res.stderr
+    assert not (prompts / "roadmap-status.md").exists()
+    assert (prompts / "keep-me.md").read_text() == "unrelated prompt"
+    assert not (tmp_path / ".codex/commands").exists()
+    assert "$roadmap status" in res.stdout
+    assert "/roadmap-status" not in res.stdout
+
+
+def test_codex_install_does_not_create_prompts_directory(tmp_path):
+    res = _run(tmp_path, "--project", "--codex")
+    assert res.returncode == 0, res.stderr
+    assert not (tmp_path / ".codex/prompts").exists()
 
 
 def test_model_wired_by_default(tmp_path):

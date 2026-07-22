@@ -1,7 +1,7 @@
 {
   "name": "roadmap",
-  "version": "0.14.0",
-  "description": "Keep AI coders on-task while shipping high-quality code — versioned ROADMAP.md + .roadmap/ driven by a deterministic CLI, with quality-first multi-agent review.",
+  "version": "0.14.1",
+  "description": "Keep AI coders on-task while shipping high-quality code \u2014 versioned ROADMAP.md + .roadmap/ driven by a deterministic CLI, with quality-first multi-agent review.",
   "author": {
     "name": "DrMxrcy",
     "url": "https://github.com/DrMxrcy/claude-skills"
@@ -9,7 +9,12 @@
   "homepage": "https://github.com/DrMxrcy/claude-skills",
   "repository": "https://github.com/DrMxrcy/claude-skills",
   "license": "MIT",
-  "keywords": ["roadmap", "planning", "project-management", "agents"],
+  "keywords": [
+    "roadmap",
+    "planning",
+    "project-management",
+    "agents"
+  ],
   "skills": "./skills/",
   "hooks": "./hooks.json",
   "interface": {
@@ -18,7 +23,10 @@
     "longDescription": "Turns feature/bug/refactor ideas into tracked, versioned roadmap items and builds them with quality-first multi-agent review. Maintains a versioned ROADMAP.md and a .roadmap/ store via a deterministic Python CLI, and wires Stop (sync + drift-check) and SessionStart (orient) hooks so the discipline holds without manual bookkeeping.",
     "developerName": "DrMxrcy",
     "category": "Productivity",
-    "capabilities": ["Interactive", "Write"],
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
     "websiteURL": "https://github.com/DrMxrcy/claude-skills",
     "defaultPrompt": [
       "Plan this feature into a tracked roadmap item.",
