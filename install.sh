@@ -11,6 +11,7 @@
 #   ./install.sh                 # ./.claude: skills + /roadmap:* commands + hook + CLAUDE.md
 #   ./install.sh --global        # ~/.claude (all projects); skips CLAUDE.md
 #   ./install.sh --grok          # target Grok Build: ./.grok (or ~/.grok with --global)
+#   ./install.sh --codex         # target OpenAI Codex CLI: ./.codex (or ~/.codex with --global)
 #   ./install.sh --both          # install Claude + Grok (same skill version; keeps coders in sync)
 #   ./install.sh --link          # symlink instead of copy (good for development)
 #   ./install.sh --no-hook       # do not wire the auto-sync Stop hook (sync + drift-check)
@@ -52,6 +53,7 @@ for arg in "$@"; do
     --global) scope="global"; pass_args+=("$arg") ;;
     --project) scope="project"; pass_args+=("$arg") ;;
     --grok) agent="grok"; pass_args+=("$arg") ;;
+    --codex) agent="codex"; pass_args+=("$arg") ;;
     --claude) agent="claude"; pass_args+=("$arg") ;;
     --both|--all-agents) both=1 ;;
     --link) link=1; pass_args+=("$arg") ;;
@@ -75,6 +77,9 @@ rules to CLAUDE.md + AGENTS.md (no manual copying or settings edits).
   --global                install into ~/.claude (all projects); skips project rules
   --grok                  target Grok Build: ./.grok (or ~/.grok with --global),
                           native hooks JSON, flat /roadmap-* slash commands
+  --codex                 target OpenAI Codex CLI: ./.codex (or ~/.codex with --global),
+                          roadmap rules in AGENTS.md, Stop/SessionStart hooks.json,
+                          flat /roadmap-* prompts. CLI only — not the ChatGPT app.
   --both                  install Claude + Grok at the same skill version (recommended
                           when you switch between AI coders)
   --link                  symlink instead of copy (development)
@@ -119,7 +124,7 @@ if [ "$both" = "1" ]; then
   both_args=()
   for a in "${pass_args[@]+"${pass_args[@]}"}"; do
     case "$a" in
-      --grok|--claude|--both|--all-agents) ;;
+      --grok|--codex|--claude|--both|--all-agents) ;;
       *) both_args+=("$a") ;;
     esac
   done
@@ -133,8 +138,10 @@ if [ "$both" = "1" ]; then
   exit 0
 fi
 
-# Roadmap rules are project-specific; never write a global CLAUDE.md.
-[ "$scope" = "global" ] && claude_md=0
+# Roadmap rules are project-specific; never write a global CLAUDE.md. Exception:
+# a global Codex install writes rules to ~/.codex/AGENTS.md — Codex's own global
+# instruction file (not a per-project CLAUDE.md), so the discipline applies there too.
+[ "$scope" = "global" ] && [ "$agent" != "codex" ] && claude_md=0
 
 PYTHON="${PYTHON:-python3}"
 SLUG="${SKILLS_REPO:-DrMxrcy/claude-skills}"
@@ -172,6 +179,13 @@ else
 fi
 skills_dest="$base/skills"
 settings="$base/settings.json"
+
+# Codex loads user skills from ~/.agents/skills (its current root); ~/.codex/skills is
+# only a deprecated fallback. For a global Codex install, put skills on the supported
+# path while hooks.json and prompts stay under ~/.codex ($base).
+if [ "$agent" = "codex" ] && [ "$scope" = "global" ]; then
+  skills_dest="$HOME/.agents/skills"
+fi
 
 mkdir -p "$skills_dest"
 
@@ -324,13 +338,20 @@ EOF
     fi
   fi
 else
+  # Claude Code reads .claude/settings.json; Codex CLI reads a dedicated hooks.json
+  # at its config-folder root (~/.codex or the project .codex/). Both use the same
+  # { "hooks": { "<Event>": [ { "hooks": [ {type,command} ] } ] } } envelope with
+  # PascalCase Stop / SessionStart event keys, so _wire_claude_hook serves both —
+  # only the target file differs.
+  hooks_target="$settings"
+  [ "$agent" = "codex" ] && hooks_target="$base/hooks.json"
   if [ "$hook" = "1" ]; then
     hook_path="$skills_dest/roadmap/hooks/roadmap-sync.sh"
-    [ -f "$hook_path" ] && _wire_claude_hook "$settings" "Stop" "bash \"$hook_path\""
+    [ -f "$hook_path" ] && _wire_claude_hook "$hooks_target" "Stop" "bash \"$hook_path\""
   fi
   if [ "$orient" = "1" ]; then
     orient_path="$skills_dest/roadmap/hooks/roadmap-orient.sh"
-    [ -f "$orient_path" ] && _wire_claude_hook "$settings" "SessionStart" "bash \"$orient_path\""
+    [ -f "$orient_path" ] && _wire_claude_hook "$hooks_target" "SessionStart" "bash \"$orient_path\""
   fi
 fi
 
@@ -348,15 +369,19 @@ fi
 if [ "$commands" = "1" ] && _want roadmap; then
   cmd_src="$(dirname "$SRC_DIR")/commands"
   if [ -d "$cmd_src" ]; then
-    mkdir -p "$base/commands"
+    # Codex discovers custom prompts as /<name> from a prompts/ dir; Claude & Grok
+    # read commands/. All get the flat <ns>-<cmd> layout; only Claude also gets the
+    # nested <ns>/<cmd> dir (/ns:cmd) — Grok and Codex ignore nested command dirs.
+    flat_dir="$base/commands"
+    [ "$agent" = "codex" ] && flat_dir="$base/prompts"
+    mkdir -p "$flat_dir"
     flat_count=0
     for cdir in "$cmd_src"/*/; do
       [ -d "$cdir" ] || continue
       cname="$(basename "$cdir")"
 
-      # Nested layout for Claude Code (/ns:cmd). Skip for pure Grok installs —
-      # Grok never loads nested command dirs, so nested copies only waste space.
-      if [ "$agent" != "grok" ]; then
+      # Nested layout for Claude Code (/ns:cmd) only.
+      if [ "$agent" = "claude" ]; then
         rm -rf "$base/commands/$cname"
         if [ "$link" = "1" ]; then
           ln -s "${cdir%/}" "$base/commands/$cname"
@@ -365,12 +390,12 @@ if [ "$commands" = "1" ] && _want roadmap; then
         fi
       fi
 
-      # Flat namespaced layout for Grok (/ns-cmd). Also useful on Claude Code as
-      # hyphenated aliases that show up in autocomplete the same way.
+      # Flat namespaced layout for Grok/Codex (/ns-cmd). Also useful on Claude Code
+      # as hyphenated aliases that show up in autocomplete the same way.
       for f in "$cdir"*.md; do
         [ -f "$f" ] || continue
         stem="$(basename "$f" .md)"
-        dest="$base/commands/${cname}-${stem}.md"
+        dest="$flat_dir/${cname}-${stem}.md"
         if [ "$link" = "1" ]; then
           # Absolute target so the link survives even if CWD changes later.
           ln -sfn "$(cd "$(dirname "$f")" && pwd)/$(basename "$f")" "$dest"
@@ -381,24 +406,34 @@ if [ "$commands" = "1" ] && _want roadmap; then
       done
     done
     if [ "$agent" = "grok" ]; then
-      echo "Installed $flat_count Grok commands -> $base/commands (try /roadmap-init, /roadmap-next, /roadmap-build)"
+      echo "Installed $flat_count Grok commands -> $flat_dir (try /roadmap-init, /roadmap-next, /roadmap-build)"
+    elif [ "$agent" = "codex" ]; then
+      echo "Installed $flat_count Codex prompts -> $flat_dir (try /roadmap-init, /roadmap-next, /roadmap-build)"
     else
-      echo "Installed commands -> $base/commands (Claude: /roadmap:init; Grok-compat: /roadmap-init, /roadmap-next)"
+      echo "Installed commands -> $flat_dir (Claude: /roadmap:init; Grok-compat: /roadmap-init, /roadmap-next)"
     fi
   fi
 fi
 
-# Add roadmap rules to CLAUDE.md (idempotent) so the discipline applies even when
-# the skill is not explicitly invoked. Project scope only. Delegates to the installed
-# CLI so the rules text has a single source of truth (RULES_BLOCK in roadmap.py).
+# Add roadmap rules to the agent instruction files (idempotent) so the discipline
+# applies even when the skill is not explicitly invoked. Delegates to the installed CLI
+# so the rules text has a single source of truth (RULES_BLOCK in roadmap.py).
+#   project (any agent): CWD/CLAUDE.md + CWD/AGENTS.md
+#   global Codex:        ~/.codex/AGENTS.md only (Codex's global instruction file)
 if [ "$claude_md" = "1" ] && _want roadmap; then
-  "$PYTHON" - "$skills_dest/roadmap/scripts/roadmap.py" <<'PY'
+  rules_root="$PWD"; rules_files="CLAUDE.md,AGENTS.md"
+  if [ "$agent" = "codex" ] && [ "$scope" = "global" ]; then
+    rules_root="$base"; rules_files="AGENTS.md"
+  fi
+  "$PYTHON" - "$skills_dest/roadmap/scripts/roadmap.py" "$rules_root" "$rules_files" <<'PY'
 import importlib.util, pathlib, sys
 spec = importlib.util.spec_from_file_location("roadmap", sys.argv[1])
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
-path = mod.ensure_claude_md_rules(pathlib.Path.cwd())
-print(f"Ensured roadmap rules in {path}")
+root = pathlib.Path(sys.argv[2])
+files = tuple(sys.argv[3].split(","))
+for path in mod.ensure_project_rules(root, files):
+    print(f"Ensured roadmap rules in {path}")
 PY
 fi
 
@@ -487,6 +522,10 @@ echo ""
 echo "Done. Installed $installed skill(s) into $skills_dest."
 if [ "$agent" = "grok" ]; then
   echo "Start a new Grok Build session to pick up the skill(s); run 'grok inspect' to verify discovery."
+elif [ "$agent" = "codex" ]; then
+  echo "Start a new Codex CLI session to pick up the skill(s). Roadmap rules land in AGENTS.md;"
+  echo "Stop/SessionStart hooks in $base/hooks.json; prompts as /roadmap-* (from $base/prompts)."
+  echo "Note: the ChatGPT desktop app has no filesystem/skill hook — CLI only."
 else
   echo "Start a new Claude Code session to pick up the skill(s)."
   if [ "$fleet_installed" = "1" ]; then

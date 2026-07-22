@@ -83,10 +83,15 @@ them mid-task:
   scout-tier work. Compression is for prose reports only — artifacts, diffs, and
   errors are never compressed. Note caveman's own honest-numbers caveat: it shrinks
   *output* tokens, so the win is largest on chatty report-heavy delegation.
-  The installer wires a **SessionStart hook** (`hooks/caveman-level.sh`) that surfaces
-  the current level and the decision prompt at session start — so the choice happens
-  mechanically at orientation, not by hoping the policy paragraph gets read. The hook
-  no-ops when the plugin is absent; skip it with `--no-hook`.
+  The installer wires a **SessionStart hook** (`hooks/caveman-level.sh`). If the
+  project pins a level in **`.claude/caveman-level`** (one word: `lite`/`full`/
+  `ultra`/`wenyan`), the hook sets it outright at session start — writes the plugin's
+  flag file and mode log, announces it as already active; nobody types anything.
+  Without a preference file, it injects the decision prompt so the orchestrator
+  chooses by session shape and persists the choice. Note the plugin's flag is
+  global (`~/.claude/.caveman-active`), so the level follows whichever project
+  started a session most recently. The hook no-ops when the plugin is absent; skip
+  it with `--no-hook`.
 - **codegraph** — code-index MCP. When the project has a `.codegraph/` index, evidence
   tiers (scout / Explore / verifier) resolve structure questions — usages, callers,
   impact, dependencies — via codegraph queries before any broad grep. Indexing is never

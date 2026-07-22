@@ -34,10 +34,14 @@ def ensure_claude_md_rules(root: Path) -> Path:
     return root / "CLAUDE.md"
 
 
-def ensure_project_rules(root: Path) -> list[Path]:
-    """Write the roadmap rules block into every agent instruction file we know about."""
+def ensure_project_rules(root: Path, files: tuple[str, ...] = RULES_FILES) -> list[Path]:
+    """Write the roadmap rules block into every agent instruction file we know about.
+
+    `files` narrows the set of instruction files — e.g. a global Codex install passes
+    ("AGENTS.md",) to write only ~/.codex/AGENTS.md and skip the Claude-only CLAUDE.md.
+    """
     written = []
-    for name in RULES_FILES:
+    for name in files:
         path = root / name
         _apply_rules_block(path)
         written.append(path)

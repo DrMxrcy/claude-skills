@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/skills/roadmap/hooks/roadmap-sync.sh\"",
+            "statusMessage": "roadmap: sync + drift-check"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/skills/roadmap/hooks/roadmap-orient.sh\"",
+            "statusMessage": "roadmap: orient"
+          }
+        ]
+      }
+    ]
+  }
+}

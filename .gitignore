@@ -2,3 +2,7 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .DS_Store
+
+# Codex plugin: the skill is bundled from skills/roadmap at build time
+# (scripts/build-codex-plugin.sh). Only the manifests + build script are source.
+/codex-plugin/plugins/roadmap/skills/

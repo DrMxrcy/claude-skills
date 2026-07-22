@@ -74,11 +74,41 @@ def test_grok_install_skips_fleet(tmp_path):
     assert START not in cm                          # ...but not the claude-only fleet policy
 
 
+def test_codex_install_skips_fleet(tmp_path):
+    _run(tmp_path, "--project", "--codex")
+    assert not (tmp_path / ".codex/agents").exists()   # no claude-only fleet
+    agents_md = (tmp_path / "AGENTS.md").read_text()    # codex reads AGENTS.md...
+    assert "roadmap:rules:start" in agents_md           # ...roadmap rules land there...
+    assert START not in agents_md                        # ...but not the fleet policy
+
+
+def test_codex_wires_hooks_json(tmp_path):
+    _run(tmp_path, "--project", "--codex")
+    hooks_json = tmp_path / ".codex/hooks.json"          # codex config-folder root
+    assert hooks_json.exists()
+    data = json.loads(hooks_json.read_text())
+    hooks = data.get("hooks", {})
+    stop = json.dumps(hooks.get("Stop", []))             # PascalCase event keys
+    start = json.dumps(hooks.get("SessionStart", []))
+    assert "roadmap-sync.sh" in stop
+    assert "roadmap-orient.sh" in start
+    # no claude settings.json is created for a codex install
+    assert not (tmp_path / ".codex/settings.json").exists()
+
+
+def test_codex_installs_flat_prompts(tmp_path):
+    _run(tmp_path, "--project", "--codex")
+    prompts = tmp_path / ".codex/prompts"                # codex discovers /<name> here
+    assert (prompts / "roadmap-next.md").exists()        # flat <ns>-<cmd> layout
+    assert not (prompts / "roadmap").exists()            # codex ignores nested dirs
+    assert not (tmp_path / ".codex/commands").exists()   # prompts, not commands
+
+
 def test_model_wired_by_default(tmp_path):
     _run(tmp_path, "--project")
     data = json.loads((tmp_path / ".claude/settings.json").read_text())
-    assert data["model"] == "opus"
-    assert data["fallbackModel"] == ["sonnet", "haiku"]
+    assert data["model"] == "fable"
+    assert data["fallbackModel"] == ["opus"]
 
 
 def test_no_model_flag_leaves_model_unset(tmp_path):
@@ -136,3 +166,25 @@ def test_caveman_hook_noops_without_plugin(tmp_path):
     env = {**os.environ, "HOME": str(tmp_path / "fakehome")}
     res = subprocess.run(["bash", str(hook)], env=env, capture_output=True, text=True)
     assert res.returncode == 0 and res.stdout.strip() == ""
+
+
+def test_caveman_hook_sets_level_from_project_preference(tmp_path):
+    _run(tmp_path, "--project", "--only=agent")
+    hook = tmp_path / ".claude/skills/agent/hooks/caveman-level.sh"
+    home = tmp_path / "fakehome"
+    (home / ".claude").mkdir(parents=True)
+    (home / ".claude/.caveman-active").write_text("full")
+    (tmp_path / ".claude/caveman-level").write_text("ultra\n")
+    env = {**os.environ, "HOME": str(home), "CLAUDE_PROJECT_DIR": str(tmp_path)}
+    res = subprocess.run(["bash", str(hook)], env=env, cwd=tmp_path,
+                         capture_output=True, text=True)
+    assert res.returncode == 0
+    assert (home / ".claude/.caveman-active").read_text() == "ultra"
+    assert "project preference" in res.stdout
+    # invalid preference falls back to the decision prompt, flag untouched
+    (tmp_path / ".claude/caveman-level").write_text("shouty\n")
+    (home / ".claude/.caveman-active").write_text("full")
+    res = subprocess.run(["bash", str(hook)], env=env, cwd=tmp_path,
+                         capture_output=True, text=True)
+    assert (home / ".claude/.caveman-active").read_text() == "full"
+    assert "decide the level NOW" in res.stdout

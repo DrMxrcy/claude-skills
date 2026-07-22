@@ -1,0 +1,20 @@
+{
+  "name": "claude-skills",
+  "interface": {
+    "displayName": "claude-skills"
+  },
+  "plugins": [
+    {
+      "name": "roadmap",
+      "source": {
+        "source": "local",
+        "path": "./plugins/roadmap"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}
