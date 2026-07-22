@@ -1,0 +1,55 @@
+README.md
+  s_df960b66707f5f::t_be1af464f39a16 73-74
+install.sh
+  s_df960b66707f5f::t_da8107b63bdf45 82,186,691
+  s_df960b66707f5f::t_251d93865a1250 284-400,489-501,503
+.roadmap/config.json
+  s_df960b66707f5f::t_a4c66b4df541e1 31
+  s_df960b66707f5f::t_df09c38c974c04 4,15-23
+  s_df960b66707f5f::t_47eba91aac24fe 32
+  s_df960b66707f5f::t_b3c1343c378b93 3,24,34-35
+ROADMAP.md
+  s_df960b66707f5f::t_df09c38c974c04 15
+  s_df960b66707f5f::t_43b333b4851632 16
+  s_df960b66707f5f::t_c4c367e37bfe89 9,13-14
+skills/roadmap/VERSION
+  s_df960b66707f5f::t_6d0c39d2fe10ed 1
+tests/test_install_agent.py
+  s_df960b66707f5f::t_e89050c03a7e75 132-135,138
+  s_df960b66707f5f::t_885e451df4dcd0 5,86,88-89,91,95,103-109,115-118,139-140,148,152
+  s_df960b66707f5f::t_acf7fe8d2e8446 149-151
+CHANGELOG.internal.md
+  s_df960b66707f5f::t_df09c38c974c04 5-9
+CHANGELOG.md
+  s_df960b66707f5f::t_df09c38c974c04 3-7
+codex-plugin/plugins/roadmap/plugin.json
+  s_df960b66707f5f::t_c445c4c9339986 3
+.roadmap/plans/002-consolidate-codex-hooks-into-config-toml.md
+  s_df960b66707f5f::t_df09c38c974c04 1-5,7-13,20-21,26-27
+  s_df960b66707f5f::t_2240b22eb8994a 14-19,22-25,31
+  s_df960b66707f5f::t_47eba91aac24fe 6,28
+  s_df960b66707f5f::t_43b333b4851632 29
+  s_df960b66707f5f::t_3a02e2ed2b8ac8 30
+tests/test_codex_plugin.py
+  s_df960b66707f5f::t_be1af464f39a16 20-22
+skills/roadmap/README.md
+  s_df960b66707f5f::t_be1af464f39a16 30-31
+skills/roadmap/SKILL.md
+  s_df960b66707f5f::t_be1af464f39a16 75-87
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "0f09b634f1a27aa5c2adfe958485fcb900b4486f",
+  "prompts": {},
+  "sessions": {
+    "s_df960b66707f5f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f8833-257d-7593-bf11-b7ca6aa62371",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
