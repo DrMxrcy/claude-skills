@@ -1,0 +1,24 @@
+tests/test_install_agent.py
+  s_df960b66707f5f::t_af5a7289e6394c 99-132
+install.sh
+  s_df960b66707f5f::t_338fa2ed535748 239-245,258
+  s_df960b66707f5f::t_af5a7289e6394c 246-257,259-270,273-274,279-280
+.roadmap/config.json
+  s_df960b66707f5f::t_98eaa9c81c8293 22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "7cf3ece5f34a6b0ad1f98c7745197c34b105b131",
+  "prompts": {},
+  "sessions": {
+    "s_df960b66707f5f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f8833-257d-7593-bf11-b7ca6aa62371",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
