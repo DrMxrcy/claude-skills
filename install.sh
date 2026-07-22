@@ -236,17 +236,48 @@ if os.path.exists(settings_path):
             sys.exit(0)
 
 bucket = data.setdefault("hooks", {}).setdefault(event, [])
-present = any(h.get("command") == cmd
-             for entry in bucket for h in entry.get("hooks", []))
-if present:
+if "roadmap-sync.sh" in cmd:
+    script_name = "roadmap-sync.sh"
+elif "roadmap-orient.sh" in cmd:
+    script_name = "roadmap-orient.sh"
+else:
+    script_name = ""
+roadmap_hook_marker = f"/skills/roadmap/hooks/{script_name}" if script_name else ""
+present = False
+changed = False
+cleaned = []
+for entry in bucket:
+    kept = []
+    for hook in entry.get("hooks", []):
+        hook_cmd = hook.get("command", "")
+        if hook_cmd == cmd:
+            if present:
+                changed = True
+                continue
+            present = True
+        elif roadmap_hook_marker and roadmap_hook_marker in hook_cmd:
+            # Drop an older install location for this same roadmap hook.
+            changed = True
+            continue
+        kept.append(hook)
+    if kept:
+        entry["hooks"] = kept
+        cleaned.append(entry)
+    elif entry.get("hooks"):
+        changed = True
+bucket[:] = cleaned
+
+if present and not changed:
     print(f"{event} hook already configured in {settings_path}")
 else:
-    bucket.append({"hooks": [{"type": "command", "command": cmd}]})
+    if not present:
+        bucket.append({"hooks": [{"type": "command", "command": cmd}]})
     os.makedirs(os.path.dirname(settings_path) or ".", exist_ok=True)
     with open(settings_path, "w") as f:
         json.dump(data, f, indent=2)
         f.write("\n")
-    print(f"Wired {event} hook into {settings_path}")
+    action = "Migrated" if changed else "Wired"
+    print(f"{action} {event} hook in {settings_path}")
 PY
 }
 

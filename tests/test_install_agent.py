@@ -96,6 +96,40 @@ def test_codex_wires_hooks_json(tmp_path):
     assert not (tmp_path / ".codex/settings.json").exists()
 
 
+def test_codex_global_install_migrates_legacy_hook_paths(tmp_path):
+    codex = tmp_path / ".codex"
+    codex.mkdir()
+    legacy = str(codex / "skills/roadmap/hooks")
+    hooks = {
+        "hooks": {
+            "Stop": [
+                {"hooks": [{"type": "command", "command": f'bash "{legacy}/roadmap-sync.sh"'}]},
+                {"hooks": [{"type": "command", "command": "keep-this-hook"}]},
+            ],
+            "SessionStart": [
+                {"hooks": [{"type": "command", "command": f'bash "{legacy}/roadmap-orient.sh"'}]},
+            ],
+        }
+    }
+    (codex / "hooks.json").write_text(json.dumps(hooks))
+    env = {**os.environ, "PYTHON": "python3.11", "HOME": str(tmp_path)}
+
+    res = subprocess.run(
+        ["bash", str(INSTALL), "--global", "--codex", "--only=roadmap"],
+        cwd=tmp_path, env=env, capture_output=True, text=True,
+    )
+
+    assert res.returncode == 0, res.stderr
+    installed = json.loads((codex / "hooks.json").read_text())
+    blob = json.dumps(installed)
+    supported = str(tmp_path / ".agents/skills/roadmap/hooks")
+    assert blob.count(f"{supported}/roadmap-sync.sh") == 1
+    assert blob.count(f"{supported}/roadmap-orient.sh") == 1
+    assert f"{legacy}/roadmap-sync.sh" not in blob
+    assert f"{legacy}/roadmap-orient.sh" not in blob
+    assert "keep-this-hook" in blob
+
+
 def test_codex_uses_skill_invocation_not_custom_prompts(tmp_path):
     prompts = tmp_path / ".codex/prompts"
     prompts.mkdir(parents=True)
