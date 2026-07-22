@@ -1,0 +1,68 @@
+skills/agent/references/orchestration-policy.md
+  s_94d44090ce4e99::t_006738cc158b8a 39
+install.sh
+  s_70aea6711671eb::t_403d0fa41b5e2f 141-144
+  s_70aea6711671eb::t_f77cdb955f2925 127
+  s_70aea6711671eb::t_b5f1952e319b15 56
+  s_70aea6711671eb::t_1aadef6ed2ebed 80-82
+  s_70aea6711671eb::t_b17a5b4ebca353 183-189
+  s_70aea6711671eb::t_a741f8de9315de 418-422,424-428,433-436
+  s_70aea6711671eb::t_bef9295d5859b9 525-528
+  s_70aea6711671eb::t_1f6179e4055afb 14
+  s_70aea6711671eb::t_7d8b9e2df40a78 341-347,350,354
+  s_70aea6711671eb::t_2d120b0d4d8c52 372-377,383-384,393-394,398,409-411,413
+codex-plugin/README.md
+  s_70aea6711671eb::t_282c0e25efa76d 1-14,17-21,25-42
+  s_70aea6711671eb::t_fd752d5182b86a 16
+  s_70aea6711671eb::t_1633b3fa7f963d 15,22-24
+skills/roadmap/scripts/rmlib/project.py
+  s_70aea6711671eb::t_e5adf711f2e42d 37-42,44
+codex-plugin/plugins/roadmap/plugin.json
+  s_70aea6711671eb::t_42592397513849 1-31
+tests/test_install_agent.py
+  s_94d44090ce4e99::t_dddcb17273233a 110-111
+  s_94d44090ce4e99::t_8641b26823f3a1 169-190
+  s_70aea6711671eb::t_e8ed27e67ed48a 77-106
+skills/agent/SKILL.md
+  s_94d44090ce4e99::t_8641b26823f3a1 86-94
+codex-plugin/.agents/plugins/marketplace.json
+  s_70aea6711671eb::t_e52fd5639f8973 1-10,12-20
+  s_70aea6711671eb::t_62f0ebbd998251 11
+skills/agent/hooks/caveman-level.sh
+  s_94d44090ce4e99::t_206e5591ffc514 2,4-13,26-49,51,56,58
+  s_94d44090ce4e99::t_006738cc158b8a 53-55
+tests/test_codex_plugin.py
+  s_70aea6711671eb::t_5d61842f2b9c2d 1-42,46,49-50
+  s_70aea6711671eb::t_7ad44a6019870f 47-48
+  s_70aea6711671eb::t_0a106e6d35fe7a 43-45
+codex-plugin/plugins/roadmap/hooks.json
+  s_70aea6711671eb::t_15a1eef344bd97 1-26
+scripts/build-codex-plugin.sh
+  s_70aea6711671eb::t_c393dfe064d02f 1-51
+.gitignore
+  s_70aea6711671eb::t_7cc0e372399cc1 5-8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "c6875c7fd8274b3ae9475f2a0c6a447f29d8b142",
+  "prompts": {},
+  "sessions": {
+    "s_70aea6711671eb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f1af6189-6ed4-48fe-9202-d16ff7f95601",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    },
+    "s_94d44090ce4e99": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e8324ce2-889f-4e20-9a25-b8583b9b42ba",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
