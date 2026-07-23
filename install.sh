@@ -19,7 +19,6 @@
 #   ./install.sh --no-commands   # do not install the /roadmap:* (Claude) / /roadmap-* (Grok) slash commands
 #   ./install.sh --no-claude-md  # do not add roadmap rules to CLAUDE.md / AGENTS.md
 #   ./install.sh --no-agent      # do not install the cost-tiered agent orchestration fleet (Claude)
-#   ./install.sh --no-model      # do not set a default main-session model in settings.json
 #   ./install.sh --init          # also run `roadmap init` in the current directory
 #   ./install.sh -h | --help     # show this help
 #
@@ -44,7 +43,6 @@ do_init=0
 commands=1
 claude_md=1
 agent_fleet=1
-model_wire=1
 cli=-1          # -1 = auto (on for --global); 0/1 = forced by --no-cli/--cli
 only=""
 pass_args=()
@@ -62,7 +60,6 @@ for arg in "$@"; do
     --no-commands) commands=0; pass_args+=("$arg") ;;
     --no-claude-md) claude_md=0; pass_args+=("$arg") ;;
     --no-agent) agent_fleet=0; pass_args+=("$arg") ;;
-    --no-model) model_wire=0; pass_args+=("$arg") ;;
     --cli) cli=1; pass_args+=("$arg") ;;
     --no-cli) cli=0; pass_args+=("$arg") ;;
     --only=*) only="${arg#--only=}"; pass_args+=("$arg") ;;
@@ -89,7 +86,6 @@ hooks, and add roadmap rules to CLAUDE.md + AGENTS.md.
   --no-commands           do not install slash commands
   --no-claude-md          do not add roadmap rules to CLAUDE.md / AGENTS.md
   --no-agent              do not install the cost-tiered agent orchestration fleet (Claude)
-  --no-model              do not set a default main-session model in settings.json
   --cli                   install a 'claude-roadmap' command on PATH (default with
                           --global) so you can run 'claude-roadmap serve' anywhere
   --no-cli                do not install the 'claude-roadmap' PATH command
@@ -426,32 +422,6 @@ print(f"{action} orchestration policy in {target}")
 PY
 }
 
-# Pin a sensible main-session model + fallback chain — but ONLY when the user has not
-# already chosen a model, so an explicit setting is never overridden.
-_wire_model() {
-  "$PYTHON" - "$1" <<'PY'
-import json, os, sys
-path = sys.argv[1]
-data = {}
-if os.path.exists(path):
-    try:
-        data = json.load(open(path, encoding="utf-8"))
-    except json.JSONDecodeError:
-        print(f"Warning: {path} is not valid JSON; left model settings unchanged.", file=sys.stderr)
-        sys.exit(0)
-if "model" in data:
-    print(f"Main-session model already set to {data['model']!r} in {path}; left unchanged.")
-    sys.exit(0)
-data["model"] = "fable"
-data.setdefault("fallbackModel", ["opus"])
-os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-with open(path, "w", encoding="utf-8") as f:
-    json.dump(data, f, indent=2)
-    f.write("\n")
-print(f"Pinned main-session model 'fable' (fallback: opus) in {path}")
-PY
-}
-
 if [ "$agent" = "grok" ]; then
   if [ "$hook" = "1" ] || [ "$orient" = "1" ]; then
     mkdir -p "$base/hooks"
@@ -644,8 +614,6 @@ if [ "$agent_fleet" = "1" ] && _want agent && [ "$agent" = "claude" ] && [ -d "$
     fi
   fi
 
-  # Pin a default main-session model (non-destructive) unless --no-model.
-  [ "$model_wire" = "1" ] && _wire_model "$settings"
 fi
 
 # Optional 'claude-roadmap' PATH command. Default on for --global: the script

@@ -173,26 +173,20 @@ def test_codex_install_does_not_create_prompts_directory(tmp_path):
     assert not (tmp_path / ".codex/prompts").exists()
 
 
-def test_model_wired_by_default(tmp_path):
+def test_model_not_wired_by_default(tmp_path):
     _run(tmp_path, "--project")
     data = json.loads((tmp_path / ".claude/settings.json").read_text())
-    assert data["model"] == "fable"
-    assert data["fallbackModel"] == ["opus"]
-
-
-def test_no_model_flag_leaves_model_unset(tmp_path):
-    _run(tmp_path, "--project", "--no-model")
-    data = json.loads((tmp_path / ".claude/settings.json").read_text())
-    assert "model" not in data                    # hooks still wired, no model key
+    assert "model" not in data
+    assert "fallbackModel" not in data
 
 
 def test_existing_model_is_never_overridden(tmp_path):
     claude = tmp_path / ".claude"
     claude.mkdir()
-    (claude / "settings.json").write_text(json.dumps({"model": "fable"}))
+    (claude / "settings.json").write_text(json.dumps({"model": "opus"}))
     _run(tmp_path, "--project")
     data = json.loads((claude / "settings.json").read_text())
-    assert data["model"] == "fable"
+    assert data["model"] == "opus"
 
 
 def test_only_agent_skips_all_roadmap_wiring(tmp_path):
