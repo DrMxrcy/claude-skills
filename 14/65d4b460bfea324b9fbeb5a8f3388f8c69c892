@@ -1,0 +1,19 @@
+tests/test_install.py
+  s_0abb71ed5870de::t_50cb27d6c270d1 40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "1465d4b460bfea324b9fbeb5a8f3388f8c69c892",
+  "prompts": {},
+  "sessions": {
+    "s_0abb71ed5870de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dd5de290-7c3d-49fa-80d8-97c4db81715e",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
