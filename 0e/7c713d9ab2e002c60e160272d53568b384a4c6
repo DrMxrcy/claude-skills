@@ -1,0 +1,19 @@
+tests/test_install_agent.py
+  s_9be8021339f0d6::t_aad4c2accb93da 176,179-180,186,189
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "0e7c713d9ab2e002c60e160272d53568b384a4c6",
+  "prompts": {},
+  "sessions": {
+    "s_9be8021339f0d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7dce41c0-1fc6-460a-94ec-4fc95c2e1243",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
