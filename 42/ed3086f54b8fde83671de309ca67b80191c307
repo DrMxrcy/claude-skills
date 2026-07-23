@@ -1,0 +1,29 @@
+tests/test_roadmap.py
+  s_0abb71ed5870de::t_ae29e8421c9dcc 934-953
+skills/roadmap/scripts/rmlib/changelog.py
+  s_0abb71ed5870de::t_db422cbd03c011 63-70
+  s_0abb71ed5870de::t_5a9d28f99b76c0 36
+  s_0abb71ed5870de::t_aed5d97aad4426 128-129
+.roadmap/config.json
+  s_0abb71ed5870de::t_4b727a0ffd9d17 41
+.roadmap/plans/003-audience-leak-guard-demote-tier-for-developer-api-surface-work-lint-gate-when-explicitly-setting-audience-public.md
+  s_0abb71ed5870de::t_51c458bbf7272a 6,30
+ROADMAP.md
+  s_0abb71ed5870de::t_48522465a674cc 18-19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "42ed3086f54b8fde83671de309ca67b80191c307",
+  "prompts": {},
+  "sessions": {
+    "s_0abb71ed5870de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dd5de290-7c3d-49fa-80d8-97c4db81715e",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
