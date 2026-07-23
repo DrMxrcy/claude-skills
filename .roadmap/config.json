@@ -1,7 +1,7 @@
 {
   "project": "claude-skills",
   "currentVersion": "0.14.2",
-  "nextId": 3,
+  "nextId": 4,
   "items": [
     {
       "id": 1,
@@ -22,6 +22,15 @@
       "file": "plans/002-consolidate-codex-hooks-into-config-toml.md",
       "note": "Codex starts cleanly without duplicate hook configuration warnings.",
       "audience": "public"
+    },
+    {
+      "id": 3,
+      "slug": "audience-leak-guard-demote-tier-for-developer-api-surface-work-lint-gate-when-explicitly-setting-audience-public",
+      "title": "Audience leak guard: DEMOTE tier for developer/API-surface work + lint gate when explicitly setting audience public",
+      "type": "feature",
+      "version": "0.15.0",
+      "file": "plans/003-audience-leak-guard-demote-tier-for-developer-api-surface-work-lint-gate-when-explicitly-setting-audience-public.md",
+      "note": "The changelog now warns before developer-facing work (API keys, posting APIs, admin tooling) slips into the public notes."
     }
   ],
   "settings": {

@@ -14,4 +14,7 @@
 
 ### [x] v0.14.2 — 100%
 - [x] **#2 Consolidate Codex hooks into config.toml** `bug` — 100% ([plan](.roadmap/plans/002-consolidate-codex-hooks-into-config-toml.md))
+
+### [ ] v0.15.0 — 0%
+- [ ] **#3 Audience leak guard: DEMOTE tier for developer/API-surface work + lint gate when explicitly setting audience public** `feature` — 0% ([plan](.roadmap/plans/003-audience-leak-guard-demote-tier-for-developer-api-surface-work-lint-gate-when-explicitly-setting-audience-public.md))
 <!-- roadmap:auto:end -->
