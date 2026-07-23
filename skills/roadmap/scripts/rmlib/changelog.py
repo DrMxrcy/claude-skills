@@ -33,7 +33,7 @@ WARN_VENDORS = [
 WARN_JARGON = [
     "refactor", "schema", "migration", "mutation", "endpoint", "backend", "frontend",
     "polling", "cron", "webhook", "ci", "lint", "linter", "env var",
-    "environment variable", "api key", "n+1", "regression",
+    "environment variable", "n+1", "regression",
     "under the hood", "data feed", "data feeds", "headliner index", "walk-through",
     "walkthrough index", "audit", "audits", "ota", "de-slop",
 ]
@@ -60,7 +60,14 @@ DEMOTE_PLUMBING = [     # SEO/infra plumbing & internal milestones — no user-v
     "robots.txt", "structured data", "metadata", "search-optimized", "search optimized", "seo",
     "scaffolding", "boilerplate", "rearchitect", "re-architect", "pre-launch", "prelaunch",
 ]
-DEMOTE_TELLS = [*DEMOTE_ADMIN, *DEMOTE_COMPLIANCE, *DEMOTE_SECURITY, *DEMOTE_PLUMBING]
+DEMOTE_DEVSURFACE = [   # developer/API-surface work — ships to developers/operators, not end users
+    "api key", "api keys", "posting api", "public api", "rest api", "internal api",
+    "api consumer", "api consumers", "developer portal", "developer tools", "sdk",
+    "rate limit", "rate limits", "rate-limited", "feed health", "data-feed coverage",
+    "api token", "api tokens", "bearer token", "openapi", "swagger",
+]
+DEMOTE_TELLS = [*DEMOTE_ADMIN, *DEMOTE_COMPLIANCE, *DEMOTE_SECURITY, *DEMOTE_PLUMBING,
+                *DEMOTE_DEVSURFACE]
 
 _PATH_RE = re.compile(r"\b[\w.-]+\.(?:ts|tsx|js|jsx|mjs|cjs|py|go|rs|java|rb|php|"
                       r"json|ya?ml|toml|sql|sh|css|scss|md|swift|kt)\b")  # foo/bar.ts
@@ -118,7 +125,8 @@ def lint_note(text: str, extra_terms: list[str] | None = None) -> list[str]:
 
 def demote_tells(text: str) -> list[str]:
     """Only the high-confidence WRONG-AUDIENCE tells (admin / compliance / security-disclosure
-    / plumbing). Drives auto-routing of an unclassified item to the internal changelog."""
+    / plumbing / dev-surface). Drives auto-routing of an unclassified item to the internal
+    changelog."""
     return _dedupe(_word_hits(text, DEMOTE_TELLS))
 
 

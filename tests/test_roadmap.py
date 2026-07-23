@@ -931,6 +931,26 @@ def test_unclassified_item_with_demote_tell_auto_routes_internal(roadmap):
         {"type": "feature", "title": "Admin dashboard", "audience": "public"}) == "public"
 
 
+def test_devsurface_tells_demote(roadmap):
+    # developer/API-surface work ships to developers/operators, not end users
+    assert "api key" in [t.lower() for t in roadmap.demote_tells("API key manager")]
+    assert "posting api" in [t.lower() for t in roadmap.demote_tells("Posting API editor parity")]
+    assert "feed health" in [t.lower() for t in roadmap.demote_tells("Feed health strip")]
+    assert "sdk" in [t.lower() for t in roadmap.demote_tells("New SDK release")]
+    # bare "api" alone is NOT a demote signal (too many false positives)
+    assert roadmap.demote_tells("Share API-powered link") == []
+
+
+def test_unclassified_devsurface_item_auto_routes_internal(roadmap):
+    assert roadmap.item_audience({"type": "feature", "title": "API key manager"}) == "internal"
+    assert roadmap.item_audience({"type": "feature", "title": "Posting API editor"}) == "internal"
+    # bare "api" without a listed phrase stays public for a feature…
+    assert roadmap.item_audience({"type": "feature", "title": "Share API-powered link"}) == "public"
+    # …and an explicit audience still wins over the tells
+    assert roadmap.item_audience(
+        {"type": "feature", "title": "API key manager", "audience": "public"}) == "public"
+
+
 def test_audit_flags_explicit_public_with_internal_signal(roadmap, repo):
     roadmap.init_project(repo, "P")
     roadmap.new_item(repo, "feature", "Admin tools", note="Manage things", audience="public")
