@@ -37,9 +37,7 @@ def test_install_hook_is_idempotent(tmp_path):
 
 
 def test_install_no_hook_leaves_settings_untouched(tmp_path):
-    # --no-model too: model wiring also writes settings.json, so a full opt-out is
-    # what leaves it truly untouched.
-    res = _run(tmp_path, "--project", "--no-hook", "--no-orient", "--no-model")
+    res = _run(tmp_path, "--project", "--no-hook", "--no-orient")
     assert res.returncode == 0, res.stderr
     assert (tmp_path / ".claude/skills/roadmap/SKILL.md").exists()
     assert not (tmp_path / ".claude/settings.json").exists()
