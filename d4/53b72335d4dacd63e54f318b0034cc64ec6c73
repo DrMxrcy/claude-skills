@@ -1,0 +1,33 @@
+skills/roadmap/scripts/rmlib/dashboard.html
+  s_a3d4d30cc473e6::t_57cd6d0e2e24c3 99
+  s_a3d4d30cc473e6::t_1cc61c4bf5c3a5 301,306-310
+  s_a3d4d30cc473e6::t_9a6bf8e28d7ac8 43-44
+  s_a3d4d30cc473e6::t_830db42a9e0b4b 139-155,157
+  s_a3d4d30cc473e6::t_526c22b25b2993 234
+.roadmap/config.json
+  s_a3d4d30cc473e6::t_35dc7242f417b9 50
+.roadmap/plans/004-worktree-aware-serve-orient-detect-git-worktrees-warn-when-dashboard-serves-a-stale-branch-s-roadmap-vs-main-checkout.md
+  s_a3d4d30cc473e6::t_cb36c83346ec4d 6,34
+CHANGELOG.internal.md
+  s_a3d4d30cc473e6::t_779a11a7865349 5,9
+CHANGELOG.md
+  s_a3d4d30cc473e6::t_931f1c1e322553 3
+ROADMAP.md
+  s_a3d4d30cc473e6::t_75fc8daab4034c 15,17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "d453b72335d4dacd63e54f318b0034cc64ec6c73",
+  "prompts": {},
+  "sessions": {
+    "s_a3d4d30cc473e6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "03cf457a-226f-469d-8170-dba1606a7a57",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
