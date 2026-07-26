@@ -1,0 +1,21 @@
+skills/roadmap/SKILL.md
+  s_a3d4d30cc473e6::t_5e206eb2704079 159-163
+ROADMAP.md
+  s_a3d4d30cc473e6::t_be2fcb6a129487 4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "c0130938bc296f0b423054b9e5be26d5fa7ad6d8",
+  "prompts": {},
+  "sessions": {
+    "s_a3d4d30cc473e6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "03cf457a-226f-469d-8170-dba1606a7a57",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
