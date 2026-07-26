@@ -30,5 +30,5 @@ created: 2026-07-26
 
 ## 🚶 Step-by-Step Checklist
 - [x] Step 1: `_discover_roots()` — enumerate `git worktree list --porcelain`, keep checkouts with `.roadmap/`, capture branch; graceful fallback to `[root]` outside git; unit tests -> target: rmlib/dashboard.py, tests/test_roadmap.py
-- [ ] Step 2: multi-root serve — per-root `_Broadcaster`s, `root=N` query on `/events`, `/api/status`, `/api/item`, `/api/changelog`; port + already-running dedupe keyed on primary (main-checkout) root -> target: rmlib/dashboard.py
+- [x] Step 2: multi-root serve — per-root `_Broadcaster`s, `root=N` query on `/events`, `/api/status`, `/api/item`, `/api/changelog`; port + already-running dedupe keyed on primary (main-checkout) root -> target: rmlib/dashboard.py
 - [ ] Step 3: dashboard switcher — worktree/branch selector in header when >1 root, SSE reconnect + step fetches scoped to selected root -> target: rmlib/dashboard.html

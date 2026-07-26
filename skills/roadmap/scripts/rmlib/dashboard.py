@@ -144,12 +144,18 @@ class _Broadcaster:
     polling the filesystem, so N open tabs cost the same as one.
     """
 
-    def __init__(self, rm, root: Path):
+    def __init__(self, rm, root: Path, extra: dict | None = None,
+                 label: str = ""):
         self.rm, self.root = rm, root
+        self.extra = extra or {}   # merged into every payload (worktree info)
+        self.label = label         # terminal prefix when serving several roots
         self.cond = threading.Condition()
         self.version = 0
-        self.json = json.dumps(_safe_status(rm, root))
+        self.json = self._dump()
         self._sig = _roadmap_signature(rm, root)
+
+    def _dump(self) -> str:
+        return json.dumps({**_safe_status(self.rm, self.root), **self.extra})
 
     def start(self) -> None:
         threading.Thread(target=self._run, daemon=True).start()
@@ -161,13 +167,13 @@ class _Broadcaster:
             if sig == self._sig:
                 continue
             self._sig = sig
-            data = _safe_status(self.rm, self.root)
-            snap = json.dumps(data)
+            snap = self._dump()
             with self.cond:
                 self.json = snap
                 self.version += 1
                 self.cond.notify_all()
-            print(f"  ↻ {_status_line(data)}", flush=True)
+            print(f"  ↻ {self.label}{_status_line(json.loads(snap))}",
+                  flush=True)
 
     def snapshot(self):
         with self.cond:
@@ -193,8 +199,24 @@ def serve(rm, root: Path, port: int | None = None,
         print("No .roadmap/ here — run `roadmap init` first, then `roadmap serve`.")
         return 0
 
-    root_id = str(root.resolve())
+    # One instance serves the main checkout AND every linked git worktree that
+    # has a .roadmap/. Port + dedupe key on the primary (main-checkout) root, so
+    # `roadmap serve` from any checkout converges on the same dashboard.
+    # ponytail: roots snapshot at startup — restart serve to pick up new worktrees.
+    roots = _discover_roots(rm, root)
+    roots_meta = [{"path": str(p), "branch": b, "name": p.name}
+                  for p, b in roots]
+    primary = roots[0][0]
+    root_id = str(primary)
     dashboard_html = _dashboard_html()
+    bcasts: list[_Broadcaster] = []
+
+    def _root_ix(query: str) -> int:
+        for pair in query.split("&"):
+            k, _, v = pair.partition("=")
+            if k == "root" and v.isdigit() and int(v) < len(roots):
+                return int(v)
+        return 0
 
     class Handler(http.server.BaseHTTPRequestHandler):
         def _send(self, code: int, body: bytes, ctype: str) -> None:
@@ -206,7 +228,7 @@ def serve(rm, root: Path, port: int | None = None,
             self.end_headers()
             self.wfile.write(body)
 
-        def _sse(self) -> None:
+        def _sse(self, bcast: _Broadcaster) -> None:
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream")
             self.send_header("Cache-Control", "no-store")
@@ -231,29 +253,30 @@ def serve(rm, root: Path, port: int | None = None,
                 return
 
         def do_GET(self) -> None:  # noqa: N802
-            path = self.path.split("?", 1)[0]
+            path, _, query = self.path.partition("?")
+            rroot = roots[_root_ix(query)][0]
             if path == "/":
                 self._send(200, dashboard_html.encode("utf-8"),
                            "text/html; charset=utf-8")
             elif path == "/events":
-                self._sse()
+                self._sse(bcasts[_root_ix(query)])
             elif path == "/api/status":
-                self._send(200, bcast.snapshot()[1].encode("utf-8"),
+                self._send(200,
+                           bcasts[_root_ix(query)].snapshot()[1].encode("utf-8"),
                            "application/json")
             elif path == "/api/item":
-                query = self.path.split("?", 1)[1] if "?" in self.path else ""
                 iid = None
                 for pair in query.split("&"):
                     k, _, v = pair.partition("=")
                     if k == "id" and v.isdigit():
                         iid = int(v)
                 payload = ({"error": "missing id"} if iid is None
-                           else _item_detail(rm, root, iid))
+                           else _item_detail(rm, rroot, iid))
                 self._send(200, json.dumps(payload).encode("utf-8"),
                            "application/json")
             elif path == "/api/changelog":
                 try:
-                    payload = rm.changelog_json(root)
+                    payload = rm.changelog_json(rroot)
                 except (ValueError, FileNotFoundError, OSError) as e:
                     payload = {"error": str(e)}
                 self._send(200, json.dumps(payload).encode("utf-8"),
@@ -277,11 +300,11 @@ def serve(rm, root: Path, port: int | None = None,
             super().handle_error(request, client_address)
 
     if port is None:
-        preferred = _project_port(root)
+        preferred = _project_port(primary)
         # Already serving THIS project in another terminal? Point at it, don't
         # start a duplicate. Scan the span in case it landed on a fallback port.
         for candidate in range(preferred, preferred + PORT_SPAN):
-            existing = _running_dashboard(root, candidate)
+            existing = _running_dashboard(primary, candidate)
             if existing:
                 print(f"This project is already being served → {existing}"
                       "  (one dashboard per project)")
@@ -311,14 +334,19 @@ def serve(rm, root: Path, port: int | None = None,
             return 1
     port = httpd.server_address[1]
 
-    # One shared watcher drives every SSE client and mirrors progress to this
-    # terminal — a single filesystem scan per second regardless of open tabs.
-    bcast = _Broadcaster(rm, root)
-    bcast.start()
+    # One shared watcher per root drives every SSE client and mirrors progress
+    # to this terminal — a single filesystem scan per second per checkout.
+    for i, (p, b) in enumerate(roots):
+        label = f"[{b or p.name}] " if len(roots) > 1 else ""
+        bc = _Broadcaster(rm, p, extra={"_root": i, "_roots": roots_meta},
+                          label=label)
+        bc.start()
+        bcasts.append(bc)
 
     url = f"http://127.0.0.1:{port}"
     print(f"roadmap dashboard → {url}  (Ctrl-C to stop)")
-    print(f"  {_status_line(_safe_status(rm, root))}", flush=True)
+    for (p, b), bc in zip(roots, bcasts):
+        print(f"  {bc.label}{_status_line(json.loads(bc.json))}", flush=True)
     if open_browser:
         try:
             webbrowser.open(url)
