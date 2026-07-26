@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.15.0 — 2026-07-23
+## v0.15.0 — (in progress)
 
 _Plus behind-the-scenes performance and reliability work._
 

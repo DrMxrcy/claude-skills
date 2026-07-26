@@ -1659,3 +1659,27 @@ def test_audit_flags_orphaned_summary(roadmap, repo):
     assert "renders nowhere" in msgs and "0.0.1" in msgs
     roadmap.set_release_summary(repo, "0.0.1", clear=True)
     assert "renders nowhere" not in " ".join(roadmap.audit_public_notes(repo))
+
+
+def test_discover_roots_outside_git(roadmap, dashboard, tmp_path):
+    d = tmp_path / "plain"
+    d.mkdir()
+    assert dashboard._discover_roots(roadmap, d) == [(d.resolve(), None)]
+
+
+def test_discover_roots_finds_worktrees_with_roadmap(roadmap, dashboard, repo):
+    roadmap.init_project(repo, "P")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "init"], cwd=repo, check=True)
+    wt = repo.parent / "wt-v1"
+    subprocess.run(["git", "worktree", "add", "-q", "-b", "roadmap/v1", str(wt)],
+                   cwd=repo, check=True)
+    bare = repo.parent / "wt-bare"
+    subprocess.run(["git", "worktree", "add", "-q", "-b", "no-rm", str(bare)],
+                   cwd=repo, check=True)
+    import shutil
+    shutil.rmtree(bare / ".roadmap")          # no .roadmap → excluded
+    roots = dashboard._discover_roots(roadmap, wt)   # run from the WORKTREE
+    assert roots[0][0] == repo.resolve()             # main checkout first
+    assert (wt.resolve(), "roadmap/v1") in roots
+    assert all(p != bare.resolve() for p, _ in roots)

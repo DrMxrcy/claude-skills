@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import http.server
 import json
+import subprocess
 import sys
 import threading
 import time
@@ -78,6 +79,39 @@ def _item_detail(rm, root: Path, item_id: int) -> dict:
                 "steps": [{"done": d, "text": t} for d, t in plan["steps"]]}
     except (ValueError, FileNotFoundError, OSError) as e:
         return {"error": str(e)}
+
+
+def _discover_roots(rm, root: Path) -> list[tuple[Path, str | None]]:
+    """All git checkouts of this repo (main + linked worktrees) that have a
+    `.roadmap/`, as (path, branch) with the main checkout first. Outside git,
+    or on any git failure, falls back to just [(root, None)].
+    """
+    roots: list[tuple[Path, str | None]] = []
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(root), "worktree", "list", "--porcelain"],
+            capture_output=True, text=True, timeout=5)
+        if out.returncode == 0:
+            path: Path | None = None
+            branch: str | None = None
+            entries: list[tuple[Path, str | None]] = []
+            for line in out.stdout.splitlines() + [""]:
+                if line.startswith("worktree "):
+                    path, branch = Path(line[len("worktree "):]), None
+                elif line.startswith("branch "):
+                    branch = line[len("branch "):].removeprefix("refs/heads/")
+                elif not line.strip() and path is not None:
+                    entries.append((path, branch))
+                    path = None
+            # git lists the main checkout first; keep that order.
+            roots = [(p.resolve(), b) for p, b in entries
+                     if rm.roadmap_dir(p).exists()]
+    except (OSError, subprocess.SubprocessError):
+        pass
+    cur = root.resolve()
+    if not any(p == cur for p, _ in roots):
+        roots.insert(0, (cur, None))
+    return roots
 
 
 def _project_port(root: Path) -> int:
