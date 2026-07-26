@@ -1,0 +1,48 @@
+tests/test_roadmap.py
+  s_0abb71ed5870de::t_68fef8523a759c 828-869
+  s_0abb71ed5870de::t_566a799c3fbc8d 998-999
+skills/roadmap/README.md
+  s_0abb71ed5870de::t_7d1e25c879f87d 195
+skills/roadmap/scripts/rmlib/ops.py
+  s_0abb71ed5870de::t_979064cb72069d 186,193-194
+  s_0abb71ed5870de::t_38a8d5d863fbad 73-87,96-97
+skills/roadmap/scripts/roadmap.py
+  s_0abb71ed5870de::t_8e7d21101b3f80 144-145
+  s_0abb71ed5870de::t_b9f9a411a424aa 277
+skills/roadmap/SKILL.md
+  s_0abb71ed5870de::t_9fa92f6f0d424e 226
+.roadmap/config.json
+  s_0abb71ed5870de::t_48216ee41f47a6 3,41,44-45
+.roadmap/plans/003-audience-leak-guard-demote-tier-for-developer-api-surface-work-lint-gate-when-explicitly-setting-audience-public.md
+  s_a3d4d30cc473e6::t_16dc5df0b04d39 6,31-32
+CHANGELOG.internal.md
+  s_a3d4d30cc473e6::t_cf61244eaac6d6 5,8
+CHANGELOG.md
+  s_a3d4d30cc473e6::t_b4ff77dc37512f 3
+ROADMAP.md
+  s_a3d4d30cc473e6::t_8411c9f9a98abb 9,15,17-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "719110bdc5bec3334593a93955db10d52a745dfc",
+  "prompts": {},
+  "sessions": {
+    "s_0abb71ed5870de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dd5de290-7c3d-49fa-80d8-97c4db81715e",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    },
+    "s_a3d4d30cc473e6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "03cf457a-226f-469d-8170-dba1606a7a57",
+        "model": "unknown"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
