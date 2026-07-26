@@ -192,7 +192,7 @@ python3 $roadmap new --type feature|bug|refactor|chore --title "..." [--version 
 python3 $roadmap idea --title "..." [--body "..." | --body-file PATH]   # park an idea; body -> linked .roadmap/notes/ file
 python3 $roadmap promote [--match T | --index N] [--type T] …           # incubator bullet → tracked plan
 python3 $roadmap note --plan ID --text "user-facing summary"   # set the public changelog line (lints for internal language)
-python3 $roadmap audience --plan ID --to public|internal       # route the item: public CHANGELOG.md vs CHANGELOG.internal.md
+python3 $roadmap audience --plan ID --to public|internal [--force]  # route the item; --to public refuses high-confidence internal tells (admin/compliance/security/plumbing/dev-surface) unless --force — same gate as new --audience public
 python3 $roadmap check --plan ID --step N [--undo] [--all-done]
 python3 $roadmap next [--version V] [--force] [--json]      # next unblocked unfinished item
 python3 $roadmap deps-check --plan ID [--force]             # warn if dependsOn targets incomplete

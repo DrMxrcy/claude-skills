@@ -825,6 +825,48 @@ def test_set_audience_rejects_bad_value(roadmap, repo):
         roadmap.set_audience(repo, 1, "everyone")
 
 
+def test_set_audience_public_refused_on_demote_tell(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "API key manager")       # auto-demoted
+    with pytest.raises(ValueError, match="(?i)api key"):
+        roadmap.set_audience(repo, 1, "public")
+    assert roadmap.read_config(repo)["items"][0].get("audience") is None
+
+
+def test_set_audience_public_force_overrides_gate(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "API key manager")
+    roadmap.set_audience(repo, 1, "public", force=True)
+    assert roadmap.read_config(repo)["items"][0]["audience"] == "public"
+
+
+def test_set_audience_internal_never_gated(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "API key manager")
+    roadmap.set_audience(repo, 1, "internal")                  # no gate on internal
+    assert roadmap.read_config(repo)["items"][0]["audience"] == "internal"
+
+
+def test_new_item_explicit_public_refused_on_demote_tell(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    with pytest.raises(ValueError, match="(?i)api key"):
+        roadmap.new_item(repo, "feature", "API key manager", audience="public")
+    cfg = roadmap.read_config(repo)
+    assert cfg["items"] == [] and cfg["nextId"] == 1           # nothing written
+
+
+def test_new_item_explicit_public_force_passes(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "API key manager", audience="public", force=True)
+    assert roadmap.read_config(repo)["items"][0]["audience"] == "public"
+
+
+def test_new_item_unclassified_devsurface_still_fine(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "API key manager")       # auto-demote path
+    assert roadmap.read_config(repo)["items"][0].get("audience") is None
+
+
 def test_lint_note_flags_internal_tells(roadmap):
     assert roadmap.lint_note("Plain user benefit") == []
     tells = roadmap.lint_note("Fixed the Convex mutation in src/api/db.ts (#77)")
@@ -953,7 +995,8 @@ def test_unclassified_devsurface_item_auto_routes_internal(roadmap):
 
 def test_audit_flags_explicit_public_with_internal_signal(roadmap, repo):
     roadmap.init_project(repo, "P")
-    roadmap.new_item(repo, "feature", "Admin tools", note="Manage things", audience="public")
+    roadmap.new_item(repo, "feature", "Admin tools", note="Manage things",
+                     audience="public", force=True)          # forced past the public gate
     msgs = roadmap.audit_public_notes(repo)
     assert any("#1" in m and "PUBLIC" in m and "admin" in m.lower() for m in msgs)
 

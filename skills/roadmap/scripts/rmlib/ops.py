@@ -70,6 +70,21 @@ def _refuse_status_note(item: dict, note: str, force: bool) -> None:
             f"with --force if this text really should ship to end users.")
 
 
+def _refuse_public_demote_tells(item: dict, force: bool) -> None:
+    """Refuse (ValueError) EXPLICITLY setting audience=public on an item whose note/title
+    trips a high-confidence demote tell (admin/compliance/plumbing/dev-surface)."""
+    if force:
+        return
+    tells = demote_tells(f"{item.get('note', '')} {item.get('title', '')}")
+    if tells:
+        raise ValueError(
+            f"public audience refused — this item reads like wrong-audience work "
+            f"({', '.join(tells)}). CHANGELOG.md is pasted into the App Store \"What's New\" "
+            f"and ships to end users; admin/compliance/dev-surface work belongs in the "
+            f"internal changelog. Keep it internal, or re-run with --force if it genuinely "
+            f"is user-facing.")
+
+
 def new_item(root: Path, type_: str, title: str, version: str | None = None,
              note: str = "", audience: str | None = None, force: bool = False) -> Path:
     if type_ not in TEMPLATE_BY_TYPE:
@@ -78,6 +93,8 @@ def new_item(root: Path, type_: str, title: str, version: str | None = None,
     item_id = cfg["nextId"]
     _refuse_status_note({"id": item_id, "title": title, "type": type_,
                          "note": note, "audience": audience}, note, force)
+    if audience == "public":
+        _refuse_public_demote_tells({"title": title, "note": note}, force)
     version = _norm_version(version or cfg["currentVersion"])
     slug = slugify(title)
     if not slug:
@@ -166,13 +183,15 @@ def set_release_summary(root: Path, version: str, text: str | None = None,
     sync(root)
 
 
-def set_audience(root: Path, plan_id: int, audience: str) -> None:
+def set_audience(root: Path, plan_id: int, audience: str, force: bool = False) -> None:
     """Set an item's changelog audience ('public' | 'internal'), then re-render both files."""
     if audience not in ("public", "internal"):
         raise ValueError("audience must be 'public' or 'internal'")
     cfg = read_config(root)
     for item in cfg["items"]:
         if item["id"] == plan_id:
+            if audience == "public":
+                _refuse_public_demote_tells(item, force)
             item["audience"] = audience
             write_config(root, cfg)
             sync(root)

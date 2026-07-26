@@ -3,7 +3,7 @@ id: 3
 title: Audience leak guard: DEMOTE tier for developer/API-surface work + lint gate when explicitly setting audience public
 type: feature
 version: 0.15.0
-status: active
+status: done
 created: 2026-07-23
 ---
 
@@ -28,5 +28,5 @@ created: 2026-07-23
 
 ## 🚶 Step-by-Step Checklist
 - [x] Step 1: Add DEMOTE_DEVSURFACE tier + tests -> target: rmlib/changelog.py, tests/test_roadmap.py
-- [ ] Step 2: Lint gate on explicit public (new --audience / audience --to public) with --force override + tests -> target: rmlib/ops.py, roadmap.py, tests
-- [ ] Step 3: Mirror to codex-plugin copy, update SKILL.md/README, full test run -> target: codex-plugin/, docs
+- [x] Step 2: Lint gate on explicit public (new --audience / audience --to public) with --force override + tests -> target: rmlib/ops.py, roadmap.py, tests
+- [x] Step 3: Mirror to codex-plugin copy, update SKILL.md/README, full test run -> target: codex-plugin/, docs

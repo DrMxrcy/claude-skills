@@ -141,6 +141,8 @@ def main(argv: list[str]) -> int:
     p_aud = sub.add_parser("audience")
     p_aud.add_argument("--plan", type=int, required=True)
     p_aud.add_argument("--to", required=True, choices=["public", "internal"])
+    p_aud.add_argument("--force", action="store_true",
+                       help="set public even if the item trips wrong-audience tells")
 
     p_sum = sub.add_parser("summary",
                            help="set a version's public release-notes blurb "
@@ -272,7 +274,7 @@ def main(argv: list[str]) -> int:
             set_note(root, args.plan, args.text, force=args.force)
             return 0
         if args.command == "audience":
-            set_audience(root, args.plan, args.to)
+            set_audience(root, args.plan, args.to, force=args.force)
             return 0
         if args.command == "summary":
             set_release_summary(root, args.version, text=args.text,

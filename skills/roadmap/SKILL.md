@@ -223,7 +223,7 @@ On invocation, detect state and pick a phase:
 - `promote [--match T | --index N] [--type T] …` — lift an incubator bullet into a tracked plan
 - `note --plan ID --text "..." [--force]` — set an item's user-facing changelog line (lints public notes; refuses status-dump text on public items)
 - `summary --version V --text "..." [--clear] [--force]` — set a version's public release-notes blurb; renders instead of item bullets in CHANGELOG.md (keep it stupid simple)
-- `audience --plan ID --to public|internal` — route an item to the public or internal changelog
+- `audience --plan ID --to public|internal [--force]` — route an item to the public or internal changelog (`--to public` refuses high-confidence internal tells — admin/compliance/security/plumbing/dev-surface — unless `--force`; same gate applies to `new --audience public`)
 - `check --plan ID --step N [--undo] [--all-done]` — flip checkboxes (+ records `last_seen_sha`)
 - `next [--version V] [--force] [--json]` — next unfinished item (skips incomplete `dependsOn`)
 - `deps-check --plan ID [--force]` — warn if dependencies are incomplete
