@@ -156,6 +156,11 @@ On invocation, detect state and pick a phase:
      otherwise design inline.
    - `roadmap.py new --type <T> --title "<title>" [--version <V>] --note "<user-facing one-liner>" [--audience public|internal]`
      scaffolds the plan file; then fill in scope/blueprint/checklist (tiny testable steps).
+     **Titles and notes are artifacts, not chat**: write the `--title` in normal concise
+     prose (≤ ~70 chars — it becomes the plan filename slug), **one concern per item** —
+     never cram multiple findings into one title; make one item each (or one item with
+     checklist steps). Session brevity/persona styles (caveman, terse modes) never apply
+     to titles, notes, or any roadmap/changelog text.
      The `--note` is plain-language, benefit-focused (no vendor/tool names, file paths, or
      issue refs) — it becomes the **public** CHANGELOG / App Store "What's New" line.
      `--audience` routes the item: `public` → curated `CHANGELOG.md`, `internal` →

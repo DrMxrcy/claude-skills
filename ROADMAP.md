@@ -1,10 +1,9 @@
 # 🗺️ Roadmap: claude-skills
 
 ## 💡 Idea Incubator
+- Worktree-aware serve/orient: detect git worktrees, warn when dashboard serves a stale branch's roadmap vs main checkout
 <!-- Free-form; sync never rewrites this region. ONE bullet per idea (`roadmap.py idea`).
      Long write-ups (brainstorms, review findings) go to .roadmap/notes/ files and get linked. -->
-- (add ideas here)
-
 <!-- roadmap:auto:start -->
 **Current version: v0.15.0**
 
