@@ -2,11 +2,11 @@
 
 _Full work log — every item, including internal/dev work. The curated public changelog is CHANGELOG.md._
 
-## v0.15.0 — (in progress)
+## v0.15.0 — 2026-07-23
 
 ### ✨ New
 - The changelog now warns before developer-facing work (API keys, posting APIs, admin tooling) slips into the public notes.
-- (pending) Worktree-aware serve/orient: detect git worktrees, warn when dashboard serves a stale branch's roadmap vs main checkout
+- Worktree-aware serve/orient: detect git worktrees, warn when dashboard serves a stale branch's roadmap vs main checkout
 
 ## v0.14.2 — 2026-07-22
 

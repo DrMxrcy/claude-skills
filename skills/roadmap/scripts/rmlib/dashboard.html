@@ -40,6 +40,8 @@
   #search { background:var(--bar); border:1px solid var(--line); color:var(--fg);
     border-radius:6px; padding:4px 9px; font:inherit; font-size:12px; width:190px; }
   #search::placeholder { color:var(--muted); }
+  #rootsel { background:var(--bar); border:1px solid var(--line); color:var(--fg);
+    border-radius:6px; padding:3px 6px; font:inherit; font-size:12px; }
   .lnk { color:var(--muted); cursor:pointer; user-select:none; font-size:12px; }
   .lnk:hover { color:var(--fg); }
   main { max-width:960px; margin:0 auto; padding:18px 24px 60px; }
@@ -94,6 +96,7 @@
     <div class="hrow">
       <h1><span id="stale" title="live"></span><span id="project">roadmap</span>
         <span class="ver" id="cver"></span></h1>
+      <select id="rootsel" hidden></select>
       <span class="overall" id="overall"></span>
     </div>
     <div class="hbar"><i id="hbarfill"></i></div>
@@ -133,8 +136,25 @@ const matches = it => {
   return (""+it.id).includes(q) || (it.title||"").toLowerCase().includes(q);
 };
 
+let ROOT = 0;   // selected worktree index (0 = main checkout)
+
+function syncRootSel(d){
+  const sel = document.getElementById("rootsel");
+  const roots = d._roots || [];
+  sel.hidden = roots.length < 2;
+  if(roots.length < 2) return;
+  if(sel.options.length !== roots.length){
+    sel.replaceChildren(...roots.map((r,i)=>{
+      const o = document.createElement("option");
+      o.value = i; o.textContent = r.branch || r.name;
+      return o;
+    }));
+  }
+  sel.value = ROOT;
+}
+
 function loadSteps(id, panel){
-  fetch("/api/item?id="+id,{cache:"no-store"}).then(r=>r.json()).then(d=>{
+  fetch("/api/item?id="+id+"&root="+ROOT,{cache:"no-store"}).then(r=>r.json()).then(d=>{
     panel.replaceChildren();
     if(d.error){ panel.appendChild(txt("div","muted", d.error)); return; }
     if(d.note) panel.appendChild(txt("div","note", d.note));
@@ -211,6 +231,7 @@ function verSection(v, items, cur){
 
 function render(d){
   LAST = d;
+  syncRootSel(d);
   document.getElementById("project").textContent = d.project || "roadmap";
   document.getElementById("cver").textContent =
     d.currentVersion ? "v"+d.currentVersion : "";
@@ -277,11 +298,16 @@ document.getElementById("collapseAll").onclick = () => {
 // EventSource auto-reconnects on drop, so a closed terminal just goes stale-grey.
 let es;
 function connect(){
-  es = new EventSource("/events");
+  es = new EventSource("/events?root="+ROOT);
   es.onmessage = ev => { try { render(JSON.parse(ev.data)); stale(false); }
     catch(_){} };
   es.onerror = () => stale(true);
 }
+document.getElementById("rootsel").addEventListener("change", e => {
+  ROOT = parseInt(e.target.value, 10) || 0;
+  es.close();
+  connect();
+});
 connect();
 </script>
 </body>

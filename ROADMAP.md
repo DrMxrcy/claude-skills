@@ -12,7 +12,7 @@
 
 ### [x] v0.14.2 — 100% · 1 item · shipped 2026-07-22 ([history](CHANGELOG.internal.md))
 
-### [ ] v0.15.0 — 83%
+### [x] v0.15.0 — 100%
 - [x] **#3 Audience leak guard: DEMOTE tier for developer/API-surface work + lint gate when explicitly setting audience public** `feature` — 100% ([plan](.roadmap/plans/003-audience-leak-guard-demote-tier-for-developer-api-surface-work-lint-gate-when-explicitly-setting-audience-public.md))
-- [ ] **#4 Worktree-aware serve/orient: detect git worktrees, warn when dashboard serves a stale branch's roadmap vs main checkout** `feature` — 67% ([plan](.roadmap/plans/004-worktree-aware-serve-orient-detect-git-worktrees-warn-when-dashboard-serves-a-stale-branch-s-roadmap-vs-main-checkout.md))
+- [x] **#4 Worktree-aware serve/orient: detect git worktrees, warn when dashboard serves a stale branch's roadmap vs main checkout** `feature` — 100% ([plan](.roadmap/plans/004-worktree-aware-serve-orient-detect-git-worktrees-warn-when-dashboard-serves-a-stale-branch-s-roadmap-vs-main-checkout.md))
 <!-- roadmap:auto:end -->
