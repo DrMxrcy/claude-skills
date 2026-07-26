@@ -1,7 +1,7 @@
 {
   "project": "claude-skills",
   "currentVersion": "0.15.0",
-  "nextId": 5,
+  "nextId": 6,
   "items": [
     {
       "id": 1,
@@ -40,6 +40,15 @@
       "version": "0.15.0",
       "file": "plans/004-worktree-aware-serve-orient-detect-git-worktrees-warn-when-dashboard-serves-a-stale-branch-s-roadmap-vs-main-checkout.md",
       "audience": "internal"
+    },
+    {
+      "id": 5,
+      "slug": "combined-all-worktrees-view-as-the-serve-dashboard-default",
+      "title": "Combined all-worktrees view as the serve dashboard default",
+      "type": "feature",
+      "version": "0.15.0",
+      "file": "plans/005-combined-all-worktrees-view-as-the-serve-dashboard-default.md",
+      "audience": "internal"
     }
   ],
   "settings": {
@@ -47,7 +56,7 @@
     "gitTagOnRelease": false
   },
   "skillVersion": "0.14.2",
-  "last_seen_sha": "963ba4de72e873a3aa652eb3059ab991e883f95d",
+  "last_seen_sha": "d453b72335d4dacd63e54f318b0034cc64ec6c73",
   "versionDates": {
     "0.14.1": "2026-07-22",
     "0.14.2": "2026-07-22",

@@ -1683,3 +1683,21 @@ def test_discover_roots_finds_worktrees_with_roadmap(roadmap, dashboard, repo):
     assert roots[0][0] == repo.resolve()             # main checkout first
     assert (wt.resolve(), "roadmap/v1") in roots
     assert all(p != bare.resolve() for p, _ in roots)
+
+
+def test_merge_status_most_progressed_wins(dashboard):
+    meta = [{"path": "/a", "branch": None, "name": "main"},
+            {"path": "/b", "branch": "roadmap/v1", "name": "wt"}]
+    main = {"project": "P", "currentVersion": "0.8.0", "items": [
+        {"id": 1, "title": "A", "done": 3, "total": 4, "pct": 75},
+        {"id": 2, "title": "B", "done": 0, "total": 2, "pct": 0}]}
+    wt = {"project": "P", "currentVersion": "1.0.0", "items": [
+        {"id": 1, "title": "A", "done": 4, "total": 4, "pct": 100},
+        {"id": 3, "title": "C", "done": 1, "total": 1, "pct": 100}]}
+    m = dashboard._merge_status([main, wt], meta)
+    assert m["currentVersion"] == "1.0.0"
+    by_id = {i["id"]: i for i in m["items"]}
+    assert set(by_id) == {1, 2, 3}
+    assert by_id[1]["done"] == 4 and by_id[1]["branch"] == "roadmap/v1"
+    assert by_id[1]["_root"] == 1
+    assert by_id[2]["branch"] == "main"          # only copy, from main

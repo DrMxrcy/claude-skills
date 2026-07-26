@@ -7,6 +7,7 @@ _Full work log — every item, including internal/dev work. The curated public c
 ### ✨ New
 - The changelog now warns before developer-facing work (API keys, posting APIs, admin tooling) slips into the public notes.
 - Worktree-aware serve/orient: detect git worktrees, warn when dashboard serves a stale branch's roadmap vs main checkout
+- Combined all-worktrees view as the serve dashboard default
 
 ## v0.14.2 — 2026-07-22
 

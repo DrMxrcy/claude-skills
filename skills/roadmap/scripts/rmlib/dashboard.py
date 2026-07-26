@@ -114,6 +114,75 @@ def _discover_roots(rm, root: Path) -> list[tuple[Path, str | None]]:
     return roots
 
 
+def _merge_status(statuses: list[dict], roots_meta: list[dict]) -> dict:
+    """Merge per-checkout status payloads into one 'all worktrees' view: items
+    merged by id, the copy with the most steps done wins and is tagged with the
+    branch it lives on; currentVersion is the highest across checkouts.
+    ponytail: same id with different meaning across branches → most-progressed
+    copy wins; per-branch views remain in the dropdown for the exact picture.
+    """
+    items: dict[int, dict] = {}
+    for i, st in enumerate(statuses):
+        branch = roots_meta[i].get("branch") or roots_meta[i]["name"]
+        for it in st.get("items", []):
+            cand = {**it, "_root": i, "branch": branch}
+            cur = items.get(it["id"])
+            if cur is None or ((cand.get("done", 0), cand.get("pct", 0))
+                               > (cur.get("done", 0), cur.get("pct", 0))):
+                items[it["id"]] = cand
+    def vkey(v):
+        return [int(x) if x.isdigit() else 0 for x in str(v).split(".")]
+    vers = [st["currentVersion"] for st in statuses if st.get("currentVersion")]
+    return {"project": next((st.get("project") for st in statuses
+                             if st.get("project")), None),
+            "currentVersion": max(vers, key=vkey) if vers else None,
+            "items": sorted(items.values(), key=lambda x: x["id"])}
+
+
+class _CombinedBroadcaster:
+    """Same snapshot()/wait() surface as _Broadcaster, but derives its payload
+    by merging every per-root broadcaster and wakes when any of them does."""
+
+    def __init__(self, bcasts: list, roots_meta: list[dict]):
+        self.bcasts, self.meta = bcasts, roots_meta
+        self.label = "[all] "
+        self.cond = threading.Condition()
+        self.version = 0
+        self._child_vers = [b.snapshot()[0] for b in bcasts]
+        self.json = self._dump()
+
+    def _dump(self) -> str:
+        stats = [json.loads(b.snapshot()[1]) for b in self.bcasts]
+        return json.dumps({**_merge_status(stats, self.meta),
+                           "_root": "all", "_roots": self.meta})
+
+    def start(self) -> None:
+        threading.Thread(target=self._run, daemon=True).start()
+
+    def _run(self) -> None:
+        while True:
+            time.sleep(1)
+            vers = [b.snapshot()[0] for b in self.bcasts]
+            if vers == self._child_vers:
+                continue
+            self._child_vers = vers
+            snap = self._dump()
+            with self.cond:
+                self.json = snap
+                self.version += 1
+                self.cond.notify_all()
+
+    def snapshot(self):
+        with self.cond:
+            return self.version, self.json
+
+    def wait(self, last_version: int, timeout: float):
+        with self.cond:
+            if self.version == last_version:
+                self.cond.wait(timeout)
+            return self.version, self.json
+
+
 def _project_port(root: Path) -> int:
     """Stable preferred port derived from the project path, so the same project
     always maps to the same port (one dashboard per project) while different
@@ -210,6 +279,7 @@ def serve(rm, root: Path, port: int | None = None,
     root_id = str(primary)
     dashboard_html = _dashboard_html()
     bcasts: list[_Broadcaster] = []
+    combined: _CombinedBroadcaster | None = None
 
     def _root_ix(query: str) -> int:
         for pair in query.split("&"):
@@ -217,6 +287,15 @@ def serve(rm, root: Path, port: int | None = None,
             if k == "root" and v.isdigit() and int(v) < len(roots):
                 return int(v)
         return 0
+
+    def _pick(query: str):
+        """Broadcaster for this request: explicit root=N, else the combined
+        all-worktrees view when several checkouts exist."""
+        for pair in query.split("&"):
+            k, _, v = pair.partition("=")
+            if k == "root" and v.isdigit() and int(v) < len(roots):
+                return bcasts[int(v)]
+        return combined or bcasts[0]
 
     class Handler(http.server.BaseHTTPRequestHandler):
         def _send(self, code: int, body: bytes, ctype: str) -> None:
@@ -259,10 +338,9 @@ def serve(rm, root: Path, port: int | None = None,
                 self._send(200, dashboard_html.encode("utf-8"),
                            "text/html; charset=utf-8")
             elif path == "/events":
-                self._sse(bcasts[_root_ix(query)])
+                self._sse(_pick(query))
             elif path == "/api/status":
-                self._send(200,
-                           bcasts[_root_ix(query)].snapshot()[1].encode("utf-8"),
+                self._send(200, _pick(query).snapshot()[1].encode("utf-8"),
                            "application/json")
             elif path == "/api/item":
                 iid = None
@@ -342,6 +420,9 @@ def serve(rm, root: Path, port: int | None = None,
                           label=label)
         bc.start()
         bcasts.append(bc)
+    if len(roots) > 1:
+        combined = _CombinedBroadcaster(bcasts, roots_meta)
+        combined.start()
 
     url = f"http://127.0.0.1:{port}"
     print(f"roadmap dashboard → {url}  (Ctrl-C to stop)")

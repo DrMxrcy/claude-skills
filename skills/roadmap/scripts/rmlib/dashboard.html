@@ -136,25 +136,24 @@ const matches = it => {
   return (""+it.id).includes(q) || (it.title||"").toLowerCase().includes(q);
 };
 
-let ROOT = 0;   // selected worktree index (0 = main checkout)
+let ROOT = "all";   // "all" = merged view; otherwise a worktree index
 
 function syncRootSel(d){
   const sel = document.getElementById("rootsel");
   const roots = d._roots || [];
   sel.hidden = roots.length < 2;
   if(roots.length < 2) return;
-  if(sel.options.length !== roots.length){
-    sel.replaceChildren(...roots.map((r,i)=>{
-      const o = document.createElement("option");
-      o.value = i; o.textContent = r.branch || r.name;
-      return o;
-    }));
+  if(sel.options.length !== roots.length + 1){
+    const opt = (v,label) => { const o=document.createElement("option");
+      o.value=v; o.textContent=label; return o; };
+    sel.replaceChildren(opt("all","all worktrees"),
+      ...roots.map((r,i)=>opt(i, r.branch || r.name)));
   }
   sel.value = ROOT;
 }
 
-function loadSteps(id, panel){
-  fetch("/api/item?id="+id+"&root="+ROOT,{cache:"no-store"}).then(r=>r.json()).then(d=>{
+function loadSteps(id, root, panel){
+  fetch("/api/item?id="+id+"&root="+root,{cache:"no-store"}).then(r=>r.json()).then(d=>{
     panel.replaceChildren();
     if(d.error){ panel.appendChild(txt("div","muted", d.error)); return; }
     if(d.note) panel.appendChild(txt("div","note", d.note));
@@ -180,6 +179,7 @@ function itemRow(it){
   title.appendChild(txt("span","num", "#"+it.id));
   title.appendChild(txt("span","t", it.title));
   title.appendChild(txt("span","badge", it.type));
+  if(ROOT === "all" && it.branch) title.appendChild(txt("span","badge", it.branch));
   if(it.blockedBy && it.blockedBy.length)
     title.appendChild(txt("span","blockedby",
       "blocked by "+it.blockedBy.map(x=>"#"+x).join(",")));
@@ -200,7 +200,9 @@ function itemRow(it){
     const panel = el("div","steps");
     panel.appendChild(txt("div","muted","loading…"));
     wrap.appendChild(panel);
-    loadSteps(it.id, panel);
+    // Merged view: fetch steps from the checkout this item's copy came from.
+    loadSteps(it.id, it._root !== undefined ? it._root : (ROOT==="all"?0:ROOT),
+      panel);
   }
   return wrap;
 }
@@ -304,7 +306,7 @@ function connect(){
   es.onerror = () => stale(true);
 }
 document.getElementById("rootsel").addEventListener("change", e => {
-  ROOT = parseInt(e.target.value, 10) || 0;
+  ROOT = e.target.value === "all" ? "all" : (parseInt(e.target.value, 10) || 0);
   es.close();
   connect();
 });
