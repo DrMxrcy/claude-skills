@@ -1,0 +1,41 @@
+.roadmap/config.json
+  s_a3d4d30cc473e6::t_fc357879dc9295 4,43-50
+  s_a3d4d30cc473e6::t_7c136304a65967 51
+  s_a3d4d30cc473e6::t_acc111a20b0647 59
+skills/roadmap/scripts/rmlib/dashboard.html
+  s_a3d4d30cc473e6::t_8843f9edd4db75 139,146-150,155-156
+  s_a3d4d30cc473e6::t_be893d9b71c69e 182
+  s_a3d4d30cc473e6::t_98eabbec64e96a 203-205
+  s_a3d4d30cc473e6::t_850cb710a9d4ee 309
+.roadmap/plans/005-combined-all-worktrees-view-as-the-serve-dashboard-default.md
+  s_a3d4d30cc473e6::t_cdeae077912d62 14-18,21-27,30-31
+  s_a3d4d30cc473e6::t_fc357879dc9295 1-13,19-20,28-29
+tests/test_roadmap.py
+  s_a3d4d30cc473e6::t_aa9db9792eaae2 1686-1703
+skills/roadmap/scripts/rmlib/dashboard.py
+  s_a3d4d30cc473e6::t_67db34e1641d05 282,291-298
+  s_a3d4d30cc473e6::t_30be5daff44894 341,343
+  s_a3d4d30cc473e6::t_a992cfb1725c50 423-425
+  s_a3d4d30cc473e6::t_6e088f4987a479 117-185
+  s_a3d4d30cc473e6::t_593e2c467ed36e 299
+CHANGELOG.internal.md
+  s_a3d4d30cc473e6::t_251343a010f358 10
+ROADMAP.md
+  s_a3d4d30cc473e6::t_defe2c3714515f 18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "3b2ca4a9cbda822c286e711091ccbc96b3bfebf8",
+  "prompts": {},
+  "sessions": {
+    "s_a3d4d30cc473e6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "03cf457a-226f-469d-8170-dba1606a7a57",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
