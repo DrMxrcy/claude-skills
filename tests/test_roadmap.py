@@ -1701,3 +1701,13 @@ def test_merge_status_most_progressed_wins(dashboard):
     assert by_id[1]["done"] == 4 and by_id[1]["branch"] == "roadmap/v1"
     assert by_id[1]["_root"] == 1
     assert by_id[2]["branch"] == "main"          # only copy, from main
+
+
+def test_broadcaster_payload_shape(roadmap, dashboard, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    b = dashboard._Broadcaster(roadmap, repo)
+    d = json.loads(b.json)
+    assert [r["path"] for r in d["_roots"]] == [str(repo.resolve())]
+    assert len(d["statuses"]) == 1
+    assert d["merged"]["items"][0]["id"] == 1   # single root: merged == status

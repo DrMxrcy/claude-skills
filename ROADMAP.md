@@ -16,4 +16,5 @@
 - [x] **#3 Audience leak guard: DEMOTE tier for developer/API-surface work + lint gate when explicitly setting audience public** `feature` — 100% ([plan](.roadmap/plans/003-audience-leak-guard-demote-tier-for-developer-api-surface-work-lint-gate-when-explicitly-setting-audience-public.md))
 - [x] **#4 Worktree-aware serve/orient: detect git worktrees, warn when dashboard serves a stale branch's roadmap vs main checkout** `feature` — 100% ([plan](.roadmap/plans/004-worktree-aware-serve-orient-detect-git-worktrees-warn-when-dashboard-serves-a-stale-branch-s-roadmap-vs-main-checkout.md))
 - [x] **#5 Combined all-worktrees view as the serve dashboard default** `feature` — 100% ([plan](.roadmap/plans/005-combined-all-worktrees-view-as-the-serve-dashboard-default.md))
+- [x] **#6 Live worktree re-discovery in serve — added/deleted checkouts update the dashboard** `feature` — 100% ([plan](.roadmap/plans/006-live-worktree-re-discovery-in-serve-added-deleted-checkouts-update-the-dashboard.md))
 <!-- roadmap:auto:end -->

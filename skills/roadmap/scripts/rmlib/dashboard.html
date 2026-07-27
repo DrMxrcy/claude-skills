@@ -137,18 +137,25 @@ const matches = it => {
 };
 
 let ROOT = "all";   // "all" = merged view; otherwise a worktree index
+let LASTP = null;   // last raw payload {_roots, statuses, merged}
+
+// Pick the selected view out of the payload; a removed/out-of-range worktree
+// selection falls back to the merged view.
+function view(P){
+  if(ROOT !== "all" && !(P.statuses && ROOT < P.statuses.length)) ROOT = "all";
+  const st = ROOT === "all" ? P.merged : P.statuses[ROOT];
+  return {...st, _roots: P._roots};
+}
 
 function syncRootSel(d){
   const sel = document.getElementById("rootsel");
   const roots = d._roots || [];
   sel.hidden = roots.length < 2;
   if(roots.length < 2) return;
-  if(sel.options.length !== roots.length + 1){
-    const opt = (v,label) => { const o=document.createElement("option");
-      o.value=v; o.textContent=label; return o; };
-    sel.replaceChildren(opt("all","all worktrees"),
-      ...roots.map((r,i)=>opt(i, r.branch || r.name)));
-  }
+  const opt = (v,label) => { const o=document.createElement("option");
+    o.value=v; o.textContent=label; return o; };
+  sel.replaceChildren(opt("all","all worktrees"),
+    ...roots.map((r,i)=>opt(i, r.branch || r.name)));
   sel.value = ROOT;
 }
 
@@ -300,15 +307,14 @@ document.getElementById("collapseAll").onclick = () => {
 // EventSource auto-reconnects on drop, so a closed terminal just goes stale-grey.
 let es;
 function connect(){
-  es = new EventSource("/events?root="+ROOT);
-  es.onmessage = ev => { try { render(JSON.parse(ev.data)); stale(false); }
-    catch(_){} };
+  es = new EventSource("/events");
+  es.onmessage = ev => { try { LASTP = JSON.parse(ev.data);
+    render(view(LASTP)); stale(false); } catch(_){} };
   es.onerror = () => stale(true);
 }
 document.getElementById("rootsel").addEventListener("change", e => {
   ROOT = e.target.value === "all" ? "all" : (parseInt(e.target.value, 10) || 0);
-  es.close();
-  connect();
+  if(LASTP) render(view(LASTP));   // view switch is local — no reconnect
 });
 connect();
 </script>

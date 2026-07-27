@@ -139,50 +139,6 @@ def _merge_status(statuses: list[dict], roots_meta: list[dict]) -> dict:
             "items": sorted(items.values(), key=lambda x: x["id"])}
 
 
-class _CombinedBroadcaster:
-    """Same snapshot()/wait() surface as _Broadcaster, but derives its payload
-    by merging every per-root broadcaster and wakes when any of them does."""
-
-    def __init__(self, bcasts: list, roots_meta: list[dict]):
-        self.bcasts, self.meta = bcasts, roots_meta
-        self.label = "[all] "
-        self.cond = threading.Condition()
-        self.version = 0
-        self._child_vers = [b.snapshot()[0] for b in bcasts]
-        self.json = self._dump()
-
-    def _dump(self) -> str:
-        stats = [json.loads(b.snapshot()[1]) for b in self.bcasts]
-        return json.dumps({**_merge_status(stats, self.meta),
-                           "_root": "all", "_roots": self.meta})
-
-    def start(self) -> None:
-        threading.Thread(target=self._run, daemon=True).start()
-
-    def _run(self) -> None:
-        while True:
-            time.sleep(1)
-            vers = [b.snapshot()[0] for b in self.bcasts]
-            if vers == self._child_vers:
-                continue
-            self._child_vers = vers
-            snap = self._dump()
-            with self.cond:
-                self.json = snap
-                self.version += 1
-                self.cond.notify_all()
-
-    def snapshot(self):
-        with self.cond:
-            return self.version, self.json
-
-    def wait(self, last_version: int, timeout: float):
-        with self.cond:
-            if self.version == last_version:
-                self.cond.wait(timeout)
-            return self.version, self.json
-
-
 def _project_port(root: Path) -> int:
     """Stable preferred port derived from the project path, so the same project
     always maps to the same port (one dashboard per project) while different
@@ -207,41 +163,55 @@ def _running_dashboard(root: Path, port: int):
 class _Broadcaster:
     """Single background watcher shared by every SSE client and the terminal.
 
-    Scans the roadmap change-signature once per second total (not once per
-    client), recomputes the status snapshot only when it actually changes, and
-    wakes all waiting clients. Clients block on the condition instead of each
-    polling the filesystem, so N open tabs cost the same as one.
+    One thread scans every checkout's change-signature once per second and
+    re-runs worktree discovery every RESCAN_TICKS seconds, so checkouts added
+    or deleted while serving appear and disappear live. Each payload carries
+    every root's status plus the merged view — clients switch views locally,
+    so N open tabs (and N worktrees) still cost one scanner.
     """
+    RESCAN_TICKS = 5
 
-    def __init__(self, rm, root: Path, extra: dict | None = None,
-                 label: str = ""):
-        self.rm, self.root = rm, root
-        self.extra = extra or {}   # merged into every payload (worktree info)
-        self.label = label         # terminal prefix when serving several roots
+    def __init__(self, rm, origin: Path):
+        self.rm, self.origin = rm, origin
         self.cond = threading.Condition()
         self.version = 0
+        self.roots = _discover_roots(rm, origin)
+        self._sigs = [_roadmap_signature(rm, p) for p, _ in self.roots]
         self.json = self._dump()
-        self._sig = _roadmap_signature(rm, root)
 
     def _dump(self) -> str:
-        return json.dumps({**_safe_status(self.rm, self.root), **self.extra})
+        meta = [{"path": str(p), "branch": b, "name": p.name}
+                for p, b in self.roots]
+        stats = [_safe_status(self.rm, p) for p, _ in self.roots]
+        merged = _merge_status(stats, meta) if len(stats) > 1 else stats[0]
+        return json.dumps({"_roots": meta, "statuses": stats, "merged": merged})
 
     def start(self) -> None:
         threading.Thread(target=self._run, daemon=True).start()
 
     def _run(self) -> None:
+        tick = 0
         while True:
             time.sleep(1)
-            sig = _roadmap_signature(self.rm, self.root)
-            if sig == self._sig:
+            tick += 1
+            if tick % self.RESCAN_TICKS == 0:
+                new = _discover_roots(self.rm, self.origin)
+                if [p for p, _ in new] != [p for p, _ in self.roots]:
+                    self.roots = new
+                    self._sigs = []   # force a payload rebuild below
+                    print("  ↻ worktrees now: "
+                          + ", ".join(b or p.name for p, b in new), flush=True)
+            sigs = [_roadmap_signature(self.rm, p) for p, _ in self.roots]
+            if sigs == self._sigs:
                 continue
-            self._sig = sig
+            self._sigs = sigs
             snap = self._dump()
             with self.cond:
                 self.json = snap
                 self.version += 1
                 self.cond.notify_all()
-            print(f"  ↻ {self.label}{_status_line(json.loads(snap))}",
+            label = "[all] " if len(self.roots) > 1 else ""
+            print(f"  ↻ {label}{_status_line(json.loads(snap)['merged'])}",
                   flush=True)
 
     def snapshot(self):
@@ -269,33 +239,21 @@ def serve(rm, root: Path, port: int | None = None,
         return 0
 
     # One instance serves the main checkout AND every linked git worktree that
-    # has a .roadmap/. Port + dedupe key on the primary (main-checkout) root, so
-    # `roadmap serve` from any checkout converges on the same dashboard.
-    # ponytail: roots snapshot at startup — restart serve to pick up new worktrees.
-    roots = _discover_roots(rm, root)
-    roots_meta = [{"path": str(p), "branch": b, "name": p.name}
-                  for p, b in roots]
-    primary = roots[0][0]
+    # has a .roadmap/ (re-discovered live by the broadcaster). Port + dedupe
+    # key on the primary (main-checkout) root, so `roadmap serve` from any
+    # checkout converges on the same dashboard.
+    bcast = _Broadcaster(rm, root)
+    primary = bcast.roots[0][0]
     root_id = str(primary)
     dashboard_html = _dashboard_html()
-    bcasts: list[_Broadcaster] = []
-    combined: _CombinedBroadcaster | None = None
 
-    def _root_ix(query: str) -> int:
+    def _item_root(query: str) -> Path:
+        roots = bcast.roots   # live list — indices match the latest payload
         for pair in query.split("&"):
             k, _, v = pair.partition("=")
             if k == "root" and v.isdigit() and int(v) < len(roots):
-                return int(v)
-        return 0
-
-    def _pick(query: str):
-        """Broadcaster for this request: explicit root=N, else the combined
-        all-worktrees view when several checkouts exist."""
-        for pair in query.split("&"):
-            k, _, v = pair.partition("=")
-            if k == "root" and v.isdigit() and int(v) < len(roots):
-                return bcasts[int(v)]
-        return combined or bcasts[0]
+                return roots[int(v)][0]
+        return roots[0][0]
 
     class Handler(http.server.BaseHTTPRequestHandler):
         def _send(self, code: int, body: bytes, ctype: str) -> None:
@@ -333,14 +291,14 @@ def serve(rm, root: Path, port: int | None = None,
 
         def do_GET(self) -> None:  # noqa: N802
             path, _, query = self.path.partition("?")
-            rroot = roots[_root_ix(query)][0]
+            rroot = _item_root(query)
             if path == "/":
                 self._send(200, dashboard_html.encode("utf-8"),
                            "text/html; charset=utf-8")
             elif path == "/events":
-                self._sse(_pick(query))
+                self._sse(bcast)
             elif path == "/api/status":
-                self._send(200, _pick(query).snapshot()[1].encode("utf-8"),
+                self._send(200, bcast.snapshot()[1].encode("utf-8"),
                            "application/json")
             elif path == "/api/item":
                 iid = None
@@ -412,22 +370,15 @@ def serve(rm, root: Path, port: int | None = None,
             return 1
     port = httpd.server_address[1]
 
-    # One shared watcher per root drives every SSE client and mirrors progress
-    # to this terminal — a single filesystem scan per second per checkout.
-    for i, (p, b) in enumerate(roots):
-        label = f"[{b or p.name}] " if len(roots) > 1 else ""
-        bc = _Broadcaster(rm, p, extra={"_root": i, "_roots": roots_meta},
-                          label=label)
-        bc.start()
-        bcasts.append(bc)
-    if len(roots) > 1:
-        combined = _CombinedBroadcaster(bcasts, roots_meta)
-        combined.start()
+    bcast.start()
 
     url = f"http://127.0.0.1:{port}"
     print(f"roadmap dashboard → {url}  (Ctrl-C to stop)")
-    for (p, b), bc in zip(roots, bcasts):
-        print(f"  {bc.label}{_status_line(json.loads(bc.json))}", flush=True)
+    data = json.loads(bcast.json)
+    for m, st in zip(data["_roots"], data["statuses"]):
+        label = (f"[{m['branch'] or m['name']}] "
+                 if len(data["statuses"]) > 1 else "")
+        print(f"  {label}{_status_line(st)}", flush=True)
     if open_browser:
         try:
             webbrowser.open(url)
