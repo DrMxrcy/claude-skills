@@ -1,0 +1,37 @@
+.roadmap/plans/006-live-worktree-re-discovery-in-serve-added-deleted-checkouts-update-the-dashboard.md
+  s_a3d4d30cc473e6::t_e2b783f80eb337 1-13,20-21,30-31
+  s_a3d4d30cc473e6::t_d688bbc39e3271 14-19,22-29,32-33
+skills/roadmap/scripts/rmlib/dashboard.py
+  s_a3d4d30cc473e6::t_143425fb22e089 373,377-381
+  s_a3d4d30cc473e6::t_37b7514178f769 242-246,250-251,255-256
+  s_a3d4d30cc473e6::t_fc0477f1a78899 294,299,301
+  s_a3d4d30cc473e6::t_d3cbf5f80445b5 166-170,172,174-175,178-179,183-187,193,196-205,207,213-214
+skills/roadmap/scripts/rmlib/dashboard.html
+  s_a3d4d30cc473e6::t_154c1a6319db5a 140-148,155-158
+  s_a3d4d30cc473e6::t_f8733560527fc9 310-312,317
+.roadmap/config.json
+  s_a3d4d30cc473e6::t_e2b783f80eb337 4,52-59
+  s_a3d4d30cc473e6::t_c94bdde65cb50c 60,68
+tests/test_roadmap.py
+  s_a3d4d30cc473e6::t_1f751be66f53e4 1704-1713
+CHANGELOG.internal.md
+  s_a3d4d30cc473e6::t_6b61b25591445d 11
+ROADMAP.md
+  s_a3d4d30cc473e6::t_48130ee9f873e1 19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "1b63d6ad3a6676c29e7d93f3a2c7d972e437fb4c",
+  "prompts": {},
+  "sessions": {
+    "s_a3d4d30cc473e6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "03cf457a-226f-469d-8170-dba1606a7a57",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
