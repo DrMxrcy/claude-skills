@@ -1,0 +1,34 @@
+ROADMAP.md
+  s_a3d4d30cc473e6::t_a4494056ad4c61 15,20
+CHANGELOG.internal.md
+  s_a3d4d30cc473e6::t_a4494056ad4c61 5,13-14
+  s_a3d4d30cc473e6::t_c08a256fc00991 15
+tests/test_roadmap.py
+  s_a3d4d30cc473e6::t_2b016fd59d4f75 1714-1730
+CHANGELOG.md
+  s_a3d4d30cc473e6::t_a4494056ad4c61 3
+.roadmap/plans/007-serve-reprints-unchanged-status-on-every-file-touch-skip-identical-payloads.md
+  s_a3d4d30cc473e6::t_d7d905907621e6 14-17
+  s_a3d4d30cc473e6::t_a4494056ad4c61 1-13,18-27
+skills/roadmap/scripts/rmlib/dashboard.py
+  s_a3d4d30cc473e6::t_90104e06819c00 197-222
+.roadmap/config.json
+  s_a3d4d30cc473e6::t_a4494056ad4c61 4,61-68
+  s_a3d4d30cc473e6::t_552e745a4a361a 69,77
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "4bd8578643344d2cdcd98bc52f26e373e1dc8503",
+  "prompts": {},
+  "sessions": {
+    "s_a3d4d30cc473e6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "03cf457a-226f-469d-8170-dba1606a7a57",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
