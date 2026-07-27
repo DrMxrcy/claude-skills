@@ -194,25 +194,32 @@ class _Broadcaster:
         while True:
             time.sleep(1)
             tick += 1
-            if tick % self.RESCAN_TICKS == 0:
-                new = _discover_roots(self.rm, self.origin)
-                if [p for p, _ in new] != [p for p, _ in self.roots]:
-                    self.roots = new
-                    self._sigs = []   # force a payload rebuild below
-                    print("  ↻ worktrees now: "
-                          + ", ".join(b or p.name for p, b in new), flush=True)
-            sigs = [_roadmap_signature(self.rm, p) for p, _ in self.roots]
-            if sigs == self._sigs:
-                continue
-            self._sigs = sigs
-            snap = self._dump()
-            with self.cond:
-                self.json = snap
-                self.version += 1
-                self.cond.notify_all()
-            label = "[all] " if len(self.roots) > 1 else ""
-            print(f"  ↻ {label}{_status_line(json.loads(snap)['merged'])}",
-                  flush=True)
+            self._tick(rescan=tick % self.RESCAN_TICKS == 0)
+
+    def _tick(self, rescan: bool = False) -> None:
+        if rescan:
+            new = _discover_roots(self.rm, self.origin)
+            if [p for p, _ in new] != [p for p, _ in self.roots]:
+                self.roots = new
+                self._sigs = []   # force a payload rebuild below
+                print("  ↻ worktrees now: "
+                      + ", ".join(b or p.name for p, b in new), flush=True)
+        sigs = [_roadmap_signature(self.rm, p) for p, _ in self.roots]
+        if sigs == self._sigs:
+            return
+        self._sigs = sigs
+        snap = self._dump()
+        # mtime signatures flap on every file touch (editors, agents, git);
+        # only notify clients and print when the status actually changed.
+        if snap == self.json:
+            return
+        with self.cond:
+            self.json = snap
+            self.version += 1
+            self.cond.notify_all()
+        label = "[all] " if len(self.roots) > 1 else ""
+        print(f"  ↻ {label}{_status_line(json.loads(snap)['merged'])}",
+              flush=True)
 
     def snapshot(self):
         with self.cond:

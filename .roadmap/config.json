@@ -1,7 +1,7 @@
 {
   "project": "claude-skills",
   "currentVersion": "0.15.0",
-  "nextId": 7,
+  "nextId": 8,
   "items": [
     {
       "id": 1,
@@ -58,6 +58,15 @@
       "version": "0.15.0",
       "file": "plans/006-live-worktree-re-discovery-in-serve-added-deleted-checkouts-update-the-dashboard.md",
       "audience": "internal"
+    },
+    {
+      "id": 7,
+      "slug": "serve-reprints-unchanged-status-on-every-file-touch-skip-identical-payloads",
+      "title": "Serve reprints unchanged status on every file touch \u2014 skip identical payloads",
+      "type": "bug",
+      "version": "0.15.0",
+      "file": "plans/007-serve-reprints-unchanged-status-on-every-file-touch-skip-identical-payloads.md",
+      "audience": "internal"
     }
   ],
   "settings": {
@@ -65,7 +74,7 @@
     "gitTagOnRelease": false
   },
   "skillVersion": "0.14.2",
-  "last_seen_sha": "3b2ca4a9cbda822c286e711091ccbc96b3bfebf8",
+  "last_seen_sha": "1b63d6ad3a6676c29e7d93f3a2c7d972e437fb4c",
   "versionDates": {
     "0.14.1": "2026-07-22",
     "0.14.2": "2026-07-22",

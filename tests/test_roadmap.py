@@ -1711,3 +1711,20 @@ def test_broadcaster_payload_shape(roadmap, dashboard, repo):
     assert [r["path"] for r in d["_roots"]] == [str(repo.resolve())]
     assert len(d["statuses"]) == 1
     assert d["merged"]["items"][0]["id"] == 1   # single root: merged == status
+
+
+def test_broadcaster_skips_unchanged_payload(roadmap, dashboard, repo):
+    import os, time as _t
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    b = dashboard._Broadcaster(roadmap, repo)
+    # touch a roadmap file: signature changes, rendered status does not
+    cfgp = repo / ".roadmap/config.json"
+    os.utime(cfgp, (_t.time() + 5, _t.time() + 5))
+    b._tick()
+    assert b.version == 0                      # no notify, no reprint
+    # a real change bumps the version
+    roadmap.check_step(repo, 1, None, all_done=True)
+    os.utime(cfgp, (_t.time() + 10, _t.time() + 10))
+    b._tick()
+    assert b.version == 1
