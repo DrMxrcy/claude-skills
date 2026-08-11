@@ -10,19 +10,36 @@ over time.
 
 ## Install
 
-One command imports the skills, their `/`-commands, the auto-sync hook, and project rules —
-no manual copying or settings edits, no clone required:
+The installer works on **the directory you run it from** — `cd` into the project you want
+to equip first, then run it. One command imports the skills, their `/`-commands, the
+auto-sync hook, and project rules — no manual copying or settings edits, no clone required:
 
 ```bash
+cd /path/to/your-project
 curl -fsSL https://raw.githubusercontent.com/DrMxrcy/claude-skills/main/install.sh | bash
 ```
 
-- **Global** (all projects): append `| bash -s -- --global`
-- **From a clone:** `./install.sh`
-- **Flags:** `--global`, `--grok`, `--codex`, **`--both`** (Claude + Grok same version — best when switching coders), `--link`, `--no-hook`, `--no-orient`, `--no-commands`, `--no-claude-md`, `--init`
+- **Global** (all projects, into `~/.claude`): append `| bash -s -- --global` — then you don't need per-project installs at all
+- **From a clone into another project:** `cd /path/to/your-project && /path/to/claude-skills/install.sh`
+- **Just one skill** (e.g. only the agent orchestration fleet): append `| bash -s -- --only=agent` (or `--only=roadmap`)
+- **Flags:** `--global`, `--grok`, `--codex`, **`--both`** (Claude + Grok same version — best when switching coders), `--link`, `--only=<skill,...>`, `--no-hook`, `--no-orient`, `--no-commands`, `--no-claude-md`, `--no-agent`, `--gitignore`, `--init`
 
-Then start a fresh Claude Code session so the skills and commands load. Replace `<owner>` /
-`DrMxrcy` with your fork's owner if you republish (or set `SKILLS_REPO=owner/repo`).
+Then start a fresh Claude Code session **in that project** so the skills and commands load.
+Replace `<owner>` / `DrMxrcy` with your fork's owner if you republish (or set
+`SKILLS_REPO=owner/repo`).
+
+What a project install writes:
+
+```
+your-project/
+├── .claude/
+│   ├── skills/roadmap/   # + skills/agent/ unless --no-agent / --only=roadmap
+│   ├── agents/           # cost-tiered subagent fleet (executor, verifier, scout, …)
+│   ├── commands/         # /roadmap:* and flat /roadmap-* aliases
+│   └── settings.json     # Stop + SessionStart hooks merged in
+├── CLAUDE.md             # roadmap rules block (idempotent, marked)
+└── ROADMAP.md + .roadmap/  # only after `roadmap init` / --init
+```
 
 ### Grok Build
 
@@ -80,11 +97,54 @@ from a clone). It refreshes skills, commands, the hook, and the `CLAUDE.md` rule
 place; your project's `ROADMAP.md` / `.roadmap/` data is never touched. Start a fresh session
 afterward.
 
+## Public repos: what to commit vs ignore
+
+Roadmap data is designed to live **in git** — it's how multiple AI coders (Claude ↔ Grok ↔
+Codex) stay in sync. But on a public repo you may not want your internal dev log or the
+installed tooling published. The installer can write the recommended block for you
+(idempotent — safe to re-run):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/DrMxrcy/claude-skills/main/install.sh | bash -s -- --gitignore
+```
+
+What it appends to `./.gitignore`:
+
+```gitignore
+# AI coding tooling — reinstallable via install.sh, no need to publish
+.claude/
+.grok/
+.codex/
+.agents/
+
+# Full internal dev log (public notes stay in CHANGELOG.md)
+CHANGELOG.internal.md
+```
+
+Keep **committed**: `ROADMAP.md`, `.roadmap/` (plans + config), `CHANGELOG.md`, and
+`CLAUDE.md` / `AGENTS.md` — these are the shared brain across agents and sessions; ignoring
+them breaks multi-coder sync and resume-after-crash.
+
+If you don't even want the roadmap/plans public, also ignore:
+
+```gitignore
+# Only if plans must stay private — breaks cross-machine/multi-agent sync via git
+ROADMAP.md
+.roadmap/
+```
+
+Solo, single-machine use only — anyone cloning the repo (including your own cloud agents)
+loses the plan state.
+
+Alternative: install with `--global` so nothing lands in the project at all except
+`ROADMAP.md` / `.roadmap/` / changelogs.
+
 ## Skills
 
 | Skill | What it does | Docs |
 |---|---|---|
 | **roadmap** | On-task + high-quality AI coding harness: versioned plans, native agent invocation (`/roadmap:*`, `/roadmap-*`, or Codex `$roadmap`), quality-first multi-agent build (`--auto` still reviews), anti-drift CLI. | [skills/roadmap/README.md](skills/roadmap/README.md) |
+| **agent** | Cost-tiered subagent orchestration: main session keeps judgment, delegates to the cheapest capable tier (executor/verifier on opus, mech-executor on sonnet, scout/Explore on haiku), adversarial fresh-context verification. | [skills/agent/README.md](skills/agent/README.md) |
 
 ## Repository layout
 

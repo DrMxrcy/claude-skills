@@ -19,6 +19,7 @@
 #   ./install.sh --no-commands   # do not install the /roadmap:* (Claude) / /roadmap-* (Grok) slash commands
 #   ./install.sh --no-claude-md  # do not add roadmap rules to CLAUDE.md / AGENTS.md
 #   ./install.sh --no-agent      # do not install the cost-tiered agent orchestration fleet (Claude)
+#   ./install.sh --gitignore     # append a public-repo ignore block (.claude/ etc.) to ./.gitignore
 #   ./install.sh --init          # also run `roadmap init` in the current directory
 #   ./install.sh -h | --help     # show this help
 #
@@ -43,6 +44,7 @@ do_init=0
 commands=1
 claude_md=1
 agent_fleet=1
+gitignore=0
 cli=-1          # -1 = auto (on for --global); 0/1 = forced by --no-cli/--cli
 only=""
 pass_args=()
@@ -63,6 +65,7 @@ for arg in "$@"; do
     --cli) cli=1; pass_args+=("$arg") ;;
     --no-cli) cli=0; pass_args+=("$arg") ;;
     --only=*) only="${arg#--only=}"; pass_args+=("$arg") ;;
+    --gitignore) gitignore=1; pass_args+=("$arg") ;;
     --init) do_init=1; pass_args+=("$arg") ;;
     -h|--help)
       cat <<'EOF'
@@ -86,6 +89,9 @@ hooks, and add roadmap rules to CLAUDE.md + AGENTS.md.
   --no-commands           do not install slash commands
   --no-claude-md          do not add roadmap rules to CLAUDE.md / AGENTS.md
   --no-agent              do not install the cost-tiered agent orchestration fleet (Claude)
+  --gitignore             append a public-repo ignore block to ./.gitignore
+                          (.claude/ .grok/ .codex/ .agents/ CHANGELOG.internal.md);
+                          roadmap data (ROADMAP.md, .roadmap/) stays tracked on purpose
   --cli                   install a 'claude-roadmap' command on PATH (default with
                           --global) so you can run 'claude-roadmap serve' anywhere
   --no-cli                do not install the 'claude-roadmap' PATH command
@@ -593,6 +599,15 @@ if [ "$agent_fleet" = "1" ] && _want agent && [ "$agent" = "claude" ] && [ -d "$
   echo "Installed $copied orchestration agent(s) -> $agents_dest"
   fleet_installed=1
 
+  # The skill ships its agent templates at skills/agent/.claude/agents/ so they're
+  # copied above into agents_dest ($base/agents, the path Claude Code actually reads).
+  # In copy mode that leaves a redundant nested .claude/agents/ inside the installed
+  # skill dir too — strip it so only one copy exists. Skip in --link mode: there
+  # skills_dest/agent IS the source repo dir, not a copy.
+  if [ "$link" != "1" ]; then
+    rm -rf "$skills_dest/agent/.claude"
+  fi
+
   # SessionStart hook: forces the caveman-level decision at orientation. The script
   # no-ops when the caveman plugin is absent, so wiring it is always safe. Honors
   # --no-hook.
@@ -642,6 +657,30 @@ SHIM
         echo "    echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.zshrc && source ~/.zshrc"
         ;;
     esac
+  fi
+fi
+
+# Optional .gitignore block for public repos: keep the reinstallable AI tooling and
+# the internal dev log out of git. Roadmap data (ROADMAP.md, .roadmap/, CHANGELOG.md)
+# stays tracked on purpose — it is the cross-agent sync state. Idempotent via the
+# block's first comment line; project scope only (--global installs nothing here).
+if [ "$gitignore" = "1" ] && [ "$scope" = "project" ]; then
+  gi="$PWD/.gitignore"
+  if grep -q "AI coding tooling" "$gi" 2>/dev/null; then
+    echo "Gitignore block already present in $gi"
+  else
+    cat >> "$gi" <<'EOF'
+
+# AI coding tooling — reinstallable via claude-skills install.sh
+.claude/
+.grok/
+.codex/
+.agents/
+
+# Full internal dev log (public notes stay in CHANGELOG.md)
+CHANGELOG.internal.md
+EOF
+    echo "Appended AI-tooling ignore block -> $gi"
   fi
 fi
 
