@@ -1,6 +1,7 @@
 # 🗺️ Roadmap: claude-skills
 
 ## 💡 Idea Incubator
+- Auto-release nudge: when current version hits 100%, prompt or auto-run roadmap release before starting next version
 <!-- Free-form; sync never rewrites this region. ONE bullet per idea (`roadmap.py idea`).
      Long write-ups (brainstorms, review findings) go to .roadmap/notes/ files and get linked. -->
 <!-- roadmap:auto:start -->
