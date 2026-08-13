@@ -1,0 +1,19 @@
+tests/test_roadmap.py
+  s_825bda436323df::t_2b7ea88e5aebc5 1842-1856
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "a2e68a23142b7777343b90da3b24d2259ec6ca8e",
+  "prompts": {},
+  "sessions": {
+    "s_825bda436323df": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2255e8fe-b414-4f6f-8c29-17cdcb66398d",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
