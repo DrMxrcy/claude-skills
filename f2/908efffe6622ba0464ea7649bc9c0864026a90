@@ -1,0 +1,19 @@
+ROADMAP.md
+  s_825bda436323df::t_dfe5cbd71fe425 4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "f2908efffe6622ba0464ea7649bc9c0864026a90",
+  "prompts": {},
+  "sessions": {
+    "s_825bda436323df": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2255e8fe-b414-4f6f-8c29-17cdcb66398d",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
