@@ -1,7 +1,6 @@
 # 🗺️ Roadmap: claude-skills
 
 ## 💡 Idea Incubator
-- Auto-release nudge: when current version hits 100%, prompt or auto-run roadmap release before starting next version
 <!-- Free-form; sync never rewrites this region. ONE bullet per idea (`roadmap.py idea`).
      Long write-ups (brainstorms, review findings) go to .roadmap/notes/ files and get linked. -->
 <!-- roadmap:auto:start -->
@@ -19,4 +18,7 @@
 - [x] **#5 Combined all-worktrees view as the serve dashboard default** `feature` — 100% ([plan](.roadmap/plans/005-combined-all-worktrees-view-as-the-serve-dashboard-default.md))
 - [x] **#6 Live worktree re-discovery in serve — added/deleted checkouts update the dashboard** `feature` — 100% ([plan](.roadmap/plans/006-live-worktree-re-discovery-in-serve-added-deleted-checkouts-update-the-dashboard.md))
 - [ ] **#7 Serve reprints unchanged status on every file touch — skip identical payloads** `bug` — 33% ([plan](.roadmap/plans/007-serve-reprints-unchanged-status-on-every-file-touch-skip-identical-payloads.md))
+
+### [ ] v0.16.0 — 0%
+- [ ] **#8 Auto-release nudge: when current version hits 100%, prompt or auto-run roadmap release before starting next version** `feature` — 0% ([plan](.roadmap/plans/008-auto-release-nudge-when-current-version-hits-100-prompt-or-auto-run-roadmap-release-before-starting-next-version.md))
 <!-- roadmap:auto:end -->
