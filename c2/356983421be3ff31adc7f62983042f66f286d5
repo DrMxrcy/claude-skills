@@ -1,0 +1,55 @@
+ROADMAP.md
+  s_825bda436323df::t_1e8c19a03dd84a 22-23
+CHANGELOG.md
+  s_825bda436323df::t_1e8c19a03dd84a 3,6
+skills/roadmap/SKILL.md
+  s_825bda436323df::t_1b5f3634f5aec9 247-253
+commands/roadmap/next.md
+  s_825bda436323df::t_2f9362cefc7096 17-18
+CHANGELOG.internal.md
+  s_825bda436323df::t_1e8c19a03dd84a 5,8
+.roadmap/config.json
+  s_825bda436323df::t_1e8c19a03dd84a 86,90-91
+skills/roadmap/scripts/roadmap.py
+  s_825bda436323df::t_9dbcde3e198a21 74
+  s_825bda436323df::t_4a8b157d45d686 79
+  s_825bda436323df::t_0eaed231005d5b 344-345
+  s_825bda436323df::t_51afcb71297110 20-21
+  s_825bda436323df::t_9bdcb585db9c69 32-33
+skills/roadmap/scripts/rmlib/report.py
+  s_825bda436323df::t_8316c65cc9ed92 109
+  s_825bda436323df::t_87261fbfa0eb62 140-144
+skills/roadmap/references/state-model.md
+  s_825bda436323df::t_146903fc8e6e16 16-17
+  s_825bda436323df::t_e86c5a6cfa216d 21
+commands/roadmap/build.md
+  s_825bda436323df::t_064fd41d7a3188 78-80
+tests/test_roadmap.py
+  s_825bda436323df::t_8972f926bd5931 1731-1841
+.roadmap/plans/008-auto-release-nudge-when-current-version-hits-100-prompt-or-auto-run-roadmap-release-before-starting-next-version.md
+  s_825bda436323df::t_1e8c19a03dd84a 6,28-31
+skills/roadmap/scripts/rmlib/ops.py
+  s_825bda436323df::t_8ff3e49eb7e3c3 154-155
+  s_825bda436323df::t_780b27e987e255 26-61
+  s_825bda436323df::t_5940f128426617 84
+  s_825bda436323df::t_95caf2877e3ade 18
+skills/roadmap/scripts/rmlib/sync.py
+  s_825bda436323df::t_b3152c1f143b1b 236,238
+  s_825bda436323df::t_2dc73bcfb073fa 66-74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "c2356983421be3ff31adc7f62983042f66f286d5",
+  "prompts": {},
+  "sessions": {
+    "s_825bda436323df": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2255e8fe-b414-4f6f-8c29-17cdcb66398d",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
