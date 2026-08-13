@@ -14,6 +14,8 @@ For a whole version with the same quality gates, use `/roadmap:build <ver> --aut
    unfinished item in the **current version** whose `dependsOn` targets are complete.
 2. If `No unfinished unblocked items.`:
    - Version truly done → suggest `/roadmap:review` / `/roadmap-review` then release.
+     (The CLI prints this nudge itself; with `settings.autoRelease: "auto"` it cuts the
+     release on its own once a next version exists — don't double-release.)
    - Items blocked → show `status`; finish blockers or `next --force` only if the user asks.
    Stop.
 3. Build that **single item** with the **same quality-first multi-agent protocol as

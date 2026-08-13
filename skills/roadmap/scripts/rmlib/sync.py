@@ -63,6 +63,15 @@ def _version_complete(vitems: list, progress: dict) -> bool:
     return True
 
 
+def uncut_complete_version(root: Path, cfg: dict | None = None) -> str | None:
+    """The current version when every item in it is 100% done (and it has items) —
+    finished work that has not been cut with `release` yet. None otherwise."""
+    cfg = cfg or read_config(root)
+    cur = cfg["currentVersion"]
+    vitems = [i for i in cfg["items"] if i["version"] == cur]
+    return cur if _version_complete(vitems, _progress_map(root, cfg)) else None
+
+
 def _next_current_version(cfg: dict, by_version: dict, progress: dict):
     """If the current version is fully shipped, the version current should point
     at next: the lowest later version that is not yet complete, or (if every
@@ -224,7 +233,9 @@ def status(root: Path) -> dict:
                "dependsOn": list(item.get("dependsOn") or []),
                "blockedBy": blocked_by}
         items.append(row)
+    cur_items = [i for i in cfg["items"] if i["version"] == cfg["currentVersion"]]
     return {"project": cfg["project"], "currentVersion": cfg["currentVersion"],
+            "versionComplete": _version_complete(cur_items, progress),
             "items": items}
 
 

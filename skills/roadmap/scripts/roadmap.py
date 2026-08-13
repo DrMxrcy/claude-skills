@@ -17,7 +17,8 @@ from rmlib.core import (  # noqa: E402  (re-exported so callers/tests keep roadm
 from rmlib.sync import (  # noqa: E402
     _incomplete_deps, _item_done, _next_current_version, _progress_map,
     _version_complete, incomplete_deps, next_item, render_region,
-    roadmap_health, status, sync, warn_incomplete_deps, MAX_ROADMAP_LINES,
+    roadmap_health, status, sync, uncut_complete_version,
+    warn_incomplete_deps, MAX_ROADMAP_LINES,
     MAX_FREEFORM_LINES, MAX_FREEFORM_CHARS)
 
 
@@ -28,8 +29,8 @@ from rmlib.parse import (  # noqa: E402
 from rmlib.ops import (  # noqa: E402
     TEMPLATE_BY_TYPE, _incomplete_items, _refuse_status_note,
     backfill_changelog, check_step, import_file, merge_items, new_item,
-    promote_idea, release, remove_item, reorder, retarget, set_audience,
-    set_depends, set_note, set_release_summary)
+    promote_idea, release, release_gate, remove_item, reorder, retarget,
+    set_audience, set_depends, set_note, set_release_summary)
 
 
 from rmlib.incubator import (  # noqa: E402
@@ -70,12 +71,12 @@ __all__ = [  # public facade: names re-exported for callers/tests/hooks (roadmap
     '_incomplete_deps', '_item_done', '_next_current_version',
     '_progress_map', '_version_complete', 'incomplete_deps', 'next_item',
     'render_region', 'roadmap_health', 'status', 'sync',
-    'warn_incomplete_deps', 'MAX_ROADMAP_LINES', 'MAX_FREEFORM_LINES',
+    'uncut_complete_version', 'warn_incomplete_deps', 'MAX_ROADMAP_LINES', 'MAX_FREEFORM_LINES',
     'MAX_FREEFORM_CHARS', 'STEP_RE', '_is_fence', 'parse_plan',
     'count_progress', '_plan_path', 'TEMPLATE_BY_TYPE',
     '_incomplete_items', '_refuse_status_note', 'backfill_changelog',
     'check_step', 'import_file', 'merge_items', 'new_item', 'promote_idea',
-    'release', 'remove_item', 'reorder', 'retarget', 'set_audience',
+    'release', 'release_gate', 'remove_item', 'reorder', 'retarget', 'set_audience',
     'set_depends', 'set_note', 'set_release_summary', 'DUPLICATE_RATIO',
     'INCUBATOR_BULLET_RE', 'INCUBATOR_HEADING', 'INCUBATOR_RE',
     'MAX_BULLET_CHARS', 'MD_LINK_RE', '_freeform_lines',
@@ -340,6 +341,8 @@ def main(argv: list[str]) -> int:
             item = next_item(root, version=args.version, force=args.force)
             if item is None:
                 print("No unfinished unblocked items.")
+                if not args.version:
+                    release_gate(root)
                 return 0
             if args.as_json:
                 print(json.dumps(item, indent=2))

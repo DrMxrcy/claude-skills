@@ -75,6 +75,9 @@ before each `check`. Default for `/roadmap-build … --auto` remains **serial im
 
 When the whole selection is 100%: if `--pr`, follow the PR gate; else suggest
 `/roadmap:review` / `/roadmap-review` then `/roadmap:release` / `/roadmap-release`.
+The CLI's release gate fires here too (`settings.autoRelease`): `nudge` (default)
+prints the reminder after the final `check`; `auto` cuts the release itself once a
+next version exists — don't double-release.
 
 ## `--worktree` — isolate the build
 

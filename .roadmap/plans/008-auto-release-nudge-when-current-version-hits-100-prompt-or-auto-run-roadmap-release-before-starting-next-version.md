@@ -3,7 +3,7 @@ id: 8
 title: Auto-release nudge: when current version hits 100%, prompt or auto-run roadmap release before starting next version
 type: feature
 version: 0.16.0
-status: planned
+status: done
 created: 2026-08-13
 ---
 
@@ -25,7 +25,7 @@ created: 2026-08-13
 - **Downstream impact:** `--auto` build chains hit the same gate between versions; `auto` mode must be non-interactive-safe (no prompt, just release + print). `off` preserves today's behavior exactly.
 
 ## 🚶 Step-by-Step Checklist
-- [ ] Step 1: Detection helper `uncut_complete_version` + surface "version complete — uncut" in status/orient -> target: rmlib/sync.py
-- [ ] Step 2: `settings.autoRelease` config read (off|nudge|auto, default nudge) -> target: rmlib/core.py
-- [ ] Step 3: Wire gate into check_step / new_item / promote_idea / next_item (nudge prints command; auto calls release()) -> target: rmlib/ops.py
-- [ ] Step 4: Tests for all three modes + docs (SKILL.md, build/next command md) -> target: tests, skills/roadmap/SKILL.md
+- [x] Step 1: Detection helper `uncut_complete_version` + surface "version complete — uncut" in status/orient -> target: rmlib/sync.py
+- [x] Step 2: `settings.autoRelease` config read (off|nudge|auto, default nudge) -> target: rmlib/core.py
+- [x] Step 3: Wire gate into check_step / new_item / promote_idea / next_item (nudge prints command; auto calls release()) -> target: rmlib/ops.py
+- [x] Step 4: Tests for all three modes + docs (SKILL.md, build/next command md) -> target: tests, skills/roadmap/SKILL.md

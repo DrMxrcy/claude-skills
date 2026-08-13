@@ -244,7 +244,13 @@ On invocation, detect state and pick a phase:
 - `sync` — recompute progress + re-render ROADMAP.md **and both changelogs** (safe anytime)
 - `upgrade` — refresh this project's `CLAUDE.md` + `AGENTS.md` rules to the installed skill version
 - `changelog [--internal] [--backfill] [--json]` — print the public (or `--internal`) changelog + audit warnings; `--backfill` dates past versions from git tags; `--json` emits structured data (versions, dates, sections, pending flags) for in-app changelog screens / What's New popups
-- `release --version V [--tag] [--force]` — bump version (optional; changelog is automatic)
+- `release --version V [--tag] [--force]` — bump version (optional; changelog is automatic).
+  The CLI watches for a finished-but-uncut version: when every item in the current version
+  is 100%, `check`/`next`/`orient` print a release nudge, and starting work on a later
+  version (`new`/`promote` targeting it) triggers the gate too. `settings.autoRelease` in
+  `.roadmap/config.json` controls it: `"nudge"` (default) prints the reminder, `"auto"`
+  runs the release itself (target = the later version being started, else the lowest
+  existing version above current; never invents a number), `"off"` disables the gate.
 - `status [--json]` — print current state (shows `blocked by […]` when deps incomplete)
 - `import PATH` — extract checklist lines from a file into a plan
 

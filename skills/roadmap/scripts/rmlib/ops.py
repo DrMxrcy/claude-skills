@@ -15,12 +15,48 @@ from rmlib.parse import (
 from rmlib.changelog import (
     demote_tells, item_audience, lint_note, status_tells)
 from rmlib.sync import (
-    sync)
+    sync, uncut_complete_version)
 from rmlib.report import (
     _record_last_seen_sha)
 from rmlib.incubator import (
     INCUBATOR_BULLET_RE, _incubator_stub, _strip_incubator_placeholder,
     incubator_file, list_incubator_bullets)
+
+
+def _auto_release_mode(cfg: dict) -> str:
+    """settings.autoRelease: off | nudge (default) | auto. Unknown values → nudge."""
+    mode = (cfg.get("settings") or {}).get("autoRelease", "nudge")
+    return mode if mode in ("off", "nudge", "auto") else "nudge"
+
+
+def release_gate(root: Path, target: str | None = None) -> None:
+    """Release is part of the roadmap flow: when the current version is 100% but
+    uncut, nudge (default) or auto-run `release` per settings.autoRelease.
+
+    `target` is the next version when the caller knows it (e.g. a new item aimed
+    at a later version); otherwise the lowest existing version above current is
+    used. auto with no discoverable target falls back to a nudge — the CLI never
+    invents a version number."""
+    cfg = read_config(root)
+    mode = _auto_release_mode(cfg)
+    if mode == "off":
+        return
+    done = uncut_complete_version(root, cfg)
+    if not done:
+        return
+    if target is None:
+        above = sorted({i["version"] for i in cfg["items"]
+                        if _version_key(i["version"]) > _version_key(done)},
+                       key=_version_key)
+        target = above[0] if above else None
+    if mode == "auto" and target:
+        release(root, target)
+        print(f"auto-release: v{done} complete — released; current version is now "
+              f"v{target} (settings.autoRelease=auto)", file=sys.stderr)
+        return
+    hint = target or "<next-version>"
+    print(f"🎉 v{done} is 100% complete but uncut — cut it: roadmap.py release {hint} "
+          f'(or set settings.autoRelease to "auto")', file=sys.stderr)
 
 
 def check_step(root: Path, plan_id: int, step: int | None,
@@ -45,6 +81,7 @@ def check_step(root: Path, plan_id: int, step: int | None,
     sync(root)
     if not undo:
         _record_last_seen_sha(root)
+        release_gate(root)
 
 
 TEMPLATE_BY_TYPE = {"feature": "feature-plan.md", "chore": "feature-plan.md",
@@ -114,6 +151,8 @@ def new_item(root: Path, type_: str, title: str, version: str | None = None,
     cfg["items"].append(item)
     write_config(root, cfg)
     sync(root)
+    if _version_key(version) > _version_key(cfg["currentVersion"]):
+        release_gate(root, target=version)
     return path
 
 

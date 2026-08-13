@@ -19,6 +19,6 @@
 - [x] **#6 Live worktree re-discovery in serve — added/deleted checkouts update the dashboard** `feature` — 100% ([plan](.roadmap/plans/006-live-worktree-re-discovery-in-serve-added-deleted-checkouts-update-the-dashboard.md))
 - [ ] **#7 Serve reprints unchanged status on every file touch — skip identical payloads** `bug` — 33% ([plan](.roadmap/plans/007-serve-reprints-unchanged-status-on-every-file-touch-skip-identical-payloads.md))
 
-### [ ] v0.16.0 — 0%
-- [ ] **#8 Auto-release nudge: when current version hits 100%, prompt or auto-run roadmap release before starting next version** `feature` — 0% ([plan](.roadmap/plans/008-auto-release-nudge-when-current-version-hits-100-prompt-or-auto-run-roadmap-release-before-starting-next-version.md))
+### [x] v0.16.0 — 100%
+- [x] **#8 Auto-release nudge: when current version hits 100%, prompt or auto-run roadmap release before starting next version** `feature` — 100% ([plan](.roadmap/plans/008-auto-release-nudge-when-current-version-hits-100-prompt-or-auto-run-roadmap-release-before-starting-next-version.md))
 <!-- roadmap:auto:end -->

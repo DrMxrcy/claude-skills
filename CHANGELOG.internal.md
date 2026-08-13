@@ -2,10 +2,10 @@
 
 _Full work log — every item, including internal/dev work. The curated public changelog is CHANGELOG.md._
 
-## v0.16.0 — (in progress)
+## v0.16.0 — 2026-08-13
 
 ### ✨ New
-- (pending) Finished versions get cut automatically: when every item in the current version is done, the roadmap offers (or runs) the release for you before new work starts.
+- Finished versions get cut automatically: when every item in the current version is done, the roadmap offers (or runs) the release for you before new work starts.
 
 ## v0.15.0 — (in progress)
 

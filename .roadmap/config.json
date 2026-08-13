@@ -83,10 +83,11 @@
     "gitTagOnRelease": false
   },
   "skillVersion": "0.14.2",
-  "last_seen_sha": "1b63d6ad3a6676c29e7d93f3a2c7d972e437fb4c",
+  "last_seen_sha": "6ec8de81946827d84d52eca891e1fc121d160479",
   "versionDates": {
     "0.14.1": "2026-07-22",
     "0.14.2": "2026-07-22",
-    "0.15.0": "2026-07-23"
+    "0.15.0": "2026-07-23",
+    "0.16.0": "2026-08-13"
   }
 }

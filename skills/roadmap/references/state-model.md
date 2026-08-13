@@ -13,10 +13,12 @@
  "items":[{"id":1,"slug":"auth-setup","title":"Auth setup","type":"feature",
            "version":"0.0.1","file":"plans/001-auth-setup.md"}],
  "versionDates":{"0.0.1":"2026-07-09"},
- "settings":{"autoCommit":true,"gitTagOnRelease":false,"collapseShipped":true}}
+ "settings":{"autoCommit":true,"gitTagOnRelease":false,"collapseShipped":true,
+             "autoRelease":"nudge"}}
 ```
 - `versionDates` — stamped by `sync` the first time a version hits 100% (stable changelog/collapse dates).
 - `settings.collapseShipped` — defaults to `true` when absent.
+- `settings.autoRelease` — `off` | `nudge` (default when absent) | `auto`: what happens when the current version is 100% but uncut (nudge prints a release reminder from `check`/`next`/`orient`; auto runs `release` when a target version is known).
 - `settings.incubatorFile` — when set (by `tidy --externalize`), the Idea Incubator lives in this file instead of `ROADMAP.md`.
 
 ## Plan frontmatter

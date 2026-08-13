@@ -106,6 +106,7 @@ def orient(root: Path) -> dict | None:
                   "pct": nxt["pct"], "blockedBy": nxt.get("blockedBy") or [],
                   "file": nxt.get("file")}
                  if nxt else None),
+        "versionComplete": bool(st.get("versionComplete")),
         "drift": drift_check(root),
         "skillVersionInstalled": installed,
         "skillVersionProject": recorded,
@@ -136,6 +137,11 @@ def format_orient(payload: dict, handoff: bool = False) -> str:
             f" · /roadmap-build {payload['currentVersion']} --auto"
             f"  (not next --auto — next is always one item)"
         )
+    elif payload.get("versionComplete"):
+        lines.append(
+            f"🎉 v{payload['currentVersion']} is 100% complete but uncut — cut it: "
+            f"/roadmap:release · /roadmap-release · roadmap.py release <next-version> "
+            f'(or set settings.autoRelease to "auto")')
     else:
         lines.append("Next: (none — current version complete or all remaining items blocked)")
     if payload.get("drift"):

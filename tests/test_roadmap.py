@@ -1728,3 +1728,114 @@ def test_broadcaster_skips_unchanged_payload(roadmap, dashboard, repo):
     os.utime(cfgp, (_t.time() + 10, _t.time() + 10))
     b._tick()
     assert b.version == 1
+
+
+# ---- release gate (settings.autoRelease: off|nudge|auto) ----
+
+def _set_auto_release(roadmap, repo, mode):
+    cfg = roadmap.read_config(repo)
+    cfg.setdefault("settings", {})["autoRelease"] = mode
+    roadmap.write_config(repo, cfg)
+
+
+def test_uncut_complete_version_detection(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    assert roadmap.uncut_complete_version(repo) is None
+    roadmap.check_step(repo, 1, None, all_done=True)
+    assert roadmap.uncut_complete_version(repo) == "0.0.1"
+
+
+def test_uncut_complete_version_none_without_items(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    assert roadmap.uncut_complete_version(repo) is None
+
+
+def test_status_reports_version_complete(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    assert roadmap.status(repo)["versionComplete"] is False
+    roadmap.check_step(repo, 1, None, all_done=True)
+    assert roadmap.status(repo)["versionComplete"] is True
+
+
+def test_check_completion_nudges_release(roadmap, repo, capsys):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    roadmap.check_step(repo, 1, None, all_done=True)
+    err = capsys.readouterr().err
+    assert "100% complete but uncut" in err
+    assert "release" in err
+
+
+def test_check_no_nudge_while_incomplete(roadmap, repo, capsys):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    roadmap.check_step(repo, 1, 1)
+    assert "uncut" not in capsys.readouterr().err
+
+
+def test_release_gate_off_is_silent(roadmap, repo, capsys):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    _set_auto_release(roadmap, repo, "off")
+    roadmap.check_step(repo, 1, None, all_done=True)
+    assert "uncut" not in capsys.readouterr().err
+    assert roadmap.read_config(repo)["currentVersion"] == "0.0.1"
+
+
+def test_release_gate_auto_releases_to_next_item_version(roadmap, repo, capsys):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    roadmap.new_item(repo, "feature", "B", version="0.0.2")
+    _set_auto_release(roadmap, repo, "auto")
+    roadmap.check_step(repo, 1, None, all_done=True)
+    assert roadmap.read_config(repo)["currentVersion"] == "0.0.2"
+    assert "auto-release" in capsys.readouterr().err
+
+
+def test_release_gate_auto_without_target_falls_back_to_nudge(roadmap, repo, capsys):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    _set_auto_release(roadmap, repo, "auto")
+    roadmap.check_step(repo, 1, None, all_done=True)
+    assert roadmap.read_config(repo)["currentVersion"] == "0.0.1"
+    assert "<next-version>" in capsys.readouterr().err
+
+
+def test_new_item_later_version_triggers_gate(roadmap, repo, capsys):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    roadmap.check_step(repo, 1, None, all_done=True)
+    capsys.readouterr()
+    roadmap.new_item(repo, "feature", "B", version="0.0.2")
+    err = capsys.readouterr().err
+    assert "uncut" in err and "0.0.2" in err
+
+
+def test_new_item_auto_mode_releases_before_next_version_work(roadmap, repo, capsys):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    _set_auto_release(roadmap, repo, "auto")
+    roadmap.check_step(repo, 1, None, all_done=True)  # no later version yet -> nudge only
+    capsys.readouterr()
+    roadmap.new_item(repo, "feature", "B", version="0.0.2")
+    assert roadmap.read_config(repo)["currentVersion"] == "0.0.2"
+    assert "auto-release" in capsys.readouterr().err
+
+
+def test_release_gate_unknown_mode_defaults_to_nudge(roadmap, repo, capsys):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    _set_auto_release(roadmap, repo, "bogus")
+    roadmap.check_step(repo, 1, None, all_done=True)
+    assert "uncut" in capsys.readouterr().err
+
+
+def test_orient_surfaces_uncut_complete_version(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    roadmap.check_step(repo, 1, None, all_done=True)
+    payload = roadmap.orient(repo)
+    assert payload["versionComplete"] is True
+    assert "uncut" in roadmap.format_orient(payload)
