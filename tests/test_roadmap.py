@@ -1839,3 +1839,18 @@ def test_orient_surfaces_uncut_complete_version(roadmap, repo):
     payload = roadmap.orient(repo)
     assert payload["versionComplete"] is True
     assert "uncut" in roadmap.format_orient(payload)
+
+
+def test_check_on_next_version_item_auto_releases(roadmap, repo, capsys):
+    """100% current version + starting work on a next-version item = release cut."""
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    _set_auto_release(roadmap, repo, "auto")
+    roadmap.check_step(repo, 1, None, all_done=True)
+    roadmap.new_item(repo, "feature", "B", version="0.0.2")  # auto-releases here
+    assert roadmap.read_config(repo)["currentVersion"] == "0.0.2"
+    # and if release had NOT happened yet, checking a step on the 0.0.2 item fires it:
+    _set_auto_release(roadmap, repo, "auto")
+    roadmap.new_item(repo, "feature", "C", version="0.0.3")
+    roadmap.check_step(repo, 2, 1)  # finish nothing; current 0.0.2 incomplete -> no fire
+    assert roadmap.read_config(repo)["currentVersion"] == "0.0.2"
