@@ -1,0 +1,28 @@
+.roadmap/config.json
+  s_825bda436323df::t_dd1612d1a833bf 4,70-78
+ROADMAP.md
+  s_825bda436323df::t_dd1612d1a833bf 21-23
+CHANGELOG.internal.md
+  s_825bda436323df::t_dd1612d1a833bf 5-9
+.roadmap/plans/008-auto-release-nudge-when-current-version-hits-100-prompt-or-auto-run-roadmap-release-before-starting-next-version.md
+  s_825bda436323df::t_0445ed335969ff 14-15,18,20-25,28-31
+  s_825bda436323df::t_dd1612d1a833bf 1-13,16-17,19,26-27
+CHANGELOG.md
+  s_825bda436323df::t_dd1612d1a833bf 3-7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "6ec8de81946827d84d52eca891e1fc121d160479",
+  "prompts": {},
+  "sessions": {
+    "s_825bda436323df": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2255e8fe-b414-4f6f-8c29-17cdcb66398d",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
