@@ -1,6 +1,10 @@
 # 🗺️ Roadmap: claude-skills
 
 ## 💡 Idea Incubator
+- Filtered listing and search: status --type/--version filters, plus search and stats subcommands ([notes](.roadmap/notes/2026-08-19-filtered-listing-and-search-status-type-version-filters-plus-search-and-stats-subcommands.md))
+- Optional execution metadata on check — record verify command and result per step ([notes](.roadmap/notes/2026-08-19-optional-execution-metadata-on-check-record-verify-command-and-result-per-step.md))
+- Acceptance criteria section as first-class part of plan templates ([notes](.roadmap/notes/2026-08-19-acceptance-criteria-section-as-first-class-part-of-plan-templates.md))
+- Typed human-readable ID prefixes (TSK-42, BUG-7) as display layer over int ids ([notes](.roadmap/notes/2026-08-19-typed-human-readable-id-prefixes-tsk-42-bug-7-as-display-layer-over-int-ids.md))
 <!-- Free-form; sync never rewrites this region. ONE bullet per idea (`roadmap.py idea`).
      Long write-ups (brainstorms, review findings) go to .roadmap/notes/ files and get linked. -->
 <!-- roadmap:auto:start -->
