@@ -3,7 +3,7 @@ id: 9
 title: Internal notes can leak into the public changelog: unset-audience bugs default public and demote tells only advise
 type: bug
 version: 0.15.0
-status: active
+status: done
 created: 2026-08-20
 ---
 
@@ -49,4 +49,4 @@ created: 2026-08-20
 - [x] Step 3: Flip `DEFAULT_AUDIENCE` to internal for all types; audit message for noted-but-unclassified items
 - [x] Step 4: Note-time refusals — unset audience refuses `note`/`new --note`; demote tells refuse on effective-public notes (`--force` overrides both)
 - [x] Step 5: Update SKILL.md and command docs for the new audience contract
-- [ ] Step 6: Full test suite green
+- [x] Step 6: Full test suite green
