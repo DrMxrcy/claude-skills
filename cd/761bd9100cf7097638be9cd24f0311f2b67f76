@@ -1,0 +1,29 @@
+CHANGELOG.internal.md
+  s_e3acd6741803be::t_09d5daf83838bb 20
+.roadmap/config.json
+  s_e3acd6741803be::t_09d5daf83838bb 4,79-88
+  s_e3acd6741803be::t_d4f939acd0cef3 96
+ROADMAP.md
+  s_e3acd6741803be::t_09d5daf83838bb 19,25
+tests/test_roadmap.py
+  s_e3acd6741803be::t_280c95b471e790 1857-1964
+.roadmap/plans/009-internal-notes-can-leak-into-the-public-changelog-unset-audience-bugs-default-public-and-demote-tells-only-advise.md
+  s_e3acd6741803be::t_09d5daf83838bb 1-10,12-15,24,31,45
+  s_e3acd6741803be::t_de697ee829c16f 11,16-23,25-30,32-44,46-52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "cd761bd9100cf7097638be9cd24f0311f2b67f76",
+  "prompts": {},
+  "sessions": {
+    "s_e3acd6741803be": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8cb83a71-a653-4c69-9806-2104e371ea03",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
