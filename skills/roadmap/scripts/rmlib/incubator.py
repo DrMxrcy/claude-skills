@@ -276,7 +276,10 @@ def list_incubator_bullets(root: Path) -> list[dict]:
     if not m:
         return []
     bullets = []
-    for line in text[m.end():].splitlines():
+    # 1-based line number of the incubator heading in its file, so callers (search)
+    # can point at a bullet's real location.
+    heading_no = text[:m.end()].count("\n") + 1
+    for offset, line in enumerate(text[m.end():].splitlines()):
         if re.match(r"^#{1,6}\s+", line):
             break
         bm = INCUBATOR_BULLET_RE.match(line)
@@ -286,5 +289,6 @@ def list_incubator_bullets(root: Path) -> list[dict]:
         # Title is the line without a trailing markdown link
         title = re.sub(r"\s*\([^)]*\)\s*$", "", body).strip()
         title = re.sub(r"\s*\[[^\]]*\]\([^)]*\)\s*$", "", title).strip()
-        bullets.append({"line": line, "body": body, "title": title or body})
+        bullets.append({"line": line, "body": body, "title": title or body,
+                        "lineNo": heading_no + offset})
     return bullets

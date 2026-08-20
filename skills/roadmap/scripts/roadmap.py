@@ -56,7 +56,7 @@ from rmlib.changelog import (  # noqa: E402
 
 from rmlib.report import (  # noqa: E402
     _git_dirty, _git_head, _record_last_seen_sha, drift_check,
-    format_orient, handoff, orient)
+    format_orient, format_search, handoff, orient, search)
 
 
 from rmlib.project import (  # noqa: E402
@@ -96,6 +96,7 @@ __all__ = [  # public facade: names re-exported for callers/tests/hooks (roadmap
     '_grouped_lines', 'render_public_changelog', 'changelog_json',
     'render_internal_changelog', 'audit_public_notes', '_git_dirty',
     '_git_head', '_record_last_seen_sha', 'drift_check', 'format_orient',
+    'format_search', 'search',
     'handoff', 'orient', '_apply_rules_block', 'ensure_claude_md_rules',
     'ensure_project_rules', 'init_project', 'upgrade', 'serve', 'main'
 ]
@@ -177,6 +178,12 @@ def main(argv: list[str]) -> int:
     p_st.add_argument("--version", help="only items targeting this version")
     p_st.add_argument("--status", choices=["planned", "active", "done"],
                       help="only items with this progress status")
+
+    p_search = sub.add_parser(
+        "search", help="case-insensitive substring search across item titles/notes, "
+                       "plan bodies and Idea Incubator bullets")
+    p_search.add_argument("text", help="substring to look for (no regex/fuzzy)")
+    p_search.add_argument("--json", action="store_true", dest="as_json")
 
     p_srv = sub.add_parser("serve",
                            help="local live web dashboard (SSE push, read-only)")
@@ -447,6 +454,15 @@ def main(argv: list[str]) -> int:
                           f"{it['pct']}% ({it['status']}){block}")
             for w in roadmap_health(root):
                 print(f"warning: {w}", file=sys.stderr)
+            return 0
+        if args.command == "search":
+            if not args.text.strip():
+                parser.error("search text must not be empty")
+            hits = search(root, args.text.strip())
+            if args.as_json:
+                print(json.dumps(hits, indent=2))
+            else:
+                print(format_search(hits, args.text.strip()))
             return 0
         if args.command == "serve":
             return serve(root, port=args.port, open_browser=args.open_browser)

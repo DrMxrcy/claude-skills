@@ -1499,6 +1499,73 @@ def test_status_without_filters_is_unchanged(roadmap, repo, monkeypatch, capsys)
     assert json.loads(capsys.readouterr().out) == roadmap.status(repo)
 
 
+def _search_repo(roadmap, repo):
+    roadmap.init_project(repo, "P", claude_md=False)
+    roadmap.new_item(repo, "feature", "Dark mode toggle")          # 1
+    roadmap.new_item(repo, "bug", "Crash on save", audience="internal",
+                     note="Saving a Dark document no longer crashes")  # 2
+    roadmap.add_idea(repo, "Maybe a dark sidebar someday")
+    plan = repo / ".roadmap/plans/002-crash-on-save.md"
+    plan.write_text(plan.read_text() + "\nRoot cause: telemetry flush deadlock\n")
+    return repo
+
+
+def test_search_finds_titles_notes_plans_and_incubator(roadmap, repo):
+    _search_repo(roadmap, repo)
+    hits = roadmap.search(repo, "dark")
+    kinds = {h["kind"] for h in hits}
+    assert kinds == {"item", "plan", "idea"}
+    items = [h for h in hits if h["kind"] == "item"]
+    assert ("FEAT-1", "title") in [(h["ref"], h["field"]) for h in items]
+    assert ("BUG-2", "note") in [(h["ref"], h["field"]) for h in items]
+    idea = next(h for h in hits if h["kind"] == "idea")
+    assert idea["file"] == "ROADMAP.md"
+    rm_lines = (repo / "ROADMAP.md").read_text().splitlines()
+    assert "dark sidebar" in rm_lines[idea["line"] - 1]
+    assert idea["ref"] == f"ROADMAP.md:{idea['line']}"
+
+
+def test_search_plan_body_hit_carries_file_and_line(roadmap, repo):
+    _search_repo(roadmap, repo)
+    hits = roadmap.search(repo, "telemetry")
+    assert len(hits) == 1
+    hit = hits[0]
+    plan = repo / ".roadmap/plans/002-crash-on-save.md"
+    lines = plan.read_text().splitlines()
+    assert hit["kind"] == "plan" and hit["file"] == ".roadmap/plans/002-crash-on-save.md"
+    assert lines[hit["line"] - 1] == "Root cause: telemetry flush deadlock"
+    assert hit["ref"] == f".roadmap/plans/002-crash-on-save.md:{hit['line']}"
+
+
+def test_search_is_case_insensitive(roadmap, repo):
+    _search_repo(roadmap, repo)
+    assert roadmap.search(repo, "DARK MODE") == roadmap.search(repo, "dark mode")
+    assert roadmap.search(repo, "TeLeMeTrY")
+
+
+def test_search_cli_text_json_and_no_match(roadmap, repo, monkeypatch, capsys):
+    monkeypatch.chdir(_search_repo(roadmap, repo))
+    assert roadmap.main(["search", "telemetry"]) == 0
+    out = capsys.readouterr().out
+    assert ".roadmap/plans/002-crash-on-save.md:" in out and "telemetry" in out
+
+    assert roadmap.main(["search", "dark", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert isinstance(payload, list) and payload
+    for hit in payload:
+        assert set(hit) >= {"kind", "ref", "text"}
+
+    assert roadmap.main(["search", "zzz-nothing-here"]) == 0
+    assert "no matches" in capsys.readouterr().out.lower()
+
+
+def test_search_empty_query_is_argparse_error(roadmap, repo, monkeypatch):
+    monkeypatch.chdir(_search_repo(roadmap, repo))
+    with pytest.raises(SystemExit) as e:
+        roadmap.main(["search", "   "])
+    assert e.value.code == 2
+
+
 def test_orient_human_output_uses_display_id(roadmap, repo):
     roadmap.init_project(repo, "P", claude_md=False)
     roadmap.new_item(repo, "bug", "Crash on save")

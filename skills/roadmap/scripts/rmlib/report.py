@@ -8,6 +8,8 @@ from rmlib.core import (
     display_id, get_version, read_config, roadmap_dir, write_config)
 from rmlib.sync import (
     next_item, status)
+from rmlib.incubator import (
+    incubator_file, list_incubator_bullets)
 
 
 def _git_head(root: Path) -> str | None:
@@ -175,6 +177,52 @@ def format_orient(payload: dict, handoff: bool = False) -> str:
             "  6. Continue quality-first build (do not re-plan from chat memory)",
             "Shared source of truth: ROADMAP.md + .roadmap/ + CHANGELOG*.md in git.",
         ])
+    return "\n".join(lines)
+
+
+def search(root: Path, text: str) -> list[dict]:
+    """Case-insensitive substring search over item titles/notes, plan file bodies and
+    Idea Incubator bullets. Every hit carries a locatable `ref`: a typed item id
+    (FEAT-12) or file:line. No fuzzy matching, no regex — plain substring."""
+    needle = text.lower()
+    hits: list[dict] = []
+    try:
+        cfg = read_config(root)
+    except (FileNotFoundError, json.JSONDecodeError):
+        cfg = {}
+    for item in cfg.get("items", []):
+        for field in ("title", "note"):
+            value = item.get(field) or ""
+            if needle in value.lower():
+                hits.append({"kind": "item", "ref": display_id(item),
+                             "id": item["id"], "field": field,
+                             "text": " ".join(value.split())})
+    for path in sorted((roadmap_dir(root) / "plans").glob("*.md")):
+        for n, line in enumerate(
+                path.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
+            if needle in line.lower():
+                hits.append({"kind": "plan", "ref": f".roadmap/plans/{path.name}:{n}",
+                             "file": f".roadmap/plans/{path.name}", "line": n,
+                             "text": line.strip()})
+    inc = incubator_file(root)
+    try:
+        rel = str(inc.relative_to(root))
+    except ValueError:
+        rel = str(inc)
+    for b in list_incubator_bullets(root):
+        if needle in b["body"].lower():
+            hits.append({"kind": "idea", "ref": f"{rel}:{b['lineNo']}", "file": rel,
+                         "line": b["lineNo"], "text": b["body"]})
+    return hits
+
+
+def format_search(hits: list[dict], query: str) -> str:
+    if not hits:
+        return f"No matches for {query!r}."
+    lines = [f"{len(hits)} match(es) for {query!r}:"]
+    for h in hits:
+        suffix = f"  ({h['field']})" if h["kind"] == "item" else ""
+        lines.append(f"  {h['kind']:<4} {h['ref']}  {h['text']}{suffix}")
     return "\n".join(lines)
 
 
