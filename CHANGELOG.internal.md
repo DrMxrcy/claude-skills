@@ -17,6 +17,7 @@ _Full work log — every item, including internal/dev work. The curated public c
 
 ### 🐛 Fixed
 - (pending) Serve reprints unchanged status on every file touch — skip identical payloads
+- (pending) The public changelog is now protected: unclassified work stays in the internal log, saving a public note requires an explicit audience, and internal-sounding wording is refused at save time.
 
 ## v0.14.2 — 2026-07-22
 

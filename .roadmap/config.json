@@ -1,7 +1,7 @@
 {
   "project": "claude-skills",
   "currentVersion": "0.15.0",
-  "nextId": 9,
+  "nextId": 10,
   "items": [
     {
       "id": 1,
@@ -76,6 +76,16 @@
       "version": "0.16.0",
       "file": "plans/008-auto-release-nudge-when-current-version-hits-100-prompt-or-auto-run-roadmap-release-before-starting-next-version.md",
       "note": "Finished versions get cut automatically: when every item in the current version is done, the roadmap offers (or runs) the release for you before new work starts."
+    },
+    {
+      "id": 9,
+      "slug": "internal-notes-can-leak-into-the-public-changelog-unset-audience-bugs-default-public-and-demote-tells-only-advise",
+      "title": "Internal notes can leak into the public changelog: unset-audience bugs default public and demote tells only advise",
+      "type": "bug",
+      "version": "0.15.0",
+      "file": "plans/009-internal-notes-can-leak-into-the-public-changelog-unset-audience-bugs-default-public-and-demote-tells-only-advise.md",
+      "note": "The public changelog is now protected: unclassified work stays in the internal log, saving a public note requires an explicit audience, and internal-sounding wording is refused at save time.",
+      "audience": "internal"
     }
   ],
   "settings": {
@@ -83,7 +93,7 @@
     "gitTagOnRelease": false
   },
   "skillVersion": "0.14.2",
-  "last_seen_sha": "6ec8de81946827d84d52eca891e1fc121d160479",
+  "last_seen_sha": "018e8d48aa936fd535faa9bc0ef222ac2f34eea2",
   "versionDates": {
     "0.14.1": "2026-07-22",
     "0.14.2": "2026-07-22",

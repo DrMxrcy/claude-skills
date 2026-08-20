@@ -1854,3 +1854,111 @@ def test_check_on_next_version_item_auto_releases(roadmap, repo, capsys):
     roadmap.new_item(repo, "feature", "C", version="0.0.3")
     roadmap.check_step(repo, 2, 1)  # finish nothing; current 0.0.2 incomplete -> no fire
     assert roadmap.read_config(repo)["currentVersion"] == "0.0.2"
+
+
+# --- fail-closed audience & Parkboxd leak corpus (plan #9) ---------------------
+
+# Notes that actually leaked into a real public changelog before the tightening.
+LEAKED_NOTES = [
+    # staff/admin-only surface (#588)
+    "Article editor: brand byline now defaults on for staff, a zoom slider gives "
+    "an overview of image-heavy stories",
+    # internal ops ceiling (#651)
+    "Fixed a safeguard so onboarding and digest emails can never be silently lost "
+    "when the daily sending limit is reached.",
+    # self-incriminating security disclosure (#653)
+    "Turning off analytics is now enforced on our servers too, so no data is "
+    "accepted from a device after you opt out.",
+    # abuse-hardening disclosure (#624)
+    "Ride ratings are harder to game.",
+]
+
+# Known-good public notes that must NOT trip the demote net (false-positive corpus).
+CLEAN_PUBLIC_NOTES = [
+    "Analytics now run fully in-house — your usage data stays on our servers, "
+    "is never sold or shared.",
+    "Making your account or a park day private now also disables its live share links",
+    "You can now turn off usage analytics in Privacy settings.",
+    "Log rides straight from your wrist.",
+    "Parkboxd now speaks Spanish — switch languages anytime in Settings.",
+]
+
+
+def test_parkboxd_leak_corpus_trips_demote(roadmap):
+    for note in LEAKED_NOTES:
+        assert roadmap.demote_tells(note), f"should demote: {note!r}"
+
+
+def test_clean_public_notes_stay_clean(roadmap):
+    for note in CLEAN_PUBLIC_NOTES:
+        assert roadmap.demote_tells(note) == [], f"false positive on: {note!r}"
+
+
+def test_disclosure_phrasing_demotes(roadmap):
+    assert roadmap.demote_tells("Ride waits are now validated on save")
+    assert roadmap.demote_tells("Streaks cannot be fabricated any more")
+    assert roadmap.demote_tells("Server-side checks were added to uploads")
+    assert roadmap.demote_tells("The API no longer accepts unsigned requests")
+
+
+def test_audience_defaults_internal_for_all_types(roadmap):
+    # fail-closed: nothing renders public without an explicit audience
+    for type_ in ("feature", "bug", "refactor", "chore"):
+        assert roadmap.item_audience({"type": type_}) == "internal"
+    assert roadmap.item_audience({"type": "bug", "audience": "public"}) == "public"
+
+
+def test_set_note_requires_explicit_audience(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "Login")                # unclassified, no note: fine
+    with pytest.raises(ValueError, match="audience"):
+        roadmap.set_note(repo, 1, "Sign in with email")
+    assert "note" not in roadmap.read_config(repo)["items"][0]
+    roadmap.set_audience(repo, 1, "public")
+    roadmap.set_note(repo, 1, "Sign in with email")           # classified: saves
+    assert roadmap.read_config(repo)["items"][0]["note"] == "Sign in with email"
+
+
+def test_new_with_note_requires_audience(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    with pytest.raises(ValueError, match="audience"):
+        roadmap.new_item(repo, "feature", "Login", note="Sign in with email")
+    cfg = roadmap.read_config(repo)
+    assert cfg["items"] == [] and cfg["nextId"] == 1          # nothing written
+    roadmap.new_item(repo, "feature", "Login", note="Sign in with email",
+                     audience="public")                       # explicit: fine
+    # --force keeps the old unclassified behavior (renders internal-only)
+    roadmap.new_item(repo, "feature", "Other", note="A thing", force=True)
+
+
+def test_set_note_demote_tell_refused_on_public_item(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "Drafts", audience="public")
+    with pytest.raises(ValueError, match="(?i)staff"):
+        roadmap.set_note(repo, 1, "Only staff can see unpublished drafts")
+    assert "note" not in roadmap.read_config(repo)["items"][0]
+    roadmap.set_note(repo, 1, "Only staff can see unpublished drafts", force=True)
+    assert "staff" in roadmap.read_config(repo)["items"][0]["note"]
+
+
+def test_new_public_note_demote_tell_refused(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    with pytest.raises(ValueError, match="(?i)sending limit"):
+        roadmap.new_item(repo, "bug", "Email loss", audience="public",
+                         note="Emails are no longer lost at the daily sending limit.")
+
+
+def test_legacy_unclassified_note_renders_internal_only(roadmap, repo):
+    # pre-tightening configs have note + no audience: must fall to the internal log
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "bug", "Old leak", note="Secret ops detail", force=True)
+    roadmap.check_step(repo, 1, None, all_done=True)
+    assert "Secret ops detail" not in (repo / "CHANGELOG.md").read_text()
+    assert "Secret ops detail" in (repo / "CHANGELOG.internal.md").read_text()
+
+
+def test_audit_flags_noted_but_unclassified_item(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "bug", "Old leak", note="A user-facing fix", force=True)
+    msgs = roadmap.audit_public_notes(repo)
+    assert any("#1" in m and "no explicit audience" in m for m in msgs)
