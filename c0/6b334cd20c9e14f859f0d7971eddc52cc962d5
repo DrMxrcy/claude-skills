@@ -1,0 +1,37 @@
+skills/roadmap/scripts/rmlib/changelog.py
+  s_e3acd6741803be::t_28cbfa6a6bb27a 48-49
+  s_e3acd6741803be::t_ca62ebbb4bb046 58-59
+  s_e3acd6741803be::t_8f003125281ece 71-72,77-90
+  s_e3acd6741803be::t_fbe4cab31e70d6 142-143,149-154
+  s_6d0b3cb053fa9f::t_ac3f56f39e5d63 91
+.roadmap/config.json
+  s_e3acd6741803be::t_31776832e825c9 96
+.roadmap/plans/009-internal-notes-can-leak-into-the-public-changelog-unset-audience-bugs-default-public-and-demote-tells-only-advise.md
+  s_e3acd6741803be::t_38a48a9a81b45e 48
+ROADMAP.md
+  s_e3acd6741803be::t_928d7690d08f7b 19,25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "c06b334cd20c9e14f859f0d7971eddc52cc962d5",
+  "prompts": {},
+  "sessions": {
+    "s_6d0b3cb053fa9f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "314eea80-9c0f-4107-a5d4-696a482a6fc0",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    },
+    "s_e3acd6741803be": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8cb83a71-a653-4c69-9806-2104e371ea03",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
