@@ -66,7 +66,7 @@ def test_api_status_matches_status_fn(served):
     status, ctype, body = _get(base + "/api/status")
     assert status == 200
     assert "application/json" in ctype
-    assert json.loads(body) == roadmap.status(repo)
+    assert json.loads(body)["merged"] == roadmap.status(repo)
 
 
 def test_api_item_returns_steps(served):
@@ -110,11 +110,11 @@ def test_sse_pushes_on_change(served):
     req = urllib.request.urlopen(base + "/events", timeout=5)
     # First frame is the initial snapshot.
     first = _read_sse_data(req)
-    assert first["items"][0]["pct"] == 0
+    assert first["merged"]["items"][0]["pct"] == 0
     # Mutate the roadmap; the stream should push an updated snapshot.
     roadmap.main(["check", "--plan", "1", "--all-done"])
     updated = _read_sse_data(req, deadline=5)
-    assert updated["items"][0]["pct"] == 100
+    assert updated["merged"]["items"][0]["pct"] == 100
     req.close()
 
 
