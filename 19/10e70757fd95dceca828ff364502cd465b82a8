@@ -1,0 +1,20 @@
+tests/test_roadmap_serve.py
+  s_e3acd6741803be::t_74dc87b5648b38 69
+  s_e3acd6741803be::t_4b436da0a8ddb9 113,117
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "1910e70757fd95dceca828ff364502cd465b82a8",
+  "prompts": {},
+  "sessions": {
+    "s_e3acd6741803be": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8cb83a71-a653-4c69-9806-2104e371ea03",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
