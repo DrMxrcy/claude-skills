@@ -4,7 +4,7 @@
 
 ### ✨ New
 - Items now show friendly typed IDs like FEAT-12 and BUG-7 in status, next, and commit suggestions — and you can reference them either way.
-- (pending) Plan templates now include an Acceptance section so reviews check work against explicit pass/fail criteria.
+- Plan templates now include an Acceptance section so reviews check work against explicit pass/fail criteria.
 - (pending) Find things faster: filter status by type or version, and search titles, notes, and plans from the CLI.
 
 ## v0.15.0 — 2026-07-23

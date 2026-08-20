@@ -59,12 +59,15 @@ Parent reads the plan file + linked Spec / Detailed plan once, then for **each u
 
 - Spawn a **fresh** subagent (explore or general-purpose read-only / review-focused):
   - “Does the diff satisfy this step + linked spec? List gaps or extras. No drive-by refactors.”
+- If the plan has an **✅ Acceptance** section, paste it into the prompt and have the reviewer
+  judge the diff against those pass/fail criteria, not just the step text.
 - If gaps: re-dispatch implementer to fix; re-review until clean.
 
 ### D. Code quality review
 
 - Spawn a **fresh** reviewer after spec is ✅:
   - correctness edge cases, naming, duplication, error handling, tests quality
+  - any “Fails if” lines in the plan's **✅ Acceptance** section are hard blockers
 - If issues: implementer fixes; re-review until approved.
 
 ### E. Parent verification + roadmap

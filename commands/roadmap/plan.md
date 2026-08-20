@@ -28,8 +28,9 @@ Follow the skill's intake phase:
      Every type defaults to `internal` when unset, so nothing reaches the public changelog
      without an explicit `public`. Internal items still appear in the public changelog only
      as one rolled-up "behind-the-scenes" line.
-5. Fill in the plan's **Target Scope**, **Architectural Blueprint**, and a checklist of
-   tiny, testable steps.
+5. Fill in the plan's **Target Scope**, **Architectural Blueprint**, **✅ Acceptance**
+   (replace the placeholder criteria with real pass/fail conditions reviewers verify
+   against), and a checklist of tiny, testable steps.
 6. If `brainstorming`/`writing-plans` produced a spec or detailed plan document, save it
    under `docs/superpowers/` and add `**Spec:**` / `**Detailed plan:**` links near the top
    of the plan file — `/roadmap:build` follows those links for the implementation detail.

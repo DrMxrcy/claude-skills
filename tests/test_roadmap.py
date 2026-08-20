@@ -64,6 +64,15 @@ def test_new_item_bug_uses_bug_template(roadmap, repo):
     assert "Symptom & Reproduction" in path.read_text()
 
 
+@pytest.mark.parametrize("type_,steps", [("feature", 2), ("bug", 3), ("refactor", 3)])
+def test_new_item_has_acceptance_section(roadmap, repo, type_, steps):
+    roadmap.init_project(repo, "P")
+    path = roadmap.new_item(repo, type_, f"Thing {type_}")
+    assert "## ✅ Acceptance" in path.read_text()
+    # Acceptance bullets must not be checkboxes, or they'd count as checklist steps.
+    assert roadmap.count_progress(path) == (0, steps)
+
+
 def test_new_item_rejects_bad_type(roadmap, repo):
     roadmap.init_project(repo, "P")
     with pytest.raises(ValueError):

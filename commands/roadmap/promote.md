@@ -17,7 +17,8 @@ Target: $ARGUMENTS
    - by substring: `python3 <roadmap.py> promote --match "<text>" --type <T> [--version V] [--note "..."] [--audience public|internal]`
    - by 1-based index: `python3 <roadmap.py> promote --index N --type <T> ...`
    - sole bullet: `python3 <roadmap.py> promote --type <T> ...`
-5. Open the new plan file the CLI printed, fill scope / blueprint / checklist (or link a
+5. Open the new plan file the CLI printed, fill scope / blueprint / ✅ Acceptance
+   (real pass/fail criteria, not the placeholders) / checklist (or link a
    Spec / Detailed plan), then continue with `/roadmap:build` / `/roadmap-build` or
    `/roadmap:next` / `/roadmap-next`.
 6. Commit the roadmap change.

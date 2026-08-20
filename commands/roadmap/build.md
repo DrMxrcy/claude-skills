@@ -44,11 +44,11 @@ For each unfinished checklist step of the current item:
 
 | Phase | Who | What |
 |---|---|---|
-| **0. Context** | Parent | Read plan + linked Spec / Detailed plan. Extract the step + acceptance criteria. |
+| **0. Context** | Parent | Read plan + linked Spec / Detailed plan. Extract the step + the plan's **✅ Acceptance** criteria (when present). |
 | **1. Research** | `explore` subagent (optional, may be background) | Map files/APIs; return paths + constraints. Read-only. |
 | **2. Implement** | **One** `general-purpose` subagent | TDD for this step only. Self-review. Report DONE / DONE_WITH_CONCERNS / BLOCKED. |
-| **3. Spec review** | Fresh subagent | Diff vs step + spec. Gaps → implementer fixes → re-review until ✅. |
-| **4. Quality review** | Fresh subagent | Correctness, tests, maintainability. Issues → fix → re-review until ✅. |
+| **3. Spec review** | Fresh subagent | Diff vs step + spec + Acceptance criteria. Gaps → implementer fixes → re-review until ✅. |
+| **4. Quality review** | Fresh subagent | Correctness, tests, maintainability; Acceptance "Fails if" lines are blockers. Issues → fix → re-review until ✅. |
 | **5. Verify + check** | **Parent only** | Run real project build/tests. On green: `python3 <roadmap.py> check --plan <id> --step <n>`, then commit code + roadmap together. |
 
 Prefer superpowers **`subagent-driven-development`** when installed — it is the same shape

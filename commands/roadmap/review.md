@@ -14,7 +14,8 @@ applied to the whole version.
    `/roadmap-build` — do not release partial work).
 2. **Spec conformance** — for each item, open its plan file and any linked **Spec** /
    **Detailed plan**. For every checklist step, verify it is *actually implemented in the
-   codebase* (not merely checked off) and matches the spec's intent. Prefer a dedicated
+   codebase* (not merely checked off) and matches the spec's intent. If the plan has an
+   **✅ Acceptance** section, verify every criterion there holds. Prefer a dedicated
    **spec-review subagent** (fresh context) per item or for the version.
    Flag anything missing, partial, or drifted from the spec.
 3. **Code review** — review the version's changes for bugs and quality:

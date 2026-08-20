@@ -155,7 +155,7 @@ On invocation, detect state and pick a phase:
    - Defer the deep design to **superpowers `brainstorming`/`writing-plans` if installed**;
      otherwise design inline.
    - `roadmap.py new --type <T> --title "<title>" [--version <V>] --note "<user-facing one-liner>" [--audience public|internal]`
-     scaffolds the plan file; then fill in scope/blueprint/checklist (tiny testable steps).
+     scaffolds the plan file; then fill in scope/blueprint/✅ Acceptance (real pass/fail criteria, not the placeholders)/checklist (tiny testable steps).
      **Titles and notes are artifacts, not chat**: write the `--title` in normal concise
      prose (≤ ~70 chars — it becomes the plan filename slug), **one concern per item** —
      never cram multiple findings into one title; make one item each (or one item with
@@ -178,7 +178,9 @@ On invocation, detect state and pick a phase:
 3. **Working an item** → Execute (**quality-first multi-agent**).
    - Read the plan file. If it links a **Spec** or **Detailed plan** (e.g. paths under
      `docs/`), open and follow those as the authoritative implementation guide — the
-     checklist is the tracking unit; the detailed plan has the how.
+     checklist is the tracking unit; the detailed plan has the how. If the plan has an
+     **✅ Acceptance** section, treat those pass/fail criteria as the definition of done and
+     pass them to the spec- and quality-review subagents to check the work against.
    - **Default protocol** (also used by `/roadmap-build … --auto`): one item at a time;
      per checklist step → optional `explore` research → **one** implementer subagent →
      **spec review** subagent → **quality review** subagent → parent runs real tests →

@@ -19,6 +19,11 @@ created: {{DATE}}
 - **Culprit:**
 - **Why:**
 
+## ✅ Acceptance
+- **Passes when:** the repro steps above no longer reproduce the symptom
+- **Passes when:** the regression test fails on the old code and passes on the fix
+- **Fails if:** <previously green test or adjacent behavior breaks>
+
 ## 🛠️ Checklist
 - [ ] Step 1: Write a reproduction test
 - [ ] Step 2: Apply the fix

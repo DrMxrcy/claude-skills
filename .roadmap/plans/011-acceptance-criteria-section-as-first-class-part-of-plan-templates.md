@@ -3,7 +3,7 @@ id: 11
 title: Acceptance criteria section as first-class part of plan templates
 type: feature
 version: 0.16.0
-status: planned
+status: done
 created: 2026-08-20
 ---
 
@@ -22,5 +22,5 @@ created: 2026-08-20
 - **Downstream impact:** import/promote-generated plans pick up new template automatically
 
 ## 🚶 Step-by-Step Checklist
-- [ ] Step 1: add Acceptance section to all three templates (2–3 example criteria lines each) -> target: templates
-- [ ] Step 2: reference the Acceptance section in SKILL.md build/review instructions; update docs/tests that assert template shape -> target: SKILL.md + tests
+- [x] Step 1: add Acceptance section to all three templates (2–3 example criteria lines each) -> target: templates
+- [x] Step 2: reference the Acceptance section in SKILL.md build/review instructions; update docs/tests that assert template shape -> target: SKILL.md + tests
