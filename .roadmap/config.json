@@ -109,11 +109,11 @@
     },
     {
       "id": 12,
-      "slug": "filtered-listing-and-search-status-type-version-filters-plus-search-and-stats-su",
+      "slug": "filtered-listing-and-search-status-type-version-filters-plus-search-and-stats-subcommands",
       "title": "Filtered listing and search: status --type/--version filters, plus search and stats subcommands",
       "type": "feature",
       "version": "0.16.0",
-      "file": "plans/012-filtered-listing-and-search-status-type-version-filters-plus-search-and-stats-su.md",
+      "file": "plans/012-filtered-listing-and-search-status-type-version-filters-plus-search-and-stats-subcommands.md",
       "note": "Find things faster: filter status by type or version, and search titles, notes, and plans from the CLI.",
       "audience": "public"
     },
