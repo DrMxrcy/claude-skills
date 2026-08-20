@@ -19,9 +19,9 @@
 
 ### [x] v0.15.0 — 100% · 6 items · shipped 2026-07-23 ([history](CHANGELOG.internal.md))
 
-### [ ] v0.16.0 — 42%
+### [ ] v0.16.0 — 50%
 - [x] **#8 Auto-release nudge: when current version hits 100%, prompt or auto-run roadmap release before starting next version** `feature` — 100% ([plan](.roadmap/plans/008-auto-release-nudge-when-current-version-hits-100-prompt-or-auto-run-roadmap-release-before-starting-next-version.md))
-- [ ] **#10 Typed human-readable ID prefixes (TSK-42, BUG-7) as display layer over int ids** `feature` — 50% ([plan](.roadmap/plans/010-typed-human-readable-id-prefixes-tsk-42-bug-7-as-display-layer-over-int-ids.md))
+- [x] **#10 Typed human-readable ID prefixes (TSK-42, BUG-7) as display layer over int ids** `feature` — 100% ([plan](.roadmap/plans/010-typed-human-readable-id-prefixes-tsk-42-bug-7-as-display-layer-over-int-ids.md))
 - [ ] **#11 Acceptance criteria section as first-class part of plan templates** `feature` — 0% ([plan](.roadmap/plans/011-acceptance-criteria-section-as-first-class-part-of-plan-templates.md))
 - [ ] **#12 Filtered listing and search: status --type/--version filters, plus search and stats subcommands** `feature` — 0% ([plan](.roadmap/plans/012-filtered-listing-and-search-status-type-version-filters-plus-search-and-stats-subcommands.md))
 - [ ] **#13 promote leaves the incubator notes-link text in the promoted item title and slug** `bug` — 0% ([plan](.roadmap/plans/013-promote-leaves-the-incubator-notes-link-text-in-the-promoted-item-title-and-slug.md))

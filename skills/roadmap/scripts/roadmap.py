@@ -11,7 +11,8 @@ from rmlib.core import (  # noqa: E402  (re-exported so callers/tests keep roadm
     TEMPLATES_DIR, AUTO_START, AUTO_END, RULES_START, RULES_END, RULES_BLOCK,
     RULES_FILES, get_version, roadmap_dir, find_root, atomic_write, read_config,
     write_config, slugify, _render_template, _version_from_pyproject,
-    detect_version, derive_status, display_id, TYPE_PREFIX, _set_frontmatter,
+    detect_version, derive_status, display_id, TYPE_PREFIX, resolve_id,
+    resolve_ids, ID_HELP, IDS_HELP, _set_frontmatter,
     _norm_version, _version_key)
 
 
@@ -68,7 +69,8 @@ __all__ = [  # public facade: names re-exported for callers/tests/hooks (roadmap
     'RULES_BLOCK', 'RULES_FILES', 'get_version', 'roadmap_dir',
     'find_root', 'atomic_write', 'read_config', 'write_config', 'slugify',
     '_render_template', '_version_from_pyproject', 'detect_version',
-    'derive_status', 'display_id', 'TYPE_PREFIX', '_set_frontmatter',
+    'derive_status', 'display_id', 'TYPE_PREFIX', 'resolve_id', 'resolve_ids',
+    'ID_HELP', 'IDS_HELP', '_set_frontmatter',
     '_norm_version', '_version_key',
     '_incomplete_deps', '_item_done', '_next_current_version',
     '_progress_map', '_version_complete', 'incomplete_deps', 'next_item',
@@ -136,13 +138,13 @@ def main(argv: list[str]) -> int:
                        help="save a public note even if it reads like a status dump")
 
     p_note = sub.add_parser("note")
-    p_note.add_argument("--plan", type=int, required=True)
+    p_note.add_argument("--plan", required=True, help=ID_HELP)
     p_note.add_argument("--text", required=True)
     p_note.add_argument("--force", action="store_true",
                         help="save a public note even if it reads like a status dump")
 
     p_aud = sub.add_parser("audience")
-    p_aud.add_argument("--plan", type=int, required=True)
+    p_aud.add_argument("--plan", required=True, help=ID_HELP)
     p_aud.add_argument("--to", required=True, choices=["public", "internal"])
     p_aud.add_argument("--force", action="store_true",
                        help="set public even if the item trips wrong-audience tells")
@@ -158,7 +160,7 @@ def main(argv: list[str]) -> int:
                        help="save even if the text reads like a status dump")
 
     p_check = sub.add_parser("check")
-    p_check.add_argument("--plan", type=int, required=True)
+    p_check.add_argument("--plan", required=True, help=ID_HELP)
     p_check.add_argument("--step", type=int)
     p_check.add_argument("--undo", action="store_true")
     p_check.add_argument("--all-done", action="store_true", dest="all_done")
@@ -208,7 +210,7 @@ def main(argv: list[str]) -> int:
 
     p_deps = sub.add_parser("deps-check",
                             help="warn if a plan's dependsOn targets are incomplete")
-    p_deps.add_argument("--plan", type=int, required=True)
+    p_deps.add_argument("--plan", required=True, help=ID_HELP)
     p_deps.add_argument("--force", action="store_true")
 
     sub.add_parser("sync")
@@ -228,19 +230,19 @@ def main(argv: list[str]) -> int:
 
     p_re = sub.add_parser("reorder")
     p_re.add_argument("--version", required=True)
-    p_re.add_argument("--order", required=True)
+    p_re.add_argument("--order", required=True, help=IDS_HELP)
 
     p_mg = sub.add_parser("merge")
-    p_mg.add_argument("--into", type=int, required=True)
-    p_mg.add_argument("--from", dest="sources", required=True)
+    p_mg.add_argument("--into", required=True, help=ID_HELP)
+    p_mg.add_argument("--from", dest="sources", required=True, help=IDS_HELP)
 
     p_dep = sub.add_parser("depends")
-    p_dep.add_argument("--plan", type=int, required=True)
-    p_dep.add_argument("--on", default="")
+    p_dep.add_argument("--plan", required=True, help=ID_HELP)
+    p_dep.add_argument("--on", default="", help=IDS_HELP)
     p_dep.add_argument("--clear", action="store_true")
 
     p_rm = sub.add_parser("remove")
-    p_rm.add_argument("--plan", type=int, required=True)
+    p_rm.add_argument("--plan", required=True, help=ID_HELP)
 
     p_idea = sub.add_parser("idea")
     p_idea.add_argument("--title", required=True)
@@ -259,10 +261,17 @@ def main(argv: list[str]) -> int:
     p_rt = sub.add_parser("retarget")
     p_rt.add_argument("--to", required=True)
     p_rt.add_argument("--from", dest="from_versions", default="")
-    p_rt.add_argument("--plan", dest="plan_ids", default="")
+    p_rt.add_argument("--plan", dest="plan_ids", default="", help=IDS_HELP)
 
     args = parser.parse_args(argv)
     root = find_root(Path.cwd())
+
+    def rid(token: str) -> int:      # one shared resolver for every id-taking arg
+        return resolve_id(read_config(root), token)
+
+    def rids(tokens: str) -> list[int]:
+        return resolve_ids(read_config(root), tokens)
+
     try:
         if args.command == "init":
             init_project(root, args.name, adopt=args.adopt, claude_md=args.claude_md)
@@ -274,17 +283,18 @@ def main(argv: list[str]) -> int:
             print(path)
             return 0
         if args.command == "note":
-            set_note(root, args.plan, args.text, force=args.force)
+            set_note(root, rid(args.plan), args.text, force=args.force)
             return 0
         if args.command == "audience":
-            set_audience(root, args.plan, args.to, force=args.force)
+            set_audience(root, rid(args.plan), args.to, force=args.force)
             return 0
         if args.command == "summary":
             set_release_summary(root, args.version, text=args.text,
                                 clear=args.clear, force=args.force)
             return 0
         if args.command == "check":
-            check_step(root, args.plan, args.step, undo=args.undo, all_done=args.all_done)
+            check_step(root, rid(args.plan), args.step, undo=args.undo,
+                       all_done=args.all_done)
             return 0
         if args.command == "release":
             release(root, args.version, tag=args.tag, force=args.force)
@@ -311,19 +321,16 @@ def main(argv: list[str]) -> int:
                 print(format_tidy(rep))
             return 0
         if args.command == "reorder":
-            reorder(root, args.version, [int(x) for x in args.order.split(",") if x.strip()])
+            reorder(root, args.version, rids(args.order))
             return 0
         if args.command == "merge":
-            merge_items(root, args.into,
-                        [int(x) for x in args.sources.split(",") if x.strip()])
+            merge_items(root, rid(args.into), rids(args.sources))
             return 0
         if args.command == "depends":
-            set_depends(root, args.plan,
-                        [int(x) for x in args.on.split(",") if x.strip()],
-                        clear=args.clear)
+            set_depends(root, rid(args.plan), rids(args.on), clear=args.clear)
             return 0
         if args.command == "remove":
-            remove_item(root, args.plan)
+            remove_item(root, rid(args.plan))
             return 0
         if args.command == "idea":
             body = args.body
@@ -387,14 +394,15 @@ def main(argv: list[str]) -> int:
                 print(msg)
             return 0
         if args.command == "deps-check":
-            blocked = warn_incomplete_deps(root, args.plan, force=args.force)
+            plan_id = rid(args.plan)
+            blocked = warn_incomplete_deps(root, plan_id, force=args.force)
             if args.force or not blocked:
-                print(f"#{args.plan}: ok" + (" (force)" if args.force and blocked else ""))
+                print(f"#{plan_id}: ok" + (" (force)" if args.force and blocked else ""))
             return 0
         if args.command == "retarget":
             retarget(root, args.to,
                      from_versions=[v for v in args.from_versions.split(",") if v.strip()] or None,
-                     plan_ids=[int(x) for x in args.plan_ids.split(",") if x.strip()] or None)
+                     plan_ids=rids(args.plan_ids) or None)
             return 0
         if args.command == "changelog":
             if args.backfill:

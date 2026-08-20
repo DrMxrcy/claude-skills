@@ -1471,6 +1471,67 @@ def test_display_ids_stay_out_of_generated_files(roadmap, repo):
     assert "BUG-1" not in (repo / "CHANGELOG.internal.md").read_text()
 
 
+def _two_items(roadmap, repo):
+    """A feature (#1) and a bug (#2) — FEAT-1 / BUG-2."""
+    roadmap.init_project(repo, "P", claude_md=False)
+    roadmap.new_item(repo, "feature", "Auth")
+    roadmap.new_item(repo, "bug", "Crash on save")
+    return roadmap.read_config(repo)
+
+
+def test_resolve_id_accepts_bare_hash_and_typed_forms(roadmap, repo):
+    cfg = _two_items(roadmap, repo)
+    for token in ("2", " 2 ", "#2", "BUG-2", "bug-2", "Bug-2", "ITEM-2", "item-2"):
+        assert roadmap.resolve_id(cfg, token) == 2
+    assert roadmap.resolve_id(cfg, "FEAT-1") == 1
+    assert roadmap.resolve_id(cfg, 2) == 2                  # ints pass through
+    assert roadmap.resolve_ids(cfg, "1, BUG-2 ,#1") == [1, 2, 1]
+    assert roadmap.resolve_ids(cfg, "") == []
+
+
+def test_resolve_id_wrong_prefix_names_the_right_id(roadmap, repo):
+    cfg = _two_items(roadmap, repo)
+    with pytest.raises(ValueError) as e:
+        roadmap.resolve_id(cfg, "FEAT-2")
+    assert "no feature #2" in str(e.value) and "BUG-2" in str(e.value)
+
+
+def test_resolve_id_unknown_and_malformed(roadmap, repo):
+    cfg = _two_items(roadmap, repo)
+    assert roadmap.resolve_id(cfg, "99") == 99              # existing error path
+    with pytest.raises(ValueError, match="no plan with id 99"):
+        roadmap.resolve_id(cfg, "BUG-99")
+    for bad in ("abc", "XYZ-1", "", "1.2", "#"):
+        with pytest.raises(ValueError):
+            roadmap.resolve_id(cfg, bad)
+
+
+def test_cli_id_args_accept_typed_forms(roadmap, repo, monkeypatch):
+    monkeypatch.chdir(repo)
+    _two_items(roadmap, repo)
+    assert roadmap.main(["check", "--plan", "BUG-2", "--step", "1"]) == 0
+    assert roadmap.count_progress(repo / ".roadmap/plans/002-crash-on-save.md")[0] == 1
+    assert roadmap.main(["audience", "--plan", "bug-2", "--to", "internal"]) == 0
+    assert roadmap.main(["note", "--plan", "#2", "--text", "Fixed a crash."]) == 0
+    assert roadmap.main(["depends", "--plan", "feat-1", "--on", "BUG-2"]) == 0
+    bug = next(i for i in roadmap.read_config(repo)["items"] if i["id"] == 2)
+    assert bug["audience"] == "internal" and bug["note"] == "Fixed a crash."
+    item = next(i for i in roadmap.read_config(repo)["items"] if i["id"] == 1)
+    assert item["dependsOn"] == [2]
+    assert roadmap.main(["retarget", "--to", "0.2.0", "--plan", "ITEM-1"]) == 0
+    assert roadmap.main(["remove", "--plan", "FEAT-1"]) == 0
+    assert [i["id"] for i in roadmap.read_config(repo)["items"]] == [2]
+
+
+def test_cli_wrong_prefix_errors_with_the_right_id(roadmap, repo, monkeypatch, capsys):
+    monkeypatch.chdir(repo)
+    _two_items(roadmap, repo)
+    assert roadmap.main(["check", "--plan", "FEAT-2", "--step", "1"]) == 1
+    err = capsys.readouterr().err
+    assert "no feature #2" in err and "did you mean BUG-2" in err
+    assert roadmap.count_progress(repo / ".roadmap/plans/002-crash-on-save.md")[0] == 0
+
+
 def test_warn_incomplete_deps(roadmap, repo, capsys):
     roadmap.init_project(repo, "P", claude_md=False)
     roadmap.new_item(repo, "feature", "A")

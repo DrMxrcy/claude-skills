@@ -165,6 +165,41 @@ def display_id(item: dict) -> str:
     return f"{TYPE_PREFIX.get(item.get('type'), 'ITEM')}-{item['id']}"
 
 
+ID_HELP = "item id — 7, #7 or BUG-7"
+IDS_HELP = "comma-separated item ids — 7,#8,BUG-9"
+_ID_RE = re.compile(r"^(?:#|(?P<prefix>[A-Za-z]+)-)?(?P<num>\d+)$")
+
+
+def resolve_id(cfg: dict, token: str | int) -> int:
+    """Turn a user-typed item id (`7`, `#7`, `BUG-7`, case-insensitive) into the
+    int id. A typed prefix must match the item's actual type; `ITEM-` matches any.
+    Unknown numbers pass through so the caller raises its own 'no plan' error."""
+    if isinstance(token, int):
+        return token
+    m = _ID_RE.match(str(token).strip())
+    if not m:
+        raise ValueError(f"bad item id {token!r} — use 7, #7 or BUG-7")
+    num = int(m.group("num"))
+    prefix = (m.group("prefix") or "").upper()
+    if not prefix or prefix == "ITEM":
+        return num
+    want = next((t for t, p in TYPE_PREFIX.items() if p == prefix), None)
+    if want is None:
+        raise ValueError(f"unknown id prefix {prefix!r} — use "
+                         + "/".join(TYPE_PREFIX.values()) + " or ITEM")
+    item = next((i for i in cfg.get("items", []) if i.get("id") == num), None)
+    if item is None:
+        raise ValueError(f"no plan with id {num}")
+    if item.get("type") != want:
+        raise ValueError(f"no {want} #{num} — did you mean {display_id(item)}?")
+    return num
+
+
+def resolve_ids(cfg: dict, tokens: str) -> list[int]:
+    """Same as resolve_id for a comma-separated list (empty string -> [])."""
+    return [resolve_id(cfg, t) for t in tokens.split(",") if t.strip()]
+
+
 def derive_status(done: int, total: int) -> str:
     if total > 0 and done == total:
         return "done"

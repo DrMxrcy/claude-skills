@@ -226,6 +226,7 @@ On invocation, detect state and pick a phase:
      `settings.collapseShipped: false` in `.roadmap/config.json`.
 
 ## Command reference
+Anywhere a command takes `--plan ID` (or an id list), the id may be `7`, `#7`, or its typed display id `FEAT-7` / `BUG-7` / `REF-7` / `CHORE-7` (case-insensitive; `ITEM-7` matches any type).
 - `init [--name N] [--adopt]` — scaffold (adopt = existing repo, non-destructive)
 - `new --type T --title "..." [--version V] [--note "..."] [--audience public|internal]` — scaffold + register a plan
 - `idea --title "..." [--body "..." | --body-file PATH]` — park an idea: one incubator bullet; a body becomes a linked `.roadmap/notes/` file
