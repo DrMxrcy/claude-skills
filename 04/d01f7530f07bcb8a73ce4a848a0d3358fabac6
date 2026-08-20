@@ -1,0 +1,39 @@
+skills/roadmap/scripts/roadmap.py
+  s_2a7c3c33a9c34b::t_be18744ac86b4c 458-466
+  s_2a7c3c33a9c34b::t_8ee852b72a52f9 99
+  s_2a7c3c33a9c34b::t_1f47aec671ce4e 182-187
+  s_2a7c3c33a9c34b::t_c7bb2e56721681 59
+tests/test_roadmap.py
+  s_2a7c3c33a9c34b::t_91accd4832f5ce 1502-1534,1536-1568
+  s_2a7c3c33a9c34b::t_c588404ffa650a 1535
+skills/roadmap/scripts/rmlib/incubator.py
+  s_2a7c3c33a9c34b::t_18180dd0f26e3a 279-282
+  s_2a7c3c33a9c34b::t_17dcbb71f467de 292-293
+skills/roadmap/scripts/rmlib/report.py
+  s_2a7c3c33a9c34b::t_9fd3382a326d89 183-197,200-204,206-228
+  s_2a7c3c33a9c34b::t_02522c9de40a7e 198-199
+  s_2a7c3c33a9c34b::t_f64fb8dda13ef7 11-12
+  s_2a7c3c33a9c34b::t_f1672c8bfee8f7 205
+.roadmap/config.json
+  s_2a7c3c33a9c34b::t_3b36e4d7b042ab 135
+.roadmap/plans/012-filtered-listing-and-search-status-type-version-filters-plus-search-and-stats-subcommands.md
+  s_2a7c3c33a9c34b::t_66ac3e5e75e4bd 26
+ROADMAP.md
+  s_2a7c3c33a9c34b::t_8aaf9a9077254f 22,26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "04d01f7530f07bcb8a73ce4a848a0d3358fabac6",
+  "prompts": {},
+  "sessions": {
+    "s_2a7c3c33a9c34b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8aefaeb3-b160-465a-8409-ad009a603f36",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
