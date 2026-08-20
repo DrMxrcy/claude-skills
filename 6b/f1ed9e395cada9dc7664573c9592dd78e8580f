@@ -1,0 +1,51 @@
+skills/roadmap/SKILL.md
+  s_2a7c3c33a9c34b::t_cc53b3982d3a91 181-183
+  s_2a7c3c33a9c34b::t_e59a46e262b111 158
+commands/roadmap/promote.md
+  s_2a7c3c33a9c34b::t_5c8a3bd4ce66fe 20-21
+commands/roadmap/review.md
+  s_2a7c3c33a9c34b::t_df56d7b8fe62a4 17-18
+skills/roadmap/templates/feature-plan.md
+  s_2a7c3c33a9c34b::t_584329d7c504b2 23-27
+skills/roadmap/references/quality-build.md
+  s_2a7c3c33a9c34b::t_2036ab289646d3 62-63
+  s_2a7c3c33a9c34b::t_627f5c507ef79c 70
+skills/roadmap/templates/bug-investigation.md
+  s_2a7c3c33a9c34b::t_5a6b77c37e0a0d 22-26
+tests/test_roadmap.py
+  s_2a7c3c33a9c34b::t_091cc09695626a 67-75
+skills/roadmap/templates/refactor-debt.md
+  s_2a7c3c33a9c34b::t_e36e0c2ffc80f1 23-25
+  s_2a7c3c33a9c34b::t_12c4b2f956fd1a 22,26
+commands/roadmap/build.md
+  s_2a7c3c33a9c34b::t_ad60d233b0283b 47
+  s_2a7c3c33a9c34b::t_04d1ad20d567d3 50-51
+commands/roadmap/plan.md
+  s_2a7c3c33a9c34b::t_95d78823641971 31-33
+.roadmap/config.json
+  s_2a7c3c33a9c34b::t_ba6c5c43d16c68 135
+.roadmap/plans/011-acceptance-criteria-section-as-first-class-part-of-plan-templates.md
+  s_2a7c3c33a9c34b::t_f8bbe2c37b1ceb 6,25-26
+CHANGELOG.internal.md
+  s_2a7c3c33a9c34b::t_c3941bd9871d45 10
+CHANGELOG.md
+  s_2a7c3c33a9c34b::t_3c9c0efbb34683 7
+ROADMAP.md
+  s_2a7c3c33a9c34b::t_f48722bdfd8a30 22,25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "6bf1ed9e395cada9dc7664573c9592dd78e8580f",
+  "prompts": {},
+  "sessions": {
+    "s_2a7c3c33a9c34b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8aefaeb3-b160-465a-8409-ad009a603f36",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
