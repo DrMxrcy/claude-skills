@@ -1,0 +1,47 @@
+skills/roadmap/scripts/roadmap.py
+  s_2a7c3c33a9c34b::t_2f5939c701abf4 14-15
+  s_2a7c3c33a9c34b::t_e321cc73db1dc8 427
+  s_2a7c3c33a9c34b::t_34d0dedc45936e 352
+  s_2a7c3c33a9c34b::t_a5c15b235c9f59 71-72
+tests/test_roadmap.py
+  s_2a7c3c33a9c34b::t_c24e8b4bbaaf2a 1465-1466
+  s_2a7c3c33a9c34b::t_e0d0ccbd91afe7 1426-1464,1467-1471
+tests/test_roadmap_serve.py
+  s_2a7c3c33a9c34b::t_da57623f1a17d7 72-78
+skills/roadmap/scripts/rmlib/dashboard.html
+  s_2a7c3c33a9c34b::t_55c9971bb60eb6 136
+  s_2a7c3c33a9c34b::t_51c8972c522228 187
+  s_2a7c3c33a9c34b::t_7839720468f078 137
+skills/roadmap/scripts/rmlib/sync.py
+  s_2a7c3c33a9c34b::t_fd4a73724e159e 232-233
+  s_2a7c3c33a9c34b::t_c87d0a1f17faf6 10-11
+  s_2a7c3c33a9c34b::t_3e4ea8d0664557 307,311,315
+skills/roadmap/scripts/rmlib/report.py
+  s_2a7c3c33a9c34b::t_809d1a17cfe245 128-129
+  s_2a7c3c33a9c34b::t_3c79dc141af5ce 8
+  s_2a7c3c33a9c34b::t_e0fb9e14f56833 105-106
+skills/roadmap/scripts/rmlib/core.py
+  s_2a7c3c33a9c34b::t_414c2f6d22cbd1 159-167
+.roadmap/config.json
+  s_2a7c3c33a9c34b::t_e9875bad90d6de 135
+.roadmap/plans/010-typed-human-readable-id-prefixes-tsk-42-bug-7-as-display-layer-over-int-ids.md
+  s_2a7c3c33a9c34b::t_c8d8b76d28c65e 6,25
+ROADMAP.md
+  s_2a7c3c33a9c34b::t_cf954b45963e4f 22,24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "ab1b770c56783f0fc89c8d988afad95e2c01e6c3",
+  "prompts": {},
+  "sessions": {
+    "s_2a7c3c33a9c34b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8aefaeb3-b160-465a-8409-ad009a603f36",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
