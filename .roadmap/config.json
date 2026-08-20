@@ -1,7 +1,7 @@
 {
   "project": "claude-skills",
   "currentVersion": "0.15.0",
-  "nextId": 10,
+  "nextId": 14,
   "items": [
     {
       "id": 1,
@@ -85,6 +85,45 @@
       "version": "0.15.0",
       "file": "plans/009-internal-notes-can-leak-into-the-public-changelog-unset-audience-bugs-default-public-and-demote-tells-only-advise.md",
       "note": "The public changelog is now protected: unclassified work stays in the internal log, saving a public note requires an explicit audience, and internal-sounding wording is refused at save time.",
+      "audience": "internal"
+    },
+    {
+      "id": 10,
+      "slug": "typed-human-readable-id-prefixes-tsk-42-bug-7-as-display-layer-over-int-ids",
+      "title": "Typed human-readable ID prefixes (TSK-42, BUG-7) as display layer over int ids",
+      "type": "feature",
+      "version": "0.16.0",
+      "file": "plans/010-typed-human-readable-id-prefixes-tsk-42-bug-7-as-display-layer-over-int-ids.md",
+      "note": "Items now show friendly typed IDs like FEAT-12 and BUG-7 in status, next, and commit suggestions \u2014 and you can reference them either way.",
+      "audience": "public"
+    },
+    {
+      "id": 11,
+      "slug": "acceptance-criteria-section-as-first-class-part-of-plan-templates",
+      "title": "Acceptance criteria section as first-class part of plan templates",
+      "type": "feature",
+      "version": "0.16.0",
+      "file": "plans/011-acceptance-criteria-section-as-first-class-part-of-plan-templates.md",
+      "note": "Plan templates now include an Acceptance section so reviews check work against explicit pass/fail criteria.",
+      "audience": "public"
+    },
+    {
+      "id": 12,
+      "slug": "filtered-listing-and-search-status-type-version-filters-plus-search-and-stats-su",
+      "title": "Filtered listing and search: status --type/--version filters, plus search and stats subcommands",
+      "type": "feature",
+      "version": "0.16.0",
+      "file": "plans/012-filtered-listing-and-search-status-type-version-filters-plus-search-and-stats-su.md",
+      "note": "Find things faster: filter status by type or version, and search titles, notes, and plans from the CLI.",
+      "audience": "public"
+    },
+    {
+      "id": 13,
+      "slug": "promote-leaves-the-incubator-notes-link-text-in-the-promoted-item-title-and-slug",
+      "title": "promote leaves the incubator notes-link text in the promoted item title and slug",
+      "type": "bug",
+      "version": "0.16.0",
+      "file": "plans/013-promote-leaves-the-incubator-notes-link-text-in-the-promoted-item-title-and-slug.md",
       "audience": "internal"
     }
   ],

@@ -1,10 +1,7 @@
 # 🗺️ Roadmap: claude-skills
 
 ## 💡 Idea Incubator
-- Filtered listing and search: status --type/--version filters, plus search and stats subcommands ([notes](.roadmap/notes/2026-08-19-filtered-listing-and-search-status-type-version-filters-plus-search-and-stats-subcommands.md))
 - Optional execution metadata on check — record verify command and result per step ([notes](.roadmap/notes/2026-08-19-optional-execution-metadata-on-check-record-verify-command-and-result-per-step.md))
-- Acceptance criteria section as first-class part of plan templates ([notes](.roadmap/notes/2026-08-19-acceptance-criteria-section-as-first-class-part-of-plan-templates.md))
-- Typed human-readable ID prefixes (TSK-42, BUG-7) as display layer over int ids ([notes](.roadmap/notes/2026-08-19-typed-human-readable-id-prefixes-tsk-42-bug-7-as-display-layer-over-int-ids.md))
 <!-- Free-form; sync never rewrites this region. ONE bullet per idea (`roadmap.py idea`).
      Long write-ups (brainstorms, review findings) go to .roadmap/notes/ files and get linked. -->
 <!-- roadmap:auto:start -->
@@ -24,6 +21,10 @@
 - [ ] **#7 Serve reprints unchanged status on every file touch — skip identical payloads** `bug` — 33% ([plan](.roadmap/plans/007-serve-reprints-unchanged-status-on-every-file-touch-skip-identical-payloads.md))
 - [x] **#9 Internal notes can leak into the public changelog: unset-audience bugs default public and demote tells only advise** `bug` — 100% ([plan](.roadmap/plans/009-internal-notes-can-leak-into-the-public-changelog-unset-audience-bugs-default-public-and-demote-tells-only-advise.md))
 
-### [x] v0.16.0 — 100%
+### [ ] v0.16.0 — 36%
 - [x] **#8 Auto-release nudge: when current version hits 100%, prompt or auto-run roadmap release before starting next version** `feature` — 100% ([plan](.roadmap/plans/008-auto-release-nudge-when-current-version-hits-100-prompt-or-auto-run-roadmap-release-before-starting-next-version.md))
+- [ ] **#10 Typed human-readable ID prefixes (TSK-42, BUG-7) as display layer over int ids** `feature` — 0% ([plan](.roadmap/plans/010-typed-human-readable-id-prefixes-tsk-42-bug-7-as-display-layer-over-int-ids.md))
+- [ ] **#11 Acceptance criteria section as first-class part of plan templates** `feature` — 0% ([plan](.roadmap/plans/011-acceptance-criteria-section-as-first-class-part-of-plan-templates.md))
+- [ ] **#12 Filtered listing and search: status --type/--version filters, plus search and stats subcommands** `feature` — 0% ([plan](.roadmap/plans/012-filtered-listing-and-search-status-type-version-filters-plus-search-and-stats-su.md))
+- [ ] **#13 promote leaves the incubator notes-link text in the promoted item title and slug** `bug` — 0% ([plan](.roadmap/plans/013-promote-leaves-the-incubator-notes-link-text-in-the-promoted-item-title-and-slug.md))
 <!-- roadmap:auto:end -->
