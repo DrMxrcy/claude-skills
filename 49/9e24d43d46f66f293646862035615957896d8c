@@ -1,0 +1,59 @@
+skills/roadmap/scripts/rmlib/changelog.py
+  s_e3acd6741803be::t_0b898af4949dd6 160-162
+  s_e3acd6741803be::t_e340bd52206b2b 14-18
+  s_e3acd6741803be::t_75abe04d56fc21 339-344
+tests/test_roadmap.py
+  s_e3acd6741803be::t_b99c3bf42b1dde 383,392-393
+  s_e3acd6741803be::t_52c6a256b0e6a8 995-996,999
+  s_e3acd6741803be::t_cd762ddcbe5a97 1640-1641
+  s_e3acd6741803be::t_4eba5af426165c 1274-1276
+  s_e3acd6741803be::t_4dfeae1ca532be 948-949
+  s_e3acd6741803be::t_ed920d1d436011 1174
+  s_e3acd6741803be::t_06567f5739a0ef 1606-1607
+  s_e3acd6741803be::t_0619c23221da33 413-414
+  s_e3acd6741803be::t_b78edc3f9754f0 433
+  s_e3acd6741803be::t_0d602b1bc73fbd 818
+  s_e3acd6741803be::t_2bd52f29cd9e5c 651
+  s_e3acd6741803be::t_c0535c2613ae11 781-783,786
+  s_e3acd6741803be::t_bd57c642d3a073 792-795
+  s_e3acd6741803be::t_4c857e8ce1c531 404
+  s_e3acd6741803be::t_8f8f9c6066203b 1292
+  s_e3acd6741803be::t_936f9c03e9a976 1652
+  s_e3acd6741803be::t_3214ed855c20eb 741
+  s_e3acd6741803be::t_f0feb17b45aade 809
+  s_e3acd6741803be::t_02d556b6083acb 962-963
+  s_e3acd6741803be::t_295f6a80bf4d34 922-923
+  s_e3acd6741803be::t_e6012bde3851a0 1300
+tests/test_cli_e2e.py
+  s_e3acd6741803be::t_9e3931a8d35afc 36
+  s_e3acd6741803be::t_a6318e356f50d0 49
+  s_e3acd6741803be::t_fa2fb767efdd74 15
+skills/roadmap/scripts/rmlib/ops.py
+  s_e3acd6741803be::t_a390d458a25712 199-202,205
+  s_e3acd6741803be::t_9c0caa16b8f0f8 110-139
+  s_e3acd6741803be::t_d7e313d16454bc 161-165
+.roadmap/config.json
+  s_e3acd6741803be::t_fcb1debcfbf983 96
+.roadmap/plans/009-internal-notes-can-leak-into-the-public-changelog-unset-audience-bugs-default-public-and-demote-tells-only-advise.md
+  s_e3acd6741803be::t_fef27a218ec816 49-50
+CHANGELOG.md
+  s_e3acd6741803be::t_722ab7ca54574a 5
+ROADMAP.md
+  s_e3acd6741803be::t_dbbfdc48c18637 19,25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "499e24d43d46f66f293646862035615957896d8c",
+  "prompts": {},
+  "sessions": {
+    "s_e3acd6741803be": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8cb83a71-a653-4c69-9806-2104e371ea03",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
