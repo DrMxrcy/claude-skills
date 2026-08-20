@@ -11,7 +11,8 @@ from rmlib.core import (  # noqa: E402  (re-exported so callers/tests keep roadm
     TEMPLATES_DIR, AUTO_START, AUTO_END, RULES_START, RULES_END, RULES_BLOCK,
     RULES_FILES, get_version, roadmap_dir, find_root, atomic_write, read_config,
     write_config, slugify, _render_template, _version_from_pyproject,
-    detect_version, derive_status, _set_frontmatter, _norm_version, _version_key)
+    detect_version, derive_status, display_id, TYPE_PREFIX, _set_frontmatter,
+    _norm_version, _version_key)
 
 
 from rmlib.sync import (  # noqa: E402
@@ -67,7 +68,8 @@ __all__ = [  # public facade: names re-exported for callers/tests/hooks (roadmap
     'RULES_BLOCK', 'RULES_FILES', 'get_version', 'roadmap_dir',
     'find_root', 'atomic_write', 'read_config', 'write_config', 'slugify',
     '_render_template', '_version_from_pyproject', 'detect_version',
-    'derive_status', '_set_frontmatter', '_norm_version', '_version_key',
+    'derive_status', 'display_id', 'TYPE_PREFIX', '_set_frontmatter',
+    '_norm_version', '_version_key',
     '_incomplete_deps', '_item_done', '_next_current_version',
     '_progress_map', '_version_complete', 'incomplete_deps', 'next_item',
     'render_region', 'roadmap_health', 'status', 'sync',
@@ -347,7 +349,7 @@ def main(argv: list[str]) -> int:
             if args.as_json:
                 print(json.dumps(item, indent=2))
             else:
-                print(f"#{item['id']} {item['title']} [{item['type']}] "
+                print(f"{item['displayId']} {item['title']} [{item['type']}] "
                       f"v{item['version']} — {item['pct']}% "
                       f"(.roadmap/{item['file']})")
             return 0
@@ -422,7 +424,7 @@ def main(argv: list[str]) -> int:
                 for it in st["items"]:
                     block = (f" blocked by {it['blockedBy']}"
                              if it.get("blockedBy") else "")
-                    print(f"  #{it['id']} {it['title']} [{it['type']}] "
+                    print(f"  {it['displayId']} {it['title']} [{it['type']}] "
                           f"{it['pct']}% ({it['status']}){block}")
             for w in roadmap_health(root):
                 print(f"warning: {w}", file=sys.stderr)

@@ -1423,7 +1423,52 @@ def test_cli_next(roadmap, repo, monkeypatch, capsys):
     roadmap.new_item(repo, "feature", "Auth")
     assert roadmap.main(["next"]) == 0
     out = capsys.readouterr().out
-    assert "#1 Auth" in out
+    assert "FEAT-1 Auth" in out
+
+
+def test_display_id_prefix_per_type(roadmap, repo):
+    roadmap.init_project(repo, "P", claude_md=False)
+    for t in ("feature", "bug", "refactor", "chore"):
+        roadmap.new_item(repo, t, f"{t} work")
+    st = roadmap.status(repo)
+    assert [i["displayId"] for i in st["items"]] == [
+        "FEAT-1", "BUG-2", "REF-3", "CHORE-4"]
+    assert [i["id"] for i in st["items"]] == [1, 2, 3, 4]
+    assert roadmap.display_id({"id": 12, "type": "feature"}) == "FEAT-12"
+    assert roadmap.display_id({"id": 9, "type": "mystery"}) == "ITEM-9"
+
+
+def test_cli_status_and_next_show_display_ids(roadmap, repo, monkeypatch, capsys):
+    monkeypatch.chdir(repo)
+    roadmap.init_project(repo, "P", claude_md=False)
+    roadmap.new_item(repo, "bug", "Crash on save")
+    roadmap.new_item(repo, "feature", "Auth")
+    assert roadmap.main(["status"]) == 0
+    out = capsys.readouterr().out
+    assert "BUG-1 Crash on save" in out and "FEAT-2 Auth" in out
+    assert roadmap.main(["next"]) == 0
+    assert "BUG-1 Crash on save" in capsys.readouterr().out
+
+
+def test_orient_human_output_uses_display_id(roadmap, repo):
+    roadmap.init_project(repo, "P", claude_md=False)
+    roadmap.new_item(repo, "bug", "Crash on save")
+    payload = roadmap.orient(repo)
+    assert payload["next"]["id"] == 1                     # int id unchanged
+    text = roadmap.format_orient(payload, handoff=True)
+    assert "Next: BUG-1 Crash on save" in text
+    assert "/roadmap-build 1" in text                     # commands take the int id
+
+
+def test_display_ids_stay_out_of_generated_files(roadmap, repo):
+    roadmap.init_project(repo, "P", claude_md=False)
+    roadmap.new_item(repo, "bug", "Crash on save", note="Fixed a crash on save.",
+                     audience="public")
+    roadmap.check_step(repo, 1, None, all_done=True)
+    rm = (repo / "ROADMAP.md").read_text()
+    assert "**#1 Crash on save**" in rm and "BUG-1" not in rm
+    assert "BUG-1" not in (repo / "CHANGELOG.md").read_text()
+    assert "BUG-1" not in (repo / "CHANGELOG.internal.md").read_text()
 
 
 def test_warn_incomplete_deps(roadmap, repo, capsys):

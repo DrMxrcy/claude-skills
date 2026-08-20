@@ -69,6 +69,13 @@ def test_api_status_matches_status_fn(served):
     assert json.loads(body)["merged"] == roadmap.status(repo)
 
 
+def test_api_status_items_carry_display_id(served):
+    base, _, _ = served
+    _, _, body = _get(base + "/api/status")
+    item = json.loads(body)["merged"]["items"][0]
+    assert item["id"] == 1 and item["displayId"] == "FEAT-1"
+
+
 def test_api_item_returns_steps(served):
     base, roadmap, repo = served
     status, ctype, body = _get(base + "/api/item?id=1")

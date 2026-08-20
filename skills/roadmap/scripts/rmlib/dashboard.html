@@ -133,7 +133,8 @@ const stale = off => document.getElementById("stale").classList.toggle("off", of
 const matches = it => {
   if(!QUERY) return true;
   const q = QUERY.replace(/^#/,"");
-  return (""+it.id).includes(q) || (it.title||"").toLowerCase().includes(q);
+  return (""+it.id).includes(q) || (it.title||"").toLowerCase().includes(q)
+      || (it.displayId||"").toLowerCase().includes(q);
 };
 
 let ROOT = "all";   // "all" = merged view; otherwise a worktree index
@@ -183,7 +184,7 @@ function itemRow(it){
   row.appendChild(el("span","dot "+DOT(it.status)));
   const title = el("span","title");
   title.appendChild(txt("span","icaret", isO?"▾":"▸"));
-  title.appendChild(txt("span","num", "#"+it.id));
+  title.appendChild(txt("span","num", it.displayId || "#"+it.id));
   title.appendChild(txt("span","t", it.title));
   title.appendChild(txt("span","badge", it.type));
   if(ROOT === "all" && it.branch) title.appendChild(txt("span","badge", it.branch));

@@ -5,7 +5,7 @@ import json
 import subprocess
 from pathlib import Path
 from rmlib.core import (
-    get_version, read_config, roadmap_dir, write_config)
+    display_id, get_version, read_config, roadmap_dir, write_config)
 from rmlib.sync import (
     next_item, status)
 
@@ -102,7 +102,8 @@ def orient(root: Path) -> dict | None:
         "stepsTotal": steps_total,
         "itemsDone": items_done,
         "itemsTotal": len(in_ver),
-        "next": ({"id": nxt["id"], "title": nxt["title"], "type": nxt["type"],
+        "next": ({"id": nxt["id"], "displayId": nxt["displayId"],
+                  "title": nxt["title"], "type": nxt["type"],
                   "pct": nxt["pct"], "blockedBy": nxt.get("blockedBy") or [],
                   "file": nxt.get("file")}
                  if nxt else None),
@@ -124,7 +125,8 @@ def format_orient(payload: dict, handoff: bool = False) -> str:
     nxt = payload.get("next")
     if nxt:
         nid = nxt["id"]
-        lines.append(f"Next: #{nid} {nxt['title']} [{nxt['type']}] — {nxt['pct']}%")
+        lines.append(f"Next: {display_id(nxt)} {nxt['title']} "
+                     f"[{nxt['type']}] — {nxt['pct']}%")
         if handoff and nxt.get("file"):
             lines.append(f"Plan: .roadmap/{nxt['file']}")
         # Dual slash forms so Grok never gets colon-only recommendations

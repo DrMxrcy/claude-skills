@@ -156,6 +156,15 @@ def detect_version(root: Path) -> str:
     return "0.0.1"
 
 
+TYPE_PREFIX = {"feature": "FEAT", "bug": "BUG", "refactor": "REF", "chore": "CHORE"}
+
+
+def display_id(item: dict) -> str:
+    """Human-readable id (FEAT-12, BUG-7) for CLI/dashboard output only. The int
+    `id` stays the source of truth in config.json, ROADMAP.md, and changelogs."""
+    return f"{TYPE_PREFIX.get(item.get('type'), 'ITEM')}-{item['id']}"
+
+
 def derive_status(done: int, total: int) -> str:
     if total > 0 and done == total:
         return "done"

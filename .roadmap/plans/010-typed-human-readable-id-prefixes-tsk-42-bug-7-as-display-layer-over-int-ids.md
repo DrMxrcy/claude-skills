@@ -3,7 +3,7 @@ id: 10
 title: Typed human-readable ID prefixes (TSK-42, BUG-7) as display layer over int ids
 type: feature
 version: 0.16.0
-status: planned
+status: active
 created: 2026-08-20
 ---
 
@@ -22,5 +22,5 @@ created: 2026-08-20
 - **Downstream impact:** ROADMAP.md auto region and changelogs keep `#N` form (git-diff stability) unless trivially safe to switch
 
 ## 🚶 Step-by-Step Checklist
-- [ ] Step 1: display helper `display_id(item)` (FEAT/BUG/REF/CHORE + id) and use it in status, next, orient, handoff, serve output -> target: scripts + tests
+- [x] Step 1: display helper `display_id(item)` (FEAT/BUG/REF/CHORE + id) and use it in status, next, orient, handoff, serve output -> target: scripts + tests
 - [ ] Step 2: input resolver — `--plan` accepts `7`, `#7`, or `BUG-7` (prefix must match item type; clear error otherwise) -> target: scripts + tests

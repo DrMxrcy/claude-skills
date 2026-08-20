@@ -7,7 +7,8 @@ import sys
 from pathlib import Path
 from rmlib.core import (
     AUTO_END, AUTO_START, _norm_version, _set_frontmatter, _version_key,
-    atomic_write, derive_status, read_config, roadmap_dir, write_config)
+    atomic_write, derive_status, display_id, read_config, roadmap_dir,
+    write_config)
 from rmlib.parse import (
     count_progress)
 from rmlib.changelog import (
@@ -228,7 +229,8 @@ def status(root: Path) -> dict:
         done, total = progress.get(item["id"], (0, 0))
         pct = round(100 * done / total) if total else 0
         blocked_by = _incomplete_deps(item, progress, by_id)
-        row = {**item, "done": done, "total": total, "pct": pct,
+        row = {**item, "displayId": display_id(item),
+               "done": done, "total": total, "pct": pct,
                "status": derive_status(done, total),
                "dependsOn": list(item.get("dependsOn") or []),
                "blockedBy": blocked_by}
@@ -302,15 +304,15 @@ def next_item(root: Path, version: str | None = None,
     for item in candidates:
         blocked = item.get("blockedBy") or []
         if blocked and not force:
-            skipped.append((item["id"], blocked))
+            skipped.append((item["displayId"], blocked))
             continue
         if skipped and not quiet:
             for sid, deps in skipped:
-                print(f"skipping #{sid} (blocked by {deps})", file=sys.stderr)
+                print(f"skipping {sid} (blocked by {deps})", file=sys.stderr)
         return item
     if skipped and not quiet:
         for sid, deps in skipped:
-            print(f"skipping #{sid} (blocked by {deps})", file=sys.stderr)
+            print(f"skipping {sid} (blocked by {deps})", file=sys.stderr)
         print(f"no unblocked unfinished items in v{ver}", file=sys.stderr)
         return None
     return None
