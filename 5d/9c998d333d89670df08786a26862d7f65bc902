@@ -1,0 +1,29 @@
+skills/roadmap/scripts/roadmap.py
+  s_2a7c3c33a9c34b::t_9bc2d9629f2311 175-179
+  s_2a7c3c33a9c34b::t_aa09819b281624 433,435-438
+  s_2a7c3c33a9c34b::t_9fadb0f761c627 434
+tests/test_roadmap.py
+  s_2a7c3c33a9c34b::t_3d94060f46fd59 1462-1501
+.roadmap/config.json
+  s_2a7c3c33a9c34b::t_3cb8cf4e9cbd1b 135
+.roadmap/plans/012-filtered-listing-and-search-status-type-version-filters-plus-search-and-stats-subcommands.md
+  s_2a7c3c33a9c34b::t_40e13e0303eafa 6,25
+ROADMAP.md
+  s_2a7c3c33a9c34b::t_a860794a0b9362 22,26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "5d9c998d333d89670df08786a26862d7f65bc902",
+  "prompts": {},
+  "sessions": {
+    "s_2a7c3c33a9c34b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8aefaeb3-b160-465a-8409-ad009a603f36",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
