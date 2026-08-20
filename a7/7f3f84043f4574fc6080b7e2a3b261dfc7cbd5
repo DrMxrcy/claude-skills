@@ -1,0 +1,35 @@
+skills/roadmap/scripts/rmlib/sync.py
+  s_2a7c3c33a9c34b::t_2f268013b3e68b 240-243,246
+  s_2a7c3c33a9c34b::t_af5f53db160afd 7
+skills/roadmap/SKILL.md
+  s_2a7c3c33a9c34b::t_779cd7d3528b79 261
+  s_2a7c3c33a9c34b::t_e80b08271bdae6 262
+tests/test_roadmap.py
+  s_2a7c3c33a9c34b::t_3c0a50fdd4b3e6 1485-1491
+.roadmap/config.json
+  s_2a7c3c33a9c34b::t_07ab5c6f7b7009 135
+.roadmap/plans/012-filtered-listing-and-search-status-type-version-filters-plus-search-and-stats-subcommands.md
+  s_2a7c3c33a9c34b::t_f25762e667a7dd 6,27
+CHANGELOG.internal.md
+  s_2a7c3c33a9c34b::t_5e22483ad3bb3c 11
+CHANGELOG.md
+  s_2a7c3c33a9c34b::t_addb8b2f3832f0 8
+ROADMAP.md
+  s_2a7c3c33a9c34b::t_ef083bb856cc14 22,26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "a77f3f84043f4574fc6080b7e2a3b261dfc7cbd5",
+  "prompts": {},
+  "sessions": {
+    "s_2a7c3c33a9c34b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8aefaeb3-b160-465a-8409-ad009a603f36",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
