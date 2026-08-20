@@ -4,6 +4,7 @@ Layer: rmcore + rmparse + rmchangelog."""
 from __future__ import annotations
 import datetime
 import sys
+from collections import Counter
 from pathlib import Path
 from rmlib.core import (
     AUTO_END, AUTO_START, _norm_version, _set_frontmatter, _version_key,
@@ -236,9 +237,13 @@ def status(root: Path) -> dict:
                "blockedBy": blocked_by}
         items.append(row)
     cur_items = [i for i in cfg["items"] if i["version"] == cfg["currentVersion"]]
+    # Counts cover every item — callers may filter `items`, the summary stays global.
+    counts = {key: dict(Counter(i[field] for i in items))
+              for key, field in (("byType", "type"), ("byStatus", "status"),
+                                 ("byVersion", "version"))}
     return {"project": cfg["project"], "currentVersion": cfg["currentVersion"],
             "versionComplete": _version_complete(cur_items, progress),
-            "items": items}
+            "counts": counts, "items": items}
 
 
 def _item_done(progress: dict[int, tuple[int, int]], plan_id: int) -> bool:

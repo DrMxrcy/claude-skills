@@ -258,7 +258,8 @@ Anywhere a command takes `--plan ID` (or an id list), the id may be `7`, `#7`, o
   `.roadmap/config.json` controls it: `"nudge"` (default) prints the reminder, `"auto"`
   runs the release itself (target = the later version being started, else the lowest
   existing version above current; never invents a number), `"off"` disables the gate.
-- `status [--json]` — print current state (shows `blocked by […]` when deps incomplete)
+- `status [--type T] [--version V] [--status S] [--json]` — print current state (shows `blocked by […]` when deps incomplete); all given filters must match, and they narrow the item list only; `--json` also includes `counts` (`byType`/`byStatus`/`byVersion`) computed across all items regardless of filters
+- `search <text> [--json]` — case-insensitive substring search across item titles, notes, plan bodies and the Idea Incubator
 - `import PATH` — extract checklist lines from a file into a plan
 
 ## Optional automation

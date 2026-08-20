@@ -8,7 +8,7 @@ _Full work log — every item, including internal/dev work. The curated public c
 - Finished versions get cut automatically: when every item in the current version is done, the roadmap offers (or runs) the release for you before new work starts.
 - Items now show friendly typed IDs like FEAT-12 and BUG-7 in status, next, and commit suggestions — and you can reference them either way.
 - Plan templates now include an Acceptance section so reviews check work against explicit pass/fail criteria.
-- (pending) Find things faster: filter status by type or version, and search titles, notes, and plans from the CLI.
+- Find things faster: filter status by type or version, and search titles, notes, and plans from the CLI.
 
 ### 🐛 Fixed
 - (pending) promote leaves the incubator notes-link text in the promoted item title and slug

@@ -1482,7 +1482,13 @@ def test_status_filters_narrow_items_text_and_json(roadmap, repo, monkeypatch, c
     assert [i["displayId"] for i in payload["items"]] == ["BUG-4"]
     # summary header stays global regardless of filters
     assert payload["currentVersion"] == roadmap.read_config(repo)["currentVersion"]
-    assert set(payload) == {"project", "currentVersion", "versionComplete", "items"}
+    assert set(payload) == {"project", "currentVersion", "versionComplete",
+                            "counts", "items"}
+    # counts stay global even though the item list is filtered down to one row
+    assert payload["counts"]["byType"] == {"bug": 2, "feature": 1, "chore": 1}
+    assert payload["counts"]["byStatus"] == {"planned": 3, "done": 1}
+    assert payload["counts"]["byVersion"] == {
+        roadmap.read_config(repo)["currentVersion"]: 2, "0.15.0": 2}
 
     assert roadmap.main(["status", "--version", "v0.15.0", "--type", "chore"]) == 0
     out = capsys.readouterr().out
