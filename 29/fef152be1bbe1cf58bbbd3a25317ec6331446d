@@ -1,0 +1,25 @@
+.roadmap/config.json
+  s_e3acd6741803be::t_1400783106f0d2 96
+.roadmap/plans/009-internal-notes-can-leak-into-the-public-changelog-unset-audience-bugs-default-public-and-demote-tells-only-advise.md
+  s_e3acd6741803be::t_89833b94c7ab43 6,52
+CHANGELOG.internal.md
+  s_e3acd6741803be::t_7f7add212499b8 20
+ROADMAP.md
+  s_e3acd6741803be::t_1bfd6824b89312 19,25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "29fef152be1bbe1cf58bbbd3a25317ec6331446d",
+  "prompts": {},
+  "sessions": {
+    "s_e3acd6741803be": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8cb83a71-a653-4c69-9806-2104e371ea03",
+        "model": "unknown"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
