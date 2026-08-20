@@ -1,6 +1,10 @@
 # 🗺️ Roadmap: claude-skills
 
 ## 💡 Idea Incubator
+- Split roadmap discipline rules into individually loadable principle skills ([notes](.roadmap/notes/2026-08-20-split-roadmap-discipline-rules-into-individually-loadable-principle-skills.md))
+- Per-role model mapping setting for the quality-first build loop ([notes](.roadmap/notes/2026-08-20-per-role-model-mapping-setting-for-the-quality-first-build-loop.md))
+- Completion-promise gate: parent greps an explicit done marker before allowing check ([notes](.roadmap/notes/2026-08-20-completion-promise-gate-parent-greps-an-explicit-done-marker-before-allowing-check.md))
+- Schema-validated install manifest + CI validate script for cross-agent installs ([notes](.roadmap/notes/2026-08-20-schema-validated-install-manifest-ci-validate-script-for-cross-agent-installs.md))
 - Optional execution metadata on check — record verify command and result per step ([notes](.roadmap/notes/2026-08-19-optional-execution-metadata-on-check-record-verify-command-and-result-per-step.md))
 <!-- Free-form; sync never rewrites this region. ONE bullet per idea (`roadmap.py idea`).
      Long write-ups (brainstorms, review findings) go to .roadmap/notes/ files and get linked. -->
