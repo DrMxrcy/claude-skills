@@ -1,0 +1,37 @@
+.roadmap/plans/013-promote-leaves-the-incubator-notes-link-text-in-the-promoted-item-title-and-slug.md
+  s_2a7c3c33a9c34b::t_97e0f0c3d95c5a 1-9,11-12,17,23
+  s_2a7c3c33a9c34b::t_519e59cfbea2ff 10,13-16,18-22,24-25
+.roadmap/plans/012-filtered-listing-and-search-status-type-version-filters-plus-search-and-stats-su.md
+  s_2a7c3c33a9c34b::t_43060cca60e7a2 1-25
+.roadmap/config.json
+  s_2a7c3c33a9c34b::t_97e0f0c3d95c5a 4,119-127
+  s_2a7c3c33a9c34b::t_43060cca60e7a2 92-93,96,102-103,106,112-113,116,142
+  s_2a7c3c33a9c34b::t_5f85a18969d184 89-91,94-95,97-101,104-105,107-111,114-115,117-118
+.roadmap/plans/011-acceptance-criteria-section-as-first-class-part-of-plan-templates.md
+  s_2a7c3c33a9c34b::t_252d842e37a2d8 12,15-16,19-22,25-26
+  s_2a7c3c33a9c34b::t_43060cca60e7a2 1-11,13-14,17-18,23-24
+ROADMAP.md
+  s_2a7c3c33a9c34b::t_43060cca60e7a2 26-28
+  s_2a7c3c33a9c34b::t_97e0f0c3d95c5a 24,29
+.roadmap/plans/010-typed-human-readable-id-prefixes-tsk-42-bug-7-as-display-layer-over-int-ids.md
+  s_2a7c3c33a9c34b::t_43060cca60e7a2 1-11,13-14,17-18,23-24
+  s_2a7c3c33a9c34b::t_3c90669b5b47dd 12,15-16,19-22,25-26
+.roadmap/plans/012-filtered-listing-and-search-status-type-version-filters-plus-search-and-stats-subcommands.md
+  s_2a7c3c33a9c34b::t_3ea4fd0f2b097c 1-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "3e77fee98e292fd4278370000bac47101c06f88f",
+  "prompts": {},
+  "sessions": {
+    "s_2a7c3c33a9c34b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8aefaeb3-b160-465a-8409-ad009a603f36",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
