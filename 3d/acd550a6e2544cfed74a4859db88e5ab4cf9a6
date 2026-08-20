@@ -1,0 +1,37 @@
+tests/test_roadmap.py
+  s_2a7c3c33a9c34b::t_48bcbdb6809703 1697-1717
+skills/roadmap/scripts/rmlib/ops.py
+  s_2a7c3c33a9c34b::t_b9a727f93874fd 5
+  s_2a7c3c33a9c34b::t_2823a854054ebb 23
+  s_2a7c3c33a9c34b::t_2509500e7fe013 511-522
+skills/roadmap/scripts/rmlib/incubator.py
+  s_2a7c3c33a9c34b::t_f4769b9fdc8bb4 227
+  s_2a7c3c33a9c34b::t_edf7dfdaff3a9d 99-111
+  s_2a7c3c33a9c34b::t_812d3eee3cdbe8 301
+.roadmap/config.json
+  s_2a7c3c33a9c34b::t_53f331b3b82a53 135
+.roadmap/plans/013-promote-leaves-the-incubator-notes-link-text-in-the-promoted-item-title-and-slug.md
+  s_2a7c3c33a9c34b::t_60617466b8a667 6,25
+CHANGELOG.internal.md
+  s_2a7c3c33a9c34b::t_04e30a04b2cd04 5,14
+CHANGELOG.md
+  s_2a7c3c33a9c34b::t_f31e1806300caf 3
+ROADMAP.md
+  s_2a7c3c33a9c34b::t_b7834b7d34b3b3 22,27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "3dacd550a6e2544cfed74a4859db88e5ab4cf9a6",
+  "prompts": {},
+  "sessions": {
+    "s_2a7c3c33a9c34b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8aefaeb3-b160-465a-8409-ad009a603f36",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
