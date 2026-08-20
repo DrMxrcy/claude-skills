@@ -56,13 +56,15 @@ status words — the CLI rejects them). Have it return one blurb per version as 
 the drafts yourself, then save each via `summary --version <v> --text "..."` — the gate
 still checks every save.
 
-**Auto-routing.** The CLI already does the high-confidence calls for you: an item with no
-explicit `audience` whose note/title trips an admin, compliance, security-disclosure, or
-SEO-plumbing tell is **auto-routed to the internal changelog** (and reported in the audit). An
-explicit `audience --to public` always overrides this — but if you set public on something
-that still matches those tells, the audit flags it loudly as "likely miscategorized." Softer
-wording problems (vendor names, jargon, mechanism phrasing) only **warn** — those are usually
-public features that just need rephrasing, not reclassifying. One thing does hard-block:
+**Fail-closed routing.** An item with no explicit `audience` renders **internal-only** —
+every type defaults internal, and `note` refuses to save on an unclassified item, so text
+reaches `CHANGELOG.md` only through an explicit `audience --to public`. The audit lists
+noted-but-unclassified items so a genuine user-facing note isn't silently buried. Setting
+public on something that trips an admin, compliance, security-disclosure, ops-limit,
+dev-surface, or disclosure-phrasing tell is **refused** (`--force` overrides), and the same
+gate refuses saving such a note on a public item. Softer wording problems (vendor names,
+jargon, mechanism phrasing) only **warn** — those are usually public features that just
+need rephrasing, not reclassifying. Also hard-blocked:
 `note` **refuses** a public note that is structurally a status/progress dump (ISO dates,
 "Step N", version refs, file/spec paths, issue refs, ALL-CAPS status words like
 DONE/DESCOPED/ACCEPTED). Rewrite it as a benefit sentence, mark the item internal, or pass
@@ -103,10 +105,10 @@ nothing is flagged. The lint is a seatbelt, not the rule.**
 
 **Operational loop:**
 1. `python3 <roadmap.py> changelog` → read the warnings: versions missing a release-notes
-   summary, items auto-routed to internal (confirm or override `--to public`), items marked
+   summary, noted items with no explicit audience (publish or leave internal), items marked
    public but matching internal signals (almost always reclassify), public items with no
    note, and notes that read internal (rephrase).
-2. Set audience where the auto-router didn't decide:
+2. Set audience wherever it is still unset:
    `python3 <roadmap.py> audience --plan <id> --to public|internal`.
 3. Write each public note: `python3 <roadmap.py> note --plan <id> --text "<benefit>"`.
 4. **Write the version blurb** from those notes:

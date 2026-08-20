@@ -19,13 +19,15 @@ Follow the skill's intake phase:
    `python3 <roadmap.py> new --type <T> --title "<title>" [--version <V>] --note "<one-liner>" [--audience public|internal]`
    - `--note` is a plain-language, user-benefit sentence (no jargon, no vendor/tool names,
      no file paths or issue refs) — it becomes the **public** `CHANGELOG.md` / App Store
-     "What's New" line. The CLI warns if a public note reads internal.
+     "What's New" line. The CLI refuses a public note that reads internal (status dumps or
+     wrong-audience wording).
    - `--audience` decides which changelog the item lands in: `public` (the curated
-     `CHANGELOG.md`) or `internal` (`CHANGELOG.internal.md`, the full dev log). Omit it to
-     accept the type default — `feature`/`bug` → public, `refactor`/`chore` → internal —
-     then override when judgment differs (a user-invisible feature is `internal`; a
-     user-felt fix from a refactor is `public`). Internal items still appear in the public
-     changelog only as one rolled-up "behind-the-scenes" line.
+     `CHANGELOG.md`) or `internal` (`CHANGELOG.internal.md`, the full dev log). **Passing
+     `--note` requires `--audience`** — decide where the text ships when you write it
+     (a user-invisible feature is `internal`; a user-felt fix from a refactor is `public`).
+     Every type defaults to `internal` when unset, so nothing reaches the public changelog
+     without an explicit `public`. Internal items still appear in the public changelog only
+     as one rolled-up "behind-the-scenes" line.
 5. Fill in the plan's **Target Scope**, **Architectural Blueprint**, and a checklist of
    tiny, testable steps.
 6. If `brainstorming`/`writing-plans` produced a spec or detailed plan document, save it

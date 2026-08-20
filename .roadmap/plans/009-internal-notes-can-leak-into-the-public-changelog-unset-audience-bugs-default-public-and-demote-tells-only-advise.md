@@ -48,5 +48,5 @@ created: 2026-08-20
 - [x] Step 2: Expand tell lists + add DEMOTE_DISCLOSURE regex tier to `demote_tells`/`lint_note`
 - [x] Step 3: Flip `DEFAULT_AUDIENCE` to internal for all types; audit message for noted-but-unclassified items
 - [x] Step 4: Note-time refusals — unset audience refuses `note`/`new --note`; demote tells refuse on effective-public notes (`--force` overrides both)
-- [ ] Step 5: Update SKILL.md and command docs for the new audience contract
+- [x] Step 5: Update SKILL.md and command docs for the new audience contract
 - [ ] Step 6: Full test suite green

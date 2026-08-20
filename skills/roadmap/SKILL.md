@@ -164,12 +164,16 @@ On invocation, detect state and pick a phase:
      The `--note` is plain-language, benefit-focused (no vendor/tool names, file paths, or
      issue refs) — it becomes the **public** CHANGELOG / App Store "What's New" line.
      `--audience` routes the item: `public` → curated `CHANGELOG.md`, `internal` →
-     `CHANGELOG.internal.md`. Omit it to take the type default (`feature`/`bug` → public,
-     `refactor`/`chore` → internal) and override when judgment differs. The CLI auto-runs
-     `sync` and warns if a public note reads internal. A public note that is structurally a
-     **status dump** (ISO dates, "Step N", version refs, file/spec paths, issue refs, or
-     ALL-CAPS status words like DONE/DESCOPED/ACCEPTED) is **refused** — rewrite it as one
-     plain benefit sentence, mark the item internal, or pass `--force`.
+     `CHANGELOG.internal.md`. **Audience is fail-closed**: every type defaults to
+     `internal`, and passing `--note` without `--audience` is **refused** — decide where
+     the text ships when you write it. Nothing reaches the public changelog without an
+     explicit `--audience public`. The CLI auto-runs `sync`. A public note is **refused**
+     when it is structurally a **status dump** (ISO dates, "Step N", version refs,
+     file/spec paths, issue refs, ALL-CAPS status words like DONE/DESCOPED/ACCEPTED) or
+     trips a **wrong-audience tell** (admin/staff surfaces, compliance gates,
+     security-disclosure or "now enforced / harder to abuse" phrasing, ops limits,
+     dev/API surface) — rewrite it as one plain benefit sentence, mark the item
+     internal, or pass `--force`.
 
 3. **Working an item** → Execute (**quality-first multi-agent**).
    - Read the plan file. If it links a **Spec** or **Detailed plan** (e.g. paths under
@@ -228,7 +232,7 @@ On invocation, detect state and pick a phase:
 - `promote [--match T | --index N] [--type T] …` — lift an incubator bullet into a tracked plan
 - `note --plan ID --text "..." [--force]` — set an item's user-facing changelog line (lints public notes; refuses status-dump text on public items)
 - `summary --version V --text "..." [--clear] [--force]` — set a version's public release-notes blurb; renders instead of item bullets in CHANGELOG.md (keep it stupid simple)
-- `audience --plan ID --to public|internal [--force]` — route an item to the public or internal changelog (`--to public` refuses high-confidence internal tells — admin/compliance/security/plumbing/dev-surface — unless `--force`; same gate applies to `new --audience public`)
+- `audience --plan ID --to public|internal [--force]` — route an item to the public or internal changelog. Fail-closed: unset audience renders internal-only for every type, and `note`/`new --note` refuse until the audience is explicit. `--to public` refuses high-confidence internal tells — admin/compliance/security-disclosure/plumbing/dev-surface words and disclosure-shaped phrasing — unless `--force`; the same gate applies to `new --audience public` and to saving a note on a public item.
 - `check --plan ID --step N [--undo] [--all-done]` — flip checkboxes (+ records `last_seen_sha`)
 - `next [--version V] [--force] [--json]` — next unfinished item (skips incomplete `dependsOn`)
 - `deps-check --plan ID [--force]` — warn if dependencies are incomplete
