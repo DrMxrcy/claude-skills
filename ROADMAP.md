@@ -10,7 +10,7 @@
 <!-- Free-form; sync never rewrites this region. ONE bullet per idea (`roadmap.py idea`).
      Long write-ups (brainstorms, review findings) go to .roadmap/notes/ files and get linked. -->
 <!-- roadmap:auto:start -->
-**Current version: v0.16.0**
+**Current version: v0.17.0**
 
 ## 📊 Versions
 
@@ -20,12 +20,7 @@
 
 ### [x] v0.15.0 — 100% · 6 items · shipped 2026-07-23 ([history](CHANGELOG.internal.md))
 
-### [x] v0.16.0 — 100%
-- [x] **#8 Auto-release nudge: when current version hits 100%, prompt or auto-run roadmap release before starting next version** `feature` — 100% ([plan](.roadmap/plans/008-auto-release-nudge-when-current-version-hits-100-prompt-or-auto-run-roadmap-release-before-starting-next-version.md))
-- [x] **#10 Typed human-readable ID prefixes (TSK-42, BUG-7) as display layer over int ids** `feature` — 100% ([plan](.roadmap/plans/010-typed-human-readable-id-prefixes-tsk-42-bug-7-as-display-layer-over-int-ids.md))
-- [x] **#11 Acceptance criteria section as first-class part of plan templates** `feature` — 100% ([plan](.roadmap/plans/011-acceptance-criteria-section-as-first-class-part-of-plan-templates.md))
-- [x] **#12 Filtered listing and search: status --type/--version filters, plus search and stats subcommands** `feature` — 100% ([plan](.roadmap/plans/012-filtered-listing-and-search-status-type-version-filters-plus-search-and-stats-subcommands.md))
-- [x] **#13 promote leaves the incubator notes-link text in the promoted item title and slug** `bug` — 100% ([plan](.roadmap/plans/013-promote-leaves-the-incubator-notes-link-text-in-the-promoted-item-title-and-slug.md))
+### [x] v0.16.0 — 100% · 5 items · shipped 2026-08-20 ([history](CHANGELOG.internal.md))
 
 ### [ ] v0.17.0 — 0%
 - [ ] **#14 Version date stamped once and never re-stamped when the version reopens** `bug` — 0% ([plan](.roadmap/plans/014-version-date-stamped-once-and-never-re-stamped-when-the-version-reopens.md))
