@@ -45,6 +45,8 @@ WARN_TELLS = [*WARN_VENDORS, *WARN_JARGON]
 DEMOTE_ADMIN = [        # operator-only surfaces — staff read these, not end users
     "admin", "admins", "admin panel", "admin console", "admin area", "admin dashboard",
     "moderation", "moderator", "moderators", "audit trail", "audit log", "role-gated", "cms",
+    "staff", "byline", "operator", "operators", "curation", "cockpit",
+    "feature flag", "feature flags", "internal tool", "internal tools",
 ]
 DEMOTE_COMPLIANCE = [   # legal/regulatory gates — required, not a feature anyone chose
     "compliance", "coppa", "gdpr", "age gate", "age-gate", "age verification", "13-and-up",
@@ -53,7 +55,8 @@ DEMOTE_COMPLIANCE = [   # legal/regulatory gates — required, not a feature any
 DEMOTE_SECURITY = [     # security fixes that disclose a past hole — never advertise the weakness
     "hardening", "hardened", "privilege", "spam/abuse", "closed gaps", "vulnerability",
     "exploit", "public url", "public urls", "expiring link", "expiring links", "signed url",
-    "signed urls",
+    "signed urls", "abuse", "fraud", "tamper", "spoof", "forge", "bypass", "escalation",
+    "step-up", "re-auth", "double-submit", "brute force",
 ]
 DEMOTE_PLUMBING = [     # SEO/infra plumbing & internal milestones — no user-visible payoff
     "groundwork", "groundwork for", "reusable", "static-page", "sitemap", "robots rules",
@@ -65,9 +68,26 @@ DEMOTE_DEVSURFACE = [   # developer/API-surface work — ships to developers/ope
     "api consumer", "api consumers", "developer portal", "developer tools", "sdk",
     "rate limit", "rate limits", "rate-limited", "feed health", "data-feed coverage",
     "api token", "api tokens", "bearer token", "openapi", "swagger",
+    "sending limit", "daily limit", "quota", "quotas", "throttle", "throttling",
+    "backoff", "replay", "idempotency", "idempotent", "dedupe", "deduplication",
 ]
 DEMOTE_TELLS = [*DEMOTE_ADMIN, *DEMOTE_COMPLIANCE, *DEMOTE_SECURITY, *DEMOTE_PLUMBING,
                 *DEMOTE_DEVSURFACE]
+
+# DISCLOSURE tier = fix-that-admits-the-hole phrasing. A note shaped "X is now
+# enforced/can no longer be gamed" advertises the weakness that existed before the
+# fix — wrong audience even when every individual word is user-friendly. Regexes,
+# not words, because the signal is the sentence shape. Deliberately NOT bare
+# "on our servers": privacy-positive notes ("your data stays on our servers,
+# never sold") are legitimate public copy.
+DEMOTE_DISCLOSURE = [
+    re.compile(r"\bnow (?:enforced|validated|verified|blocked|rejected)\b", re.I),
+    re.compile(r"\bno longer (?:accepts|allows|possible)\b", re.I),
+    re.compile(r"\bharder to (?:game|abuse|fake|forge)\b", re.I),
+    re.compile(r"\bcan(?:not| no longer) be (?:fabricated|gamed|forged|spoofed|faked)\b", re.I),
+    re.compile(r"\benforced on (?:our|the) servers?\b", re.I),
+    re.compile(r"\bserver-side\b", re.I),
+]
 
 _PATH_RE = re.compile(r"\b[\w.-]+\.(?:ts|tsx|js|jsx|mjs|cjs|py|go|rs|java|rb|php|"
                       r"json|ya?ml|toml|sql|sh|css|scss|md|swift|kt)\b")  # foo/bar.ts
@@ -119,15 +139,19 @@ def lint_note(text: str, extra_terms: list[str] | None = None) -> list[str]:
     (warn tier), and scope/disclosure words (demote tier). Empty list == looks clean.
     Advisory here; the status-dump subset also hard-blocks in `note` / `new --note`."""
     hits = status_tells(text)
-    hits += _word_hits(text, [*WARN_TELLS, *DEMOTE_TELLS, *(extra_terms or [])])
+    hits += _word_hits(text, [*WARN_TELLS, *(extra_terms or [])])
+    hits += demote_tells(text)
     return _dedupe(hits)
 
 
 def demote_tells(text: str) -> list[str]:
     """Only the high-confidence WRONG-AUDIENCE tells (admin / compliance / security-disclosure
-    / plumbing / dev-surface). Drives auto-routing of an unclassified item to the internal
-    changelog."""
-    return _dedupe(_word_hits(text, DEMOTE_TELLS))
+    / plumbing / dev-surface words, plus disclosure-shaped phrasing). Hard-blocks saving a
+    public note and explicitly setting audience=public."""
+    hits = _word_hits(text, DEMOTE_TELLS)
+    for rx in DEMOTE_DISCLOSURE:
+        hits += rx.findall(text)
+    return _dedupe(hits)
 
 
 def item_audience(item: dict) -> str:
