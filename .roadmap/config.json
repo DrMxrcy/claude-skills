@@ -1,7 +1,7 @@
 {
   "project": "claude-skills",
   "currentVersion": "0.16.0",
-  "nextId": 14,
+  "nextId": 15,
   "items": [
     {
       "id": 1,
@@ -94,7 +94,7 @@
       "type": "feature",
       "version": "0.16.0",
       "file": "plans/010-typed-human-readable-id-prefixes-tsk-42-bug-7-as-display-layer-over-int-ids.md",
-      "note": "Items now show friendly typed IDs like FEAT-12 and BUG-7 in status, next, and commit suggestions \u2014 and you can reference them either way.",
+      "note": "Items now show friendly typed IDs like FEAT-12 and BUG-7 in status and next \u2014 and you can reference them either way when marking work done.",
       "audience": "public"
     },
     {
@@ -125,6 +125,15 @@
       "version": "0.16.0",
       "file": "plans/013-promote-leaves-the-incubator-notes-link-text-in-the-promoted-item-title-and-slug.md",
       "audience": "internal"
+    },
+    {
+      "id": 14,
+      "slug": "version-date-stamped-once-and-never-re-stamped-when-the-version-reopens",
+      "title": "Version date stamped once and never re-stamped when the version reopens",
+      "type": "bug",
+      "version": "0.17.0",
+      "file": "plans/014-version-date-stamped-once-and-never-re-stamped-when-the-version-reopens.md",
+      "audience": "internal"
     }
   ],
   "settings": {
@@ -137,6 +146,6 @@
     "0.14.1": "2026-07-22",
     "0.14.2": "2026-07-22",
     "0.15.0": "2026-07-23",
-    "0.16.0": "2026-08-13"
+    "0.16.0": "2026-08-20"
   }
 }

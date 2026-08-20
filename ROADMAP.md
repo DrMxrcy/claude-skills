@@ -1,6 +1,7 @@
 # 🗺️ Roadmap: claude-skills
 
 ## 💡 Idea Incubator
+- Release flow should bump or warn about the skill VERSION file in this repo ([notes](.roadmap/notes/2026-08-20-release-flow-should-bump-or-warn-about-the-skill-version-file-in-this-repo.md))
 - Split roadmap discipline rules into individually loadable principle skills ([notes](.roadmap/notes/2026-08-20-split-roadmap-discipline-rules-into-individually-loadable-principle-skills.md))
 - Per-role model mapping setting for the quality-first build loop ([notes](.roadmap/notes/2026-08-20-per-role-model-mapping-setting-for-the-quality-first-build-loop.md))
 - Completion-promise gate: parent greps an explicit done marker before allowing check ([notes](.roadmap/notes/2026-08-20-completion-promise-gate-parent-greps-an-explicit-done-marker-before-allowing-check.md))
@@ -25,4 +26,7 @@
 - [x] **#11 Acceptance criteria section as first-class part of plan templates** `feature` — 100% ([plan](.roadmap/plans/011-acceptance-criteria-section-as-first-class-part-of-plan-templates.md))
 - [x] **#12 Filtered listing and search: status --type/--version filters, plus search and stats subcommands** `feature` — 100% ([plan](.roadmap/plans/012-filtered-listing-and-search-status-type-version-filters-plus-search-and-stats-subcommands.md))
 - [x] **#13 promote leaves the incubator notes-link text in the promoted item title and slug** `bug` — 100% ([plan](.roadmap/plans/013-promote-leaves-the-incubator-notes-link-text-in-the-promoted-item-title-and-slug.md))
+
+### [ ] v0.17.0 — 0%
+- [ ] **#14 Version date stamped once and never re-stamped when the version reopens** `bug` — 0% ([plan](.roadmap/plans/014-version-date-stamped-once-and-never-re-stamped-when-the-version-reopens.md))
 <!-- roadmap:auto:end -->

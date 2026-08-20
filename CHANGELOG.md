@@ -1,9 +1,13 @@
 # Changelog
 
-## v0.16.0 — 2026-08-13
+## v0.17.0 — (in progress)
+
+_Plus behind-the-scenes performance and reliability work._
+
+## v0.16.0 — 2026-08-20
 
 ### ✨ New
-- Items now show friendly typed IDs like FEAT-12 and BUG-7 in status, next, and commit suggestions — and you can reference them either way.
+- Items now show friendly typed IDs like FEAT-12 and BUG-7 in status and next — and you can reference them either way when marking work done.
 - Plan templates now include an Acceptance section so reviews check work against explicit pass/fail criteria.
 - Find things faster: filter status by type or version, and search titles, notes, and plans from the CLI.
 

@@ -2,11 +2,16 @@
 
 _Full work log — every item, including internal/dev work. The curated public changelog is CHANGELOG.md._
 
-## v0.16.0 — 2026-08-13
+## v0.17.0 — (in progress)
+
+### 🐛 Fixed
+- (pending) Version date stamped once and never re-stamped when the version reopens
+
+## v0.16.0 — 2026-08-20
 
 ### ✨ New
 - Finished versions get cut automatically: when every item in the current version is done, the roadmap offers (or runs) the release for you before new work starts.
-- Items now show friendly typed IDs like FEAT-12 and BUG-7 in status, next, and commit suggestions — and you can reference them either way.
+- Items now show friendly typed IDs like FEAT-12 and BUG-7 in status and next — and you can reference them either way when marking work done.
 - Plan templates now include an Acceptance section so reviews check work against explicit pass/fail criteria.
 - Find things faster: filter status by type or version, and search titles, notes, and plans from the CLI.
 
