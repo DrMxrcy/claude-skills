@@ -1,0 +1,40 @@
+skills/roadmap/scripts/rmlib/core.py
+  s_2a7c3c33a9c34b::t_eaba6f8197a52a 168-202
+skills/roadmap/SKILL.md
+  s_2a7c3c33a9c34b::t_f456b5350638d3 229
+skills/roadmap/scripts/roadmap.py
+  s_2a7c3c33a9c34b::t_7e7cdf7872c784 14-15
+  s_2a7c3c33a9c34b::t_fd02d6dde264ba 141,147,163,213,233,236-237,240-241,245,264
+  s_2a7c3c33a9c34b::t_718c44d5b23e5d 72-73
+  s_2a7c3c33a9c34b::t_2aebc08268823e 268-274,286,289,296-297,324,327,330,333,397-398,400,405
+tests/test_roadmap.py
+  s_2a7c3c33a9c34b::t_d50adb821540dc 1513,1532
+  s_2a7c3c33a9c34b::t_f6506e774af6c1 1515,1517-1518,1520
+  s_2a7c3c33a9c34b::t_3d92552dd62b21 1474-1512,1514,1516,1519,1521-1531,1533-1534
+.roadmap/config.json
+  s_2a7c3c33a9c34b::t_23b4c211d49595 135
+.roadmap/plans/010-typed-human-readable-id-prefixes-tsk-42-bug-7-as-display-layer-over-int-ids.md
+  s_2a7c3c33a9c34b::t_9f2d9935ca7a9e 6,26
+CHANGELOG.internal.md
+  s_2a7c3c33a9c34b::t_c7f6e8878e1a13 9
+CHANGELOG.md
+  s_2a7c3c33a9c34b::t_f30ca96cf229ac 6
+ROADMAP.md
+  s_2a7c3c33a9c34b::t_6e4f440835644e 22,24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "d301c14341a6a1409518a295d65318883038536c",
+  "prompts": {},
+  "sessions": {
+    "s_2a7c3c33a9c34b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8aefaeb3-b160-465a-8409-ad009a603f36",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
