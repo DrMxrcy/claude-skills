@@ -1,0 +1,21 @@
+.roadmap/config.json
+  s_2a7c3c33a9c34b::t_d80721c4101a0e 112,116
+ROADMAP.md
+  s_2a7c3c33a9c34b::t_70e661d6d3e066 24,28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "7fdc509e1e978eb93b3c5dec1740f987baba863c",
+  "prompts": {},
+  "sessions": {
+    "s_2a7c3c33a9c34b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8aefaeb3-b160-465a-8409-ad009a603f36",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
