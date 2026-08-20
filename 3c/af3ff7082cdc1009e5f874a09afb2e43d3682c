@@ -1,0 +1,27 @@
+.roadmap/notes/2026-08-20-completion-promise-gate-parent-greps-an-explicit-done-marker-before-allowing-check.md
+  s_2a7c3c33a9c34b::t_042b9b8dc1e459 1-3
+.roadmap/notes/2026-08-20-per-role-model-mapping-setting-for-the-quality-first-build-loop.md
+  s_2a7c3c33a9c34b::t_335dbba023b4f9 1-3
+.roadmap/notes/2026-08-20-schema-validated-install-manifest-ci-validate-script-for-cross-agent-installs.md
+  s_2a7c3c33a9c34b::t_c811a36a6a7f8d 1-3
+.roadmap/notes/2026-08-20-split-roadmap-discipline-rules-into-individually-loadable-principle-skills.md
+  s_2a7c3c33a9c34b::t_c2b30788c62046 1-3
+ROADMAP.md
+  s_2a7c3c33a9c34b::t_4ad5b659fa81e3 4-7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "3caf3ff7082cdc1009e5f874a09afb2e43d3682c",
+  "prompts": {},
+  "sessions": {
+    "s_2a7c3c33a9c34b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8aefaeb3-b160-465a-8409-ad009a603f36",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
