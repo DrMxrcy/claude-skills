@@ -1459,6 +1459,46 @@ def test_cli_status_and_next_show_display_ids(roadmap, repo, monkeypatch, capsys
     assert "BUG-1 Crash on save" in capsys.readouterr().out
 
 
+def _filtered_repo(roadmap, repo):
+    roadmap.init_project(repo, "P", claude_md=False)
+    roadmap.new_item(repo, "bug", "Crash on save")            # 1, current version
+    roadmap.new_item(repo, "feature", "Auth")                 # 2, current version
+    roadmap.new_item(repo, "chore", "Tidy", version="0.15.0")  # 3
+    roadmap.new_item(repo, "bug", "Leak", version="0.15.0")    # 4
+    roadmap.check_step(repo, 4, None, all_done=True)           # 4 -> done
+    return repo
+
+
+def test_status_filters_narrow_items_text_and_json(roadmap, repo, monkeypatch, capsys):
+    monkeypatch.chdir(_filtered_repo(roadmap, repo))
+    assert roadmap.main(["status", "--type", "bug"]) == 0
+    out = capsys.readouterr().out
+    assert "BUG-1" in out and "BUG-4" in out
+    assert "FEAT-2" not in out and "CHORE-3" not in out
+
+    assert roadmap.main(["status", "--version", "0.15.0", "--status", "done",
+                         "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert [i["displayId"] for i in payload["items"]] == ["BUG-4"]
+    # summary header stays global regardless of filters
+    assert payload["currentVersion"] == roadmap.read_config(repo)["currentVersion"]
+    assert set(payload) == {"project", "currentVersion", "versionComplete", "items"}
+
+    assert roadmap.main(["status", "--version", "v0.15.0", "--type", "chore"]) == 0
+    out = capsys.readouterr().out
+    assert "CHORE-3" in out and "BUG-4" not in out
+
+    assert roadmap.main(["status", "--status", "planned", "--json"]) == 0
+    ids = [i["id"] for i in json.loads(capsys.readouterr().out)["items"]]
+    assert ids == [1, 2, 3]
+
+
+def test_status_without_filters_is_unchanged(roadmap, repo, monkeypatch, capsys):
+    monkeypatch.chdir(_filtered_repo(roadmap, repo))
+    assert roadmap.main(["status", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out) == roadmap.status(repo)
+
+
 def test_orient_human_output_uses_display_id(roadmap, repo):
     roadmap.init_project(repo, "P", claude_md=False)
     roadmap.new_item(repo, "bug", "Crash on save")

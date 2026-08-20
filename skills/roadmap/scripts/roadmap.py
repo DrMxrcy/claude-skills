@@ -172,6 +172,11 @@ def main(argv: list[str]) -> int:
 
     p_st = sub.add_parser("status")
     p_st.add_argument("--json", action="store_true", dest="as_json")
+    p_st.add_argument("--type", choices=sorted(TYPE_PREFIX),
+                      help="only items of this type")
+    p_st.add_argument("--version", help="only items targeting this version")
+    p_st.add_argument("--status", choices=["planned", "active", "done"],
+                      help="only items with this progress status")
 
     p_srv = sub.add_parser("serve",
                            help="local live web dashboard (SSE push, read-only)")
@@ -425,6 +430,12 @@ def main(argv: list[str]) -> int:
             return 0
         if args.command == "status":
             st = status(root)
+            # Filters only narrow the item list (AND); the header stays global.
+            ver = _norm_version(args.version) if args.version else None
+            st["items"] = [i for i in st["items"]
+                           if (args.type is None or i["type"] == args.type)
+                           and (ver is None or i["version"] == ver)
+                           and (args.status is None or i["status"] == args.status)]
             if args.as_json:
                 print(json.dumps(st, indent=2))
             else:
