@@ -3,7 +3,7 @@ id: 7
 title: Serve reprints unchanged status on every file touch — skip identical payloads
 type: bug
 version: 0.15.0
-status: active
+status: done
 created: 2026-07-26
 ---
 
@@ -23,5 +23,5 @@ created: 2026-07-26
 
 ## 🛠️ Checklist
 - [x] Step 1: Write a reproduction test
-- [ ] Step 2: Apply the fix
-- [ ] Step 3: Verify suite is green
+- [x] Step 2: Apply the fix
+- [x] Step 3: Verify suite is green
