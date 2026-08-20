@@ -2,7 +2,7 @@
 
 _Full work log — every item, including internal/dev work. The curated public changelog is CHANGELOG.md._
 
-## v0.16.0 — (in progress)
+## v0.16.0 — 2026-08-13
 
 ### ✨ New
 - Finished versions get cut automatically: when every item in the current version is done, the roadmap offers (or runs) the release for you before new work starts.
@@ -11,7 +11,7 @@ _Full work log — every item, including internal/dev work. The curated public c
 - Find things faster: filter status by type or version, and search titles, notes, and plans from the CLI.
 
 ### 🐛 Fixed
-- (pending) promote leaves the incubator notes-link text in the promoted item title and slug
+- promote leaves the incubator notes-link text in the promoted item title and slug
 
 ## v0.15.0 — 2026-07-23
 

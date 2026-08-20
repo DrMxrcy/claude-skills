@@ -96,6 +96,19 @@ DUPLICATE_RATIO = 0.8
 MD_LINK_RE = re.compile(r"\[[^\]]*\]\(([^)\s]+\.md)\)")
 
 
+# Trailing markdown link, with or without the wrapping parens `idea --body` adds:
+# " ([notes](.roadmap/notes/x.md))" / " [notes](x.md)".
+TRAILING_LINK_RE = re.compile(r"\s*\(?\s*\[[^\]]*\]\([^)]*\)\s*\)?\s*$")
+
+
+def bullet_title(body: str) -> str:
+    """Bullet text without its trailing link/parenthetical — the notes link `idea
+    --body` appends must never leak into a promoted item's title, slug or filename."""
+    title = TRAILING_LINK_RE.sub("", body).strip()
+    title = re.sub(r"\s*\([^)]*\)\s*$", "", title).strip()
+    return title or body
+
+
 def _freeform_lines(text: str) -> list[str]:
     """Lines of ROADMAP.md outside the roadmap:auto region."""
     out, in_auto = [], False
@@ -211,8 +224,7 @@ def tidy_report(root: Path) -> dict:
             prose["leads"].append(stripped[:70])
 
     for b in bullets:
-        title = re.sub(r"\s*\([^)]*\)\s*$", "", b["text"]).strip()
-        title = re.sub(r"\s*\[[^\]]*\]\([^)]*\)\s*$", "", title).strip()
+        title = bullet_title(b["text"])
         entry = {"index": b["index"], "title": title[:100], "chars": b["chars"],
                  "children": b["children"],
                  "notesLink": bool(MD_LINK_RE.search(b["text"])), "flags": []}
@@ -286,9 +298,6 @@ def list_incubator_bullets(root: Path) -> list[dict]:
         if not bm:
             continue
         body = bm.group(2).strip()
-        # Title is the line without a trailing markdown link
-        title = re.sub(r"\s*\([^)]*\)\s*$", "", body).strip()
-        title = re.sub(r"\s*\[[^\]]*\]\([^)]*\)\s*$", "", title).strip()
-        bullets.append({"line": line, "body": body, "title": title or body,
+        bullets.append({"line": line, "body": body, "title": bullet_title(body),
                         "lineNo": heading_no + offset})
     return bullets

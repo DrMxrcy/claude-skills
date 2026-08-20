@@ -1694,6 +1694,27 @@ def test_promote_by_match_and_index(roadmap, repo):
     assert roadmap.list_incubator_bullets(repo) == []
 
 
+def test_promote_strips_notes_link_from_title(roadmap, repo):
+    roadmap.init_project(repo, "P", claude_md=False)
+    note = roadmap.add_idea(repo, "Linked idea", body="Long write-up")
+    path = roadmap.promote_idea(repo, match="Linked", type_="bug")
+    item = roadmap.read_config(repo)["items"][-1]
+    assert item["title"] == "Linked idea"
+    assert item["slug"] == "linked-idea"
+    assert "notes" not in path.name and "md)" not in path.name
+    body = path.read_text()
+    assert f"[notes](../notes/{note.name})" in body
+    assert "([notes]" not in body.split("\n## ")[0].split("title:")[1].splitlines()[0]
+
+
+def test_promote_unlinked_bullet_has_no_spec_line(roadmap, repo):
+    roadmap.init_project(repo, "P", claude_md=False)
+    roadmap.add_idea(repo, "Plain idea")
+    path = roadmap.promote_idea(repo, type_="feature")
+    assert roadmap.read_config(repo)["items"][-1]["title"] == "Plain idea"
+    assert "> Spec:" not in path.read_text()
+
+
 def test_promote_requires_selector_when_multiple(roadmap, repo):
     roadmap.init_project(repo, "P", claude_md=False)
     roadmap.add_idea(repo, "One")

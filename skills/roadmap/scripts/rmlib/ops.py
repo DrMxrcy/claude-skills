@@ -2,6 +2,7 @@
 remove/retarget/reorder/merge, release/backfill, promote, import). Top layer:
 orchestrates every lower module."""
 from __future__ import annotations
+import os
 import re
 import subprocess
 import sys
@@ -19,7 +20,7 @@ from rmlib.sync import (
 from rmlib.report import (
     _record_last_seen_sha)
 from rmlib.incubator import (
-    INCUBATOR_BULLET_RE, _incubator_stub, _strip_incubator_placeholder,
+    INCUBATOR_BULLET_RE, MD_LINK_RE, _incubator_stub, _strip_incubator_placeholder,
     incubator_file, list_incubator_bullets)
 
 
@@ -506,6 +507,18 @@ def promote_idea(root: Path, *, match: str | None = None, index: int | None = No
     title = chosen["title"]
     path = new_item(root, type_, title, version=version, note=note, audience=audience,
                     force=force)
+
+    # The bullet's notes file (from `idea --body`) is the plan's spec — link it from the
+    # plan header instead of dragging the link text through the title/slug/filename.
+    link = MD_LINK_RE.search(chosen["body"])
+    if link:
+        rel = os.path.relpath(root / link.group(1), path.parent)
+        lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+        for i, ln in enumerate(lines):
+            if ln.startswith("> Type: "):
+                lines.insert(i + 1, f"> Spec: [notes]({rel})\n")
+                break
+        atomic_write(path, "".join(lines))
 
     # Remove only the chosen bullet from the incubator (free-form region).
     rm = incubator_file(root)

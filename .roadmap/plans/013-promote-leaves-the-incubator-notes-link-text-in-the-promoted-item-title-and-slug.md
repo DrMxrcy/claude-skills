@@ -3,7 +3,7 @@ id: 13
 title: promote leaves the incubator notes-link text in the promoted item title and slug
 type: bug
 version: 0.16.0
-status: planned
+status: done
 created: 2026-08-20
 ---
 
@@ -22,4 +22,4 @@ created: 2026-08-20
 - **Downstream impact:** matches how `idea` writes bullets; `--match` should still match bullets with or without the link text
 
 ## 🚶 Step-by-Step Checklist
-- [ ] Step 1: strip notes-link suffix from promoted title/slug; inject the notes link as a Spec line in the new plan; regression test promoting a linked bullet -> target: incubator.py + tests
+- [x] Step 1: strip notes-link suffix from promoted title/slug; inject the notes link as a Spec line in the new plan; regression test promoting a linked bullet -> target: incubator.py + tests

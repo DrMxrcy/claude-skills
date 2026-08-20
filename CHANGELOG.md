@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.16.0 — (in progress)
+## v0.16.0 — 2026-08-13
 
 ### ✨ New
 - Items now show friendly typed IDs like FEAT-12 and BUG-7 in status, next, and commit suggestions — and you can reference them either way.
