@@ -12,7 +12,7 @@ def run(repo, *args):
 def test_full_flow(repo):
     assert run(repo, "init", "--name", "E2E").returncode == 0
     out = run(repo, "new", "--type", "feature", "--title", "Login",
-              "--note", "Sign in with email")
+              "--note", "Sign in with email", "--audience", "public")
     assert out.returncode == 0
     assert run(repo, "check", "--plan", "1", "--step", "1").returncode == 0
     st = run(repo, "status")
@@ -33,6 +33,7 @@ def test_full_flow(repo):
 def test_note_cli_blocks_status_dump_then_force(repo):
     assert run(repo, "init", "--name", "E2E").returncode == 0
     assert run(repo, "new", "--type", "feature", "--title", "Watch").returncode == 0
+    assert run(repo, "audience", "--plan", "1", "--to", "public").returncode == 0
     bad = run(repo, "note", "--plan", "1",
               "--text", "Step 9: glance DONE, complication DEFERRED (see specs/a/b.md)")
     assert bad.returncode == 1 and "status/progress dump" in bad.stderr
@@ -45,7 +46,7 @@ def test_note_cli_blocks_status_dump_then_force(repo):
 def test_summary_cli_roundtrip(repo):
     assert run(repo, "init", "--name", "E2E").returncode == 0
     assert run(repo, "new", "--type", "feature", "--title", "Trips",
-               "--note", "Share trips with friends").returncode == 0
+               "--note", "Share trips with friends", "--audience", "public").returncode == 0
     assert run(repo, "check", "--plan", "1", "--all-done").returncode == 0
     bad = run(repo, "summary", "--version", "0.0.1", "--text", "Step 3 DONE")
     assert bad.returncode == 1 and "status/progress dump" in bad.stderr

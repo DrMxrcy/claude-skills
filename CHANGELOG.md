@@ -2,8 +2,7 @@
 
 ## v0.16.0 — 2026-08-13
 
-### ✨ New
-- Finished versions get cut automatically: when every item in the current version is done, the roadmap offers (or runs) the release for you before new work starts.
+_Plus behind-the-scenes performance and reliability work._
 
 ## v0.15.0 — (in progress)
 

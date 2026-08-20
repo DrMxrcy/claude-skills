@@ -11,9 +11,11 @@ TYPE_SECTION = {"feature": "✨ New", "bug": "🐛 Fixed",
                 "refactor": "⚡ Improved", "chore": "⚡ Improved"}
 SECTION_ORDER = ["✨ New", "🐛 Fixed", "⚡ Improved"]
 
-# Unset `audience` falls back to this per-type default. The AI sets `audience` explicitly
-# via the roadmap commands; this is only the safety net at render time.
-DEFAULT_AUDIENCE = {"feature": "public", "bug": "public",
+# Unset `audience` falls back to this per-type default at render time. FAIL-CLOSED:
+# every type defaults to `internal` — text reaches the public changelog only through an
+# explicit `audience: public`, so an item nobody classified can never leak. Unclassified
+# items surface in the public changelog only via the roll-up line.
+DEFAULT_AUDIENCE = {"feature": "internal", "bug": "internal",
                     "refactor": "internal", "chore": "internal"}
 # One-line stand-in shown in the PUBLIC changelog when a version shipped internal-only
 # work, instead of listing it.
@@ -155,14 +157,12 @@ def demote_tells(text: str) -> list[str]:
 
 
 def item_audience(item: dict) -> str:
-    """An item's effective audience. An explicit `audience` always wins. Otherwise an item
-    whose note/title trips a high-confidence demote tell auto-routes to `internal`; failing
-    that, it falls back to the per-type default."""
+    """An item's effective audience. An explicit `audience` always wins; anything
+    unclassified falls back to the per-type default — `internal` across the board, so
+    only explicitly-public items ever render public text."""
     a = item.get("audience")
     if a in ("public", "internal"):
         return a
-    if demote_tells(f"{item.get('note', '')} {item.get('title', '')}"):
-        return "internal"
     return DEFAULT_AUDIENCE.get(item["type"], "internal")
 
 
@@ -336,11 +336,12 @@ def audit_public_notes(root: Path) -> list[str]:
         explicit = it.get("audience")
         blob = f"{it.get('note', '')} {it['title']}"
         eff = item_audience(it)
-        # Auto-routed: no explicit audience, would be public by type, demoted by a high-conf tell.
-        if explicit is None and DEFAULT_AUDIENCE.get(it["type"]) == "public" and eff == "internal":
-            msgs.append(f"#{it['id']} \"{it['title']}\" auto-routed to internal "
-                        f"({', '.join(demote_tells(blob))}); if it really is user-facing, "
-                        f"override: roadmap audience --plan {it['id']} --to public")
+        # Fail-closed default: a noted but unclassified item renders internal-only —
+        # surface it so a genuine user-facing note isn't silently buried.
+        if explicit is None and it.get("note"):
+            msgs.append(f"#{it['id']} \"{it['title']}\" has a note but no explicit audience — "
+                        f"it renders internal-only; if it is user-facing, publish it: "
+                        f"roadmap audience --plan {it['id']} --to public")
             continue
         if eff != "public":
             continue

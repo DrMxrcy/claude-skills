@@ -380,7 +380,7 @@ def test_release_force_bypasses_incomplete(roadmap, repo):
 
 def test_release_writes_changelog(roadmap, repo):
     roadmap.init_project(repo, "P")
-    roadmap.new_item(repo, "feature", "Login", note="Sign in with email")
+    roadmap.new_item(repo, "feature", "Login", note="Sign in with email", audience="public")
     roadmap.check_step(repo, 1, None, all_done=True)           # sync writes changelog
     cl = (repo / "CHANGELOG.md").read_text()
     assert "## v0.0.1" in cl and "✨ New" in cl and "Sign in with email" in cl
@@ -389,8 +389,8 @@ def test_release_writes_changelog(roadmap, repo):
 
 def test_changelog_uses_note_and_groups_by_type(roadmap, repo):
     roadmap.init_project(repo, "P")
-    roadmap.new_item(repo, "feature", "Auth backend", note="Sign in with email")
-    roadmap.new_item(repo, "bug", "Null deref on logout", note="No more logout crash")
+    roadmap.new_item(repo, "feature", "Auth backend", note="Sign in with email", audience="public")
+    roadmap.new_item(repo, "bug", "Null deref on logout", note="No more logout crash", audience="public")
     roadmap.check_step(repo, 1, None, all_done=True)
     roadmap.check_step(repo, 2, None, all_done=True)
     cl = (repo / "CHANGELOG.md").read_text()
@@ -401,7 +401,7 @@ def test_changelog_uses_note_and_groups_by_type(roadmap, repo):
 
 def test_changelog_written_on_completion_via_sync(roadmap, repo):
     roadmap.init_project(repo, "P")
-    roadmap.new_item(repo, "feature", "Login", note="Sign in with email")
+    roadmap.new_item(repo, "feature", "Login", note="Sign in with email", audience="public")
     roadmap.check_step(repo, 1, None, all_done=True)           # triggers sync
     cl = (repo / "CHANGELOG.md").read_text()
     assert "## v0.0.1" in cl and "✨ New" in cl and "Sign in with email" in cl
@@ -410,7 +410,8 @@ def test_changelog_written_on_completion_via_sync(roadmap, repo):
 
 def test_changelog_in_progress_shows_pending(roadmap, repo):
     roadmap.init_project(repo, "P")
-    roadmap.new_item(repo, "feature", "Big feature", note="A big new feature")  # 0/2 done
+    roadmap.new_item(repo, "feature", "Big feature", note="A big new feature",
+                     audience="public")  # 0/2 done
     cl = (repo / "CHANGELOG.md").read_text()
     assert "(in progress)" in cl and "- (pending) A big new feature" in cl
 
@@ -429,7 +430,7 @@ def test_changelog_date_is_stable_across_resync(roadmap, repo):
 
 def test_new_with_note_and_set_note(roadmap, repo):
     roadmap.init_project(repo, "P")
-    roadmap.new_item(repo, "feature", "X", note="hello")
+    roadmap.new_item(repo, "feature", "X", note="hello", audience="public")
     assert roadmap.read_config(repo)["items"][0]["note"] == "hello"
     roadmap.set_note(repo, 1, "updated")
     assert roadmap.read_config(repo)["items"][0]["note"] == "updated"
@@ -647,7 +648,7 @@ def test_cli_remove(roadmap, repo, monkeypatch):
 def test_changelog_command_prints(roadmap, repo, monkeypatch, capsys):
     monkeypatch.chdir(repo)
     roadmap.init_project(repo, "P")
-    roadmap.new_item(repo, "feature", "Login", note="Sign in")
+    roadmap.new_item(repo, "feature", "Login", note="Sign in", audience="public")
     roadmap.check_step(repo, 1, None, all_done=True)
     assert roadmap.main(["changelog"]) == 0
     assert "Sign in" in capsys.readouterr().out
@@ -737,7 +738,7 @@ def test_retarget_empty_selection_raises(roadmap, repo):
 
 def test_retarget_prunes_emptied_version_dates(roadmap, repo):
     roadmap.init_project(repo, "P")
-    roadmap.new_item(repo, "feature", "A", version="1.3.0", note="Feature A")
+    roadmap.new_item(repo, "feature", "A", version="1.3.0", note="Feature A", audience="public")
     roadmap.check_step(repo, 1, None, all_done=True)                     # stamps versionDates[1.3.0]
     assert "1.3.0" in roadmap.read_config(repo)["versionDates"]
     roadmap.retarget(repo, "1.0.0", from_versions=["1.3.0"])
@@ -777,17 +778,21 @@ def test_upgrade_command_runs(roadmap, repo, monkeypatch):
 # --- audience-aware public/internal changelog ---------------------------------
 
 def test_audience_defaults_by_type(roadmap):
-    assert roadmap.item_audience({"type": "feature"}) == "public"
-    assert roadmap.item_audience({"type": "bug"}) == "public"
+    # fail-closed: every type defaults internal; explicit audience still wins
+    assert roadmap.item_audience({"type": "feature"}) == "internal"
+    assert roadmap.item_audience({"type": "bug"}) == "internal"
     assert roadmap.item_audience({"type": "refactor"}) == "internal"
     assert roadmap.item_audience({"type": "chore"}) == "internal"
+    assert roadmap.item_audience({"type": "feature", "audience": "public"}) == "public"
     assert roadmap.item_audience({"type": "feature", "audience": "internal"}) == "internal"
 
 
 def test_internal_item_excluded_from_public_but_in_internal(roadmap, repo):
     roadmap.init_project(repo, "P")
-    roadmap.new_item(repo, "feature", "Login", note="Sign in with email")     # public
-    roadmap.new_item(repo, "refactor", "Rework cache", note="Cache rewrite")  # internal by default
+    roadmap.new_item(repo, "feature", "Login", note="Sign in with email",
+                     audience="public")                                      # public
+    roadmap.new_item(repo, "refactor", "Rework cache", note="Cache rewrite",
+                     audience="internal")                                    # internal
     roadmap.check_step(repo, 1, None, all_done=True)
     roadmap.check_step(repo, 2, None, all_done=True)
     public = (repo / "CHANGELOG.md").read_text()
@@ -801,7 +806,7 @@ def test_internal_item_excluded_from_public_but_in_internal(roadmap, repo):
 
 def test_public_item_without_note_omitted_with_warning(roadmap, repo):
     roadmap.init_project(repo, "P")
-    roadmap.new_item(repo, "feature", "Secret sauce")          # public, no note
+    roadmap.new_item(repo, "feature", "Secret sauce", audience="public")  # public, no note
     roadmap.check_step(repo, 1, None, all_done=True)
     _text, warnings = roadmap.render_public_changelog(repo)
     assert "Secret sauce" not in _text
@@ -810,7 +815,7 @@ def test_public_item_without_note_omitted_with_warning(roadmap, repo):
 
 def test_set_audience_moves_item_between_changelogs(roadmap, repo):
     roadmap.init_project(repo, "P")
-    roadmap.new_item(repo, "feature", "Internal tool", note="Did a thing")
+    roadmap.new_item(repo, "feature", "Sharing", note="Did a thing", audience="public")
     roadmap.check_step(repo, 1, None, all_done=True)
     assert "Did a thing" in (repo / "CHANGELOG.md").read_text()   # public by default
     roadmap.set_audience(repo, 1, "internal")
@@ -914,7 +919,8 @@ def test_lint_note_flags_md_paths_and_status(roadmap):
 
 def test_set_note_refuses_status_dump_on_public_item(roadmap, repo):
     roadmap.init_project(repo, "P")
-    roadmap.new_item(repo, "feature", "Watch app", note="Log rides from your wrist.")
+    roadmap.new_item(repo, "feature", "Watch app", note="Log rides from your wrist.",
+                     audience="public")
     with pytest.raises(ValueError, match="status/progress dump"):
         roadmap.set_note(repo, 1, "Step 9: SessionGlanceView DONE (build_sim green)")
     # refused note never saved; the old one survives
@@ -939,7 +945,8 @@ def test_new_refuses_status_dump_note(roadmap, repo):
     roadmap.init_project(repo, "P")
     with pytest.raises(ValueError, match="status/progress dump"):
         roadmap.new_item(repo, "feature", "Composer redesign",
-                         note="docs/superpowers/specs/2026-07-13-composer-design.md")
+                         note="docs/superpowers/specs/2026-07-13-composer-design.md",
+                         audience="public")
     cfg = roadmap.read_config(repo)
     assert cfg["items"] == [] and cfg["nextId"] == 1     # nothing was created
     # same note is fine when the item is internal, or with force
@@ -952,7 +959,8 @@ def test_new_refuses_status_dump_note(roadmap, repo):
 def test_audit_flags_internal_scope_in_clean_looking_title(roadmap, repo):
     roadmap.init_project(repo, "P")
     # note reads user-facing, but the title reveals admin-only scope
-    roadmap.new_item(repo, "feature", "Admin moderation dashboard", note="Manage your community")
+    roadmap.new_item(repo, "feature", "Admin moderation dashboard", note="Manage your community",
+                     audience="public", force=True)
     msgs = roadmap.audit_public_notes(repo)
     assert any("#1" in m and "admin" in m.lower() for m in msgs)
 
@@ -984,11 +992,11 @@ def test_devsurface_tells_demote(roadmap):
 
 
 def test_unclassified_devsurface_item_auto_routes_internal(roadmap):
+    # auto-routing on demote tells is gone — unclassified items are internal by
+    # default regardless of title, and an explicit audience always wins.
     assert roadmap.item_audience({"type": "feature", "title": "API key manager"}) == "internal"
     assert roadmap.item_audience({"type": "feature", "title": "Posting API editor"}) == "internal"
-    # bare "api" without a listed phrase stays public for a feature…
-    assert roadmap.item_audience({"type": "feature", "title": "Share API-powered link"}) == "public"
-    # …and an explicit audience still wins over the tells
+    assert roadmap.item_audience({"type": "feature", "title": "Share API-powered link"}) == "internal"
     assert roadmap.item_audience(
         {"type": "feature", "title": "API key manager", "audience": "public"}) == "public"
 
@@ -1163,7 +1171,7 @@ def test_health_warns_on_total_length(roadmap, repo):
 
 def test_shipped_unnoted_public_item_rolls_up_not_vanishes(roadmap, repo):
     roadmap.init_project(repo, "P")
-    roadmap.new_item(repo, "feature", "Login")            # public, but no note
+    roadmap.new_item(repo, "feature", "Login", audience="public")  # public, but no note
     roadmap.check_step(repo, 1, None, all_done=True)
     text, warnings = roadmap.render_public_changelog(repo)
     assert "## v0.0.1" in text                            # version block still present
@@ -1263,9 +1271,9 @@ def test_cli_tidy_json(roadmap, repo, monkeypatch, capsys):
 
 def test_changelog_json_structure(roadmap, repo):
     roadmap.init_project(repo, "P")
-    roadmap.new_item(repo, "feature", "Login", note="Sign in with email")
-    roadmap.new_item(repo, "bug", "Crash", note="Fixed a crash on launch")
-    roadmap.new_item(repo, "refactor", "Cache", note="Cache rewrite")   # internal
+    roadmap.new_item(repo, "feature", "Login", note="Sign in with email", audience="public")
+    roadmap.new_item(repo, "bug", "Crash", note="Fixed a crash on launch", audience="public")
+    roadmap.new_item(repo, "refactor", "Cache", note="Cache rewrite", audience="internal")
     roadmap.check_step(repo, 1, None, all_done=True)
     roadmap.check_step(repo, 2, None, all_done=True)
     roadmap.check_step(repo, 3, None, all_done=True)
@@ -1281,7 +1289,7 @@ def test_changelog_json_structure(roadmap, repo):
 
 def test_changelog_json_pending_and_unreleased(roadmap, repo):
     roadmap.init_project(repo, "P")
-    roadmap.new_item(repo, "feature", "Half done", note="Coming soon thing")
+    roadmap.new_item(repo, "feature", "Half done", note="Coming soon thing", audience="public")
     data = roadmap.changelog_json(repo)
     assert data[0]["released"] is False and data[0]["date"] is None
     assert data[0]["sections"]["New"][0]["pending"] is True
@@ -1289,7 +1297,7 @@ def test_changelog_json_pending_and_unreleased(roadmap, repo):
 
 def test_cli_changelog_json(roadmap, repo, monkeypatch, capsys):
     roadmap.init_project(repo, "P")
-    roadmap.new_item(repo, "feature", "Login", note="Sign in with email")
+    roadmap.new_item(repo, "feature", "Login", note="Sign in with email", audience="public")
     roadmap.check_step(repo, 1, None, all_done=True)
     monkeypatch.chdir(repo)
     assert roadmap.main(["changelog", "--json"]) == 0
@@ -1595,7 +1603,8 @@ def test_cli_handoff_json(roadmap, repo, monkeypatch, capsys):
 
 def test_summary_replaces_bullets_in_public_changelog(roadmap, repo):
     roadmap.init_project(repo, "P")
-    roadmap.new_item(repo, "feature", "Trips", note="Share trips with friends.")
+    roadmap.new_item(repo, "feature", "Trips", note="Share trips with friends.",
+                     audience="public")
     roadmap.check_step(repo, 1, None, all_done=True)
     assert "Share trips with friends." in (repo / "CHANGELOG.md").read_text()
     roadmap.set_release_summary(
@@ -1628,7 +1637,8 @@ def test_summary_rejects_unknown_version(roadmap, repo):
 
 def test_changelog_json_carries_summary(roadmap, repo):
     roadmap.init_project(repo, "P")
-    roadmap.new_item(repo, "feature", "Trips", note="Share trips with friends.")
+    roadmap.new_item(repo, "feature", "Trips", note="Share trips with friends.",
+                     audience="public")
     roadmap.check_step(repo, 1, None, all_done=True)
     roadmap.set_release_summary(repo, "0.0.1", "A smoother ride all around.")
     (entry,) = roadmap.changelog_json(repo)
@@ -1639,7 +1649,7 @@ def test_changelog_json_carries_summary(roadmap, repo):
 
 def test_audit_suggests_summary_and_skips_summarized_items(roadmap, repo):
     roadmap.init_project(repo, "P")
-    roadmap.new_item(repo, "feature", "Trips")           # public, no note
+    roadmap.new_item(repo, "feature", "Trips", audience="public")  # public, no note
     roadmap.check_step(repo, 1, None, all_done=True)
     msgs = " ".join(roadmap.audit_public_notes(repo))
     assert "has no release-notes summary" in msgs

@@ -107,6 +107,36 @@ def _refuse_status_note(item: dict, note: str, force: bool) -> None:
             f"with --force if this text really should ship to end users.")
 
 
+def _refuse_unclassified_note(item: dict, note: str, force: bool) -> None:
+    """Refuse (ValueError) saving a note on an item with no explicit audience. Fail-closed
+    defaults mean the text would silently land internal-only — force the classification
+    decision at the moment the text is written instead."""
+    if force or not note or item.get("audience") in ("public", "internal"):
+        return
+    pid = item.get("id", "<id>")
+    raise ValueError(
+        f"note refused — #{pid} has no explicit audience, so this text would silently land "
+        f"in the internal changelog only. Decide where it ships first: pass --audience "
+        f"public|internal, or run roadmap audience --plan {pid} --to public|internal, then "
+        f"set the note. --force keeps it unclassified (renders internal-only).")
+
+
+def _refuse_public_note_demote_tells(item: dict, note: str, force: bool) -> None:
+    """Refuse (ValueError) a note that would render PUBLIC while the note/title trips a
+    high-confidence demote tell — wrong-audience text must not ship to end users."""
+    if force or not note or item_audience(item) != "public":
+        return
+    tells = demote_tells(f"{note} {item.get('title', '')}")
+    if tells:
+        raise ValueError(
+            f"note refused — this reads like wrong-audience work ({', '.join(tells)}). "
+            f"CHANGELOG.md is pasted into the App Store \"What's New\" and ships to end "
+            f"users; admin/compliance/security-disclosure/dev-surface text belongs in the "
+            f"internal changelog. Rephrase in plain benefit language, mark the item internal "
+            f"(roadmap audience --plan {item.get('id', '<id>')} --to internal), or re-run "
+            f"with --force if this text really should ship.")
+
+
 def _refuse_public_demote_tells(item: dict, force: bool) -> None:
     """Refuse (ValueError) EXPLICITLY setting audience=public on an item whose note/title
     trips a high-confidence demote tell (admin/compliance/plumbing/dev-surface)."""
@@ -128,8 +158,11 @@ def new_item(root: Path, type_: str, title: str, version: str | None = None,
         raise ValueError(f"unknown type {type_!r}; choose from {sorted(TEMPLATE_BY_TYPE)}")
     cfg = read_config(root)
     item_id = cfg["nextId"]
-    _refuse_status_note({"id": item_id, "title": title, "type": type_,
-                         "note": note, "audience": audience}, note, force)
+    candidate = {"id": item_id, "title": title, "type": type_,
+                 "note": note, "audience": audience}
+    _refuse_unclassified_note(candidate, note, force)
+    _refuse_status_note(candidate, note, force)
+    _refuse_public_note_demote_tells(candidate, note, force)
     if audience == "public":
         _refuse_public_demote_tells({"title": title, "note": note}, force)
     version = _norm_version(version or cfg["currentVersion"])
@@ -163,15 +196,13 @@ def set_note(root: Path, plan_id: int, text: str, force: bool = False) -> None:
     cfg = read_config(root)
     for item in cfg["items"]:
         if item["id"] == plan_id:
-            _refuse_status_note({**item, "note": text}, text, force)
+            candidate = {**item, "note": text}
+            _refuse_unclassified_note(candidate, text, force)
+            _refuse_status_note(candidate, text, force)
+            _refuse_public_note_demote_tells(candidate, text, force)
             item["note"] = text
             write_config(root, cfg)
-            blob = f"{text} {item['title']}"
-            if item.get("audience") is None and demote_tells(blob):
-                print(f"warning: #{plan_id} auto-routed to the internal changelog "
-                      f"({', '.join(demote_tells(blob))}); if it really is user-facing, "
-                      f"override: roadmap audience --plan {plan_id} --to public", file=sys.stderr)
-            elif item_audience(item) == "public":
+            if item_audience(item) == "public":
                 tells = lint_note(text, cfg.get("settings", {}).get("internalTerms", []))
                 if tells:
                     print(f"warning: #{plan_id} note reads internal ({', '.join(tells)}); "
