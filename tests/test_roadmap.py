@@ -2309,7 +2309,8 @@ def test_release_gate_auto_without_target_falls_back_to_nudge(roadmap, repo, cap
     _set_auto_release(roadmap, repo, "auto")
     roadmap.check_step(repo, 1, None, all_done=True)
     assert roadmap.read_config(repo)["currentVersion"] == "0.0.1"
-    assert "<next-version>" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "release --version <next>" in err
 
 
 def test_new_item_later_version_triggers_gate(roadmap, repo, capsys):
