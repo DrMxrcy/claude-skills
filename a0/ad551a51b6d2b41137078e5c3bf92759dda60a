@@ -1,0 +1,42 @@
+skills/roadmap/example/CLAUDE.md
+  s_2a7c3c33a9c34b::t_b2bceb73644efa 13-31
+tests/test_roadmap.py
+  s_2a7c3c33a9c34b::t_e00b5625e8cb70 1973-1974,1978-1989,1999-2001
+  s_2a7c3c33a9c34b::t_5d811777cc4ec9 461,463
+  s_2a7c3c33a9c34b::t_a28177a5dd5d7e 912-914
+skills/roadmap/scripts/rmlib/core.py
+  s_2a7c3c33a9c34b::t_dac772d1dbe4b6 20-38
+CLAUDE.md
+  s_2a7c3c33a9c34b::t_b2bceb73644efa 3,5-12,14-17,19-21
+skills/roadmap/SKILL.md
+  s_2a7c3c33a9c34b::t_d69b3475e03050 90-94
+  s_2a7c3c33a9c34b::t_fc9d7651a78cf3 125-126
+AGENTS.md
+  s_2a7c3c33a9c34b::t_b2bceb73644efa 3,5-12,14-17,19-21
+tests/test_install.py
+  s_2a7c3c33a9c34b::t_ecaaabebd78f43 220,225
+.roadmap/config.json
+  s_2a7c3c33a9c34b::t_9c5c75f5ad5c18 184
+.roadmap/plans/018-split-roadmap-discipline-rules-into-individually-loadable-principle-skills.md
+  s_2a7c3c33a9c34b::t_d315373489c52d 6,30-33
+CHANGELOG.internal.md
+  s_2a7c3c33a9c34b::t_25033746331f53 16
+ROADMAP.md
+  s_2a7c3c33a9c34b::t_26f4f72860079f 19,24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "a0ad551a51b6d2b41137078e5c3bf92759dda60a",
+  "prompts": {},
+  "sessions": {
+    "s_2a7c3c33a9c34b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8aefaeb3-b160-465a-8409-ad009a603f36",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
