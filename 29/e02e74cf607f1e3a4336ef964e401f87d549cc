@@ -1,0 +1,23 @@
+.roadmap/config.json
+  s_2a7c3c33a9c34b::t_fbaf2c258d642a 3
+ROADMAP.md
+  s_2a7c3c33a9c34b::t_7eb7bf18f2488a 7,19
+skills/roadmap/VERSION
+  s_2a7c3c33a9c34b::t_003aa7759c9cee 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "29e02e74cf607f1e3a4336ef964e401f87d549cc",
+  "prompts": {},
+  "sessions": {
+    "s_2a7c3c33a9c34b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8aefaeb3-b160-465a-8409-ad009a603f36",
+        "model": "unknown"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
