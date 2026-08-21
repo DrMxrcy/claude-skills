@@ -4,8 +4,17 @@ _Full work log — every item, including internal/dev work. The curated public c
 
 ## v0.17.0 — (in progress)
 
+### ✨ New
+- (pending) Completion-promise gate: parent greps an explicit done marker before allowing check
+- (pending) Per-role model mapping setting for the quality-first build loop
+
 ### 🐛 Fixed
 - (pending) Version date stamped once and never re-stamped when the version reopens
+
+### ⚡ Improved
+- (pending) Schema-validated install manifest + CI validate script for cross-agent installs
+- (pending) Split roadmap discipline rules into individually loadable principle skills
+- (pending) Release flow should bump or warn about the skill VERSION file in this repo
 
 ## v0.16.0 — 2026-08-20
 

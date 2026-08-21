@@ -1,7 +1,7 @@
 {
   "project": "claude-skills",
   "currentVersion": "0.17.0",
-  "nextId": 15,
+  "nextId": 21,
   "items": [
     {
       "id": 1,
@@ -134,6 +134,46 @@
       "version": "0.17.0",
       "file": "plans/014-version-date-stamped-once-and-never-re-stamped-when-the-version-reopens.md",
       "audience": "internal"
+    },
+    {
+      "id": 15,
+      "slug": "schema-validated-install-manifest-ci-validate-script-for-cross-agent-installs",
+      "title": "Schema-validated install manifest + CI validate script for cross-agent installs",
+      "type": "chore",
+      "version": "0.17.0",
+      "file": "plans/015-schema-validated-install-manifest-ci-validate-script-for-cross-agent-installs.md"
+    },
+    {
+      "id": 16,
+      "slug": "completion-promise-gate-parent-greps-an-explicit-done-marker-before-allowing-check",
+      "title": "Completion-promise gate: parent greps an explicit done marker before allowing check",
+      "type": "feature",
+      "version": "0.17.0",
+      "file": "plans/016-completion-promise-gate-parent-greps-an-explicit-done-marker-before-allowing-check.md"
+    },
+    {
+      "id": 17,
+      "slug": "per-role-model-mapping-setting-for-the-quality-first-build-loop",
+      "title": "Per-role model mapping setting for the quality-first build loop",
+      "type": "feature",
+      "version": "0.17.0",
+      "file": "plans/017-per-role-model-mapping-setting-for-the-quality-first-build-loop.md"
+    },
+    {
+      "id": 18,
+      "slug": "split-roadmap-discipline-rules-into-individually-loadable-principle-skills",
+      "title": "Split roadmap discipline rules into individually loadable principle skills",
+      "type": "refactor",
+      "version": "0.17.0",
+      "file": "plans/018-split-roadmap-discipline-rules-into-individually-loadable-principle-skills.md"
+    },
+    {
+      "id": 19,
+      "slug": "release-flow-should-bump-or-warn-about-the-skill-version-file-in-this-repo",
+      "title": "Release flow should bump or warn about the skill VERSION file in this repo",
+      "type": "chore",
+      "version": "0.17.0",
+      "file": "plans/019-release-flow-should-bump-or-warn-about-the-skill-version-file-in-this-repo.md"
     }
   ],
   "settings": {

@@ -1,12 +1,6 @@
 # 🗺️ Roadmap: claude-skills
 
 ## 💡 Idea Incubator
-- Release flow should bump or warn about the skill VERSION file in this repo ([notes](.roadmap/notes/2026-08-20-release-flow-should-bump-or-warn-about-the-skill-version-file-in-this-repo.md))
-- Split roadmap discipline rules into individually loadable principle skills ([notes](.roadmap/notes/2026-08-20-split-roadmap-discipline-rules-into-individually-loadable-principle-skills.md))
-- Per-role model mapping setting for the quality-first build loop ([notes](.roadmap/notes/2026-08-20-per-role-model-mapping-setting-for-the-quality-first-build-loop.md))
-- Completion-promise gate: parent greps an explicit done marker before allowing check ([notes](.roadmap/notes/2026-08-20-completion-promise-gate-parent-greps-an-explicit-done-marker-before-allowing-check.md))
-- Schema-validated install manifest + CI validate script for cross-agent installs ([notes](.roadmap/notes/2026-08-20-schema-validated-install-manifest-ci-validate-script-for-cross-agent-installs.md))
-- Optional execution metadata on check — record verify command and result per step ([notes](.roadmap/notes/2026-08-19-optional-execution-metadata-on-check-record-verify-command-and-result-per-step.md))
 <!-- Free-form; sync never rewrites this region. ONE bullet per idea (`roadmap.py idea`).
      Long write-ups (brainstorms, review findings) go to .roadmap/notes/ files and get linked. -->
 <!-- roadmap:auto:start -->
@@ -24,4 +18,9 @@
 
 ### [ ] v0.17.0 — 0%
 - [ ] **#14 Version date stamped once and never re-stamped when the version reopens** `bug` — 0% ([plan](.roadmap/plans/014-version-date-stamped-once-and-never-re-stamped-when-the-version-reopens.md))
+- [ ] **#15 Schema-validated install manifest + CI validate script for cross-agent installs** `chore` — 0% ([plan](.roadmap/plans/015-schema-validated-install-manifest-ci-validate-script-for-cross-agent-installs.md))
+- [ ] **#16 Completion-promise gate: parent greps an explicit done marker before allowing check** `feature` — 0% ([plan](.roadmap/plans/016-completion-promise-gate-parent-greps-an-explicit-done-marker-before-allowing-check.md))
+- [ ] **#17 Per-role model mapping setting for the quality-first build loop** `feature` — 0% ([plan](.roadmap/plans/017-per-role-model-mapping-setting-for-the-quality-first-build-loop.md))
+- [ ] **#18 Split roadmap discipline rules into individually loadable principle skills** `refactor` — 0% ([plan](.roadmap/plans/018-split-roadmap-discipline-rules-into-individually-loadable-principle-skills.md))
+- [ ] **#19 Release flow should bump or warn about the skill VERSION file in this repo** `chore` — 0% ([plan](.roadmap/plans/019-release-flow-should-bump-or-warn-about-the-skill-version-file-in-this-repo.md))
 <!-- roadmap:auto:end -->
