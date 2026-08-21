@@ -1,0 +1,31 @@
+skills/roadmap/scripts/roadmap.py
+  s_2a7c3c33a9c34b::t_7c60b23a90fdf1 168-173
+  s_2a7c3c33a9c34b::t_32c0f896860d8f 315
+tests/test_roadmap.py
+  s_2a7c3c33a9c34b::t_8f7184b3764603 153-195,198-259
+  s_2a7c3c33a9c34b::t_80be6803f80f83 196-197
+skills/roadmap/scripts/rmlib/ops.py
+  s_2a7c3c33a9c34b::t_5c91cb1fd81837 64-68,70-77,86,89,92-93
+.roadmap/config.json
+  s_2a7c3c33a9c34b::t_83d19786872496 184
+.roadmap/plans/016-completion-promise-gate-parent-greps-an-explicit-done-marker-before-allowing-check.md
+  s_2a7c3c33a9c34b::t_f1bf7f345c221b 6,30-31
+ROADMAP.md
+  s_2a7c3c33a9c34b::t_f8259644f02511 19,22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "5501c264c48a1552847ac9d0b35ddee8dd23ad1d",
+  "prompts": {},
+  "sessions": {
+    "s_2a7c3c33a9c34b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8aefaeb3-b160-465a-8409-ad009a603f36",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
