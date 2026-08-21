@@ -29,8 +29,3 @@ created: 2026-08-21
 ## 🚶 Step-by-Step Checklist
 - [ ] Step 1: --evidence flag + plan-file append + settings.requireEvidence gate + tests -> target: scripts + tests
 - [ ] Step 2: document in SKILL.md command ref + build-loop docs (parent passes evidence when checking) -> target: docs
-
-## Merged from #20 Optional execution metadata on check — record verify command and result per step
-
-- [ ] Step 1:  -> target:
-- [ ] Step 2:  -> target:
