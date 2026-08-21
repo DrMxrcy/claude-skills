@@ -1,0 +1,46 @@
+schemas/skill.schema.json
+  s_2a7c3c33a9c34b::t_9a3a3999690ea1 1-4,6-70
+  s_2a7c3c33a9c34b::t_62e502c8c1fe26 5
+README.md
+  s_2a7c3c33a9c34b::t_49af47d27929be 156-157,165-166
+  s_8271054e0872c8::t_74c3e6fac09d6f 167
+tests/test_validate_skills.py
+  s_2a7c3c33a9c34b::t_51bb1cd7090b1d 1-116
+scripts/validate_skills.py
+  s_2a7c3c33a9c34b::t_62e502c8c1fe26 56-61
+  s_2a7c3c33a9c34b::t_3d47ab2c7b08d1 1-55,62-121
+CONTRIBUTING.md
+  s_2a7c3c33a9c34b::t_7f571db6f1a2bd 27
+.roadmap/config.json
+  s_2a7c3c33a9c34b::t_7d82179bf7350d 184
+.roadmap/plans/015-schema-validated-install-manifest-ci-validate-script-for-cross-agent-installs.md
+  s_2a7c3c33a9c34b::t_8cebb41521357e 6,30-31
+CHANGELOG.internal.md
+  s_2a7c3c33a9c34b::t_1da34e022c04c4 15
+ROADMAP.md
+  s_2a7c3c33a9c34b::t_b3d5a568427853 19,21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "9573f09e9daf6763eac45ece0de75375b6dfbd30",
+  "prompts": {},
+  "sessions": {
+    "s_2a7c3c33a9c34b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8aefaeb3-b160-465a-8409-ad009a603f36",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    },
+    "s_8271054e0872c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c1583fb7-a5c5-4267-b7af-5fb1000dd402",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
