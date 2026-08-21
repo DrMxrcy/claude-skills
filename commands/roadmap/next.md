@@ -28,7 +28,7 @@ For a whole version with the same quality gates, use `/roadmap:build <ver> --aut
    | Implement | One `general-purpose` subagent | TDD for this step only |
    | Spec review | Fresh subagent | Diff vs plan/spec → fix until ✅ |
    | Quality review | Fresh subagent | Maintainability/tests → fix until ✅ |
-   | Verify + check | **Parent only** | Real tests → `check --plan <id> --step <n>` → commit code+roadmap |
+   | Verify + check | **Parent only** | Real tests → `check --plan <id> --step <n> --evidence "<command>: <real result>"` → commit code+roadmap |
 
    Prefer superpowers `subagent-driven-development` when installed. **Parent only** runs
    `roadmap.py`. No parallel implementers on the same tree. Never hand-edit `ROADMAP.md`.

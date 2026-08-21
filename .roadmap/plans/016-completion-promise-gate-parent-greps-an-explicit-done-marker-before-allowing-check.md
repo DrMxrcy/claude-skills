@@ -3,7 +3,7 @@ id: 16
 title: "Completion-promise gate: parent greps an explicit done marker before allowing check"
 type: feature
 version: 0.17.0
-status: active
+status: done
 created: 2026-08-21
 ---
 
@@ -29,4 +29,5 @@ created: 2026-08-21
 ## 🚶 Step-by-Step Checklist
 - [x] Step 1: --evidence flag + plan-file append + settings.requireEvidence gate + tests -> target: scripts + tests
   > evidence: uv run pytest tests/ -q: 312 passed; spec review mutation-tested 4 mutations killed (2026-08-21)
-- [ ] Step 2: document in SKILL.md command ref + build-loop docs (parent passes evidence when checking) -> target: docs
+- [x] Step 2: document in SKILL.md command ref + build-loop docs (parent passes evidence when checking) -> target: docs
+  > evidence: doc reviewer verified every claim against ops.py behavior; suite 312 passed (2026-08-21)

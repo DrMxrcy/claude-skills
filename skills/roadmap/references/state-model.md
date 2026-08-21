@@ -19,6 +19,7 @@
 - `versionDates` — stamped by `sync` the first time a version hits 100% (stable changelog/collapse dates).
 - `settings.collapseShipped` — defaults to `true` when absent.
 - `settings.autoRelease` — `off` | `nudge` (default when absent) | `auto`: what happens when the current version is 100% but uncut (nudge prints a release reminder from `check`/`next`/`orient`; auto runs `release` when a target version is known).
+- `settings.requireEvidence` — defaults to `false`; when `true`, `check` refuses without `--evidence "<verify command + result>"` (`--undo` is never gated).
 - `settings.incubatorFile` — when set (by `tidy --externalize`), the Idea Incubator lives in this file instead of `ROADMAP.md`.
 
 ## Plan frontmatter
@@ -29,3 +30,4 @@
 - Never hand-edit the managed region of ROADMAP.md; run `sync`.
 - All mutations go through `roadmap.py` (atomic writes; safe on partial failure).
 - Checklist lines inside fenced code blocks are ignored by parsing/sync/import.
+- `check --evidence` appends an indented blockquote sub-line (`  > evidence: <text> (<date>)`) under the checked step; it is never parsed as a step, so progress counts are unaffected.

@@ -191,8 +191,9 @@ On invocation, detect state and pick a phase:
    - Prefer superpowers **`subagent-driven-development`** when installed; else native
      subagents (Grok `spawn_subagent`, Claude Task). Fallback: `executing-plans` or
      direct TDD with the same gates.
-   - After each step passes its test: `roadmap.py check --plan <id> --step <n>`, then
-     commit code + roadmap together.
+   - After each step passes its test: `roadmap.py check --plan <id> --step <n> --evidence
+     "<command>: <real result>"` (the actual test output, not a guess), then commit code +
+     roadmap together.
 
 4. **A version's items are all done** → Review, then release.
    - Verify the phase against its specs + code-review the work (`/roadmap:review`) before
@@ -236,7 +237,11 @@ Anywhere a command takes `--plan ID` (or an id list), the id may be `7`, `#7`, o
 - `note --plan ID --text "..." [--force]` — set an item's user-facing changelog line (lints public notes; refuses status-dump text on public items)
 - `summary --version V --text "..." [--clear] [--force]` — set a version's public release-notes blurb; renders instead of item bullets in CHANGELOG.md (keep it stupid simple)
 - `audience --plan ID --to public|internal [--force]` — route an item to the public or internal changelog. Fail-closed: unset audience renders internal-only for every type, and `note`/`new --note` refuse until the audience is explicit. `--to public` refuses high-confidence internal tells — admin/compliance/security-disclosure/plumbing/dev-surface words and disclosure-shaped phrasing — unless `--force`; the same gate applies to `new --audience public` and to saving a note on a public item.
-- `check --plan ID --step N [--undo] [--all-done]` — flip checkboxes (+ records `last_seen_sha`)
+- `check --plan ID --step N [--undo] [--all-done] [--evidence "..."]` — flip checkboxes (+ records `last_seen_sha`).
+  `--evidence` records how the step was proven done (verify command + result) as a dated
+  sub-line under the step — under every step with `--all-done`, ignored with `--undo`.
+  `settings.requireEvidence: true` in `.roadmap/config.json` (default `false`) makes a bare
+  `check` refuse until you pass it.
 - `next [--version V] [--force] [--json]` — next unfinished item (skips incomplete `dependsOn`)
 - `deps-check --plan ID [--force]` — warn if dependencies are incomplete
 - `remove --plan ID` — archive a plan, drop it, demote it to the Idea Incubator

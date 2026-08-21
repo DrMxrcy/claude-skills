@@ -49,7 +49,7 @@ For each unfinished checklist step of the current item:
 | **2. Implement** | **One** `general-purpose` subagent | TDD for this step only. Self-review. Report DONE / DONE_WITH_CONCERNS / BLOCKED. |
 | **3. Spec review** | Fresh subagent | Diff vs step + spec + Acceptance criteria. Gaps → implementer fixes → re-review until ✅. |
 | **4. Quality review** | Fresh subagent | Correctness, tests, maintainability; Acceptance "Fails if" lines are blockers. Issues → fix → re-review until ✅. |
-| **5. Verify + check** | **Parent only** | Run real project build/tests. On green: `python3 <roadmap.py> check --plan <id> --step <n>`, then commit code + roadmap together. |
+| **5. Verify + check** | **Parent only** | Run real project build/tests. On green: `python3 <roadmap.py> check --plan <id> --step <n> --evidence "<command>: <real result>"` — the actual test output, not a guess — then commit code + roadmap together. |
 
 Prefer superpowers **`subagent-driven-development`** when installed — it is the same shape
 (implement → spec review → quality review per task). Else use native subagents

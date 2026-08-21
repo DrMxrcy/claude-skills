@@ -75,7 +75,8 @@ Parent reads the plan file + linked Spec / Detailed plan once, then for **each u
 Only the parent:
 
 1. Run the project’s real build/tests for the change.
-2. On green: `python3 "$RM" check --plan <id> --step <n>`
+2. On green: `python3 "$RM" check --plan <id> --step <n> --evidence "<command>: <real result>"`
+   — paste the actual test output line you just saw (e.g. `pytest -q: 312 passed`), never a guess.
 3. **Micro-commit code + roadmap immediately** (one commit per checked step).
    This is what makes rate-limits safe: the next agent only loses uncommitted
    in-flight work, never completed steps.
