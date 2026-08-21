@@ -1,0 +1,39 @@
+skills/roadmap/references/quality-build.md
+  s_2a7c3c33a9c34b::t_aeb20d7f9cb569 78-79
+skills/roadmap/references/state-model.md
+  s_2a7c3c33a9c34b::t_e819fe7c194f88 22
+  s_2a7c3c33a9c34b::t_4a4f25093a179a 33
+commands/roadmap/build.md
+  s_2a7c3c33a9c34b::t_cd0894590ad3ce 52
+commands/roadmap/next.md
+  s_2a7c3c33a9c34b::t_58e67b52946853 31
+skills/roadmap/SKILL.md
+  s_2a7c3c33a9c34b::t_eef951f24a6f5d 240-244
+  s_2a7c3c33a9c34b::t_9a963ad2f57b28 194-196
+.roadmap/config.json
+  s_2a7c3c33a9c34b::t_856d0895136ae9 184
+.roadmap/plans/016-completion-promise-gate-parent-greps-an-explicit-done-marker-before-allowing-check.md
+  s_2a7c3c33a9c34b::t_81c4ebf35be67a 6,32-33
+CHANGELOG.internal.md
+  s_2a7c3c33a9c34b::t_dfc2f4a1694d1a 8
+ROADMAP.md
+  s_2a7c3c33a9c34b::t_8e3ae7ca71760f 19,22
+skills/roadmap/README.md
+  s_2a7c3c33a9c34b::t_ebf14fa13442cf 196
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "d7b5d03090cf674fb5cd12206fc23d38d89a7d9c",
+  "prompts": {},
+  "sessions": {
+    "s_2a7c3c33a9c34b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8aefaeb3-b160-465a-8409-ad009a603f36",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
