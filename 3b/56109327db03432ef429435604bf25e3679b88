@@ -1,0 +1,21 @@
+tests/test_roadmap.py
+  s_2a7c3c33a9c34b::t_74f86865e07167 2312-2313
+codex-plugin/plugins/roadmap/plugin.json
+  s_2a7c3c33a9c34b::t_f03d5a6e89317d 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "3b56109327db03432ef429435604bf25e3679b88",
+  "prompts": {},
+  "sessions": {
+    "s_2a7c3c33a9c34b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8aefaeb3-b160-465a-8409-ad009a603f36",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
