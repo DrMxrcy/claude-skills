@@ -1,0 +1,40 @@
+skills/roadmap/SKILL.md
+  s_2a7c3c33a9c34b::t_57dcee5cf02deb 194-199
+commands/roadmap/build.md
+  s_2a7c3c33a9c34b::t_19443ee6783387 54-57
+tests/test_roadmap.py
+  s_2a7c3c33a9c34b::t_894ce71a21b4dd 1912-1923
+  s_2a7c3c33a9c34b::t_4c59943c9dd7f5 1887-1911
+skills/roadmap/references/quality-build.md
+  s_2a7c3c33a9c34b::t_671d4c5ddbf856 102-103
+skills/roadmap/scripts/rmlib/report.py
+  s_2a7c3c33a9c34b::t_b131bcef2f7a02 162-165
+  s_2a7c3c33a9c34b::t_e048ac12dc6422 100
+  s_2a7c3c33a9c34b::t_83669f723f5d90 119-124
+skills/roadmap/references/state-model.md
+  s_2a7c3c33a9c34b::t_cf8e0dcbbc33db 23
+.roadmap/config.json
+  s_2a7c3c33a9c34b::t_7f7e47bd6346a8 184
+.roadmap/plans/017-per-role-model-mapping-setting-for-the-quality-first-build-loop.md
+  s_2a7c3c33a9c34b::t_fabe1a912ed63d 6,30-33
+CHANGELOG.internal.md
+  s_2a7c3c33a9c34b::t_d9a19eb4f73056 9
+ROADMAP.md
+  s_2a7c3c33a9c34b::t_e54c205a363cb0 19,23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "3b6343e5b4cf756a7fd75d0f355d982b2fa6516f",
+  "prompts": {},
+  "sessions": {
+    "s_2a7c3c33a9c34b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8aefaeb3-b160-465a-8409-ad009a603f36",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
