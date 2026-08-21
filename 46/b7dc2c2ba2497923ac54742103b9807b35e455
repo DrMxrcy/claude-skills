@@ -1,0 +1,30 @@
+tests/test_roadmap.py
+  s_2a7c3c33a9c34b::t_d88b9712b60b75 1
+  s_2a7c3c33a9c34b::t_d5a991c8d9318e 441-469
+skills/roadmap/scripts/rmlib/sync.py
+  s_2a7c3c33a9c34b::t_0432bd17c9bdcd 127-130,135,137-142
+.roadmap/config.json
+  s_2a7c3c33a9c34b::t_ebf98e9e0b6d10 184
+.roadmap/plans/014-version-date-stamped-once-and-never-re-stamped-when-the-version-reopens.md
+  s_2a7c3c33a9c34b::t_947dd05bcb82e4 6,28-30
+CHANGELOG.internal.md
+  s_2a7c3c33a9c34b::t_febd7bfc9921a0 12
+ROADMAP.md
+  s_2a7c3c33a9c34b::t_8a49a25c204d95 19-20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "46b7dc2c2ba2497923ac54742103b9807b35e455",
+  "prompts": {},
+  "sessions": {
+    "s_2a7c3c33a9c34b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8aefaeb3-b160-465a-8409-ad009a603f36",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
