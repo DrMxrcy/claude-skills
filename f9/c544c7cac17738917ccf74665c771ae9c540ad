@@ -1,0 +1,44 @@
+tests/test_roadmap.py
+  s_2a7c3c33a9c34b::t_ae8d8f4ca417b0 656-670
+  s_2a7c3c33a9c34b::t_80fb7ee990a0a6 630,650
+  s_2a7c3c33a9c34b::t_0a573864b3807d 3,5-6
+  s_2a7c3c33a9c34b::t_a3f8477a80165d 613-629,631-649,651-655
+skills/roadmap/scripts/rmlib/ops.py
+  s_2a7c3c33a9c34b::t_6bb6b15fbc402b 469-472,474,476
+  s_2a7c3c33a9c34b::t_1e58565aeb2a27 494-498
+  s_2a7c3c33a9c34b::t_092ea6ec9d3c34 465-468,473,475,477-480
+.roadmap/plans/019-release-flow-should-bump-or-warn-about-the-skill-version-file-in-this-repo.md
+  s_8271054e0872c8::t_984d3510660394 6,30-31
+CHANGELOG.internal.md
+  s_8271054e0872c8::t_c02e40373b78a2 5,17
+CHANGELOG.md
+  s_8271054e0872c8::t_e165393f0e9a30 3
+ROADMAP.md
+  s_8271054e0872c8::t_68c36092faac68 19,25
+.roadmap/config.json
+  s_2a7c3c33a9c34b::t_06174295eeb6cb 184,189-190
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "f9c544c7cac17738917ccf74665c771ae9c540ad",
+  "prompts": {},
+  "sessions": {
+    "s_2a7c3c33a9c34b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8aefaeb3-b160-465a-8409-ad009a603f36",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    },
+    "s_8271054e0872c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c1583fb7-a5c5-4267-b7af-5fb1000dd402",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
