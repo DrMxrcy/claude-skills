@@ -458,10 +458,9 @@ def test_init_creates_claude_md_rules(roadmap, repo):
     assert "One item at a time" in cm
     assert "Quality-first build" in cm
     assert "high-quality" in cm
-    assert "handoff` is optional" in cm or "handoff is optional" in cm
+    assert "Orient first" in cm
     assert "Micro-commit" in cm
-    assert "Abrupt switch" in cm
-    assert "rate-limit" in cm or "Rate limits" in cm
+    assert "Never hand-edit `ROADMAP.md`" in cm
     assert "hyphen only" in cm
     assert "next` has no `--auto`" in cm or "next has no" in cm
 
@@ -910,6 +909,9 @@ def test_upgrade_refreshes_rules_and_reports_version(roadmap, repo, capsys):
     text = claude.read_text()
     assert "OLD RULES" not in text
     assert "## Roadmap tracking" in text
+    assert "references/quality-build.md" in text        # swapped in the compact block
+    assert text.count(roadmap.RULES_START) == 1
+    assert "# P" in text                                # surrounding content preserved
     assert roadmap.read_config(repo)["skillVersion"] == roadmap.get_version()
     assert roadmap.get_version() in capsys.readouterr().out
 
@@ -1968,12 +1970,23 @@ def test_init_writes_agents_md_and_dual_slash_names(roadmap, repo):
     for name in ("CLAUDE.md", "AGENTS.md"):
         text = (repo / name).read_text()
         assert "roadmap:rules:start" in text
-        assert "/roadmap:status" in text and "/roadmap-status" in text
-        assert "/roadmap-build" in text and "hyphen only" in text
+        assert "/roadmap:build" in text and "/roadmap-build" in text
+        assert "hyphen only" in text
         assert "Quality-first build" in text
         assert "spec review" in text
         assert "Micro-commit" in text
-        assert "Abrupt switch" in text
+
+
+def test_rules_block_is_compact_and_points_at_long_form(roadmap):
+    """The injected block stays a compact core; the dropped detail is named, not inlined."""
+    body = roadmap.RULES_BLOCK.splitlines()
+    assert len(body) <= 24, f"rules block grew back to {len(body)} lines"
+    text = roadmap.RULES_BLOCK
+    for ref in ("SKILL.md", "references/quality-build.md", "references/state-model.md"):
+        assert ref in text
+    for guardrail in ("Orient first", "One item at a time", "Micro-commit",
+                      "Never hand-edit `ROADMAP.md`", "`roadmap.py check`"):
+        assert guardrail in text
 
 
 def test_rules_block_in_example(roadmap):
@@ -1983,7 +1996,9 @@ def test_rules_block_in_example(roadmap):
     assert roadmap.RULES_START in text
     body = text.split(roadmap.RULES_START, 1)[1].split(roadmap.RULES_END, 1)[0]
     assert "/roadmap-build" in body and "hyphen only" in body
-    assert "promote" in body.lower() or "roadmap-promote" in body
+    # example must stay byte-identical to the shipped block (it is the doc of record)
+    assert body.strip() == roadmap.RULES_BLOCK.split(roadmap.RULES_START, 1)[1] \
+        .split(roadmap.RULES_END, 1)[0].strip()
 
 
 def test_depends_rejects_two_cycle(roadmap, repo):

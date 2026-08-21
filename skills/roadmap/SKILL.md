@@ -87,6 +87,11 @@ $roadmap review [version]       Review completed work
 If there are no args on bare `/roadmap` in Claude/Grok, use **Phase routing** below.
 
 ## Working guardrails (apply whenever this skill is active)
+> `init`/`upgrade` inject a **compact core** of these rules into `CLAUDE.md` + `AGENTS.md`
+> (between the `roadmap:rules` markers) to keep per-session context small. The long form is
+> here and in [`references/quality-build.md`](references/quality-build.md) /
+> [`references/state-model.md`](references/state-model.md) — read them on demand.
+
 - At the start of a session, run `roadmap.py orient` / `handoff` (or status) before writing code.
 - New features or found bugs become roadmap items (`/roadmap:plan`) before coding; park stray ideas in the Idea Incubator — nothing is built off-roadmap.
 - **Incubator hygiene — ROADMAP.md stays skimmable.** One bullet per parked idea, added via
@@ -117,7 +122,8 @@ is fine if you micro-committed along the way.
 | `CLAUDE.md` + `AGENTS.md` rules block | `init` / `upgrade` |
 
 **Ideal leave (when you can):** micro-commit after each checked step; optional
-`python3 "$RM" handoff` + push.
+`python3 "$RM" handoff` + push. Never keep a private parallel plan outside `.roadmap/` —
+another agent cannot read it.
 
 **Abrupt leave (rate limit / kill — no handoff):**
 

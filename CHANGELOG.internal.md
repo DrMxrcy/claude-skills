@@ -13,7 +13,7 @@ _Full work log — every item, including internal/dev work. The curated public c
 
 ### ⚡ Improved
 - Schema-validated install manifest + CI validate script for cross-agent installs
-- (pending) Split roadmap discipline rules into individually loadable principle skills
+- Split roadmap discipline rules into individually loadable principle skills
 - (pending) Release flow should bump or warn about the skill VERSION file in this repo
 
 ## v0.16.0 — 2026-08-20

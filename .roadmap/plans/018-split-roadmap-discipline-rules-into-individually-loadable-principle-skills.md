@@ -3,7 +3,7 @@ id: 18
 title: Split roadmap discipline rules into individually loadable principle skills
 type: refactor
 version: 0.17.0
-status: planned
+status: done
 created: 2026-08-21
 ---
 
@@ -27,5 +27,7 @@ created: 2026-08-21
 - **Fails if:** any core guardrail (CLI-only edits, one-item-at-a-time, micro-commit, orient-first) disappears from the injected block
 
 ## 🚶 Step-by-Step Checklist
-- [ ] Step 1: draft compact rules block + move long-form to references, update project.py + tests -> target: project.py, references/
-- [ ] Step 2: verify upgrade path swaps blocks in an existing repo; sync SKILL.md pointers -> target: tests + docs
+- [x] Step 1: draft compact rules block + move long-form to references, update project.py + tests -> target: project.py, references/
+  > evidence: block 41 to 22 lines (46%); reviewer traced every dropped norm to SKILL.md/references; mutations killed (2026-08-21)
+- [x] Step 2: verify upgrade path swaps blocks in an existing repo; sync SKILL.md pointers -> target: tests + docs
+  > evidence: live upgrade swap verified idempotent in scratch repo; fresh init gets compact block (2026-08-21)
