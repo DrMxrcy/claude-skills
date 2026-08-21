@@ -24,6 +24,7 @@ The installer (`install.sh`) auto-discovers every skill under `skills/` (any dir
 python3 -m pytest -q                          # ~32s serial
 python3 -m pytest -n auto -q                   # ~8s parallel (needs pytest-xdist)
 bash -n install.sh                             # shell syntax check
+python3 scripts/validate_skills.py             # skills/ layout vs schemas/skill.schema.json
 ```
 
 The suite is parallel-safe (each test gets an isolated `tmp_path`); `-n auto`

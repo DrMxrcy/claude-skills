@@ -3,7 +3,7 @@ id: 15
 title: Schema-validated install manifest + CI validate script for cross-agent installs
 type: chore
 version: 0.17.0
-status: planned
+status: done
 created: 2026-08-21
 ---
 
@@ -27,5 +27,5 @@ created: 2026-08-21
 - **Fails if:** validator needs a third-party package
 
 ## 🚶 Step-by-Step Checklist
-- [ ] Step 1: schema + validate_skills.py + tests -> target: schemas/, scripts/, tests
-- [ ] Step 2: wire into CI if workflows exist, else document local run; README line -> target: .github/ or README
+- [x] Step 1: schema + validate_skills.py + tests -> target: schemas/, scripts/, tests
+- [x] Step 2: wire into CI if workflows exist, else document local run; README line -> target: .github/ or README

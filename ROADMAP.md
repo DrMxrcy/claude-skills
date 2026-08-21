@@ -16,9 +16,9 @@
 
 ### [x] v0.16.0 — 100% · 5 items · shipped 2026-08-20 ([history](CHANGELOG.internal.md))
 
-### [ ] v0.17.0 — 25%
+### [ ] v0.17.0 — 42%
 - [x] **#14 Version date stamped once and never re-stamped when the version reopens** `bug` — 100% ([plan](.roadmap/plans/014-version-date-stamped-once-and-never-re-stamped-when-the-version-reopens.md))
-- [ ] **#15 Schema-validated install manifest + CI validate script for cross-agent installs** `chore` — 0% ([plan](.roadmap/plans/015-schema-validated-install-manifest-ci-validate-script-for-cross-agent-installs.md))
+- [x] **#15 Schema-validated install manifest + CI validate script for cross-agent installs** `chore` — 100% ([plan](.roadmap/plans/015-schema-validated-install-manifest-ci-validate-script-for-cross-agent-installs.md))
 - [ ] **#16 Completion-promise gate: parent greps an explicit done marker before allowing check** `feature` — 0% ([plan](.roadmap/plans/016-completion-promise-gate-parent-greps-an-explicit-done-marker-before-allowing-check.md))
 - [ ] **#17 Per-role model mapping setting for the quality-first build loop** `feature` — 0% ([plan](.roadmap/plans/017-per-role-model-mapping-setting-for-the-quality-first-build-loop.md))
 - [ ] **#18 Split roadmap discipline rules into individually loadable principle skills** `refactor` — 0% ([plan](.roadmap/plans/018-split-roadmap-discipline-rules-into-individually-loadable-principle-skills.md))

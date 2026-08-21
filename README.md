@@ -153,12 +153,17 @@ skills/<name>/          # each skill: SKILL.md + scripts/templates/refs + README
 commands/<skill>/       # slash commands for that skill (installed to .claude/commands)
 install.sh              # one-command installer (local or curl | bash)
 .claude-plugin/         # plugin manifest (marketplace compatibility)
+schemas/                # skill.schema.json — the install-layout contract (documentation)
+scripts/                # repo tooling (validate_skills.py, build-codex-plugin.sh)
 tests/                  # pytest suite
 ```
 
 To add a skill: drop it in `skills/<name>/` (with a `SKILL.md` and a `README.md`), add any
 `commands/<name>/` files, and list it in the table above. The installer picks up every skill
 under `skills/` automatically.
+
+Check the layout before you push with `python3 scripts/validate_skills.py` (stdlib only,
+exits non-zero and names each violation).
 
 ## Requirements
 

@@ -12,7 +12,7 @@ _Full work log — every item, including internal/dev work. The curated public c
 - Version date stamped once and never re-stamped when the version reopens
 
 ### ⚡ Improved
-- (pending) Schema-validated install manifest + CI validate script for cross-agent installs
+- Schema-validated install manifest + CI validate script for cross-agent installs
 - (pending) Split roadmap discipline rules into individually loadable principle skills
 - (pending) Release flow should bump or warn about the skill VERSION file in this repo
 
