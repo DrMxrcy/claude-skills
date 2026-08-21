@@ -1,0 +1,25 @@
+.roadmap/config.json
+  s_2a7c3c33a9c34b::t_129310e038e5cd 183,191-193
+skills/roadmap/scripts/rmlib/ops.py
+  s_2a7c3c33a9c34b::t_7168798278867b 58-59
+skills/roadmap/scripts/rmlib/report.py
+  s_2a7c3c33a9c34b::t_3c3341b5d62608 153
+CHANGELOG.md
+  s_2a7c3c33a9c34b::t_129310e038e5cd 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "b2bed87d5bbc22c2a7705153808152f4aba9e423",
+  "prompts": {},
+  "sessions": {
+    "s_2a7c3c33a9c34b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8aefaeb3-b160-465a-8409-ad009a603f36",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
