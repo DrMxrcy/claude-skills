@@ -51,6 +51,10 @@ For each unfinished checklist step of the current item:
 | **4. Quality review** | Fresh subagent | Correctness, tests, maintainability; Acceptance "Fails if" lines are blockers. Issues → fix → re-review until ✅. |
 | **5. Verify + check** | **Parent only** | Run real project build/tests. On green: `python3 <roadmap.py> check --plan <id> --step <n> --evidence "<command>: <real result>"` — the actual test output, not a guess — then commit code + roadmap together. |
 
+When `settings.buildRoles` is set in `.roadmap/config.json` (`explorer` / `implementer` /
+`specReviewer` / `qualityReviewer` → model or agent names, echoed by `orient`/`handoff`),
+apply that mapping when spawning these subagents — values are host-specific, honored best-effort.
+
 Prefer superpowers **`subagent-driven-development`** when installed — it is the same shape
 (implement → spec review → quality review per task). Else use native subagents
 (Grok: `spawn_subagent`; Claude: Task / subagents).

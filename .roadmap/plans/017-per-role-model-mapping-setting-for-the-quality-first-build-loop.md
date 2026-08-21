@@ -3,7 +3,7 @@ id: 17
 title: Per-role model mapping setting for the quality-first build loop
 type: feature
 version: 0.17.0
-status: planned
+status: done
 created: 2026-08-21
 ---
 
@@ -27,5 +27,7 @@ created: 2026-08-21
 - **Fails if:** any behavior change when the setting is absent
 
 ## 🚶 Step-by-Step Checklist
-- [ ] Step 1: orient/handoff surfacing + tests -> target: report.py + tests
-- [ ] Step 2: docs wiring (settings table, build loop, quality-build) -> target: docs
+- [x] Step 1: orient/handoff surfacing + tests -> target: report.py + tests
+  > evidence: suite 315 passed; reviewer byte-diffed unset output vs HEAD CLI, malformed-guard test added (2026-08-21)
+- [x] Step 2: docs wiring (settings table, build loop, quality-build) -> target: docs
+  > evidence: doc claims verified against behavior by combined reviewer (2026-08-21)

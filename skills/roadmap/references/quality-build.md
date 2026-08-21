@@ -99,6 +99,8 @@ Only the parent:
 
 Grok: `spawn_subagent` from the parent; `get_command_or_subagent_output` for background explore. Watch children with Ctrl+B.
 
+When `settings.buildRoles` is set in `.roadmap/config.json` (`explorer` / `implementer` / `specReviewer` / `qualityReviewer` → model or agent names, shown on the `Roles:` line of `orient`/`handoff`), the parent applies that mapping when spawning each subagent — values are host-specific and honored best-effort.
+
 ## Role mapping (Claude Code / Task tool)
 
 Same roles via Task / subagent dispatch. Prefer superpowers SDD templates when present.

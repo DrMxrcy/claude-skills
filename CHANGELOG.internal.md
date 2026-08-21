@@ -6,7 +6,7 @@ _Full work log — every item, including internal/dev work. The curated public c
 
 ### ✨ New
 - Completion-promise gate: parent greps an explicit done marker before allowing check
-- (pending) Per-role model mapping setting for the quality-first build loop
+- Per-role model mapping setting for the quality-first build loop
 
 ### 🐛 Fixed
 - Version date stamped once and never re-stamped when the version reopens

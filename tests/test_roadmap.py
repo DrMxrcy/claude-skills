@@ -1884,6 +1884,43 @@ def test_orient_payload(roadmap, repo):
     assert "not next --auto" in text
 
 
+def test_orient_surfaces_build_roles_when_set(roadmap, repo):
+    roadmap.init_project(repo, "P", claude_md=False)
+    roadmap.new_item(repo, "feature", "Auth")
+    cfg = roadmap.read_config(repo)
+    cfg.setdefault("settings", {})["buildRoles"] = {
+        "implementer": "sonnet", "specReviewer": "opus", "weirdRole": "x"}
+    roadmap.write_config(repo, cfg)
+    payload = roadmap.orient(repo)
+    assert payload["buildRoles"] == {
+        "implementer": "sonnet", "specReviewer": "opus", "weirdRole": "x"}
+    line = next(l for l in roadmap.format_orient(payload).splitlines()
+                if l.startswith("Roles:"))
+    assert "implementer=sonnet" in line and "specReviewer=opus" in line
+    assert "weirdRole=x" in line  # unknown keys tolerated, not validated
+    assert payload == roadmap.handoff(repo)
+
+
+def test_orient_unchanged_without_build_roles(roadmap, repo):
+    roadmap.init_project(repo, "P", claude_md=False)
+    roadmap.new_item(repo, "feature", "Auth")
+    payload = roadmap.orient(repo)
+    assert "buildRoles" not in payload
+    assert "Roles:" not in roadmap.format_orient(payload, handoff=True)
+
+
+def test_orient_ignores_malformed_or_empty_build_roles(roadmap, repo):
+    roadmap.init_project(repo, "P", claude_md=False)
+    roadmap.new_item(repo, "feature", "Auth")
+    for bad in ("sonnet", {}, [1, 2], 123, True, None):
+        cfg = roadmap.read_config(repo)
+        cfg.setdefault("settings", {})["buildRoles"] = bad
+        roadmap.write_config(repo, cfg)
+        payload = roadmap.orient(repo)
+        assert "buildRoles" not in payload
+        assert "Roles:" not in roadmap.format_orient(payload)
+
+
 def test_orient_noop_without_roadmap(roadmap, tmp_path):
     assert roadmap.orient(tmp_path) is None
 

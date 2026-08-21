@@ -97,7 +97,7 @@ def orient(root: Path) -> dict | None:
     nxt = next_item(root, version=ver, quiet=True)
     installed = get_version()
     recorded = cfg.get("skillVersion") or "unknown"
-    return {
+    payload = {
         "project": st["project"],
         "currentVersion": ver,
         "stepsDone": steps_done,
@@ -116,6 +116,12 @@ def orient(root: Path) -> dict | None:
         "skillVersionStale": recorded not in ("unknown", installed),
         "gitDirty": _git_dirty(root),
     }
+    # settings.buildRoles: free-form per-role model/agent names, surfaced only when set
+    # (absent key keeps orient/handoff output identical to a project without it).
+    roles = (cfg.get("settings") or {}).get("buildRoles")
+    if isinstance(roles, dict) and roles:
+        payload["buildRoles"] = roles
+    return payload
 
 
 def format_orient(payload: dict, handoff: bool = False) -> str:
@@ -153,6 +159,10 @@ def format_orient(payload: dict, handoff: bool = False) -> str:
     if payload.get("gitDirty"):
         lines.append("⚠ Working tree has uncommitted changes — commit code+roadmap (or "
                      "inspect) before building more so nothing is agent-private.")
+    roles = payload.get("buildRoles")
+    if roles:
+        lines.append("Roles: " + " · ".join(f"{k}={v}" for k, v in roles.items())
+                     + "  (settings.buildRoles — use when spawning build subagents)")
     inst = payload.get("skillVersionInstalled", "?")
     proj = payload.get("skillVersionProject", "?")
     if payload.get("skillVersionStale"):

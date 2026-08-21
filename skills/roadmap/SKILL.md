@@ -191,6 +191,12 @@ On invocation, detect state and pick a phase:
    - Prefer superpowers **`subagent-driven-development`** when installed; else native
      subagents (Grok `spawn_subagent`, Claude Task). Fallback: `executing-plans` or
      direct TDD with the same gates.
+   - `settings.buildRoles` in `.roadmap/config.json` (optional; absent = today's behavior)
+     maps build-loop roles to models/agents — `{"implementer": "...", "specReviewer": "...",
+     "qualityReviewer": "...", "explorer": "..."}`. Values are free-form host-specific names
+     (Claude model, Grok agent, …) and are never validated. When set, `orient`/`handoff`
+     print a `Roles:` line and the parent applies the mapping when spawning those
+     subagents, best-effort (ignore a role the host cannot honor).
    - After each step passes its test: `roadmap.py check --plan <id> --step <n> --evidence
      "<command>: <real result>"` (the actual test output, not a guess), then commit code +
      roadmap together.

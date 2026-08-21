@@ -20,6 +20,7 @@
 - `settings.collapseShipped` — defaults to `true` when absent.
 - `settings.autoRelease` — `off` | `nudge` (default when absent) | `auto`: what happens when the current version is 100% but uncut (nudge prints a release reminder from `check`/`next`/`orient`; auto runs `release` when a target version is known).
 - `settings.requireEvidence` — defaults to `false`; when `true`, `check` refuses without `--evidence "<verify command + result>"` (`--undo` is never gated).
+- `settings.buildRoles` — optional map of quality-first build roles to model/agent names (`{"implementer":"…","specReviewer":"…","qualityReviewer":"…","explorer":"…"}`). Free-form, host-specific values; the CLI never validates them, only surfaces the map in `orient`/`handoff` so the parent can apply it when spawning subagents. Absent → nothing changes.
 - `settings.incubatorFile` — when set (by `tidy --externalize`), the Idea Incubator lives in this file instead of `ROADMAP.md`.
 
 ## Plan frontmatter
