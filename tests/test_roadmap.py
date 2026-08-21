@@ -1,3 +1,4 @@
+import datetime
 import json
 import subprocess
 
@@ -435,6 +436,35 @@ def test_changelog_date_is_stable_across_resync(roadmap, repo):
     roadmap.sync(repo)
     assert (repo / "CHANGELOG.md").read_text() == first        # no churn
     assert roadmap.read_config(repo)["versionDates"]["0.0.1"] == date
+
+
+def test_reopened_uncut_version_restamps_date(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A", version="1.0.0", note="A", audience="public")
+    roadmap.check_step(repo, 1, None, all_done=True)              # v1.0.0 hits 100%
+    cfg = roadmap.read_config(repo)
+    cfg["versionDates"]["1.0.0"] = "2020-01-01"                   # the earlier 100% moment
+    roadmap.write_config(repo, cfg)
+    roadmap.new_item(repo, "feature", "B", version="1.0.0", note="B", audience="public")
+    assert "1.0.0" not in roadmap.read_config(repo)["versionDates"]  # stale stamp cleared
+    roadmap.check_step(repo, 2, None, all_done=True)              # 100% again, later
+    today = datetime.date.today().isoformat()
+    assert roadmap.read_config(repo)["versionDates"]["1.0.0"] == today
+    for name in ("CHANGELOG.md", "CHANGELOG.internal.md"):
+        text = (repo / name).read_text()
+        assert today in text and "2020-01-01" not in text
+
+
+def test_shipped_version_keeps_date_when_items_added(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A", version="0.0.1", note="A", audience="public")
+    roadmap.check_step(repo, 1, None, all_done=True)
+    cfg = roadmap.read_config(repo)
+    cfg["versionDates"]["0.0.1"] = "2020-01-01"
+    roadmap.write_config(repo, cfg)
+    roadmap.release(repo, "0.2.0")                                # v0.0.1 is cut
+    roadmap.new_item(repo, "feature", "B", version="0.0.1")       # late incomplete item
+    assert roadmap.read_config(repo)["versionDates"]["0.0.1"] == "2020-01-01"
 
 
 def test_new_with_note_and_set_note(roadmap, repo):

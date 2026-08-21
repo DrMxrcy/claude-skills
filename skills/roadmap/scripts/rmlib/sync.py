@@ -124,18 +124,22 @@ def sync(root: Path, quiet: bool = False) -> None:
             done, total = count_progress(path)
             progress[item["id"]] = (done, total)
             _set_frontmatter(path, "status", derive_status(done, total))
-    # stamp a completion date the first time a version reaches 100% (deterministic changelog)
+    # stamp a completion date when a version reaches 100% (deterministic changelog).
+    # A version that is not yet cut (>= currentVersion) and regains incomplete work
+    # loses its stamp, so the date always reflects the latest 100% transition;
+    # shipped versions below currentVersion keep their historical dates.
     version_dates = cfg.setdefault("versionDates", {})
     by_version: dict[str, list] = {}
     for item in cfg["items"]:
         by_version.setdefault(item["version"], []).append(item)
+    cur_key = _version_key(_norm_version(cfg["currentVersion"]))
     for version, vitems in by_version.items():
-        if version in version_dates:
-            continue
-        if vitems and all(progress.get(i["id"], (0, 0))[1] > 0
-                          and progress.get(i["id"], (0, 0))[0] == progress.get(i["id"], (0, 0))[1]
-                          for i in vitems):
-            version_dates[version] = datetime.date.today().isoformat()
+        if _version_complete(vitems, progress):
+            if version not in version_dates:
+                version_dates[version] = datetime.date.today().isoformat()
+                changed = True
+        elif version in version_dates and _version_key(version) >= cur_key:
+            del version_dates[version]
             changed = True
     # drop dates for versions that no longer have any items (e.g. after a retarget)
     for stale in [v for v in version_dates if v not in by_version]:

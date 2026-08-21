@@ -9,7 +9,7 @@ _Full work log — every item, including internal/dev work. The curated public c
 - (pending) Per-role model mapping setting for the quality-first build loop
 
 ### 🐛 Fixed
-- (pending) Version date stamped once and never re-stamped when the version reopens
+- Version date stamped once and never re-stamped when the version reopens
 
 ### ⚡ Improved
 - (pending) Schema-validated install manifest + CI validate script for cross-agent installs

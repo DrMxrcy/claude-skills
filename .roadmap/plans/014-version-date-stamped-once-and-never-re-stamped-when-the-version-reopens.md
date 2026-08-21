@@ -3,7 +3,7 @@ id: 14
 title: Version date stamped once and never re-stamped when the version reopens
 type: bug
 version: 0.17.0
-status: planned
+status: done
 created: 2026-08-20
 ---
 
@@ -25,6 +25,6 @@ created: 2026-08-20
 - **Fails if:** dates of fully shipped versions below currentVersion change on sync
 
 ## 🛠️ Checklist
-- [ ] Step 1: Write a reproduction test
-- [ ] Step 2: Apply the fix (clear/re-stamp date when a stamped, uncut version regains incomplete items)
-- [ ] Step 3: Verify suite is green
+- [x] Step 1: Write a reproduction test
+- [x] Step 2: Apply the fix (clear/re-stamp date when a stamped, uncut version regains incomplete items)
+- [x] Step 3: Verify suite is green
