@@ -150,7 +150,7 @@ def format_orient(payload: dict, handoff: bool = False) -> str:
     elif payload.get("versionComplete"):
         lines.append(
             f"🎉 v{payload['currentVersion']} is 100% complete but uncut — cut it: "
-            f"/roadmap:release · /roadmap-release · roadmap.py release <next-version> "
+            f"/roadmap:release · /roadmap-release · roadmap.py release --version <next> "
             f'(or set settings.autoRelease to "auto")')
     else:
         lines.append("Next: (none — current version complete or all remaining items blocked)")

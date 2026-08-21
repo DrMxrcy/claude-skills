@@ -55,8 +55,8 @@ def release_gate(root: Path, target: str | None = None) -> None:
         print(f"auto-release: v{done} complete — released; current version is now "
               f"v{target} (settings.autoRelease=auto)", file=sys.stderr)
         return
-    hint = target or "<next-version>"
-    print(f"🎉 v{done} is 100% complete but uncut — cut it: roadmap.py release {hint} "
+    hint = target or "<next>"
+    print(f"🎉 v{done} is 100% complete but uncut — cut it: roadmap.py release --version {hint} "
           f'(or set settings.autoRelease to "auto")', file=sys.stderr)
 
 

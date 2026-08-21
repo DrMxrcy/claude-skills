@@ -2,7 +2,7 @@
 
 ## v0.17.0 — 2026-08-21
 
-_Plus behind-the-scenes performance and reliability work._
+Trust, but verify: finished steps can now carry proof of the tests that passed, release dates always match when work really wrapped, and your setup stays tidy across every AI coder you use.
 
 ## v0.16.0 — 2026-08-20
 
