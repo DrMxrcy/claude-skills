@@ -3,7 +3,7 @@ id: 19
 title: Release flow should bump or warn about the skill VERSION file in this repo
 type: chore
 version: 0.17.0
-status: planned
+status: done
 created: 2026-08-21
 ---
 
@@ -27,4 +27,5 @@ created: 2026-08-21
 - **Fails if:** release behavior changes for installed-skill users
 
 ## 🚶 Step-by-Step Checklist
-- [ ] Step 1: self-repo detection + VERSION write on release + tests -> target: ops.py + tests
+- [x] Step 1: self-repo detection + VERSION write on release + tests -> target: ops.py + tests
+  > evidence: suite 320 passed; first cut REFUTED (copy-install clobber), fixed to exact source-layout guard, re-verified with mutation test (2026-08-21)

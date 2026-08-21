@@ -2,7 +2,7 @@
 
 _Full work log — every item, including internal/dev work. The curated public changelog is CHANGELOG.md._
 
-## v0.17.0 — (in progress)
+## v0.17.0 — 2026-08-21
 
 ### ✨ New
 - Completion-promise gate: parent greps an explicit done marker before allowing check
@@ -14,7 +14,7 @@ _Full work log — every item, including internal/dev work. The curated public c
 ### ⚡ Improved
 - Schema-validated install manifest + CI validate script for cross-agent installs
 - Split roadmap discipline rules into individually loadable principle skills
-- (pending) Release flow should bump or warn about the skill VERSION file in this repo
+- Release flow should bump or warn about the skill VERSION file in this repo
 
 ## v0.16.0 — 2026-08-20
 

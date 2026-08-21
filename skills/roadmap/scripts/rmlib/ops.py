@@ -462,6 +462,22 @@ def backfill_changelog(root: Path) -> None:
     sync(root)
 
 
+def _own_source_version_file(root: Path) -> Path | None:
+    """The skill's own VERSION file, but only when `root` is the repo that CONTAINS
+    the running scripts (i.e. we are releasing the roadmap skill's own source).
+
+    Only the exact source layout `<root>/skills/roadmap` counts — an installed copy
+    under `<root>/.claude/skills/roadmap` (what install.sh creates inside a consumer
+    project) is inside `root` but must never be written. Symlinks resolve first, so
+    a linked CLI or linked skill dir in a foreign project also gets nothing."""
+    skill = Path(__file__).resolve().parent.parent.parent   # skills/roadmap/
+    if skill != root.resolve() / "skills" / "roadmap":
+        return None
+    if not (skill / "VERSION").exists():
+        return None
+    return skill / "VERSION"
+
+
 def release(root: Path, version: str, tag: bool = False, force: bool = False) -> None:
     version = _norm_version(version)
     cfg = read_config(root)
@@ -475,6 +491,11 @@ def release(root: Path, version: str, tag: bool = False, force: bool = False) ->
     cfg["currentVersion"] = version
     write_config(root, cfg)
     sync(root)
+    vf = _own_source_version_file(root)
+    if vf:                                  # releasing the roadmap skill's own repo
+        atomic_write(vf, f"{outgoing}\n")
+        print(f"skill source: {vf.relative_to(root.resolve())} set to {outgoing} "
+              f"(the version just cut)")
     if tag or cfg["settings"].get("gitTagOnRelease"):
         result = subprocess.run(["git", "tag", f"v{version}"], cwd=str(root), check=False)
         if result.returncode != 0:

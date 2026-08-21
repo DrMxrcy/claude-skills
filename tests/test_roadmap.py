@@ -1,6 +1,9 @@
 import datetime
 import json
+import shutil
 import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 
@@ -605,6 +608,64 @@ def test_release_normalizes_v_prefixed_version(roadmap, repo):
     roadmap.check_step(repo, 1, None, all_done=True)
     roadmap.release(repo, "v0.0.2")
     assert roadmap.read_config(repo)["currentVersion"] == "0.0.2"
+
+
+SKILL_SRC = Path(__file__).resolve().parent.parent / "skills/roadmap"
+
+
+def _run_cli(script, cwd, *args):
+    return subprocess.run([sys.executable, str(script), *args], cwd=cwd,
+                          capture_output=True, text=True, check=True)
+
+
+def test_release_bumps_skill_version_in_its_own_source_repo(repo):
+    """Running the CLI from a checkout of its own source: `release` stamps the
+    version just cut into skills/roadmap/VERSION so it never drifts."""
+    shutil.copytree(SKILL_SRC, repo / "skills/roadmap",
+                    ignore=shutil.ignore_patterns("__pycache__"))
+    version_file = repo / "skills/roadmap/VERSION"
+    version_file.write_text("0.0.0\n")
+    script = repo / "skills/roadmap/scripts/roadmap.py"
+    _run_cli(script, repo, "init", "--name", "Skill Source")
+    out = _run_cli(script, repo, "release", "--version", "0.0.2")
+    assert version_file.read_text().strip() == "0.0.1"   # the version being CUT, not 0.0.2
+    assert "skills/roadmap/VERSION" in out.stdout and "0.0.1" in out.stdout
+
+
+def test_release_leaves_a_normal_project_alone(roadmap, repo):
+    before = (SKILL_SRC / "VERSION").read_text()
+    roadmap.init_project(repo, "P")
+    roadmap.release(repo, "0.0.2")
+    assert not (repo / "skills").exists()
+    assert (SKILL_SRC / "VERSION").read_text() == before
+
+
+def test_release_ignores_a_symlinked_cli(repo):
+    """A project that merely symlinks the CLI is not the skill's source repo:
+    detection resolves the link, so neither tree gets a VERSION write."""
+    before = (SKILL_SRC / "VERSION").read_text()
+    script = repo / "roadmap.py"
+    script.symlink_to(SKILL_SRC / "scripts/roadmap.py")
+    _run_cli(script, repo, "init", "--name", "Consumer")
+    out = _run_cli(script, repo, "release", "--version", "0.0.2")
+    assert not (repo / "skills").exists()
+    assert (SKILL_SRC / "VERSION").read_text() == before
+    assert "VERSION" not in out.stdout
+
+
+def test_release_never_touches_a_copy_installed_skill(repo):
+    """install.sh copies skills/roadmap into <project>/.claude/skills/roadmap —
+    inside the project root, but NOT the source layout. Release must not clobber
+    that copy's VERSION with the consumer project's version."""
+    installed = repo / ".claude/skills/roadmap"
+    shutil.copytree(SKILL_SRC, installed,
+                    ignore=shutil.ignore_patterns("__pycache__"))
+    (installed / "VERSION").write_text("9.9.9\n")
+    script = installed / "scripts/roadmap.py"
+    _run_cli(script, repo, "init", "--name", "Consumer")
+    out = _run_cli(script, repo, "release", "--version", "0.0.2")
+    assert (installed / "VERSION").read_text().strip() == "9.9.9"
+    assert "VERSION" not in out.stdout
 
 
 def test_sync_heals_v_prefixed_versions(roadmap, repo):
