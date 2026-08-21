@@ -1,0 +1,43 @@
+ROADMAP.md
+  s_2a7c3c33a9c34b::t_71f020a226520b 21-25
+.roadmap/plans/016-completion-promise-gate-parent-greps-an-explicit-done-marker-before-allowing-check.md
+  s_2a7c3c33a9c34b::t_71f020a226520b 1-2,4-14,17-18,23-24,28-29
+  s_2a7c3c33a9c34b::t_e9bc4a36cbda92 3,15-16,19-22,25-27,30-31
+  s_2a7c3c33a9c34b::t_6e655e175242b6 32-36
+.roadmap/plans/018-split-roadmap-discipline-rules-into-individually-loadable-principle-skills.md
+  s_2a7c3c33a9c34b::t_9511d3a00d3a26 10,14-16,18-22,25-31
+  s_2a7c3c33a9c34b::t_71f020a226520b 1-9,11-13,17,23-24
+.roadmap/config.json
+  s_2a7c3c33a9c34b::t_d6edb271bfd4eb 4
+  s_2a7c3c33a9c34b::t_71f020a226520b 137-176
+.roadmap/plans/014-version-date-stamped-once-and-never-re-stamped-when-the-version-reopens.md
+  s_2a7c3c33a9c34b::t_3a2ab823609a87 14-16,19-20,23-25,29
+CHANGELOG.internal.md
+  s_2a7c3c33a9c34b::t_71f020a226520b 7-10,14-17
+  s_2a7c3c33a9c34b::t_a54540e0301a55 18
+.roadmap/plans/015-schema-validated-install-manifest-ci-validate-script-for-cross-agent-installs.md
+  s_2a7c3c33a9c34b::t_3cb45fc6b0d1dd 15-16,19-22,25-27,30-31
+  s_2a7c3c33a9c34b::t_71f020a226520b 1-14,17-18,23-24,28-29
+.roadmap/plans/017-per-role-model-mapping-setting-for-the-quality-first-build-loop.md
+  s_2a7c3c33a9c34b::t_71f020a226520b 1-14,17-18,23-24,28-29
+  s_2a7c3c33a9c34b::t_f2c8fc3886955b 15-16,19-22,25-27,30-31
+.roadmap/plans/019-release-flow-should-bump-or-warn-about-the-skill-version-file-in-this-repo.md
+  s_2a7c3c33a9c34b::t_71f020a226520b 1-14,17-18,23-24,28-29
+  s_2a7c3c33a9c34b::t_89f17d2990c2c8 15-16,19-22,25-27,30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "44ab76827e6fb9f630d6d06b277568664501eb7e",
+  "prompts": {},
+  "sessions": {
+    "s_2a7c3c33a9c34b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8aefaeb3-b160-465a-8409-ad009a603f36",
+        "model": "claude-fable-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
