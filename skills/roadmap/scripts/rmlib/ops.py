@@ -61,8 +61,20 @@ def release_gate(root: Path, target: str | None = None) -> None:
 
 
 def check_step(root: Path, plan_id: int, step: int | None,
-               undo: bool = False, all_done: bool = False) -> None:
+               undo: bool = False, all_done: bool = False,
+               evidence: str | None = None) -> None:
+    """Flip checklist boxes. `evidence` (ignored on --undo) is recorded under each
+    step being checked as a blockquote sub-line — a form STEP_RE can never read as a
+    step, so counts and generated output are untouched."""
     path = _plan_path(root, plan_id)
+    evidence = " ".join(evidence.split()) if evidence else ""
+    if not undo and not evidence and (read_config(root).get("settings") or {}).get(
+            "requireEvidence"):
+        raise ValueError(
+            f"check refused — settings.requireEvidence is on: pass --evidence "
+            f'"<verify command + result>" (e.g. --evidence "pytest -q: 287 passed") '
+            f"so plan {plan_id} records how the step was proven done.")
+    stamp = f"  > evidence: {evidence} ({datetime.date.today().isoformat()})"
     box = "[ ]" if undo else "[x]"
     out, n, in_fence = [], 0, False
     for line in path.read_text(encoding="utf-8").splitlines():
@@ -71,11 +83,14 @@ def check_step(root: Path, plan_id: int, step: int | None,
             out.append(line)
             continue
         sm = None if in_fence else STEP_RE.match(line)
+        hit = sm and (all_done or n + 1 == step)
         if sm:
             n += 1
-            if all_done or n == step:
+            if hit:
                 line = re.sub(r"\[( |x|X)\]", box, line, count=1)
         out.append(line)
+        if hit and evidence and not undo:
+            out.append(stamp)
     if step is not None and not all_done and (step < 1 or step > n):
         raise ValueError(f"plan {plan_id} step {step} out of range (1..{n})")
     atomic_write(path, "\n".join(out) + "\n")

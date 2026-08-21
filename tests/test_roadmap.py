@@ -150,6 +150,113 @@ def test_check_flips_only_target_step(roadmap, repo):
     assert steps[0][0] is True and steps[1][0] is False
 
 
+def _set_require_evidence(roadmap, repo, value):
+    cfg = roadmap.read_config(repo)
+    cfg.setdefault("settings", {})["requireEvidence"] = value
+    roadmap.write_config(repo, cfg)
+
+
+def _plan_lines(repo):
+    return (repo / ".roadmap/plans/001-a.md").read_text().splitlines()
+
+
+def test_check_evidence_written_under_the_step(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    roadmap.check_step(repo, 1, 1, evidence="pytest -q: 287 passed")
+    lines = _plan_lines(repo)
+    i = next(n for n, ln in enumerate(lines) if ln.startswith("- [x] Step 1"))
+    assert lines[i + 1] == (f"  > evidence: pytest -q: 287 passed "
+                            f"({datetime.date.today().isoformat()})")
+    assert "Step 2" in lines[i + 2]
+    assert roadmap.count_progress(repo / ".roadmap/plans/001-a.md") == (1, 2)
+
+
+def test_evidence_line_is_never_counted_as_a_step(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    roadmap.check_step(repo, 1, 1, evidence="- [ ] sneaky\n- [x] also sneaky")
+    path = repo / ".roadmap/plans/001-a.md"
+    assert roadmap.count_progress(path) == (1, 2)
+    steps = roadmap.parse_plan(path)["steps"]
+    assert steps[0][0] is True and steps[1][0] is False
+    # a second check of step 2 still targets the real step, not the evidence text
+    roadmap.check_step(repo, 1, 2)
+    assert roadmap.count_progress(path) == (2, 2)
+
+
+def test_evidence_does_not_leak_into_generated_output(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    roadmap.check_step(repo, 1, 1, evidence="pytest -q: 287 passed")
+    assert "evidence" not in (repo / "ROADMAP.md").read_text()
+    changelog = repo / "CHANGELOG-INTERNAL.md"
+    if changelog.exists():
+        assert "evidence" not in changelog.read_text()
+    item = roadmap.status(repo)["items"][0]
+    assert (item["status"], item["done"], item["total"]) == ("active", 1, 2)
+
+
+def test_check_without_evidence_is_unchanged(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    roadmap.check_step(repo, 1, 1)
+    assert "evidence" not in (repo / ".roadmap/plans/001-a.md").read_text()
+
+
+def test_check_all_done_applies_evidence_to_every_step(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    roadmap.check_step(repo, 1, None, all_done=True, evidence="suite green")
+    body = (repo / ".roadmap/plans/001-a.md").read_text()
+    assert body.count("  > evidence: suite green") == 2
+    assert roadmap.count_progress(repo / ".roadmap/plans/001-a.md") == (2, 2)
+
+
+def test_check_undo_writes_no_evidence(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    roadmap.check_step(repo, 1, 1, undo=True, evidence="ignored")
+    path = repo / ".roadmap/plans/001-a.md"
+    assert "evidence" not in path.read_text()
+    assert roadmap.count_progress(path) == (0, 2)
+
+
+def test_require_evidence_refuses_bare_check(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    _set_require_evidence(roadmap, repo, True)
+    with pytest.raises(ValueError, match="--evidence"):
+        roadmap.check_step(repo, 1, 1)
+    with pytest.raises(ValueError, match="--evidence"):
+        roadmap.check_step(repo, 1, 1, evidence="   ")
+    assert roadmap.count_progress(repo / ".roadmap/plans/001-a.md") == (0, 2)
+    roadmap.check_step(repo, 1, 1, evidence="pytest -q: 287 passed")
+    assert roadmap.count_progress(repo / ".roadmap/plans/001-a.md") == (1, 2)
+
+
+def test_require_evidence_never_blocks_undo(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    roadmap.check_step(repo, 1, 1, evidence="ok")
+    _set_require_evidence(roadmap, repo, True)
+    roadmap.check_step(repo, 1, 1, undo=True)
+    assert roadmap.count_progress(repo / ".roadmap/plans/001-a.md") == (0, 2)
+
+
+def test_cli_check_evidence_and_gate(roadmap, repo, monkeypatch, capsys):
+    monkeypatch.chdir(repo)
+    roadmap.init_project(repo, "P", claude_md=False)
+    roadmap.new_item(repo, "feature", "A")
+    _set_require_evidence(roadmap, repo, True)
+    assert roadmap.main(["check", "--plan", "1", "--step", "1"]) == 1
+    assert "--evidence" in capsys.readouterr().err
+    assert roadmap.main(["check", "--plan", "1", "--step", "1",
+                         "--evidence", "pytest -q: 287 passed"]) == 0
+    assert "  > evidence: pytest -q: 287 passed" in \
+        (repo / ".roadmap/plans/001-a.md").read_text()
+
+
 def test_derive_status(roadmap):
     assert roadmap.derive_status(0, 2) == "planned"
     assert roadmap.derive_status(1, 2) == "active"
