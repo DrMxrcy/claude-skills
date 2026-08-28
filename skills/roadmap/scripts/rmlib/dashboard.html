@@ -12,6 +12,9 @@
     --todo:#4b5563; --accent:#58a6ff;
   }
   * { box-sizing:border-box; }
+  /* #app sets display:flex, which outranks the UA rule for [hidden] — without
+     this the Roadmap pane stays visible on every tab. */
+  [hidden] { display:none !important; }
   body { margin:0; background:var(--bg); color:var(--fg);
     font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
   header { position:sticky; top:0; z-index:5; background:var(--bg);
