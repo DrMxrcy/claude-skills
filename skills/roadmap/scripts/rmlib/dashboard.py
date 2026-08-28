@@ -81,6 +81,20 @@ def _item_detail(rm, root: Path, item_id: int) -> dict:
         return {"error": str(e)}
 
 
+def _ideas(rm, root: Path) -> dict:
+    """Idea Incubator bullets for one checkout, wherever the incubator lives
+    (ROADMAP.md or settings.incubatorFile — the CLI resolves it)."""
+    try:
+        f = rm.incubator_file(root)
+        return {"file": str(f.relative_to(root)) if f.is_relative_to(root)
+                else str(f),
+                # the init placeholder bullet is chrome, not an idea
+                "bullets": [b for b in rm.list_incubator_bullets(root)
+                            if b["body"] != "(add ideas here)"]}
+    except (ValueError, FileNotFoundError, OSError) as e:
+        return {"error": str(e), "bullets": []}
+
+
 def _discover_roots(rm, root: Path) -> list[tuple[Path, str | None]]:
     """All git checkouts of this repo (main + linked worktrees) that have a
     `.roadmap/`, as (path, branch) with the main checkout first. Outside git,
@@ -316,6 +330,9 @@ def serve(rm, root: Path, port: int | None = None,
                 payload = ({"error": "missing id"} if iid is None
                            else _item_detail(rm, rroot, iid))
                 self._send(200, json.dumps(payload).encode("utf-8"),
+                           "application/json")
+            elif path == "/api/ideas":
+                self._send(200, json.dumps(_ideas(rm, rroot)).encode("utf-8"),
                            "application/json")
             elif path == "/api/changelog":
                 try:

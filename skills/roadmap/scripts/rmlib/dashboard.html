@@ -88,6 +88,29 @@
     transition:width .3s; }
   .frac { color:var(--muted); font-size:12px; min-width:38px; text-align:right; }
   .empty { color:var(--muted); padding:40px 0; text-align:center; }
+  .tabs { display:flex; gap:4px; margin-top:10px; }
+  .tab { color:var(--muted); font-size:12px; padding:4px 10px; cursor:pointer;
+    border:1px solid transparent; border-radius:6px; user-select:none; }
+  .tab:hover { color:var(--fg); }
+  .tab.on { color:var(--fg); background:var(--bar); border-color:var(--line); }
+  .tab .n { color:var(--muted); margin-left:6px; font-size:11px; }
+  .idea { border-top:1px solid var(--line); padding:8px 0; display:flex;
+    gap:10px; align-items:baseline; }
+  .idea .bullet { color:var(--active); flex:none; }
+  .idea .body { overflow-wrap:anywhere; }
+  .srcfile { color:var(--muted); font-size:11px; padding:6px 0 2px; }
+  .rel { border-top:1px solid var(--line); padding:12px 0; }
+  .rel h3 { margin:0 0 6px; font-size:13px; }
+  .rel h3 .date { color:var(--muted); font-weight:400; margin-left:8px;
+    font-size:11px; }
+  .rel .pill { font-size:10px; color:var(--muted); border:1px solid var(--line);
+    border-radius:4px; padding:1px 5px; margin-left:8px; }
+  .rel .blurb { color:var(--fg); }
+  .rel .sec { margin-top:6px; }
+  .rel .sec h4 { margin:0 0 3px; font-size:12px; color:var(--muted);
+    font-weight:600; }
+  .rel .sec div { padding-left:14px; }
+  .rel .pending { color:var(--active); }
 </style>
 </head>
 <body>
@@ -101,7 +124,8 @@
     </div>
     <div class="hbar"><i id="hbarfill"></i></div>
     <div class="counts" id="counts"></div>
-    <div class="counts">
+    <div class="tabs" id="tabs"></div>
+    <div class="counts" id="rmctrls">
       <div class="ctrls">
         <input id="search" type="search" placeholder="filter items or #id…">
         <span class="lnk" id="expandAll">expand all</span>
@@ -110,7 +134,11 @@
     </div>
   </div>
 </header>
-<main><div id="app"><div class="empty">connecting…</div></div></main>
+<main>
+  <div id="app"><div class="empty">connecting…</div></div>
+  <div id="ideas" hidden></div>
+  <div id="changelog" hidden></div>
+</main>
 <script>
 // All text goes in via textContent — no innerHTML, no injection surface.
 const DOT = s => ({done:"done",active:"active",blocked:"blocked"}[s]||"todo");
@@ -310,13 +338,103 @@ let es;
 function connect(){
   es = new EventSource("/events");
   es.onmessage = ev => { try { LASTP = JSON.parse(ev.data);
-    render(view(LASTP)); stale(false); } catch(_){} };
+    render(view(LASTP)); stale(false);
+    if(TAB === "ideas") loadIdeas();
+    if(TAB === "changelog") loadChangelog(); } catch(_){} };
   es.onerror = () => stale(true);
 }
 document.getElementById("rootsel").addEventListener("change", e => {
   ROOT = e.target.value === "all" ? "all" : (parseInt(e.target.value, 10) || 0);
   if(LASTP) render(view(LASTP));   // view switch is local — no reconnect
+  if(TAB !== "roadmap") setTab(TAB);   // re-fetch the open pane for this root
 });
+// ---- tabs -------------------------------------------------------------
+// Three read-only views over the same server. Roadmap is SSE-driven; Ideas and
+// Changelog are fetched on activation and refreshed whenever a new SSE payload
+// lands, so they track edits without their own polling.
+const TABS = [["roadmap","Roadmap"],["ideas","Ideas"],["changelog","Changelog"]];
+let TAB = localStorage.getItem("rm-tab") || "roadmap";
+if(!TABS.some(t=>t[0]===TAB)) TAB = "roadmap";
+const paneOf = t => document.getElementById(t==="roadmap" ? "app" : t);
+
+function renderTabs(counts){
+  const bar = document.getElementById("tabs");
+  bar.replaceChildren(...TABS.map(([id,label])=>{
+    const b = el("div","tab"+(id===TAB?" on":""));
+    b.appendChild(document.createTextNode(label));
+    if(counts && counts[id] != null) b.appendChild(txt("span","n", counts[id]));
+    b.onclick = () => setTab(id);
+    return b;
+  }));
+}
+
+function setTab(t){
+  TAB = t; localStorage.setItem("rm-tab", t);
+  for(const [id] of TABS) paneOf(id).hidden = id !== t;
+  document.getElementById("rmctrls").hidden = t !== "roadmap";
+  renderTabs(TABCOUNTS);
+  if(t === "ideas") loadIdeas();
+  if(t === "changelog") loadChangelog();
+}
+
+const TABCOUNTS = {};
+const rootParam = () => "?root=" + (ROOT === "all" ? 0 : ROOT);
+
+function loadIdeas(){
+  const pane = document.getElementById("ideas");
+  fetch("/api/ideas"+rootParam(),{cache:"no-store"}).then(r=>r.json()).then(d=>{
+    const items = d.bullets || [];
+    TABCOUNTS.ideas = items.length; renderTabs(TABCOUNTS);
+    if(!items.length){
+      pane.replaceChildren(txt("div","empty",
+        d.error || "no ideas parked yet — /roadmap:idea · /roadmap-idea"));
+      return;
+    }
+    const out = [txt("div","srcfile", d.file || "")];
+    for(const b of items){
+      const row = el("div","idea");
+      row.appendChild(txt("span","bullet","•"));
+      row.appendChild(txt("span","body", b.body));
+      out.push(row);
+    }
+    pane.replaceChildren(...out);
+  }).catch(()=>pane.replaceChildren(txt("div","empty","failed to load ideas")));
+}
+
+function loadChangelog(){
+  const pane = document.getElementById("changelog");
+  fetch("/api/changelog"+rootParam(),{cache:"no-store"}).then(r=>r.json()).then(d=>{
+    const vers = Array.isArray(d) ? d : [];
+    TABCOUNTS.changelog = vers.length; renderTabs(TABCOUNTS);
+    if(!vers.length){
+      pane.replaceChildren(txt("div","empty",
+        (d && d.error) || "nothing user-facing published yet"));
+      return;
+    }
+    pane.replaceChildren(...vers.map(v=>{
+      const sec = el("section","rel");
+      const h = el("h3");
+      h.appendChild(document.createTextNode("v"+v.version));
+      if(v.date) h.appendChild(txt("span","date", v.date));
+      h.appendChild(txt("span","pill", v.released ? "released" : "in progress"));
+      sec.appendChild(h);
+      if(v.notes) sec.appendChild(txt("div","blurb", v.notes));
+      for(const [name, rows] of Object.entries(v.sections||{})){
+        const box = el("div","sec");
+        box.appendChild(txt("h4",null,name));
+        for(const r of rows)
+          box.appendChild(txt("div", r.pending?"pending":null,
+            (r.pending?"◦ ":"• ")+r.text));
+        sec.appendChild(box);
+      }
+      if(v.rollup) sec.appendChild(txt("div","srcfile",
+        "…plus internal changes not shown here"));
+      return sec;
+    }));
+  }).catch(()=>pane.replaceChildren(txt("div","empty","failed to load changelog")));
+}
+
+setTab(TAB);
 connect();
 </script>
 </body>

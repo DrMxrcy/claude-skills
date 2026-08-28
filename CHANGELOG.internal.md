@@ -2,6 +2,11 @@
 
 _Full work log — every item, including internal/dev work. The curated public changelog is CHANGELOG.md._
 
+## v0.18.0 — 2026-08-28
+
+### ✨ New
+- The live dashboard now has tabs — browse your roadmap, the Idea Incubator, and the changelog without leaving the page.
+
 ## v0.17.0 — 2026-08-21
 
 ### ✨ New

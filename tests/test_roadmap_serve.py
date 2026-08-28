@@ -165,3 +165,36 @@ def test_serve_no_roadmap_is_noop(roadmap, tmp_path, capsys):
     rc = roadmap.serve(tmp_path, port=None, open_browser=False)
     assert rc == 0
     assert "roadmap init" in capsys.readouterr().out
+
+
+def test_api_ideas_empty_when_no_incubator(served):
+    base, _, _ = served
+    status, ctype, body = _get(base + "/api/ideas")
+    assert status == 200
+    assert "application/json" in ctype
+    assert json.loads(body)["bullets"] == []
+
+
+def test_api_ideas_lists_parked_bullets(served):
+    base, roadmap, repo = served
+    roadmap.main(["idea", "--title", "Dark mode for the dashboard"])
+    d = json.loads(_get(base + "/api/ideas")[1 + 1])
+    assert [b["title"] for b in d["bullets"]] == ["Dark mode for the dashboard"]
+    assert d["file"]
+
+
+def test_api_ideas_root_scoped(served):
+    """?root=N picks a checkout; an out-of-range index falls back to root 0."""
+    base, roadmap, _ = served
+    roadmap.main(["idea", "--title", "Root scoped idea"])
+    for q in ("?root=0", "?root=99"):
+        d = json.loads(_get(base + "/api/ideas" + q)[2])
+        assert [b["title"] for b in d["bullets"]] == ["Root scoped idea"]
+
+
+def test_dashboard_html_has_tabs(served):
+    base, _, _ = served
+    body = _get(base + "/")[2].decode()
+    for label in ("Roadmap", "Ideas", "Changelog"):
+        assert label in body
+    assert "/api/ideas" in body and "/api/changelog" in body

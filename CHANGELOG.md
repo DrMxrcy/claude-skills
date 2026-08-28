@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.18.0 — 2026-08-28
+
+### ✨ New
+- The live dashboard now has tabs — browse your roadmap, the Idea Incubator, and the changelog without leaving the page.
+
 ## v0.17.0 — 2026-08-21
 
 Trust, but verify: finished steps can now carry proof of the tests that passed, release dates always match when work really wrapped, and your setup stays tidy across every AI coder you use.

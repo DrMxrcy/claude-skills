@@ -116,7 +116,9 @@ def serve(root: Path, port: int | None = None, open_browser: bool = True) -> int
     # explicitly so it never has to import (or find in sys.modules) this module.
     rm = types.SimpleNamespace(
         status=status, read_config=read_config, roadmap_dir=roadmap_dir,
-        parse_plan=parse_plan, changelog_json=changelog_json)
+        parse_plan=parse_plan, changelog_json=changelog_json,
+        incubator_file=incubator_file,
+        list_incubator_bullets=list_incubator_bullets)
     return mod.serve(rm, root, port=port, open_browser=open_browser)
 
 
