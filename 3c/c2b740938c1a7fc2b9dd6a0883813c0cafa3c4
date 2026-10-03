@@ -1,0 +1,89 @@
+.roadmap/config.json
+  s_98b27aeb5db9ae::t_dcb646acbcb281 4,187-194,202,209
+.roadmap/plans/022-antigravity-agy-plugin-packaging-and-cli-installer-support.md
+  s_98b27aeb5db9ae::t_e5c9c9cdea66de 1-55
+CHANGELOG.internal.md
+  s_98b27aeb5db9ae::t_1e9eb2f224e8ad 5,9
+CHANGELOG.md
+  s_98b27aeb5db9ae::t_a1b2793b7d8028 3
+README.md
+  s_98b27aeb5db9ae::t_cd7cdafae18943 4,25,93-117
+ROADMAP.md
+  s_98b27aeb5db9ae::t_7880af4b2acf40 23
+agy-plugin/plugins/agent/agents/Explore.md
+  s_98b27aeb5db9ae::t_e5321ab240a13f 1-20
+agy-plugin/plugins/agent/agents/executor.md
+  s_98b27aeb5db9ae::t_08b0dd6cf65061 1-26
+agy-plugin/plugins/agent/agents/mech-executor.md
+  s_98b27aeb5db9ae::t_c6ef5527298658 1-33
+agy-plugin/plugins/agent/agents/scout.md
+  s_98b27aeb5db9ae::t_fe9160360c8a0f 1-28
+agy-plugin/plugins/agent/agents/security-executor.md
+  s_98b27aeb5db9ae::t_8a9c6e19b5a44c 1-27
+agy-plugin/plugins/agent/agents/verifier.md
+  s_98b27aeb5db9ae::t_09f560b344d66c 1-29
+agy-plugin/plugins/agent/rules/AGENTS.md
+  s_98b27aeb5db9ae::t_2d7824ea7f6d1b 1-43
+agy-plugin/plugins/roadmap/commands/roadmap-build.md
+  s_98b27aeb5db9ae::t_9c79fb8722d797 1-121
+agy-plugin/plugins/roadmap/commands/roadmap-catchup.md
+  s_98b27aeb5db9ae::t_211fc6b5790ea9 1-36
+agy-plugin/plugins/roadmap/commands/roadmap-changelog.md
+  s_98b27aeb5db9ae::t_a6212da9ca0594 1-180
+agy-plugin/plugins/roadmap/commands/roadmap-done.md
+  s_98b27aeb5db9ae::t_3bf2f0479d3942 1-33
+agy-plugin/plugins/roadmap/commands/roadmap-handoff.md
+  s_98b27aeb5db9ae::t_e1f86af99d8f72 1-51
+agy-plugin/plugins/roadmap/commands/roadmap-idea.md
+  s_98b27aeb5db9ae::t_a7a42169a43143 1-31
+agy-plugin/plugins/roadmap/commands/roadmap-init.md
+  s_98b27aeb5db9ae::t_a7a3866eeb60c5 1-24
+agy-plugin/plugins/roadmap/commands/roadmap-next.md
+  s_98b27aeb5db9ae::t_b2286ecd50bdd8 1-50
+agy-plugin/plugins/roadmap/commands/roadmap-plan.md
+  s_98b27aeb5db9ae::t_7ce13c84907e54 1-46
+agy-plugin/plugins/roadmap/commands/roadmap-promote.md
+  s_98b27aeb5db9ae::t_431f7e7a1cd499 1-40
+agy-plugin/plugins/roadmap/commands/roadmap-reevaluate.md
+  s_98b27aeb5db9ae::t_1e258b35d7d699 1-46
+agy-plugin/plugins/roadmap/commands/roadmap-release.md
+  s_98b27aeb5db9ae::t_93bc9b31b93a70 1-51
+agy-plugin/plugins/roadmap/commands/roadmap-remove.md
+  s_98b27aeb5db9ae::t_ee3664c306a26d 1-28
+agy-plugin/plugins/roadmap/commands/roadmap-retarget.md
+  s_98b27aeb5db9ae::t_39b3eb8a407380 1-42
+agy-plugin/plugins/roadmap/commands/roadmap-review.md
+  s_98b27aeb5db9ae::t_dea1bfddf1e57f 1-39
+agy-plugin/plugins/roadmap/commands/roadmap-status.md
+  s_98b27aeb5db9ae::t_0d94d803059051 1-21
+agy-plugin/plugins/roadmap/commands/roadmap-sync.md
+  s_98b27aeb5db9ae::t_b22d234858b45b 1-19
+agy-plugin/plugins/roadmap/commands/roadmap-tidy.md
+  s_98b27aeb5db9ae::t_2bbd9003125e62 1-63
+agy-plugin/plugins/roadmap/commands/roadmap-upgrade.md
+  s_98b27aeb5db9ae::t_e57c76b89191e1 1-22
+agy-plugin/plugins/roadmap/rules/AGENTS.md
+  s_98b27aeb5db9ae::t_9fef0a48726569 1-22
+skills/roadmap/SKILL.md
+  s_98b27aeb5db9ae::t_01adefe88df518 23-24,28,34-44
+skills/roadmap/hooks/roadmap-sync.sh
+  s_98b27aeb5db9ae::t_86a0c52897d874 6-53
+tests/test_install.py
+  s_98b27aeb5db9ae::t_a46556a4733d26 264-289
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3cc2b740938c1a7fc2b9dd6a0883813c0cafa3c4",
+  "prompts": {},
+  "sessions": {
+    "s_98b27aeb5db9ae": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0ffb7-a516-7c31-8a1f-76c73e36ffde",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
