@@ -1,7 +1,7 @@
 # claude-skills
 
 A collection of installable [Agent Skills](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview)
-for AI-assisted coding — **Claude Code, Grok Build, OpenAI Codex, and compatible agents**. The flagship
+for AI-assisted coding — **Claude Code, Grok Build, OpenAI Codex, Google Antigravity (`agy`), and compatible agents**. The flagship
 **roadmap** skill keeps AI coders on-task with a versioned plan + quality-first multi-agent
 build loop (implement → review → tests → check) so speed does not cost quality.
 
@@ -22,7 +22,7 @@ curl -fsSL https://raw.githubusercontent.com/DrMxrcy/claude-skills/main/install.
 - **Global** (all projects, into `~/.claude`): append `| bash -s -- --global` — then you don't need per-project installs at all
 - **From a clone into another project:** `cd /path/to/your-project && /path/to/claude-skills/install.sh`
 - **Just one skill** (e.g. only the agent orchestration fleet): append `| bash -s -- --only=agent` (or `--only=roadmap`)
-- **Flags:** `--global`, `--grok`, `--codex`, **`--both`** (Claude + Grok same version — best when switching coders), `--link`, `--only=<skill,...>`, `--no-hook`, `--no-orient`, `--no-commands`, `--no-claude-md`, `--no-agent`, `--gitignore`, `--init`
+- **Flags:** `--global`, `--grok`, `--codex`, `--agy` (`--antigravity`), **`--both`** (Claude + Grok same version — best when switching coders), `--link`, `--only=<skill,...>`, `--no-hook`, `--no-orient`, `--no-commands`, `--no-claude-md`, `--no-agent`, `--gitignore`, `--init`
 
 Then start a fresh Claude Code session **in that project** so the skills and commands load.
 Replace `<owner>` / `DrMxrcy` with your fork's owner if you republish (or set
@@ -89,6 +89,31 @@ Codex's skills UI. The plugin installation described in
 [`codex-plugin/README.md`](codex-plugin/README.md) provides the same skill and hooks.
 A bare `$roadmap` prints a compact action list; Codex does not provide nested skill-command
 autocomplete.
+
+### Google Antigravity (`agy`)
+
+Install the roadmap skill, flat slash commands, subagent fleet, and lifecycle hooks for Antigravity with:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/DrMxrcy/claude-skills/main/install.sh | bash -s -- --agy
+```
+
+This targets `./.agents/` (or `~/.gemini/config/` with `--global`), wires the native `Stop` (sync + drift-check) and `PreInvocation` (orient) hooks in `hooks.json`, writes `AGENTS.md` project rules, installs flat `/roadmap-*` slash commands, and provides the subagent fleet (`executor`, `verifier`, `scout`, etc. via `agy --agent <name>`).
+
+#### Native Antigravity Plugin Package (`agy-plugin/`)
+
+The skills are also packaged as native Antigravity plugins under [`agy-plugin/`](agy-plugin/README.md). Install directly into `agy`:
+
+```bash
+# 1. Assemble the bundles
+scripts/build-agy-plugin.sh
+
+# 2. Install into Antigravity
+agy plugin install ./agy-plugin/plugins/roadmap
+agy plugin install ./agy-plugin/plugins/agent
+```
+
+Verify with `agy plugin list` and `agy agents`.
 
 ## Updating
 

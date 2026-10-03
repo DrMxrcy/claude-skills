@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.18.0 — 2026-08-28
+## v0.18.0 — 2026-10-03
 
 ### ✨ New
 - The live dashboard now has tabs — browse your roadmap, the Idea Incubator, and the changelog without leaving the page.

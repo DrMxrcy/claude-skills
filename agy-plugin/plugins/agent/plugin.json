@@ -1,0 +1,41 @@
+{
+  "name": "agent",
+  "version": "0.4.0",
+  "description": "Cost-tiered subagent orchestration fleet (executor, verifier, scout, mech-executor, security-executor, Explore) for AI-assisted development.",
+  "author": {
+    "name": "DrMxrcy",
+    "url": "https://github.com/DrMxrcy/claude-skills"
+  },
+  "homepage": "https://github.com/DrMxrcy/claude-skills",
+  "repository": "https://github.com/DrMxrcy/claude-skills",
+  "license": "MIT",
+  "keywords": [
+    "agent",
+    "orchestration",
+    "subagents",
+    "fleet",
+    "antigravity",
+    "agy"
+  ],
+  "skills": "./skills/",
+  "rules": "./rules/",
+  "agents": "./agents/",
+  "interface": {
+    "displayName": "Agent Fleet",
+    "shortDescription": "Cost-tiered subagent orchestration fleet.",
+    "longDescription": "Provides a cost-tiered subagent fleet (executor, verifier, scout, mech-executor, security-executor, Explore) so the primary session acts as an orchestrator and delegates labor to the cheapest capable model tier.",
+    "developerName": "DrMxrcy",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/DrMxrcy/claude-skills",
+    "defaultPrompt": [
+      "Delegate implementation of this feature to the executor agent.",
+      "Verify the latest changes with the verifier agent.",
+      "Gather evidence on codebase usage with scout."
+    ],
+    "brandColor": "#10B981"
+  }
+}

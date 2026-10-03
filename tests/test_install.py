@@ -261,3 +261,29 @@ def test_install_both_agents(tmp_path):
     assert (tmp_path / ".claude/commands/roadmap-handoff.md").exists() or \
            (tmp_path / ".claude/commands/roadmap/handoff.md").exists()
     assert (tmp_path / ".grok/commands/roadmap-handoff.md").exists()
+
+
+def test_install_agy_project(tmp_path):
+    res = _run(tmp_path, "--project", "--agy")
+    assert res.returncode == 0, res.stderr
+    assert (tmp_path / ".agents/skills/roadmap/SKILL.md").exists()
+    assert (tmp_path / ".agents/skills/agent/SKILL.md").exists()
+    assert (tmp_path / ".agents/commands/roadmap-status.md").exists()
+    assert (tmp_path / ".agents/agents/executor.md").exists()
+    assert (tmp_path / ".agents/hooks.json").exists()
+    hooks_data = json.loads((tmp_path / ".agents/hooks.json").read_text())
+    assert "roadmap-sync" in hooks_data
+    assert "roadmap-orient" in hooks_data
+    assert (tmp_path / "AGENTS.md").exists()
+    assert "roadmap:rules:start" in (tmp_path / "AGENTS.md").read_text()
+
+
+def test_install_agy_global_uses_gemini_config(tmp_path):
+    env = {**os.environ, "PYTHON": "python3.11", "HOME": str(tmp_path)}
+    res = subprocess.run(["bash", str(INSTALL), "--global", "--agy", "--only=roadmap"],
+                         cwd=tmp_path, env=env, capture_output=True, text=True)
+    assert res.returncode == 0, res.stderr
+    assert (tmp_path / ".gemini/config/skills/roadmap/SKILL.md").exists()
+    assert (tmp_path / ".gemini/config/hooks.json").exists()
+    assert (tmp_path / ".gemini/config/AGENTS.md").exists()
+

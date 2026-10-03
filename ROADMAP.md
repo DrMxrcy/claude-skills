@@ -20,4 +20,5 @@
 
 ### [x] v0.18.0 — 100%
 - [x] **#21 Tabbed serve dashboard: Roadmap, Ideas, Changelog views** `feature` — 100% ([plan](.roadmap/plans/021-tabbed-serve-dashboard-roadmap-ideas-changelog-views.md))
+- [x] **#22 Antigravity agy plugin packaging and CLI installer support** `feature` — 100% ([plan](.roadmap/plans/022-antigravity-agy-plugin-packaging-and-cli-installer-support.md))
 <!-- roadmap:auto:end -->

@@ -20,28 +20,28 @@ A persistent tracking layer on top of your planning skills. You decide WHAT; the
 `roadmap.py` CLI makes every mechanical edit so the dashboard never drifts.
 
 **Always mutate state through the CLI — never hand-edit ROADMAP.md.** The `roadmap.py` CLI
-ships with the skill under the host agent's skills dir (`.claude`, `.grok`, or `.agents` —
-project-level or home) — **do not search or glob for it**; probe those fixed candidates.
+ships with the skill under the host agent's skills dir (`.claude`, `.grok`, `.agents`, or
+Antigravity plugins — project-level or home) — **do not search or glob for it**; probe those fixed candidates.
 Resolve it once and reuse `$RM` (run from the project root):
 
 ```bash
-for d in .claude .grok .agents "$HOME/.claude" "$HOME/.grok" "$HOME/.agents"; do RM="$d/skills/roadmap/scripts/roadmap.py"; [ -f "$RM" ] && break; done
+for d in .claude .grok .agents "$HOME/.claude" "$HOME/.grok" "$HOME/.agents" "$HOME/.gemini/config/plugins/roadmap" ".agents/plugins/roadmap"; do RM="$d/skills/roadmap/scripts/roadmap.py"; [ -f "$RM" ] && break; done
 python3 "$RM" <command>
 ```
 
 ## Invocation (agent-specific names)
 
-| Action | Claude Code | Grok Build | OpenAI Codex |
-|---|---|---|---|
-| Init | `/roadmap:init` | `/roadmap-init` | `$roadmap init` |
-| Plan | `/roadmap:plan …` | `/roadmap-plan …` | `$roadmap plan …` |
-| Next item | `/roadmap:next` | `/roadmap-next` | `$roadmap next` |
-| Build | `/roadmap:build …` | `/roadmap-build …` | `$roadmap build …` |
-| Status | `/roadmap:status` | `/roadmap-status` | `$roadmap status` |
-| (rest) | `/roadmap:<cmd>` | `/roadmap-<cmd>` | `$roadmap <cmd>` |
+| Action | Claude Code | Grok Build | OpenAI Codex | Antigravity (`agy`) |
+|---|---|---|---|---|
+| Init | `/roadmap:init` | `/roadmap-init` | `$roadmap init` | `/roadmap-init` |
+| Plan | `/roadmap:plan …` | `/roadmap-plan …` | `$roadmap plan …` | `/roadmap-plan …` |
+| Next item | `/roadmap:next` | `/roadmap-next` | `$roadmap next` | `/roadmap-next` |
+| Build | `/roadmap:build …` | `/roadmap-build …` | `$roadmap build …` | `/roadmap-build …` |
+| Status | `/roadmap:status` | `/roadmap-status` | `$roadmap status` | `/roadmap-status` |
+| (rest) | `/roadmap:<cmd>` | `/roadmap-<cmd>` | `$roadmap <cmd>` | `/roadmap-<cmd>` |
 
-**When recommending a command to the user, always list hyphen (Grok) and/or bare form —
-never colon-only.** Grok only discovers flat `commands/roadmap-*.md`; nested
+**When recommending a command to the user, always list hyphen (Grok / AGY) and/or bare form —
+never colon-only.** Grok and AGY only discover flat `commands/roadmap-*.md`; nested
 `commands/roadmap/next.md` → `/roadmap:next` does **not** show in Grok's menu.
 `--auto` only on **build** (not next).
 

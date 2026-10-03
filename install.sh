@@ -12,6 +12,7 @@
 #   ./install.sh --global        # ~/.claude (all projects); skips CLAUDE.md
 #   ./install.sh --grok          # target Grok Build: ./.grok (or ~/.grok with --global)
 #   ./install.sh --codex         # target OpenAI Codex CLI: skill + hooks + AGENTS.md rules
+#   ./install.sh --agy           # target Google Antigravity (agy): ./.agents + hooks + AGENTS.md
 #   ./install.sh --both          # install Claude + Grok (same skill version; keeps coders in sync)
 #   ./install.sh --link          # symlink instead of copy (good for development)
 #   ./install.sh --no-hook       # do not wire the auto-sync Stop hook (sync + drift-check)
@@ -54,6 +55,7 @@ for arg in "$@"; do
     --project) scope="project"; pass_args+=("$arg") ;;
     --grok) agent="grok"; pass_args+=("$arg") ;;
     --codex) agent="codex"; pass_args+=("$arg") ;;
+    --agy|--antigravity) agent="agy"; pass_args+=("$arg") ;;
     --claude) agent="claude"; pass_args+=("$arg") ;;
     --both|--all-agents) both=1 ;;
     --link) link=1; pass_args+=("$arg") ;;
@@ -69,9 +71,9 @@ for arg in "$@"; do
     --init) do_init=1; pass_args+=("$arg") ;;
     -h|--help)
       cat <<'EOF'
-install.sh — import this repo's skills into Claude Code, Grok Build, or OpenAI Codex;
-install supported agent commands, wire Stop (sync+drift) and SessionStart (orient)
-hooks, and add roadmap rules to CLAUDE.md + AGENTS.md.
+install.sh — import this repo's skills into Claude Code, Grok Build, OpenAI Codex, or
+Google Antigravity (agy); install supported agent commands, wire Stop (sync+drift)
+and SessionStart/PreInvocation (orient) hooks, and add roadmap rules to instruction files.
 
   ./install.sh            install into ./.claude (this project)
   --global                install into ~/.claude (all projects); skips project rules
@@ -81,6 +83,9 @@ hooks, and add roadmap rules to CLAUDE.md + AGENTS.md.
                           roadmap skill in .agents/skills (global), rules in AGENTS.md,
                           and Stop/SessionStart hooks in config.toml. Invoke with $roadmap.
                           CLI only — not the ChatGPT app.
+  --agy, --antigravity    target Google Antigravity (agy): ./.agents (or ~/.gemini/config
+                          with --global), rules in AGENTS.md, flat slash commands,
+                          subagent fleet, and Stop + PreInvocation hooks in hooks.json.
   --both                  install Claude + Grok at the same skill version (recommended
                           when you switch between AI coders)
   --link                  symlink instead of copy (development)
@@ -127,7 +132,7 @@ if [ "$both" = "1" ]; then
   both_args=()
   for a in "${pass_args[@]+"${pass_args[@]}"}"; do
     case "$a" in
-      --grok|--codex|--claude|--both|--all-agents) ;;
+      --grok|--codex|--claude|--agy|--antigravity|--both|--all-agents) ;;
       *) both_args+=("$a") ;;
     esac
   done
@@ -142,9 +147,9 @@ if [ "$both" = "1" ]; then
 fi
 
 # Roadmap rules are project-specific; never write a global CLAUDE.md. Exception:
-# a global Codex install writes rules to ~/.codex/AGENTS.md — Codex's own global
-# instruction file (not a per-project CLAUDE.md), so the discipline applies there too.
-[ "$scope" = "global" ] && [ "$agent" != "codex" ] && claude_md=0
+# a global Codex or AGY install writes rules to AGENTS.md in its own global directory,
+# so the discipline applies there too.
+[ "$scope" = "global" ] && [ "$agent" != "codex" ] && [ "$agent" != "agy" ] && claude_md=0
 
 PYTHON="${PYTHON:-python3}"
 SLUG="${SKILLS_REPO:-DrMxrcy/claude-skills}"
@@ -175,13 +180,23 @@ fi
 
 [ -d "$SRC_DIR" ] || { echo "Could not locate a skills/ directory at $SRC_DIR" >&2; exit 1; }
 
-if [ "$scope" = "global" ]; then
+if [ "$agent" = "agy" ]; then
+  if [ "$scope" = "global" ]; then
+    base="$HOME/.gemini/config"
+  else
+    base="$PWD/.agents"
+  fi
+  skills_dest="$base/skills"
+  settings="$base/hooks.json"
+elif [ "$scope" = "global" ]; then
   base="$HOME/.$agent"
+  skills_dest="$base/skills"
+  settings="$base/settings.json"
 else
   base="$PWD/.$agent"
+  skills_dest="$base/skills"
+  settings="$base/settings.json"
 fi
-skills_dest="$base/skills"
-settings="$base/settings.json"
 
 # Codex loads user skills from ~/.agents/skills (its current root); ~/.codex/skills is
 # only a deprecated fallback. For a global Codex install, put skills on the supported
@@ -400,6 +415,51 @@ else:
 PY
 }
 
+_wire_agy_hooks() {
+  # $1 hooks.json path, $2 Stop command (or empty), $3 PreInvocation command (or empty)
+  "$PYTHON" - "$1" "$2" "$3" <<'PY'
+import json, os, sys
+
+hooks_path, stop_cmd, orient_cmd = sys.argv[1:4]
+data = {}
+if os.path.exists(hooks_path):
+    try:
+        with open(hooks_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception:
+        data = {}
+
+if not isinstance(data, dict):
+    data = {}
+
+if stop_cmd:
+    data["roadmap-sync"] = {
+        "Stop": [
+            {
+                "type": "command",
+                "command": stop_cmd,
+            }
+        ]
+    }
+
+if orient_cmd:
+    data["roadmap-orient"] = {
+        "PreInvocation": [
+            {
+                "type": "command",
+                "command": orient_cmd,
+            }
+        ]
+    }
+
+os.makedirs(os.path.dirname(os.path.abspath(hooks_path)), exist_ok=True)
+with open(hooks_path, "w", encoding="utf-8") as f:
+    json.dump(data, f, indent=2)
+    f.write("\n")
+print(f"Wired AGY hooks into {hooks_path}")
+PY
+}
+
 # Idempotently merge a marker-delimited block from a source file into a target
 # instruction file (CLAUDE.md / AGENTS.md). Updates the block in place if the markers
 # already exist, otherwise appends it — never rewrites the rest of the file.
@@ -475,6 +535,19 @@ elif [ "$agent" = "codex" ]; then
   if [ -n "$stop_command" ] || [ -n "$start_command" ]; then
     _wire_codex_hooks "$base/config.toml" "$base/hooks.json" "$stop_command" "$start_command"
   fi
+elif [ "$agent" = "agy" ]; then
+  stop_command=""; start_command=""
+  if [ "$hook" = "1" ]; then
+    hook_path="$skills_dest/roadmap/hooks/roadmap-sync.sh"
+    [ -f "$hook_path" ] && stop_command="bash \"$hook_path\""
+  fi
+  if [ "$orient" = "1" ]; then
+    orient_path="$skills_dest/roadmap/hooks/roadmap-orient.sh"
+    [ -f "$orient_path" ] && start_command="bash \"$orient_path\""
+  fi
+  if [ -n "$stop_command" ] || [ -n "$start_command" ]; then
+    _wire_agy_hooks "$base/hooks.json" "$stop_command" "$start_command"
+  fi
 else
   # Claude Code reads .claude/settings.json using the JSON hooks envelope.
   hooks_target="$settings"
@@ -549,6 +622,8 @@ if [ "$commands" = "1" ] && _want roadmap && [ "$agent" != "codex" ]; then
     done
     if [ "$agent" = "grok" ]; then
       echo "Installed $flat_count Grok commands -> $flat_dir (try /roadmap-init, /roadmap-next, /roadmap-build)"
+    elif [ "$agent" = "agy" ]; then
+      echo "Installed $flat_count AGY commands -> $flat_dir (try /roadmap-init, /roadmap-next, /roadmap-build)"
     else
       echo "Installed commands -> $flat_dir (Claude: /roadmap:init; Grok-compat: /roadmap-init, /roadmap-next)"
     fi
@@ -559,11 +634,17 @@ fi
 # applies even when the skill is not explicitly invoked. Delegates to the installed CLI
 # so the rules text has a single source of truth (RULES_BLOCK in roadmap.py).
 #   project (any agent): CWD/CLAUDE.md + CWD/AGENTS.md
-#   global Codex:        ~/.codex/AGENTS.md only (Codex's global instruction file)
+#   global Codex/AGY:    ~/.<agent>/AGENTS.md only
 if [ "$claude_md" = "1" ] && _want roadmap; then
   rules_root="$PWD"; rules_files="CLAUDE.md,AGENTS.md"
   if [ "$agent" = "codex" ] && [ "$scope" = "global" ]; then
     rules_root="$base"; rules_files="AGENTS.md"
+  elif [ "$agent" = "agy" ]; then
+    if [ "$scope" = "global" ]; then
+      rules_root="$base"; rules_files="AGENTS.md"
+    else
+      rules_root="$PWD"; rules_files="AGENTS.md"
+    fi
   fi
   "$PYTHON" - "$skills_dest/roadmap/scripts/roadmap.py" "$rules_root" "$rules_files" <<'PY'
 import importlib.util, pathlib, sys
@@ -577,13 +658,13 @@ for path in mod.ensure_project_rules(root, files):
 PY
 fi
 
-# Install the cost-tiered orchestration fleet (Claude only) unless --no-agent.
+# Install the cost-tiered orchestration fleet (Claude and AGY) unless --no-agent.
 # Copies the project subagents into <base>/agents/, merges the orchestration policy
 # into CLAUDE.md + AGENTS.md (idempotent; updates a marked block, never rewrites the
 # file), and pins a default model when none is set. The named-tier agents use Claude's
 # .claude/agents/ format, so this step is skipped for Grok installs.
 fleet_installed=0
-if [ "$agent_fleet" = "1" ] && _want agent && [ "$agent" = "claude" ] && [ -d "$skills_dest/agent/.claude/agents" ]; then
+if [ "$agent_fleet" = "1" ] && _want agent && { [ "$agent" = "claude" ] || [ "$agent" = "agy" ]; } && [ -d "$skills_dest/agent/.claude/agents" ]; then
   agents_dest="$base/agents"
   mkdir -p "$agents_dest"
   copied=0
@@ -698,6 +779,12 @@ elif [ "$agent" = "codex" ]; then
   echo "Stop/SessionStart hooks live in $base/config.toml. Invoke roadmap as: \$roadmap status"
   echo "Other examples: \$roadmap next  |  \$roadmap build 1.0.0 --auto"
   echo "Note: the ChatGPT desktop app has no filesystem/skill hook — CLI only."
+elif [ "$agent" = "agy" ]; then
+  echo "Start a new Antigravity (agy) session to pick up the skill(s). Roadmap rules land in AGENTS.md;"
+  echo "Stop/PreInvocation hooks live in $base/hooks.json. Slash commands available: /roadmap-status"
+  if [ "$fleet_installed" = "1" ]; then
+    echo "The subagent fleet is installed into $base/agents/ (e.g. agy --agent executor)."
+  fi
 else
   echo "Start a new Claude Code session to pick up the skill(s)."
   if [ "$fleet_installed" = "1" ]; then
