@@ -1,0 +1,47 @@
+agy-plugin/plugins/agent/plugin.json
+  s_4d763c706e64fc::t_d21edc6c5f7f3b 3
+skills/roadmap/example/CLAUDE.md
+  s_4d763c706e64fc::t_d21edc6c5f7f3b 22
+skills/agent/references/orchestration-policy.md
+  s_4d763c706e64fc::t_d21edc6c5f7f3b 36
+.roadmap/plans/024-sole-writer-fallback-for-ai-coders-without-native-subagents.md
+  s_4d763c706e64fc::t_d21edc6c5f7f3b 1-26
+  s_4d763c706e64fc::t_eecedd29773a2f 27
+agy-plugin/plugins/roadmap/rules/AGENTS.md
+  s_4d763c706e64fc::t_d21edc6c5f7f3b 12
+CLAUDE.md
+  s_4d763c706e64fc::t_d21edc6c5f7f3b 12,58
+.roadmap/config.json
+  s_4d763c706e64fc::t_d21edc6c5f7f3b 4,203-210
+  s_4d763c706e64fc::t_dbc85c8a3bdec4 218
+AGENTS.md
+  s_4d763c706e64fc::t_d21edc6c5f7f3b 12,58
+skills/roadmap/scripts/rmlib/core.py
+  s_4d763c706e64fc::t_d21edc6c5f7f3b 29
+agy-plugin/plugins/agent/rules/AGENTS.md
+  s_4d763c706e64fc::t_d21edc6c5f7f3b 36
+skills/roadmap/SKILL.md
+  s_4d763c706e64fc::t_d21edc6c5f7f3b 195-200
+skills/roadmap/references/quality-build.md
+  s_4d763c706e64fc::t_d21edc6c5f7f3b 96-104
+CHANGELOG.internal.md
+  s_4d763c706e64fc::t_a997a2c23cb94c 13
+ROADMAP.md
+  s_4d763c706e64fc::t_2f8893b5f129e1 25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1feadad37d7e32449e401f2911435f3cdbb57ae0",
+  "prompts": {},
+  "sessions": {
+    "s_4d763c706e64fc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7886d04-81ee-4339-a453-da32df5df10d",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
