@@ -93,6 +93,15 @@ Only the parent:
 - If not `--auto`: pause and report to the user.
 - If `--auto`: brief status line, then next unblocked item (`next` or remaining selection).
 
+## No native subagents? (Codex, Gemini CLI, Kimi, Copilot, restricted sessions)
+
+The tier table is a **default for when native workers exist and are permitted**; repository or session restrictions take precedence. Without workers:
+
+- The **parent implements as sole writer**, then performs the **spec review and quality review as two separate passes** of its own — fresh read of `git diff` against the ✅ Acceptance list first, then an adversarial correctness pass — using capable *permitted read-only* reviewers when the host offers any.
+- **Record what actually happened** in the check evidence: who reviewed (self / named reviewer), findings, and independence limits. **Never fabricate independent review.**
+- Unavailable workers alone never block authorized work; the same real build/test gates before `check` and the code-plus-roadmap micro-commits still apply, including under `--auto`.
+- Stay in the host's native tooling — in Codex use Codex tools; never switch to another coder's agents mid-task.
+
 ## Role mapping (Grok Build)
 
 | Role | `subagent_type` | Notes |

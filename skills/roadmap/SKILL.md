@@ -192,7 +192,12 @@ On invocation, detect state and pick a phase:
      **one** `executor` implementer (opus) → **spec review** by `scout` (haiku, acceptance
      list → MET / NOT MET) → **one** `verifier` quality review (opus; a second pass only
      for high-risk steps) → parent runs real tests → only then `roadmap.py check` + commit.
-     Never spawn an unlabeled `general-purpose` child — it inherits the frontier model. Parent owns all roadmap CLI; children never
+     Never spawn an unlabeled `general-purpose` child — it inherits the frontier model.
+     **No native subagents** (Codex, Gemini, Kimi, Copilot, restricted sessions): parent is
+     sole writer and runs the spec and quality reviews as two separate passes itself (or via
+     permitted read-only reviewers); record real reviewers + independence limits in the
+     evidence, never fabricate independent review; same test gates and micro-commits; stay
+     in the host's native tools. Parent owns all roadmap CLI; children never
      edit `ROADMAP.md`. Do **not** parallelize implementers on the same tree; `--auto`
      skips user pauses between items, **not** reviews. Full write-up:
      [`references/quality-build.md`](references/quality-build.md).

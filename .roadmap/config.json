@@ -1,7 +1,7 @@
 {
   "project": "claude-skills",
   "currentVersion": "0.18.0",
-  "nextId": 24,
+  "nextId": 25,
   "items": [
     {
       "id": 1,
@@ -200,6 +200,14 @@
       "type": "chore",
       "version": "0.18.0",
       "file": "plans/023-haiku-first-cost-tiers-re-tier-the-agent-fleet-and-slim-the-quality-build-loop.md"
+    },
+    {
+      "id": 24,
+      "slug": "sole-writer-fallback-for-ai-coders-without-native-subagents",
+      "title": "Sole-writer fallback for AI coders without native subagents",
+      "type": "chore",
+      "version": "0.18.0",
+      "file": "plans/024-sole-writer-fallback-for-ai-coders-without-native-subagents.md"
     }
   ],
   "settings": {
@@ -207,7 +215,7 @@
     "gitTagOnRelease": false
   },
   "skillVersion": "0.17.0",
-  "last_seen_sha": "94caa6d343da901e5419f12bbc0070cfed676907",
+  "last_seen_sha": "80e32714cd6cb64b8d350adafa0b7eebb786f334",
   "versionDates": {
     "0.14.1": "2026-07-22",
     "0.14.2": "2026-07-22",

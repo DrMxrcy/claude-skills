@@ -22,4 +22,5 @@
 - [x] **#21 Tabbed serve dashboard: Roadmap, Ideas, Changelog views** `feature` — 100% ([plan](.roadmap/plans/021-tabbed-serve-dashboard-roadmap-ideas-changelog-views.md))
 - [x] **#22 Antigravity agy plugin packaging and CLI installer support** `feature` — 100% ([plan](.roadmap/plans/022-antigravity-agy-plugin-packaging-and-cli-installer-support.md))
 - [x] **#23 Haiku-first cost tiers: re-tier the agent fleet and slim the quality build loop** `chore` — 100% ([plan](.roadmap/plans/023-haiku-first-cost-tiers-re-tier-the-agent-fleet-and-slim-the-quality-build-loop.md))
+- [x] **#24 Sole-writer fallback for AI coders without native subagents** `chore` — 100% ([plan](.roadmap/plans/024-sole-writer-fallback-for-ai-coders-without-native-subagents.md))
 <!-- roadmap:auto:end -->

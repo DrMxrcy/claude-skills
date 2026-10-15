@@ -10,6 +10,7 @@ _Full work log — every item, including internal/dev work. The curated public c
 
 ### ⚡ Improved
 - Haiku-first cost tiers: re-tier the agent fleet and slim the quality build loop
+- Sole-writer fallback for AI coders without native subagents
 
 ## v0.17.0 — 2026-08-21
 
