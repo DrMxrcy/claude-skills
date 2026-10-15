@@ -93,14 +93,19 @@ Only the parent:
 - If not `--auto`: pause and report to the user.
 - If `--auto`: brief status line, then next unblocked item (`next` or remaining selection).
 
-## No native subagents? (Codex, Gemini CLI, Kimi, Copilot, restricted sessions)
+## Worker availability and review fallback (Codex, Gemini CLI, Kimi, Copilot, restricted sessions)
 
-The tier table is a **default for when native workers exist and are permitted**; repository or session restrictions take precedence. Without workers:
+The tier table above is the **default when native workers are available and permitted**. Repository or session restrictions take precedence over delegation and model-routing instructions anywhere in this skill. Stay in the host's native tooling: in Codex use Codex collaboration tools; never invoke the Claude CLI, load `.claude/agents/` definitions, or use Claude model aliases from another coder. Shared tooling living under `.claude/skills/` stays usable — its location does not authorize switching coders.
 
-- The **parent implements as sole writer**, then performs the **spec review and quality review as two separate passes** of its own — fresh read of `git diff` against the ✅ Acceptance list first, then an adversarial correctness pass — using capable *permitted read-only* reviewers when the host offers any.
-- **Record what actually happened** in the check evidence: who reviewed (self / named reviewer), findings, and independence limits. **Never fabricate independent review.**
-- Unavailable workers alone never block authorized work; the same real build/test gates before `check` and the code-plus-roadmap micro-commits still apply, including under `--auto`.
-- Stay in the host's native tooling — in Codex use Codex tools; never switch to another coder's agents mid-task.
+If implementation or review workers are unavailable or prohibited, the parent **continues the authorized work**:
+
+1. Implement as the **sole writer**.
+2. Run a **separate spec-compliance pass** — fresh read of `git diff` against the step text and ✅ Acceptance list; fix findings and repeat until clean.
+3. Run a **separate code-quality pass** — adversarial correctness, edge cases, error handling, contract drift, test quality; fix findings and repeat until clean.
+4. Use capable **permitted read-only reviewers** for whichever passes the host offers.
+5. In the `check --evidence` text, **record which passes were independent and which were parent self-reviews**, with findings and evidence. Never claim a worker review happened when it did not.
+
+Worker unavailability alone is never a blocker and never justifies refusing or abandoning the task. The fallback keeps the same plan scope, acceptance criteria, real build/test gates before every `check`, and code-plus-roadmap micro-commits; `--auto` still skips user pauses only, never review passes or tests. Preserve any worker's in-flight work and report the independence limit in the step summary.
 
 ## Role mapping (Grok Build)
 
