@@ -1,0 +1,59 @@
+skills/agent/README.md
+  s_4d763c706e64fc::t_108e922da8479a 18
+skills/agent/references/orchestration-policy.md
+  s_4d763c706e64fc::t_108e922da8479a 9,16,36
+skills/agent/SKILL.md
+  s_4d763c706e64fc::t_108e922da8479a 28,34
+agy-plugin/plugins/roadmap/rules/AGENTS.md
+  s_4d763c706e64fc::t_108e922da8479a 12
+skills/roadmap/example/CLAUDE.md
+  s_4d763c706e64fc::t_108e922da8479a 22
+skills/roadmap/scripts/rmlib/core.py
+  s_4d763c706e64fc::t_108e922da8479a 29
+AGENTS.md
+  s_4d763c706e64fc::t_108e922da8479a 12,31,38,58
+CLAUDE.md
+  s_4d763c706e64fc::t_108e922da8479a 12,31,38,58
+README.md
+  s_4d763c706e64fc::t_108e922da8479a 172
+skills/roadmap/references/quality-build.md
+  s_4d763c706e64fc::t_108e922da8479a 48-49,72,76
+.roadmap/config.json
+  s_4d763c706e64fc::t_108e922da8479a 4,211-218
+  s_4d763c706e64fc::t_f3ad5b8deae693 226
+agy-plugin/plugins/agent/rules/AGENTS.md
+  s_4d763c706e64fc::t_108e922da8479a 9,16,36
+.roadmap/plans/025-mixed-model-review-verifier-on-sonnet-opus-or-cross-provider-second-pass-for-high-risk-steps.md
+  s_4d763c706e64fc::t_108e922da8479a 1-26
+  s_4d763c706e64fc::t_10aa3c6fa24b74 27
+skills/agent/VERSION
+  s_4d763c706e64fc::t_108e922da8479a 1
+skills/roadmap/SKILL.md
+  s_4d763c706e64fc::t_108e922da8479a 193-194
+skills/agent/.claude/agents/verifier.md
+  s_4d763c706e64fc::t_108e922da8479a 4,8
+agy-plugin/plugins/agent/agents/verifier.md
+  s_4d763c706e64fc::t_108e922da8479a 4,8
+agy-plugin/plugins/agent/plugin.json
+  s_4d763c706e64fc::t_108e922da8479a 3
+CHANGELOG.internal.md
+  s_4d763c706e64fc::t_9ab16f613ceb14 14
+ROADMAP.md
+  s_4d763c706e64fc::t_80f3c0c131a21b 26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e36f93e1de9b94cda98e46f2a562b83f09559a24",
+  "prompts": {},
+  "sessions": {
+    "s_4d763c706e64fc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7886d04-81ee-4339-a453-da32df5df10d",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
