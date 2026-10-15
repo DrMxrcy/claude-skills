@@ -1,0 +1,38 @@
+CLAUDE.md
+  s_4d763c706e64fc::t_7ae397465926a8 12
+AGENTS.md
+  s_4d763c706e64fc::t_7ae397465926a8 12
+skills/roadmap/SKILL.md
+  s_4d763c706e64fc::t_5317214eef3139 191-195
+skills/roadmap/example/CLAUDE.md
+  s_4d763c706e64fc::t_7ae397465926a8 22
+skills/roadmap/references/quality-build.md
+  s_4d763c706e64fc::t_5317214eef3139 39,41,43-50,52,54-57,60-63,66,68-70,72,74-76,82,84,92,107,111,133-134
+.roadmap/config.json
+  s_4d763c706e64fc::t_7ae397465926a8 209
+  s_4d763c706e64fc::t_72e0376802dc07 210
+skills/roadmap/scripts/rmlib/core.py
+  s_4d763c706e64fc::t_5317214eef3139 29
+agy-plugin/plugins/roadmap/rules/AGENTS.md
+  s_4d763c706e64fc::t_5317214eef3139 12
+.roadmap/plans/023-haiku-first-cost-tiers-re-tier-the-agent-fleet-and-slim-the-quality-build-loop.md
+  s_4d763c706e64fc::t_2cc42c0a329f88 34-35
+ROADMAP.md
+  s_4d763c706e64fc::t_30b31076cfe4b3 21,24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "94caa6d343da901e5419f12bbc0070cfed676907",
+  "prompts": {},
+  "sessions": {
+    "s_4d763c706e64fc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7886d04-81ee-4339-a453-da32df5df10d",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
