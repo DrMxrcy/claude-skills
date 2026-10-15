@@ -17,8 +17,8 @@ in clean context, so "done" means *checked*, not *claimed*.
   | `executor` | opus | Implementation needing judgment |
   | `verifier` | opus | Fresh-context adversarial verification (never fixes) |
   | `security-executor` | opus | All security-sensitive work |
-  | `mech-executor` | sonnet | Fully-specified mechanical work |
-  | `scout` | haiku | Cheap read-only evidence |
+  | `mech-executor` | haiku | Fully-specified mechanical work (sonnet override if it stalls) |
+  | `scout` | haiku | Cheap read-only evidence, spec-conformance review, test runs |
   | `Explore` | haiku | Broad read-only exploration (overrides the built-in, expensive default) |
 
 - **An orchestration policy** (`references/orchestration-policy.md`) merged into your

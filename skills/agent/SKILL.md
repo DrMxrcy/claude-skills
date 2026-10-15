@@ -27,9 +27,16 @@ version changes.
 | `executor` | opus | high | Implementation needing judgment — features, bug fixes, design-sensitive refactors |
 | `verifier` | opus | medium | Fresh-context **adversarial** verification — CONFIRMED / REFUTED / PARTIAL, never fixes |
 | `security-executor` | opus | high | ALL security-sensitive work — auth, secrets, headers, crypto, CVE triage |
-| `mech-executor` | sonnet | low | Fully-specified mechanical work — pattern refactors, tests, docs, bulk edits |
-| `scout` | haiku | low | Cheap read-only evidence — where/how is X, usages, config values, log summaries |
+| `mech-executor` | haiku | medium | Fully-specified mechanical work — pattern refactors, tests, docs, bulk edits (escalate to `sonnet` override if it stalls) |
+| `scout` | haiku | low | Cheap read-only evidence — where/how is X, usages, config values, log summaries, spec-conformance review, test runs |
 | `Explore` | haiku | low | Broad read-only codebase exploration (overrides the built-in Explore, which since Claude Code v2.1.198 inherits the parent model instead of defaulting to haiku) |
+
+**Why this split:** Opus writes and judges code; Haiku does everything whose output is a
+fact (where is X, does the diff meet the acceptance list, did the tests pass, apply this
+spec'd edit). Haiku 5.5 costs ~40x less than Opus 5.5 per token on prompts under 100K
+tokens (5x more above that cliff — keep its briefs lean), so routing evidence and
+mechanical work there is where the savings live; Sonnet is the escalation override
+when a Haiku task stalls, not a default tier.
 
 Every agent pins **both** `model:` and `effort:` in frontmatter. Subagents inherit the
 main session's model *and* effort level when unset — an unlabeled agent silently runs at

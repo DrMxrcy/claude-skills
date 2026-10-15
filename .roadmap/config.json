@@ -1,7 +1,7 @@
 {
   "project": "claude-skills",
   "currentVersion": "0.18.0",
-  "nextId": 23,
+  "nextId": 24,
   "items": [
     {
       "id": 1,
@@ -192,6 +192,14 @@
       "type": "feature",
       "version": "0.18.0",
       "file": "plans/022-antigravity-agy-plugin-packaging-and-cli-installer-support.md"
+    },
+    {
+      "id": 23,
+      "slug": "haiku-first-cost-tiers-re-tier-the-agent-fleet-and-slim-the-quality-build-loop",
+      "title": "Haiku-first cost tiers: re-tier the agent fleet and slim the quality build loop",
+      "type": "chore",
+      "version": "0.18.0",
+      "file": "plans/023-haiku-first-cost-tiers-re-tier-the-agent-fleet-and-slim-the-quality-build-loop.md"
     }
   ],
   "settings": {
@@ -199,14 +207,13 @@
     "gitTagOnRelease": false
   },
   "skillVersion": "0.16.0",
-  "last_seen_sha": "1ad75415683d649a772ccda69a7f14dee3f31e3b",
+  "last_seen_sha": "b4863b05161658e9dbd4c43fc49dda6f54535955",
   "versionDates": {
     "0.14.1": "2026-07-22",
     "0.14.2": "2026-07-22",
     "0.15.0": "2026-07-23",
     "0.16.0": "2026-08-20",
-    "0.17.0": "2026-08-21",
-    "0.18.0": "2026-10-03"
+    "0.17.0": "2026-08-21"
   },
   "releaseNotes": {
     "0.17.0": "Trust, but verify: finished steps can now carry proof of the tests that passed, release dates always match when work really wrapped, and your setup stays tidy across every AI coder you use."
