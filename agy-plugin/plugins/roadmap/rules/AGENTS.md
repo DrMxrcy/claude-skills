@@ -9,7 +9,7 @@ This project uses the **roadmap** skill to stay on-task and ship **high-quality*
 - **Test before you check:** run the real build/tests for a step, then `roadmap.py check`.
 - **Micro-commit** code + roadmap together right after every checked step, so an interrupted session loses at most the in-flight step.
 - **Never hand-edit `ROADMAP.md`** or `.roadmap/` state — CLI only (`/roadmap:done` **·** `/roadmap-done`); never keep a private plan outside `.roadmap/`.
-- **Quality-first build** (default for `/roadmap:build` **·** `/roadmap-build`, including `--auto`): per step, one implementer subagent → **spec review** → **quality review** → parent runs the tests → `check`. The parent owns every `roadmap.py` call; `--auto` skips *user* pauses only, never reviews or tests.
+- **Quality-first build** (default for `/roadmap:build` **·** `/roadmap-build`, including `--auto`): per step, one `executor` implementer (opus) → **spec review** by `scout` (haiku, acceptance list) → **one** `verifier` quality review (opus; second pass only for high-risk steps) → parent runs the tests → `check`. Never spawn an unlabeled `general-purpose` child — it inherits the frontier model. The parent owns every `roadmap.py` call; `--auto` skips *user* pauses only, never reviews or tests.
 
 ### Invoking it
 - **Resolve the CLI once:** probe `.claude|.grok|.agents` skills paths (project, then `$HOME`) for `skills/roadmap/scripts/roadmap.py`.

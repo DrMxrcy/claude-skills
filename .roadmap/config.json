@@ -206,8 +206,8 @@
     "autoCommit": true,
     "gitTagOnRelease": false
   },
-  "skillVersion": "0.16.0",
-  "last_seen_sha": "2eec06d2495d186355ddd6acda6fe441e411d48e",
+  "skillVersion": "0.17.0",
+  "last_seen_sha": "9fb0bb399dd3affdff4a20d3357531321fb857f7",
   "versionDates": {
     "0.14.1": "2026-07-22",
     "0.14.2": "2026-07-22",

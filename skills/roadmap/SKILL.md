@@ -188,9 +188,11 @@ On invocation, detect state and pick a phase:
      **✅ Acceptance** section, treat those pass/fail criteria as the definition of done and
      pass them to the spec- and quality-review subagents to check the work against.
    - **Default protocol** (also used by `/roadmap-build … --auto`): one item at a time;
-     per checklist step → optional `explore` research → **one** implementer subagent →
-     **spec review** subagent → **quality review** subagent → parent runs real tests →
-     only then `roadmap.py check` + commit. Parent owns all roadmap CLI; children never
+     per checklist step → `scout` research **only if the plan doesn't name the files** →
+     **one** `executor` implementer (opus) → **spec review** by `scout` (haiku, acceptance
+     list → MET / NOT MET) → **one** `verifier` quality review (opus; a second pass only
+     for high-risk steps) → parent runs real tests → only then `roadmap.py check` + commit.
+     Never spawn an unlabeled `general-purpose` child — it inherits the frontier model. Parent owns all roadmap CLI; children never
      edit `ROADMAP.md`. Do **not** parallelize implementers on the same tree; `--auto`
      skips user pauses between items, **not** reviews. Full write-up:
      [`references/quality-build.md`](references/quality-build.md).

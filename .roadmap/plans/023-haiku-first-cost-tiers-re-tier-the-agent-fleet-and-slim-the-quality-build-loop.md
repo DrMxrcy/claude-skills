@@ -31,5 +31,6 @@ created: 2026-10-15
   > evidence: pytest tests -q: 332 passed (2026-10-15)
 - [x] Step 2: Rewrite orchestration policy (tiers, Opus-reserve, Haiku price cliff, token hygiene) and sync CLAUDE.md / AGENTS.md / agy-plugin mirrors -> target: skills/agent/references/orchestration-policy.md
   > evidence: pytest tests/test_install_agent.py -q: 19 passed; full suite 331 passed before the wording fix (2026-10-15)
-- [ ] Step 3: Slim the quality build loop to implementer + one combined review; update quality-build.md, roadmap SKILL.md, RULES_BLOCK, and tests -> target: skills/roadmap
+- [x] Step 3: Slim the quality build loop to implementer + one combined review; update quality-build.md, roadmap SKILL.md, RULES_BLOCK, and tests -> target: skills/roadmap
+  > evidence: pytest tests -q: 332 passed (2026-10-15)
 - [ ] Step 4: Bump agent VERSION to 0.5.0 and re-install the fleet into every existing project under ~/Desktop/Dev -> target: install.sh sweep

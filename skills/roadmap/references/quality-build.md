@@ -36,47 +36,52 @@ Keep AI coders **on-task** (one plan item, real checklist, no dashboard thrash) 
 3. Process items in `order` then id (or only the single id / `next` pick).
 4. `--auto`: after an item hits 100%, continue to the next unblocked item without asking.
 
-## Per-item loop (quality)
+## Per-item loop (quality, cost-tiered)
 
-Parent reads the plan file + linked Spec / Detailed plan once, then for **each unfinished checklist step** (in order):
+Parent reads the plan file + linked Spec / Detailed plan once, then for **each unfinished checklist step** (in order). **Two to three subagents per step, never an unlabeled one** — a `general-purpose` child with no model inherits the parent's frontier model and effort, which is where build loops burn tokens. Default role → tier (the `agent` skill's fleet; use the matching `model` override on `general-purpose` when a tier isn't installed):
 
-### A. Research (optional, parallel-safe)
+| Role | Tier | Model | When |
+|---|---|---|---|
+| Research | `scout` / `Explore` | haiku | **Only** when the plan doesn't already name the files |
+| Implement | `executor` | opus | Every step |
+| Spec review | `scout` | haiku | Every step — acceptance list → MET / NOT MET / UNVERIFIED |
+| Quality review | `verifier` | opus | Every step — one adversarial pass |
+| Second quality pass | `verifier` (fresh) | opus | **High-risk steps only** (auth, billing, migrations, shared state, public contracts) |
+| Test run for evidence | `scout` | haiku | When the parent wants the result line without the log in its context |
 
-- Spawn **`explore`** (read-only) with: step text, paths from the plan, and “return relevant files + constraints.”
-- May run `background: true` while the parent prepares the implementer prompt.
-- Do **not** let explore edit files.
+### A. Research (skip by default)
 
-### B. Implement (one writer)
+- Skip when the plan's Blueprint already lists the files to touch — the implementer reads them itself.
+- Otherwise spawn **`scout`** (read-only, haiku) with: step text + "return the relevant files, call sites, and constraints as `path:line`." May run `background: true` while the parent prepares the implementer prompt. Never lets it edit.
+
+### B. Implement (one writer, `executor`)
 
 - Prefer superpowers **`subagent-driven-development`** if installed (same shape as below).
-- Else spawn **`general-purpose`** implementer with a **self-contained prompt**:
-  - full step text + relevant plan/spec excerpts (do not make the child re-discover the whole plan)
-  - files to touch, acceptance criteria, TDD expectation
-  - “report DONE / DONE_WITH_CONCERNS / BLOCKED; do not run roadmap CLI”
+- Else spawn **`executor`** with a **self-contained, one-shot prompt**:
+  - full step text + the ✅ Acceptance lines + only the plan/spec excerpts the step needs (paths, not pasted files)
+  - files to touch, TDD expectation, "run the project tests before reporting"
+  - "report DONE / DONE_WITH_CONCERNS / BLOCKED with the test command + result line; do not run roadmap CLI"
 - **One implementer at a time** for this item. Do not fan out multiple implementers unless steps are *proven* independent *and* use separate `isolation: worktree` worktrees with an explicit parent merge — default is **no**.
 
-### C. Spec compliance review
+### C. Spec review (`scout`, haiku)
 
-- Spawn a **fresh** subagent (explore or general-purpose read-only / review-focused):
-  - “Does the diff satisfy this step + linked spec? List gaps or extras. No drive-by refactors.”
-- If the plan has an **✅ Acceptance** section, paste it into the prompt and have the reviewer
-  judge the diff against those pass/fail criteria, not just the step text.
-- If gaps: re-dispatch implementer to fix; re-review until clean.
+- Fresh **`scout`** gets the step text + ✅ Acceptance list and runs `git diff` itself (don't paste the diff — it is cheaper for haiku to read it than for the parent to relay it):
+  - "For each criterion: MET / NOT MET / UNVERIFIED with `path:line`. List extras outside the step. No quality opinions."
+- Any NOT MET → re-dispatch `executor` with the gap list; re-run the scout pass. **Cap at two fix→review loops**, then the parent reads the gap itself.
 
-### D. Code quality review
+### D. Quality review (`verifier`, opus)
 
-- Spawn a **fresh** reviewer after spec is ✅:
-  - correctness edge cases, naming, duplication, error handling, tests quality
-  - any “Fails if” lines in the plan's **✅ Acceptance** section are hard blockers
-- If issues: implementer fixes; re-review until approved.
+- After spec is clean, one fresh **`verifier`** pass: correctness edge cases, error handling, contract drift, test quality; any "Fails if" line in ✅ Acceptance is a hard blocker. Returns CONFIRMED / REFUTED / PARTIAL with evidence.
+- REFUTED/PARTIAL → `executor` fixes → **re-run only the verifier** (spec already passed). Same two-loop cap.
+- **High-risk steps** (touching auth, billing, permissions, migrations, shared state, concurrency, public API contracts) get a **second, independent verifier** with a different framing; otherwise one pass is the default.
 
 ### E. Parent verification + roadmap
 
 Only the parent:
 
-1. Run the project’s real build/tests for the change.
+1. Run the project's real build/tests for the change — directly, or via **`scout`** returning the decisive result line verbatim when the log would bloat the parent's context.
 2. On green: `python3 "$RM" check --plan <id> --step <n> --evidence "<command>: <real result>"`
-   — paste the actual test output line you just saw (e.g. `pytest -q: 312 passed`), never a guess.
+   — paste the actual test output line you (or the scout) saw (e.g. `pytest -q: 312 passed`), never a guess.
 3. **Micro-commit code + roadmap immediately** (one commit per checked step).
    This is what makes rate-limits safe: the next agent only loses uncommitted
    in-flight work, never completed steps.
@@ -84,7 +89,7 @@ Only the parent:
 
 ### F. Item complete
 
-- Optional: one final item-level review subagent against the whole plan scope.
+- Item-level review: **only** for items with three or more steps or any high-risk step — one `verifier` pass against the whole plan scope. Small items are covered by their per-step reviews.
 - If not `--auto`: pause and report to the user.
 - If `--auto`: brief status line, then next unblocked item (`next` or remaining selection).
 
@@ -99,11 +104,11 @@ Only the parent:
 
 Grok: `spawn_subagent` from the parent; `get_command_or_subagent_output` for background explore. Watch children with Ctrl+B.
 
-When `settings.buildRoles` is set in `.roadmap/config.json` (`explorer` / `implementer` / `specReviewer` / `qualityReviewer` → model or agent names, shown on the `Roles:` line of `orient`/`handoff`), the parent applies that mapping when spawning each subagent — values are host-specific and honored best-effort.
+When `settings.buildRoles` is set in `.roadmap/config.json` (`explorer` / `implementer` / `specReviewer` / `qualityReviewer` → model or agent names, shown on the `Roles:` line of `orient`/`handoff`), the parent applies that mapping when spawning each subagent — values are host-specific and honored best-effort. Absent, the default mapping is the tier table above: `explorer=scout`, `implementer=executor`, `specReviewer=scout`, `qualityReviewer=verifier`.
 
 ## Role mapping (Claude Code / Task tool)
 
-Same roles via Task / subagent dispatch. Prefer superpowers SDD templates when present.
+Same roles via Task / subagent dispatch using the fleet tiers above. Prefer superpowers SDD templates when present.
 
 ## What `--auto` changes
 
@@ -125,6 +130,8 @@ Same roles via Task / subagent dispatch. Prefer superpowers SDD templates when p
 - Child runs `roadmap.py check` or edits `ROADMAP.md`
 - Checking off a step because “it looks done” without tests
 - Skipping C/D reviews under `--auto`
+- Spawning an unlabeled `general-purpose` reviewer or implementer (inherits the parent's frontier model + effort)
+- Pasting whole files or diffs into a haiku brief instead of letting it read them (and pushing it past the 100K-token price cliff)
 - Spawning subagents from inside a subagent (Grok depth limit)
 - Building multiple roadmap items at once without an explicit user request *and* clear file isolation
 
