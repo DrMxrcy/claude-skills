@@ -3,7 +3,7 @@ id: 23
 title: Haiku-first cost tiers: re-tier the agent fleet and slim the quality build loop
 type: chore
 version: 0.18.0
-status: active
+status: done
 created: 2026-10-15
 ---
 
@@ -33,4 +33,5 @@ created: 2026-10-15
   > evidence: pytest tests/test_install_agent.py -q: 19 passed; full suite 331 passed before the wording fix (2026-10-15)
 - [x] Step 3: Slim the quality build loop to implementer + one combined review; update quality-build.md, roadmap SKILL.md, RULES_BLOCK, and tests -> target: skills/roadmap
   > evidence: pytest tests -q: 332 passed (2026-10-15)
-- [ ] Step 4: Bump agent VERSION to 0.5.0 and re-install the fleet into every existing project under ~/Desktop/Dev -> target: install.sh sweep
+- [x] Step 4: Bump agent VERSION to 0.5.0 and re-install the fleet into every existing project under ~/Desktop/Dev -> target: install.sh sweep
+  > evidence: install.sh re-run: 16/16 projects + ~/.claude show mech-executor=haiku, agent VERSION 0.5.0, Opus-reserve policy present (2026-10-15)

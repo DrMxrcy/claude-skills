@@ -207,13 +207,14 @@
     "gitTagOnRelease": false
   },
   "skillVersion": "0.17.0",
-  "last_seen_sha": "9fb0bb399dd3affdff4a20d3357531321fb857f7",
+  "last_seen_sha": "94caa6d343da901e5419f12bbc0070cfed676907",
   "versionDates": {
     "0.14.1": "2026-07-22",
     "0.14.2": "2026-07-22",
     "0.15.0": "2026-07-23",
     "0.16.0": "2026-08-20",
-    "0.17.0": "2026-08-21"
+    "0.17.0": "2026-08-21",
+    "0.18.0": "2026-10-15"
   },
   "releaseNotes": {
     "0.17.0": "Trust, but verify: finished steps can now carry proof of the tests that passed, release dates always match when work really wrapped, and your setup stays tidy across every AI coder you use."
