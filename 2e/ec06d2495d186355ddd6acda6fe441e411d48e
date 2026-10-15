@@ -1,0 +1,46 @@
+.roadmap/plans/023-haiku-first-cost-tiers-re-tier-the-agent-fleet-and-slim-the-quality-build-loop.md
+  s_4d763c706e64fc::t_021f061f9dc78c 14-15,18-21,24-27,30-33
+  s_4d763c706e64fc::t_03300de3fcc0cb 1-13,16-17,22-23,28-29
+  s_4d763c706e64fc::t_f76de5bb5eaf8d 34
+skills/agent/.claude/agents/mech-executor.md
+  s_4d763c706e64fc::t_021f061f9dc78c 4-5
+CHANGELOG.internal.md
+  s_4d763c706e64fc::t_03300de3fcc0cb 5,11-12
+  s_4d763c706e64fc::t_334420dc4d5df3 13
+CHANGELOG.md
+  s_4d763c706e64fc::t_03300de3fcc0cb 3
+README.md
+  s_4d763c706e64fc::t_7b0c9927fc40ab 172
+skills/agent/README.md
+  s_4d763c706e64fc::t_7b0c9927fc40ab 20-21
+ROADMAP.md
+  s_4d763c706e64fc::t_03300de3fcc0cb 24
+  s_4d763c706e64fc::t_95c3d377661268 21
+skills/agent/.claude/agents/scout.md
+  s_4d763c706e64fc::t_7b0c9927fc40ab 17-18
+.roadmap/config.json
+  s_4d763c706e64fc::t_03300de3fcc0cb 4,195-202,210,216
+agy-plugin/plugins/agent/agents/mech-executor.md
+  s_4d763c706e64fc::t_95c3d377661268 4-5
+skills/agent/SKILL.md
+  s_4d763c706e64fc::t_7b0c9927fc40ab 30-31,34-39
+  s_4d763c706e64fc::t_eac6071d0641d6 40
+agy-plugin/plugins/agent/agents/scout.md
+  s_4d763c706e64fc::t_95c3d377661268 17-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2eec06d2495d186355ddd6acda6fe441e411d48e",
+  "prompts": {},
+  "sessions": {
+    "s_4d763c706e64fc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7886d04-81ee-4339-a453-da32df5df10d",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
