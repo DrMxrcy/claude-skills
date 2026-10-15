@@ -31,21 +31,23 @@ You (the main session) are the **senior decision-maker** — your value is judgm
 - `executor` (opus) — implementation needing judgment: features, bug fixes, design-sensitive refactors. Executes a decided approach; escalates scope/architecture changes.
 - `verifier` (opus) — fresh-context **adversarial** verification of completed work or claimed findings. Returns CONFIRMED / REFUTED / PARTIAL with evidence; never fixes.
 - `security-executor` (opus) — **all security-sensitive work** (auth, permissions, secrets, CSP/headers, crypto, vuln fixes, CVE triage). Pre-route it so a benign defensive-security task is never stalled by a main-loop refusal.
-- `mech-executor` (sonnet) — fully-specified mechanical work: pattern refactors, convention tests, docs, bulk edits. No judgment calls.
-- `scout` (haiku) — read-only lookups and evidence: "where/how is X", symbol usages, config values, file/log summaries, plan-conformance checks. Reports facts, never direction.
+- `mech-executor` (haiku) — fully-specified mechanical work: pattern refactors, convention tests, docs, bulk edits. No judgment calls. If it stalls or misreads the spec twice, re-dispatch with a `sonnet` model override before reaching for `executor`.
+- `scout` (haiku) — read-only evidence: "where/how is X", symbol usages, config values, file/log summaries, **spec-conformance review** (acceptance criteria → MET / NOT MET / UNVERIFIED with `path:line`), and **test runs** (returns the decisive result line verbatim). Reports facts, never direction.
 - `Explore` (haiku) — project override of the built-in Explore agent (which otherwise inherits the expensive main model); broad read-only codebase exploration.
 - For **high-stakes decisions**, dispatch two independent opus reasoning passes with slightly different framings and synthesize the best of both.
 
-**Delegation specs are one-shot:** goal, the *why*, constraints, done-criteria, and relevant paths — no step-by-step scaffolding. Require progress claims to be backed by tool output, not narration.
+**Opus-reserve rule:** opus does only what needs judgment — writing non-trivial code, adversarial quality review, security work, and high-stakes design passes. Everything whose output is a *fact* (where is X, does the diff meet the acceptance list, did the tests pass, apply this fully-spec'd edit) goes to a haiku tier first. Haiku 5.5 costs ~40x less than opus per token on prompts under 100K tokens and ~8x less above that cliff — so keep haiku briefs lean: paths and criteria, not pasted files; let it run `git diff` / tests itself rather than receiving the output. Sonnet is an escalation override, not a default tier.
+
+**Delegation specs are one-shot:** goal, the *why*, constraints, done-criteria, and relevant paths — no step-by-step scaffolding. Require progress claims to be backed by tool output, not narration. Never dispatch an unlabeled `general-purpose` agent for fleet work — it inherits the main session's frontier model and effort, which is the single most expensive mistake in this workflow.
 
 **Set model AND effort explicitly at spawn — never rely on inheritance.** A subagent with no `model:` inherits the main session's model, and subagents also inherit the session's *effort level*; both mean an unlabeled agent silently runs at frontier price. Each fleet agent pins its own `model:` + `effort:` in frontmatter (the only reliable per-role effort control — the Agent tool has a runtime `model` override but no `effort` parameter). Precedence: runtime model param > agent frontmatter > session model.
 
-**Orchestrator effort posture:** run the main session at low/medium effort by default; frontier models default to high, so turn it down deliberately. Reach for high effort only at multi-step judgment points — decomposition, architecture choice, risk calls, resolving agent disagreement — then drop back for routine delegation and synthesis.
+**Orchestrator effort posture:** run the main session at low/medium effort by default; frontier models default to high, so turn it down deliberately. Reach for high effort only at multi-step judgment points — decomposition, architecture choice, risk calls, resolving agent disagreement — then drop back for routine delegation and synthesis. Keep the main context lean: delegate test runs and log reads to `scout` and cite its quoted result line as evidence instead of streaming the full output into your own context.
 
 **Escalation ladder** (start at the cheapest tier that reliably does the job):
 - scout/Explore → `mech-executor` when the task needs writing or synthesis, not just evidence.
-- `mech-executor` → `executor` when a design, tradeoff, or ambiguity call appears mid-task.
-- `executor`/`verifier` → dual independent frontier passes for security or irreversible-action decisions.
+- `mech-executor` (haiku) → same agent with a `sonnet` model override → `executor` when a design, tradeoff, or ambiguity call appears mid-task.
+- `executor`/`verifier` → dual independent opus passes for security or irreversible-action decisions.
 - Escalate on visible failure, lost plot, or when re-prompting overhead exceeds roughly 20% of the tokens the cheaper tier saves. A cheaper tier that finds less isn't cheaper — judge by cost per *completed* task.
 
 Agents defined or renamed mid-session only register in **new** sessions — if a named tier isn't in the available-agents list, dispatch `general-purpose` with the matching `model` override (`opus`/`sonnet`/`haiku`) and the same brief.
@@ -53,6 +55,8 @@ Agents defined or renamed mid-session only register in **new** sessions — if a
 **Boundary test:** if a task is mostly searching, reading, editing, testing, or verifying → it belongs to another agent. Do the work directly only when delegating would cost more than the task itself, or when the task requires senior judgment (intent, design, tradeoffs, risk, disagreement, final approval).
 
 **High-risk areas** — auth, billing, permissions, security, migrations, data loss, shared state, caching, concurrency, cross-module behavior, public API/backend contracts, user-visible workflows: you make the decision, `executor` / `security-executor` handle the hard technical parts, `verifier` adversarially confirms, cheaper agents gather the evidence.
+
+**Build-loop shape (plan checklist steps):** per checklist step, `executor` implements and runs the tests itself → `scout` does the spec-conformance pass against the ✅ Acceptance list → `verifier` does one adversarial quality pass → parent (or `scout`) runs the real tests → `check` + commit. Skip the research spawn when the plan already names the files. Add a second `verifier` pass only for high-risk steps; cap fix→re-review loops at two before escalating to the parent.
 
 **Non-code work routes the same way** (research, writing, docs, campaigns): `scout` classifies and gathers sources, `mech-executor` drafts at volume from your brief, and only the single highest-stakes artifact — the piece that sets the angle for everything else — gets an `executor`-tier rewrite. Cross-provider agents (Codex/Gemini CLIs), where installed, are an optional second-opinion lane for a stuck diagnosis or an independent design take — never the default execution route; routing stays Claude-first.
 
