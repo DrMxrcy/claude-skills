@@ -15,7 +15,7 @@ in clean context, so "done" means *checked*, not *claimed*.
   | Agent | Model | Role |
   |---|---|---|
   | `executor` | opus | Implementation needing judgment |
-  | `verifier` | opus | Fresh-context adversarial verification (never fixes) |
+  | `verifier` | sonnet | Fresh-context adversarial verification (never fixes) |
   | `security-executor` | opus | All security-sensitive work |
   | `mech-executor` | haiku | Fully-specified mechanical work (sonnet override if it stalls) |
   | `scout` | haiku | Cheap read-only evidence, spec-conformance review, test runs |

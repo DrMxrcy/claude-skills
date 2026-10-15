@@ -45,8 +45,8 @@ Parent reads the plan file + linked Spec / Detailed plan once, then for **each u
 | Research | `scout` / `Explore` | haiku | **Only** when the plan doesn't already name the files |
 | Implement | `executor` | opus | Every step |
 | Spec review | `scout` | haiku | Every step — acceptance list → MET / NOT MET / UNVERIFIED |
-| Quality review | `verifier` | opus | Every step — one adversarial pass |
-| Second quality pass | `verifier` (fresh) | opus | **High-risk steps only** (auth, billing, migrations, shared state, public contracts) |
+| Quality review | `verifier` | sonnet | Every step — one adversarial pass by a different model than the author |
+| Second quality pass | `verifier` + `opus` override, or cross-provider reviewer (Codex/Gemini) where installed | opus / other family | **High-risk steps only** (auth, billing, migrations, shared state, public contracts) |
 | Test run for evidence | `scout` | haiku | When the parent wants the result line without the log in its context |
 
 ### A. Research (skip by default)
@@ -69,11 +69,11 @@ Parent reads the plan file + linked Spec / Detailed plan once, then for **each u
   - "For each criterion: MET / NOT MET / UNVERIFIED with `path:line`. List extras outside the step. No quality opinions."
 - Any NOT MET → re-dispatch `executor` with the gap list; re-run the scout pass. **Cap at two fix→review loops**, then the parent reads the gap itself.
 
-### D. Quality review (`verifier`, opus)
+### D. Quality review (`verifier`, sonnet — a different model than the author)
 
 - After spec is clean, one fresh **`verifier`** pass: correctness edge cases, error handling, contract drift, test quality; any "Fails if" line in ✅ Acceptance is a hard blocker. Returns CONFIRMED / REFUTED / PARTIAL with evidence.
 - REFUTED/PARTIAL → `executor` fixes → **re-run only the verifier** (spec already passed). Same two-loop cap.
-- **High-risk steps** (touching auth, billing, permissions, migrations, shared state, concurrency, public API contracts) get a **second, independent verifier** with a different framing; otherwise one pass is the default.
+- **High-risk steps** (touching auth, billing, permissions, migrations, shared state, concurrency, public API contracts) get a **second, independent pass** — `verifier` with an `opus` model override, or a cross-provider reviewer (Codex/Gemini CLI) where installed, for maximum blind-spot diversity; otherwise one pass is the default.
 
 ### E. Parent verification + roadmap
 

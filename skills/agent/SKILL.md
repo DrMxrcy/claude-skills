@@ -25,13 +25,13 @@ version changes.
 | Agent | Model | Effort | Use for |
 |---|---|---|---|
 | `executor` | opus | high | Implementation needing judgment — features, bug fixes, design-sensitive refactors |
-| `verifier` | opus | medium | Fresh-context **adversarial** verification — CONFIRMED / REFUTED / PARTIAL, never fixes |
+| `verifier` | sonnet | medium | Fresh-context **adversarial** verification — CONFIRMED / REFUTED / PARTIAL, never fixes |
 | `security-executor` | opus | high | ALL security-sensitive work — auth, secrets, headers, crypto, CVE triage |
 | `mech-executor` | haiku | medium | Fully-specified mechanical work — pattern refactors, tests, docs, bulk edits (escalate to `sonnet` override if it stalls) |
 | `scout` | haiku | low | Cheap read-only evidence — where/how is X, usages, config values, log summaries, spec-conformance review, test runs |
 | `Explore` | haiku | low | Broad read-only codebase exploration (overrides the built-in Explore, which since Claude Code v2.1.198 inherits the parent model instead of defaulting to haiku) |
 
-**Why this split:** Opus writes and judges code; Haiku does everything whose output is a
+**Why this split:** Opus writes code; a *different* model (Sonnet) reviews it so the review does not share the author's blind spots, with Opus (or a cross-provider reviewer where installed) as the second pass on high-risk steps; Haiku does everything whose output is a
 fact (where is X, does the diff meet the acceptance list, did the tests pass, apply this
 spec'd edit). Haiku 5.5 costs ~40x less than Opus 5.5 per token on prompts under 100K
 tokens (5x more above that cliff — keep its briefs lean), so routing evidence and

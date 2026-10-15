@@ -169,7 +169,7 @@ Alternative: install with `--global` so nothing lands in the project at all exce
 | Skill | What it does | Docs |
 |---|---|---|
 | **roadmap** | On-task + high-quality AI coding harness: versioned plans, native agent invocation (`/roadmap:*`, `/roadmap-*`, or Codex `$roadmap`), quality-first multi-agent build (`--auto` still reviews), anti-drift CLI. | [skills/roadmap/README.md](skills/roadmap/README.md) |
-| **agent** | Cost-tiered subagent orchestration: main session keeps judgment, delegates to the cheapest capable tier (executor/verifier on opus, mech-executor/scout/Explore on haiku, sonnet only as an escalation override), adversarial fresh-context verification. | [skills/agent/README.md](skills/agent/README.md) |
+| **agent** | Cost-tiered subagent orchestration: main session keeps judgment, delegates to the cheapest capable tier (executor on opus, verifier on sonnet so review never shares the author's blind spots, mech-executor/scout/Explore on haiku), adversarial fresh-context verification. | [skills/agent/README.md](skills/agent/README.md) |
 
 ## Repository layout
 

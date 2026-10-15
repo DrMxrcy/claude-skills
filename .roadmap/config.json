@@ -1,7 +1,7 @@
 {
   "project": "claude-skills",
   "currentVersion": "0.18.0",
-  "nextId": 25,
+  "nextId": 26,
   "items": [
     {
       "id": 1,
@@ -208,6 +208,14 @@
       "type": "chore",
       "version": "0.18.0",
       "file": "plans/024-sole-writer-fallback-for-ai-coders-without-native-subagents.md"
+    },
+    {
+      "id": 25,
+      "slug": "mixed-model-review-verifier-on-sonnet-opus-or-cross-provider-second-pass-for-high-risk-steps",
+      "title": "Mixed-model review: verifier on sonnet, opus or cross-provider second pass for high-risk steps",
+      "type": "chore",
+      "version": "0.18.0",
+      "file": "plans/025-mixed-model-review-verifier-on-sonnet-opus-or-cross-provider-second-pass-for-high-risk-steps.md"
     }
   ],
   "settings": {
@@ -215,7 +223,7 @@
     "gitTagOnRelease": false
   },
   "skillVersion": "0.17.0",
-  "last_seen_sha": "80e32714cd6cb64b8d350adafa0b7eebb786f334",
+  "last_seen_sha": "ceb22a881d3363a8fea74b4a487d5f0ce67abf7b",
   "versionDates": {
     "0.14.1": "2026-07-22",
     "0.14.2": "2026-07-22",

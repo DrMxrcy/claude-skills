@@ -190,8 +190,8 @@ On invocation, detect state and pick a phase:
    - **Default protocol** (also used by `/roadmap-build … --auto`): one item at a time;
      per checklist step → `scout` research **only if the plan doesn't name the files** →
      **one** `executor` implementer (opus) → **spec review** by `scout` (haiku, acceptance
-     list → MET / NOT MET) → **one** `verifier` quality review (opus; a second pass only
-     for high-risk steps) → parent runs real tests → only then `roadmap.py check` + commit.
+     list → MET / NOT MET) → **one** `verifier` quality review (sonnet, a different model than the author;
+     opus or cross-provider second pass only for high-risk steps) → parent runs real tests → only then `roadmap.py check` + commit.
      Never spawn an unlabeled `general-purpose` child — it inherits the frontier model.
      **Workers unavailable or prohibited** (Codex, Gemini, Kimi, Copilot, restricted
      sessions — session rules win over routing): parent continues as sole writer, then runs a

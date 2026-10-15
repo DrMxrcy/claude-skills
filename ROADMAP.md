@@ -23,4 +23,5 @@
 - [x] **#22 Antigravity agy plugin packaging and CLI installer support** `feature` — 100% ([plan](.roadmap/plans/022-antigravity-agy-plugin-packaging-and-cli-installer-support.md))
 - [x] **#23 Haiku-first cost tiers: re-tier the agent fleet and slim the quality build loop** `chore` — 100% ([plan](.roadmap/plans/023-haiku-first-cost-tiers-re-tier-the-agent-fleet-and-slim-the-quality-build-loop.md))
 - [x] **#24 Sole-writer fallback for AI coders without native subagents** `chore` — 100% ([plan](.roadmap/plans/024-sole-writer-fallback-for-ai-coders-without-native-subagents.md))
+- [x] **#25 Mixed-model review: verifier on sonnet, opus or cross-provider second pass for high-risk steps** `chore` — 100% ([plan](.roadmap/plans/025-mixed-model-review-verifier-on-sonnet-opus-or-cross-provider-second-pass-for-high-risk-steps.md))
 <!-- roadmap:auto:end -->
