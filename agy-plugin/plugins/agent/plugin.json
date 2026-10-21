@@ -1,6 +1,6 @@
 {
   "name": "agent",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "description": "Cost-tiered subagent orchestration fleet (executor, verifier, scout, mech-executor, security-executor, Explore) for AI-assisted development.",
   "author": {
     "name": "DrMxrcy",

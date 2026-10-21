@@ -25,13 +25,15 @@ version changes.
 | Agent | Model | Effort | Use for |
 |---|---|---|---|
 | `executor` | opus | high | Implementation needing judgment — features, bug fixes, design-sensitive refactors |
-| `verifier` | sonnet | medium | Fresh-context **adversarial** verification — CONFIRMED / REFUTED / PARTIAL, never fixes |
+| `verifier` | sonnet | high | Fresh-context **adversarial** verification — CONFIRMED / REFUTED / PARTIAL, never fixes |
 | `security-executor` | opus | high | ALL security-sensitive work — auth, secrets, headers, crypto, CVE triage |
 | `mech-executor` | haiku | medium | Fully-specified mechanical work — pattern refactors, tests, docs, bulk edits (escalate to `sonnet` override if it stalls) |
 | `scout` | haiku | low | Cheap read-only evidence — where/how is X, usages, config values, log summaries, spec-conformance review, test runs |
 | `Explore` | haiku | low | Broad read-only codebase exploration (overrides the built-in Explore, which since Claude Code v2.1.198 inherits the parent model instead of defaulting to haiku) |
 
-**Why this split:** Opus writes code; a *different* model (Sonnet) reviews it so the review does not share the author's blind spots, with Opus (or a cross-provider reviewer where installed) as the second pass on high-risk steps; Haiku does everything whose output is a
+**Why this split:** Opus writes code; a *different* model (Sonnet) reviews it so the review does not share the author's blind spots, with Opus (or a cross-provider reviewer where installed) as the second pass on high-risk steps. Review runs at **high** effort: for review work, effort
+moves finding quality more than model choice does, so a cheaper model at high effort beats a
+frontier model at medium. Haiku does everything whose output is a
 fact (where is X, does the diff meet the acceptance list, did the tests pass, apply this
 spec'd edit). Haiku 5.5 costs ~40x less than Opus 5.5 per token on prompts under 100K
 tokens (5x more above that cliff — keep its briefs lean), so routing evidence and
@@ -42,7 +44,9 @@ Every agent pins **both** `model:` and `effort:` in frontmatter. Subagents inher
 main session's model *and* effort level when unset — an unlabeled agent silently runs at
 frontier price. Frontmatter is the only reliable per-role effort control (the Agent tool
 has no runtime effort parameter), and the fleet keeps the orchestrator free to run at
-low/medium effort by default, going high only for multi-step judgment.
+low/medium effort by default, going high only for multi-step judgment. Read-only roles
+(`verifier`, `scout`, `Explore`) also pin `tools:` to Read/Grep/Glob/Bash — no Edit, Write,
+or Agent — so a review cannot quietly turn into a fix or a sub-fleet.
 
 The full orchestration policy — who keeps what, one-shot delegation specs, the
 escalation rule, high-risk routing, and the final verification gate — is the CLAUDE.md
