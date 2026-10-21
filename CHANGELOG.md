@@ -2,8 +2,7 @@
 
 ## v0.18.0 — 2026-10-21
 
-### ✨ New
-- The live dashboard now has tabs — browse your roadmap, the Idea Incubator, and the changelog without leaving the page.
+A roomier dashboard and a sharper crew. The live roadmap page now has tabs for your plan, your idea incubator, and your changelog. Antigravity joins the list of supported coders with native plugins. Behind the scenes, the review crew got cheaper and more careful: a different model now checks each change at full attention, and every helper gets exactly the tools its job needs. Happy shipping.
 
 ## v0.17.0 — 2026-08-21
 

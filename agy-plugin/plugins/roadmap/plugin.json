@@ -1,7 +1,7 @@
 {
   "name": "roadmap",
-  "version": "0.17.0",
-  "description": "Keep AI coders on-task while shipping high-quality code — versioned ROADMAP.md + .roadmap/ driven by a deterministic CLI, with quality-first multi-agent review.",
+  "version": "0.18.0",
+  "description": "Keep AI coders on-task while shipping high-quality code \u2014 versioned ROADMAP.md + .roadmap/ driven by a deterministic CLI, with quality-first multi-agent review.",
   "author": {
     "name": "DrMxrcy",
     "url": "https://github.com/DrMxrcy/claude-skills"

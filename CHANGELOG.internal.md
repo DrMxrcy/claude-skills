@@ -6,7 +6,7 @@ _Full work log — every item, including internal/dev work. The curated public c
 
 ### ✨ New
 - The live dashboard now has tabs — browse your roadmap, the Idea Incubator, and the changelog without leaving the page.
-- Antigravity agy plugin packaging and CLI installer support
+- Antigravity users can now install the roadmap and agent tools as native plugins, with the same commands and hooks as everywhere else.
 
 ### ⚡ Improved
 - Haiku-first cost tiers: re-tier the agent fleet and slim the quality build loop

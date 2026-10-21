@@ -1,6 +1,6 @@
 {
   "project": "claude-skills",
-  "currentVersion": "0.18.0",
+  "currentVersion": "0.19.0",
   "nextId": 27,
   "items": [
     {
@@ -191,7 +191,9 @@
       "title": "Antigravity agy plugin packaging and CLI installer support",
       "type": "feature",
       "version": "0.18.0",
-      "file": "plans/022-antigravity-agy-plugin-packaging-and-cli-installer-support.md"
+      "file": "plans/022-antigravity-agy-plugin-packaging-and-cli-installer-support.md",
+      "audience": "public",
+      "note": "Antigravity users can now install the roadmap and agent tools as native plugins, with the same commands and hooks as everywhere else."
     },
     {
       "id": 23,
@@ -199,7 +201,8 @@
       "title": "Haiku-first cost tiers: re-tier the agent fleet and slim the quality build loop",
       "type": "chore",
       "version": "0.18.0",
-      "file": "plans/023-haiku-first-cost-tiers-re-tier-the-agent-fleet-and-slim-the-quality-build-loop.md"
+      "file": "plans/023-haiku-first-cost-tiers-re-tier-the-agent-fleet-and-slim-the-quality-build-loop.md",
+      "audience": "internal"
     },
     {
       "id": 24,
@@ -207,7 +210,8 @@
       "title": "Sole-writer fallback for AI coders without native subagents",
       "type": "chore",
       "version": "0.18.0",
-      "file": "plans/024-sole-writer-fallback-for-ai-coders-without-native-subagents.md"
+      "file": "plans/024-sole-writer-fallback-for-ai-coders-without-native-subagents.md",
+      "audience": "internal"
     },
     {
       "id": 25,
@@ -215,7 +219,8 @@
       "title": "Mixed-model review: verifier on sonnet, opus or cross-provider second pass for high-risk steps",
       "type": "chore",
       "version": "0.18.0",
-      "file": "plans/025-mixed-model-review-verifier-on-sonnet-opus-or-cross-provider-second-pass-for-high-risk-steps.md"
+      "file": "plans/025-mixed-model-review-verifier-on-sonnet-opus-or-cross-provider-second-pass-for-high-risk-steps.md",
+      "audience": "internal"
     },
     {
       "id": 26,
@@ -223,7 +228,8 @@
       "title": "Review-effort and cache-stable briefs: verifier sonnet/high, read-only tool scopes, inline plan bodies, diff-scoped re-verification",
       "type": "chore",
       "version": "0.18.0",
-      "file": "plans/026-review-effort-and-cache-stable-briefs-verifier-sonnet-high-read-only-tool-scopes-inline-plan-bodies-diff-scoped-re-verification.md"
+      "file": "plans/026-review-effort-and-cache-stable-briefs-verifier-sonnet-high-read-only-tool-scopes-inline-plan-bodies-diff-scoped-re-verification.md",
+      "audience": "internal"
     }
   ],
   "settings": {
@@ -241,6 +247,7 @@
     "0.18.0": "2026-10-21"
   },
   "releaseNotes": {
-    "0.17.0": "Trust, but verify: finished steps can now carry proof of the tests that passed, release dates always match when work really wrapped, and your setup stays tidy across every AI coder you use."
+    "0.17.0": "Trust, but verify: finished steps can now carry proof of the tests that passed, release dates always match when work really wrapped, and your setup stays tidy across every AI coder you use.",
+    "0.18.0": "A roomier dashboard and a sharper crew. The live roadmap page now has tabs for your plan, your idea incubator, and your changelog. Antigravity joins the list of supported coders with native plugins. Behind the scenes, the review crew got cheaper and more careful: a different model now checks each change at full attention, and every helper gets exactly the tools its job needs. Happy shipping."
   }
 }
