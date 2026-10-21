@@ -30,5 +30,6 @@ created: 2026-10-21
 ## 🚶 Step-by-Step Checklist
 - [x] Step 1: Fleet frontmatter — verifier sonnet/high + different-model line, read-only tool scopes, dedupe codegraph sentence; sync tables/policy; bump agent VERSION -> target: skills/agent
   > evidence: pytest tests -q: 332 passed; verifier.md model sonnet/effort high/tools Read,Grep,Glob,Bash; codegraph line kept per user (2026-10-21)
-- [ ] Step 2: Cache-stable brief — brief-common.md + brief-task.md, referenced from SKILL.md -> target: skills/agent/references
+- [x] Step 2: Cache-stable brief — brief-common.md + brief-task.md, referenced from SKILL.md -> target: skills/agent/references
+  > evidence: pytest tests/test_install_agent.py tests/test_validate_skills.py tests/test_agy_plugin.py -q: 39 passed; brief-common.md has no paths/dates, ends with stop rule (2026-10-21)
 - [ ] Step 3: Quality-build protocol — inline plan body, diff-scoped re-verification, mixed-model rationale, stable-first spawn order; rebuild plugin mirrors -> target: skills/roadmap/references/quality-build.md

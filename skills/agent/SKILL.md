@@ -53,6 +53,12 @@ escalation rule, high-risk routing, and the final verification gate — is the C
 block in `references/orchestration-policy.md`. The installer merges that block into
 your project (or global) CLAUDE.md and copies the fleet into `<agent-dir>/agents/`.
 
+Spawn prompts are two parts for prompt caching: `references/brief-common.md` (byte-identical
+across every project and task — reporting format, evidence rules, no-attribution commit
+rule, stop-after-report rule) pasted first, then `references/brief-task.md` filled in
+(repo, plan, step, inline plan body + acceptance lines, test commands, diff range).
+Nothing variable appears before the end of the common part.
+
 ## Install
 
 From the repo root (or piped from GitHub with `curl … | bash`):

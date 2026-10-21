@@ -21,6 +21,7 @@ in clean context, so "done" means *checked*, not *claimed*.
   | `scout` | haiku | Cheap read-only evidence, spec-conformance review, test runs |
   | `Explore` | haiku | Broad read-only exploration (overrides the built-in, expensive default) |
 
+- **A two-part spawn brief** (`references/brief-common.md` stable prefix + `references/brief-task.md` placeholders) so cached prompt prefixes stay identical across tasks
 - **An orchestration policy** (`references/orchestration-policy.md`) merged into your
   `CLAUDE.md` / `AGENTS.md` as an idempotent marked block. It describes what the
   orchestrator keeps, how to write one-shot delegation specs, when to escalate, how to
