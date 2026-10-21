@@ -83,6 +83,7 @@ Only the parent:
 1. Run the project's real build/tests for the change — directly, or via **`scout`** returning the decisive result line verbatim when the log would bloat the parent's context.
 2. On green: `python3 "$RM" check --plan <id> --step <n> --evidence "<command>: <real result>"`
    — paste the actual test output line you (or the scout) saw (e.g. `pytest -q: 312 passed`), never a guess.
+   Append the review ledger in a fixed shape so it can be counted later: `verifier: <CONFIRMED|REFUTED|PARTIAL>, <n> findings, <m> acted on`. Measurement: `grep -ho 'verifier: [A-Z]*, [0-9]* findings, [0-9]* acted on' .roadmap/plans/*.md` tallies review quality per batch — the number that decides whether the review tier and effort stay as configured.
 3. **Micro-commit code + roadmap immediately** (one commit per checked step).
    This is what makes rate-limits safe: the next agent only loses uncommitted
    in-flight work, never completed steps.
