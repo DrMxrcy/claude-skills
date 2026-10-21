@@ -2,7 +2,7 @@
 
 _Full work log — every item, including internal/dev work. The curated public changelog is CHANGELOG.md._
 
-## v0.18.0 — (in progress)
+## v0.18.0 — 2026-10-21
 
 ### ✨ New
 - The live dashboard now has tabs — browse your roadmap, the Idea Incubator, and the changelog without leaving the page.
@@ -12,7 +12,7 @@ _Full work log — every item, including internal/dev work. The curated public c
 - Haiku-first cost tiers: re-tier the agent fleet and slim the quality build loop
 - Sole-writer fallback for AI coders without native subagents
 - Mixed-model review: verifier on sonnet, opus or cross-provider second pass for high-risk steps
-- (pending) Review-effort and cache-stable briefs: verifier sonnet/high, read-only tool scopes, inline plan bodies, diff-scoped re-verification
+- Review-effort and cache-stable briefs: verifier sonnet/high, read-only tool scopes, inline plan bodies, diff-scoped re-verification
 
 ## v0.17.0 — 2026-08-21
 

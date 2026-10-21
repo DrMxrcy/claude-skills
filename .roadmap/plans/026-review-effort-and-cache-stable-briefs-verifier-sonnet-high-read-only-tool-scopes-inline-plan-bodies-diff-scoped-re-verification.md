@@ -3,7 +3,7 @@ id: 26
 title: Review-effort and cache-stable briefs: verifier sonnet/high, read-only tool scopes, inline plan bodies, diff-scoped re-verification
 type: chore
 version: 0.18.0
-status: active
+status: done
 created: 2026-10-21
 ---
 
@@ -32,4 +32,5 @@ created: 2026-10-21
   > evidence: pytest tests -q: 332 passed; verifier.md model sonnet/effort high/tools Read,Grep,Glob,Bash; codegraph line kept per user (2026-10-21)
 - [x] Step 2: Cache-stable brief — brief-common.md + brief-task.md, referenced from SKILL.md -> target: skills/agent/references
   > evidence: pytest tests/test_install_agent.py tests/test_validate_skills.py tests/test_agy_plugin.py -q: 39 passed; brief-common.md has no paths/dates, ends with stop rule (2026-10-21)
-- [ ] Step 3: Quality-build protocol — inline plan body, diff-scoped re-verification, mixed-model rationale, stable-first spawn order; rebuild plugin mirrors -> target: skills/roadmap/references/quality-build.md
+- [x] Step 3: Quality-build protocol — inline plan body, diff-scoped re-verification, mixed-model rationale, stable-first spawn order; rebuild plugin mirrors -> target: skills/roadmap/references/quality-build.md
+  > evidence: pytest tests -q: 332 passed (final tree); scout spec pass all MET; verifier PARTIAL findings (MCP tools allowlist, untracked-file baseline, reviewer report shape) fixed; mirrors rebuilt (2026-10-21)

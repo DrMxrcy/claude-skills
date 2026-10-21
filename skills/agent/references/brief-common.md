@@ -10,8 +10,10 @@ paths, test commands, or IDs. Those go in `brief-task.md`.
 - Lead with the conclusion: DONE / DONE_WITH_CONCERNS / BLOCKED (writers) or
   CONFIRMED / REFUTED / PARTIAL (reviewers) or MET / NOT MET / UNVERIFIED per criterion
   (spec review).
-- Then: files changed with a one-line summary each, decisions made within scope, and
-  anything deliberately not done with why.
+- Writers then list files changed with a one-line summary each, decisions made within
+  scope, and anything deliberately not done with why. Reviewers then list commands run
+  with their decisive output, the failing case or gap for each negative finding, and
+  what could not be verified.
 - Prose terse: fragments, zero filler. Code, commands, paths, and errors verbatim.
 
 ## Evidence
@@ -20,7 +22,7 @@ paths, test commands, or IDs. Those go in `brief-task.md`.
   decisive result line. Never narrate a result you did not observe.
 - Cite source as `path:line`. If you could not verify something, say "not verified"
   rather than inferring it.
-- Read the actual code before writing; verify the plan's claims against the source.
+- Read the actual code, not the description of it; verify the plan's claims against the source.
 
 ## Commits
 

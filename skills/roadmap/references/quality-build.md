@@ -45,7 +45,7 @@ Parent reads the plan file + linked Spec / Detailed plan once, then for **each u
 | Research | `scout` / `Explore` | haiku | **Only** when the plan doesn't already name the files |
 | Implement | `executor` | opus | Every step |
 | Spec review | `scout` | haiku | Every step — acceptance list → MET / NOT MET / UNVERIFIED |
-| Quality review | `verifier` | sonnet | Every step — one adversarial pass by a different model than the author |
+| Quality review | `verifier` | sonnet, high effort | Every step — one adversarial pass by a different model than the author |
 | Second quality pass | `verifier` + `opus` override, or cross-provider reviewer (Codex/Gemini) where installed | opus / other family | **High-risk steps only** (auth, billing, migrations, shared state, public contracts) |
 | Test run for evidence | `scout` | haiku | When the parent wants the result line without the log in its context |
 
@@ -57,9 +57,9 @@ Parent reads the plan file + linked Spec / Detailed plan once, then for **each u
 ### B. Implement (one writer, `executor`)
 
 - Prefer superpowers **`subagent-driven-development`** if installed (same shape as below).
-- Else spawn **`executor`** with a **self-contained, one-shot prompt**:
-  - full step text + the ✅ Acceptance lines + only the plan/spec excerpts the step needs (paths, not pasted files)
-  - files to touch, TDD expectation, "run the project tests before reporting"
+- Else spawn **`executor`** with a **self-contained, one-shot prompt**, stable content first, task content last (see *Spawn prompt shape* below):
+  - the plan body (Scope, Blueprint, Spec/Detailed-plan excerpts the step needs) and the ✅ Acceptance lines **pasted inline** — not as a file path to read. Keep "read the file" only for files over ~300 lines; a builder that has the plan in its prompt starts writing instead of re-deriving it.
+  - full step text, files to touch, TDD expectation, "run the project tests before reporting"
   - "report DONE / DONE_WITH_CONCERNS / BLOCKED with the test command + result line; do not run roadmap CLI"
 - **One implementer at a time** for this item. Do not fan out multiple implementers unless steps are *proven* independent *and* use separate `isolation: worktree` worktrees with an explicit parent merge — default is **no**.
 
@@ -69,10 +69,11 @@ Parent reads the plan file + linked Spec / Detailed plan once, then for **each u
   - "For each criterion: MET / NOT MET / UNVERIFIED with `path:line`. List extras outside the step. No quality opinions."
 - Any NOT MET → re-dispatch `executor` with the gap list; re-run the scout pass. **Cap at two fix→review loops**, then the parent reads the gap itself.
 
-### D. Quality review (`verifier`, sonnet — a different model than the author)
+### D. Quality review (`verifier`, sonnet at high effort — a different model than the author)
 
+- **Why a different model:** builder and verifier tiers are different models by default because a model reviewing its own output shares its blind spots — it rationalizes the same assumptions it wrote. Independent blind spots are the point; the cheaper model is a side benefit. **Why high effort:** for review work, effort moves finding quality more than model choice does, so the verifier runs high while the orchestrator stays low/medium.
 - After spec is clean, one fresh **`verifier`** pass: correctness edge cases, error handling, contract drift, test quality; any "Fails if" line in ✅ Acceptance is a hard blocker. Returns CONFIRMED / REFUTED / PARTIAL with evidence.
-- REFUTED/PARTIAL → `executor` fixes → **re-run only the verifier** (spec already passed). Same two-loop cap.
+- REFUTED/PARTIAL → before dispatching the fix, the parent snapshots the tree: `git add -N .` (intent-to-add, so new files appear in diffs) then `git stash create` — prints a commit SHA without touching the working tree; empty when the tree is clean, then use `HEAD`. Copy the literal SHA into the verifier prompt (shell variables do not survive between tool calls). `executor` fixes → `git add -N .` again for files the fix created → **re-run only the verifier, scoped to the fix**: its prompt receives the diff range `git diff <baseline-sha>` plus the specific findings sent back, and it verifies only that diff and those findings — not the whole step again (spec already passed; the unchanged code already has a verdict). Same two-loop cap.
 - **High-risk steps** (touching auth, billing, permissions, migrations, shared state, concurrency, public API contracts) get a **second, independent pass** — `verifier` with an `opus` model override, or a cross-provider reviewer (Codex/Gemini CLI) where installed, for maximum blind-spot diversity; otherwise one pass is the default.
 
 ### E. Parent verification + roadmap
@@ -92,6 +93,10 @@ Only the parent:
 - Item-level review: **only** for items with three or more steps or any high-risk step — one `verifier` pass against the whole plan scope. Small items are covered by their per-step reviews.
 - If not `--auto`: pause and report to the user.
 - If `--auto`: brief status line, then next unblocked item (`next` or remaining selection).
+
+## Spawn prompt shape (prompt caching)
+
+Every subagent prompt is two parts, in this order: the `agent` skill's `references/brief-common.md` pasted verbatim first (reporting format, evidence rules, commit rule, stop-after-report — identical across every project and task), then `references/brief-task.md` filled in (repo, plan, step, inline plan body + acceptance, test commands, diff range). Nothing variable appears before the end of the common part, so the cached prefix stays byte-identical from one spawn to the next.
 
 ## Worker availability and review fallback (Codex, Gemini CLI, Kimi, Copilot, restricted sessions)
 
