@@ -1,0 +1,45 @@
+skills/agent/.claude/agents/Explore.md
+  s_a25d37ea995efe::t_90e6bd7624c546 6
+agy-plugin/plugins/agent/agents/Explore.md
+  s_a25d37ea995efe::t_90e6bd7624c546 6
+agy-plugin/plugins/agent/agents/scout.md
+  s_a25d37ea995efe::t_90e6bd7624c546 6
+skills/agent/references/brief-common.md
+  s_a25d37ea995efe::t_90e6bd7624c546 13-16,25
+skills/roadmap/references/quality-build.md
+  s_a25d37ea995efe::t_e1bf114027d5a6 48,60-62,72,74,97-99
+  s_a25d37ea995efe::t_90e6bd7624c546 76
+  s_a25d37ea995efe::t_ff40f0d9a5dd83 100
+agy-plugin/plugins/agent/agents/verifier.md
+  s_a25d37ea995efe::t_90e6bd7624c546 6
+skills/agent/.claude/agents/scout.md
+  s_a25d37ea995efe::t_90e6bd7624c546 6
+skills/agent/.claude/agents/verifier.md
+  s_a25d37ea995efe::t_90e6bd7624c546 6
+.roadmap/config.json
+  s_a25d37ea995efe::t_3ab58d552e8f99 234,240-241
+.roadmap/plans/026-review-effort-and-cache-stable-briefs-verifier-sonnet-high-read-only-tool-scopes-inline-plan-bodies-diff-scoped-re-verification.md
+  s_a25d37ea995efe::t_0e3516c21e7ac8 6,35-36
+CHANGELOG.internal.md
+  s_a25d37ea995efe::t_a40da70d5876d3 5,15
+CHANGELOG.md
+  s_a25d37ea995efe::t_a02abd4c681b83 3
+ROADMAP.md
+  s_a25d37ea995efe::t_758bef251fa112 21,27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8a8615d960133b3b84542bc0cdcb5bd56361010e",
+  "prompts": {},
+  "sessions": {
+    "s_a25d37ea995efe": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f4c76db3-9c89-49b6-9797-a8ed6f85fac7",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
