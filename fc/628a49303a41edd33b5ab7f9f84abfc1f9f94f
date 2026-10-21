@@ -1,0 +1,37 @@
+skills/agent/SKILL.md
+  s_a25d37ea995efe::t_ebe541024c6f11 56-61
+skills/agent/README.md
+  s_a25d37ea995efe::t_ebe541024c6f11 24
+agy-plugin/plugins/agent/agents/verifier.md
+  s_a25d37ea995efe::t_ebe541024c6f11 13
+agy-plugin/plugins/agent/agents/scout.md
+  s_a25d37ea995efe::t_ebe541024c6f11 24
+agy-plugin/plugins/agent/agents/Explore.md
+  s_a25d37ea995efe::t_ebe541024c6f11 13
+skills/agent/references/brief-task.md
+  s_a25d37ea995efe::t_c58195f8f0d60c 1-40
+skills/agent/references/brief-common.md
+  s_a25d37ea995efe::t_c58195f8f0d60c 1-34
+.roadmap/config.json
+  s_a25d37ea995efe::t_9295ab3e6d1b48 234
+.roadmap/plans/026-review-effort-and-cache-stable-briefs-verifier-sonnet-high-read-only-tool-scopes-inline-plan-bodies-diff-scoped-re-verification.md
+  s_a25d37ea995efe::t_b7267cd3ef1b4e 33-34
+ROADMAP.md
+  s_a25d37ea995efe::t_aecb7ca8329f13 21,27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fc628a49303a41edd33b5ab7f9f84abfc1f9f94f",
+  "prompts": {},
+  "sessions": {
+    "s_a25d37ea995efe": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f4c76db3-9c89-49b6-9797-a8ed6f85fac7",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
