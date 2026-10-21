@@ -1,0 +1,32 @@
+CHANGELOG.md
+  s_a25d37ea995efe::t_1ce4b6b3910806 5
+skills/roadmap/VERSION
+  s_a25d37ea995efe::t_97f498f22b4419 1
+.roadmap/config.json
+  s_a25d37ea995efe::t_97f498f22b4419 3
+  s_a25d37ea995efe::t_1ce4b6b3910806 194-196,204-205,213-214,222-223,231-232,250-251
+agy-plugin/plugins/roadmap/plugin.json
+  s_a25d37ea995efe::t_23124f3e10fda1 3-4
+CHANGELOG.internal.md
+  s_a25d37ea995efe::t_1ce4b6b3910806 9
+codex-plugin/plugins/roadmap/plugin.json
+  s_a25d37ea995efe::t_23124f3e10fda1 3
+ROADMAP.md
+  s_a25d37ea995efe::t_97f498f22b4419 7,21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "333e94241fe85621cfb6f3dadbe7b5242e08604b",
+  "prompts": {},
+  "sessions": {
+    "s_a25d37ea995efe": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f4c76db3-9c89-49b6-9797-a8ed6f85fac7",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
