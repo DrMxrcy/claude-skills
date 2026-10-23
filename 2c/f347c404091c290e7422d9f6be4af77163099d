@@ -1,0 +1,33 @@
+skills/roadmap/README.md
+  s_fbae122c7a65de::t_460346c787a101 199,202
+skills/roadmap/SKILL.md
+  s_0d994e3368ddf8::t_bb55999ed94220 297-298
+skills/roadmap/references/quality-build.md
+  s_0d994e3368ddf8::t_99f34adab69769 73-75
+skills/roadmap/references/state-model.md
+  s_0d994e3368ddf8::t_ebc08c33cadca5 8,30,53-56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2cf347c404091c290e7422d9f6be4af77163099d",
+  "prompts": {},
+  "sessions": {
+    "s_0d994e3368ddf8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1e59e42f-734a-4197-96a1-8f7a72731de8",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    },
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
