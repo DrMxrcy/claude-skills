@@ -3522,6 +3522,103 @@ def test_landed_when_the_item_branch_was_deleted(roadmap, branches, repo,
     assert (b2["lane"], b2["branch"]["name"]) == ("landed", "integration")
 
 
+def _multi_integration_repo(roadmap, repo, monkeypatch, setting):
+    """Items 1-4 on main. Two rotating integration branches: fix/trunk-a (older,
+    holds roadmap/1) and fix/trunk-b (newer, holds roadmap/2 and — merged
+    later — fix/trunk-a). roadmap/v9 holds roadmap/3. roadmap/4 is open."""
+    monkeypatch.chdir(repo)
+    _git(repo, "symbolic-ref", "HEAD", "refs/heads/main")
+    roadmap.init_project(repo, "P", claude_md=False)
+    for title in "ABCD":
+        roadmap.new_item(repo, "feature", title)
+    _set_settings(roadmap, repo, integrationBranch=setting)
+    _git(repo, "add", "-A")
+    _commit(repo, "init", date="2026-01-01T00:00:00+00:00")
+    for item in (1, 2, 3, 4):
+        _git(repo, "checkout", "-qb", f"roadmap/{item}", "main")
+        _commit(repo, f"work (plan {item})")
+    for name, item, day in (("fix/trunk-a", 1, 3), ("fix/trunk-b", 2, 4),
+                            ("roadmap/v9", 3, 5)):
+        _git(repo, "checkout", "-qb", name, "main")
+        env_date = f"2026-01-0{day}T00:00:00+00:00"
+        _git(repo, "merge", "--no-ff", "-q", "-m", f"merge roadmap/{item}",
+             f"roadmap/{item}", env={"GIT_COMMITTER_DATE": env_date,
+                                     "GIT_AUTHOR_DATE": env_date})
+    _git(repo, "checkout", "-q", "main")
+    return repo
+
+
+def test_integration_branch_list_and_globs(roadmap, branches, repo, monkeypatch):
+    _multi_integration_repo(roadmap, repo, monkeypatch,
+                            ["fix/trunk-*", "roadmap/v9"])
+    items = _by_id(roadmap.status(repo))
+    assert {n: i["lane"] for n, i in items.items()} == \
+        {1: "landed", 2: "landed", 3: "landed", 4: "building"}
+    landed_in = {n: items[n]["branch"]["landedIn"] for n in (1, 2, 3)}
+    assert landed_in == {1: "fix/trunk-a", 2: "fix/trunk-b", 3: "roadmap/v9"}
+    for n in (1, 2, 3):
+        assert items[n]["branch"]["landedSha"] == _tip(repo, landed_in[n])
+    # a single string still works and only that branch counts
+    _set_settings(roadmap, repo, integrationBranch="fix/trunk-b")
+    lanes = {i["id"]: i["lane"] for i in roadmap.status(repo)["items"]}
+    assert lanes == {1: "building", 2: "landed", 3: "building", 4: "building"}
+    # globs matching nothing, the trunk, or junk entries are ignored
+    for junk in (["nope/*"], ["main"], [None, 3, ""], {"a": 1}, []):
+        _set_settings(roadmap, repo, integrationBranch=junk)
+        assert {i["lane"] for i in roadmap.status(repo)["items"]} == {"building"}
+
+
+def test_integration_landed_in_prefers_the_newest_containing_branch(
+        roadmap, branches, repo, monkeypatch):
+    _multi_integration_repo(roadmap, repo, monkeypatch, ["fix/trunk-*"])
+    _git(repo, "checkout", "-q", "fix/trunk-b")      # b now contains a's work
+    _git(repo, "merge", "--no-ff", "-q", "-m", "carry a", "fix/trunk-a",
+         env={"GIT_COMMITTER_DATE": "2026-01-06T00:00:00+00:00",
+              "GIT_AUTHOR_DATE": "2026-01-06T00:00:00+00:00"})
+    _git(repo, "checkout", "-q", "main")
+    b1 = _by_id(roadmap.status(repo))[1]["branch"]
+    assert (b1["name"], b1["landedIn"]) == ("roadmap/1", "fix/trunk-b")
+    found = branches.discover(repo, [1, 2, 3, 4])
+    other = {b["name"]: b for b in found["other"]}
+    assert other["fix/trunk-a"]["landedIn"] == "fix/trunk-b"   # itself contained
+
+
+def test_integration_containment_is_one_call_per_matched_branch(
+        roadmap, branches, repo, monkeypatch):
+    _multi_integration_repo(roadmap, repo, monkeypatch,
+                            ["fix/trunk-*", "roadmap/v9", "fix/trunk-a"])
+    calls = []
+    real = branches._git
+    monkeypatch.setattr(branches, "_git",
+                        lambda root, *a, **k: calls.append(a) or real(root, *a, **k))
+    branches.discover(repo, [1, 2, 3, 4])
+    merged = sorted(a[2] for a in calls if any(x.startswith("--merged=") for x in a))
+    assert merged == ["--merged=refs/heads/fix/trunk-a",
+                      "--merged=refs/heads/fix/trunk-b",
+                      "--merged=refs/heads/roadmap/v9"]
+    calls.clear()
+    branches.discover(repo, [1, 2, 3, 4])                   # refs unchanged: cached
+    assert [a[0] for a in calls] == ["for-each-ref"]
+
+
+def test_integration_inheritance_covers_every_matched_branch(
+        roadmap, branches, repo, monkeypatch):
+    """roadmap/4 is re-cut from fix/trunk-a after roadmap/1 is deleted, and
+    fix/trunk-a then moves on: the (plan 1) commit it carries is integration
+    work, so item 1 stays on fix/trunk-a and roadmap/4 is not credited."""
+    _multi_integration_repo(roadmap, repo, monkeypatch, ["fix/trunk-*"])
+    _git(repo, "branch", "-D", "roadmap/1", "roadmap/4")
+    _git(repo, "checkout", "-qb", "roadmap/4", "fix/trunk-a")
+    _commit(repo, "own (plan 4)")
+    _git(repo, "checkout", "-q", "fix/trunk-a")
+    _commit(repo, "hotfix")
+    _git(repo, "checkout", "-q", "main")
+    items = _by_id(roadmap.status(repo))
+    assert (items[1]["branch"]["name"], items[1]["lane"]) == ("fix/trunk-a", "landed")
+    assert items[4]["branch"]["name"] == "roadmap/4"
+    assert items[4]["branch"]["taggedCommits"] == 1
+
+
 def test_claim_stage_landed_and_landed_sha_field(roadmap, repo, monkeypatch):
     plan = _claim_repo(roadmap, repo, monkeypatch)
     assert roadmap.main(["claim", "1", "--stage", "landed"]) == 0
