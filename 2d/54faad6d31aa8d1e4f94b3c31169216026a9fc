@@ -1,0 +1,54 @@
+CHANGELOG.internal.md
+  s_46e1afb656488b::t_1bb5a23f6bf811 10-13,16
+  s_46e1afb656488b::t_fd530b871af7ed 14
+  s_fbae122c7a65de::t_ce42f91b36995d 15
+.roadmap/plans/030-honest-in-flight-tracking-claim-branch-stage-verdict-per-item-branch-progress-and-stage-filters-in-status-and-dashboard.md
+  s_fbae122c7a65de::t_ce42f91b36995d 1-13,17-18,25-26,34-35
+  s_fbae122c7a65de::t_4dad670cb78f7d 14-16,19-24,27-33,36-41
+.roadmap/config.json
+  s_46e1afb656488b::t_fd530b871af7ed 243-260
+  s_fbae122c7a65de::t_ce42f91b36995d 4,261-270
+ROADMAP.md
+  s_fbae122c7a65de::t_98f89addb1f6cb 4-6
+  s_46e1afb656488b::t_1bb5a23f6bf811 26-27,30
+  s_46e1afb656488b::t_fd530b871af7ed 28
+  s_fbae122c7a65de::t_ce42f91b36995d 29
+CHANGELOG.md
+  s_46e1afb656488b::t_1bb5a23f6bf811 7-8,11
+  s_fbae122c7a65de::t_ce42f91b36995d 9-10
+.roadmap/plans/029-adversarial-review-skill-multi-cli-review-with-triage-from-claude-code.md
+  s_46e1afb656488b::t_9924594c0ee51e 37-41
+  s_46e1afb656488b::t_a729ceb762224e 14
+  s_46e1afb656488b::t_dbca4a16891a95 31-33
+  s_46e1afb656488b::t_550e3d47a1ef62 25-30,34
+  s_46e1afb656488b::t_fd530b871af7ed 1-13,17-18,23-24,35-36
+  s_46e1afb656488b::t_b35f3da8076eab 16
+  s_46e1afb656488b::t_6a2209c5506aba 15
+  s_46e1afb656488b::t_31bf322a2c50f3 19-22
+.roadmap/plans/028-council-review-plan-review-and-merge-gate-by-multiple-agent-clis.md
+  s_46e1afb656488b::t_1bb5a23f6bf811 1-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2d54faad6d31aa8d1e4f94b3c31169216026a9fc",
+  "prompts": {},
+  "sessions": {
+    "s_46e1afb656488b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "29cbd46b-401e-4ab9-8990-06b287088024",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    },
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
