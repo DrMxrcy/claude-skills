@@ -1,0 +1,16 @@
+skills/roadmap/scripts/rmlib/report.py
+  h_d6b80c4f15405d 160,162-163,205
+tests/test_roadmap.py
+  h_d6b80c4f15405d 2018,2020
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "90312f576982e26386564338be8d6b4211394fb7",
+  "prompts": {},
+  "humans": {
+    "h_d6b80c4f15405d": {
+      "author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
