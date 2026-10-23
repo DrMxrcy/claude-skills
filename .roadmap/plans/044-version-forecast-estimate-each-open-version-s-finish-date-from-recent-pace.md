@@ -3,7 +3,7 @@ id: 44
 title: Version forecast: estimate each open version's finish date from recent pace
 type: feature
 version: 0.21.0
-status: planned
+status: done
 created: 2026-10-23
 ---
 
@@ -30,6 +30,9 @@ created: 2026-10-23
 - **Fails if:** a version with zero remaining steps shows a forecast instead of done.
 
 ## 🚶 Step-by-Step Checklist
-- [ ] Step 1: pace from evidence dates with git fallback, forecast and range -> target: rmlib/forecast.py, tests
-- [ ] Step 2: targets, status output and payload -> target: rmlib/sync.py, roadmap.py, tests
-- [ ] Step 3: dashboard header and burn-down sparkline -> target: rmlib/dashboard.html, tests
+- [x] Step 1: pace from evidence dates with git fallback, forecast and range -> target: rmlib/forecast.py, tests
+  > evidence: 745e150 850ab7d 71d3733; 20 forecast tests; statewide read-only v0.8.0 253 left at 204/day, forecast 2026-10-25; merged 4aa03ed; 509 passed in 177.81s (0:02:57); reviews skipped at owner request (2026-10-23)
+- [x] Step 2: targets, status output and payload -> target: rmlib/sync.py, roadmap.py, tests
+  > evidence: 745e150 850ab7d 71d3733; 20 forecast tests; statewide read-only v0.8.0 253 left at 204/day, forecast 2026-10-25; merged 4aa03ed; 509 passed in 177.81s (0:02:57); reviews skipped at owner request (2026-10-23)
+- [x] Step 3: dashboard header and burn-down sparkline -> target: rmlib/dashboard.html, tests
+  > evidence: 745e150 850ab7d 71d3733; 20 forecast tests; statewide read-only v0.8.0 253 left at 204/day, forecast 2026-10-25; merged 4aa03ed; 509 passed in 177.81s (0:02:57); reviews skipped at owner request (2026-10-23)

@@ -16,7 +16,7 @@ _Full work log — every item, including internal/dev work. The curated public c
 - (pending) See which in-flight branches touch the same files, so merge order can be planned before the gate.
 - (pending) Branches that wander outside their plan get flagged before review.
 - (pending) Every acceptance line gets its own pass mark and evidence, so done means every line was checked.
-- (pending) Each open version shows a forecast finish date based on how fast work has been moving.
+- Each open version shows a forecast finish date based on how fast work has been moving.
 - (pending) A short digest tells you what changed on the roadmap since you last looked.
 - (pending) Steps that need time to pass, like a week of monitoring, can wait without holding up a release.
 - (pending) Bugs always land in the right place: fixed inside the plan still being built, or tracked as their own item, never lost among ideas.
