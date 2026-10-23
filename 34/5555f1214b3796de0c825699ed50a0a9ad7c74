@@ -1,0 +1,21 @@
+skills/roadmap/scripts/rmlib/branches.py
+  s_fbae122c7a65de::t_f710881021d61f 18,21,230,232-233,303-327,362-363,365,455-649
+tests/test_roadmap.py
+  s_fbae122c7a65de::t_feeb5f4c298d3c 2667-2668,2782-2877
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "345555f1214b3796de0c825699ed50a0a9ad7c74",
+  "prompts": {},
+  "sessions": {
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
