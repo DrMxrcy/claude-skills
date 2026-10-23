@@ -380,3 +380,120 @@ def test_dashboard_html_has_inflight_hooks(served):
     # untrusted branch names / commit subjects only ever go in as text
     assert ".innerHTML" not in body and "insertAdjacentHTML" not in body
     assert "outerHTML" not in body
+
+
+# --- terminal logging (plan 31) -------------------------------------------
+
+def _fake_roots(repo, n):
+    """n checkouts that all point at `repo`: enough to exercise the per-
+    checkout collapse without creating real worktrees."""
+    return [(repo.resolve(), "main")] + [
+        (repo.resolve(), f"roadmap/{i}") for i in range(1, n)]
+
+
+def _many_checkouts(roadmap, dashboard, repo, monkeypatch, n=22, verbose=False):
+    monkeypatch.chdir(repo)
+    roadmap.main(["init", "--name", "Demo"])
+    roadmap.main(["new", "--type", "feature", "--title", "First thing"])
+    monkeypatch.setattr(dashboard, "_discover_roots",
+                        lambda rm, root: _fake_roots(repo, n))
+    bc = dashboard._Broadcaster(roadmap._dashboard_api(), repo, verbose=verbose)
+    bc.url = "http://127.0.0.1:4711"
+    return bc
+
+
+def test_refresh_log_is_one_line_with_url(roadmap, dashboard, repo,
+                                          monkeypatch, capsys):
+    bc = _many_checkouts(roadmap, dashboard, repo, monkeypatch)
+    capsys.readouterr()
+    roadmap.main(["check", "--plan", "1", "--all-done"])
+    capsys.readouterr()
+    bc._tick()
+    lines = [l for l in capsys.readouterr().out.splitlines() if l.strip()]
+    assert len(lines) == 1, lines
+    assert "http://127.0.0.1:4711" in lines[0]
+    assert "22 checkouts" in lines[0] and "[main]" in lines[0]
+
+
+def test_refresh_log_verbose_adds_per_checkout_lines(roadmap, dashboard, repo,
+                                                     monkeypatch, capsys):
+    bc = _many_checkouts(roadmap, dashboard, repo, monkeypatch, verbose=True)
+    roadmap.main(["check", "--plan", "1", "--all-done"])
+    capsys.readouterr()
+    bc._tick()
+    lines = [l for l in capsys.readouterr().out.splitlines() if l.strip()]
+    assert len(lines) == 1 + 22
+    assert "http://127.0.0.1:4711" in lines[0]
+    assert any("[roadmap/21]" in l for l in lines[1:])
+
+
+def test_worktree_change_log_is_one_line_with_url(roadmap, dashboard, repo,
+                                                  monkeypatch, capsys):
+    bc = _many_checkouts(roadmap, dashboard, repo, monkeypatch, n=3)
+    other = repo.parent / "elsewhere"
+    monkeypatch.setattr(dashboard, "_discover_roots", lambda rm, root:
+                        _fake_roots(repo, 3) + [(other, "roadmap/9")])
+    capsys.readouterr()
+    bc._tick(rescan=True)
+    out = capsys.readouterr().out
+    wt = [l for l in out.splitlines() if "worktrees now" in l]
+    assert len(wt) == 1 and "4 checkouts" in wt[0] and "(+1 -0)" in wt[0]
+    assert "http://127.0.0.1:4711" in wt[0]
+    assert "roadmap/9" not in out    # names only under --verbose
+
+
+def test_summary_lines_single_checkout_has_url(dashboard):
+    data = {"_roots": [{"branch": None, "name": "p"}], "trunkRoot": 0,
+            "statuses": [{"currentVersion": "0.1.0", "items": []}]}
+    lines = dashboard._summary_lines(data, "http://127.0.0.1:4700", True)
+    assert lines == ["current v0.1.0 · 0% (0/0) · 0 active · 0 versions"
+                     "  → http://127.0.0.1:4700"]
+
+
+def test_startup_prints_url_and_collapsed_status(roadmap, dashboard, repo,
+                                                 monkeypatch, capsys):
+    monkeypatch.chdir(repo)
+    roadmap.main(["init", "--name", "Demo"])
+    monkeypatch.setattr(dashboard, "_discover_roots",
+                        lambda rm, root: _fake_roots(repo, 21))
+    import http.server
+    holder = {}
+    orig = http.server.ThreadingHTTPServer
+
+    class Capturing(orig):
+        def __init__(self, *a, **k):
+            super().__init__(*a, **k)
+            holder["srv"] = self
+
+        def serve_forever(self, *a, **k):   # return right after startup output
+            return None
+
+    monkeypatch.setattr(http.server, "ThreadingHTTPServer", Capturing)
+    capsys.readouterr()
+    assert dashboard.serve(roadmap._dashboard_api(), repo, port=0,
+                           open_browser=False) == 0
+    port = holder["srv"].server_address[1]
+    lines = [l for l in capsys.readouterr().out.splitlines() if l.strip()]
+    url = f"http://127.0.0.1:{port}"
+    assert url in lines[0]
+    status = [l for l in lines if "current v" in l]
+    assert len(status) == 1 and url in status[0] and "21 checkouts" in status[0]
+    assert any("--verbose" in l for l in lines)
+
+
+def test_serve_cli_accepts_verbose(roadmap, monkeypatch, repo):
+    seen = {}
+    monkeypatch.chdir(repo)
+    roadmap.main(["init", "--name", "Demo"])
+    monkeypatch.setattr(roadmap, "serve", lambda root, **k: seen.update(k) or 0)
+    assert roadmap.main(["serve", "--no-open", "--verbose"]) == 0
+    assert seen["verbose"] is True and seen["open_browser"] is False
+
+
+def test_second_serve_prints_running_url_loudly(served, capsys):
+    base, roadmap, repo = served
+    capsys.readouterr()
+    assert roadmap.serve(repo, port=None, open_browser=False) == 0
+    out = capsys.readouterr().out
+    first = out.splitlines()[0]
+    assert first.startswith("roadmap dashboard already running") and base in first

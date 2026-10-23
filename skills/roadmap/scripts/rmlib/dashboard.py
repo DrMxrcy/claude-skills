@@ -41,6 +41,34 @@ def _status_line(st: dict) -> str:
             + f" · {nvers} version{'s' if nvers != 1 else ''}")
 
 
+def _checkout_label(m: dict) -> str:
+    return m.get("branch") or m.get("name") or "?"
+
+
+def _summary_lines(data: dict, url: str | None, verbose: bool = False,
+                   prefix: str = "") -> list[str]:
+    """Terminal lines for one payload: ONE summary line (the trunk view, the
+    checkout count and the URL, so the dashboard is findable from any line in
+    the scrollback), plus one line per checkout only when `verbose`.
+    A repo with 27 worktrees refreshes as one line, not 27."""
+    roots, stats = data.get("_roots") or [], data.get("statuses") or []
+    if not stats:
+        return []
+    ti = data.get("trunkRoot", 0)
+    ti = ti if isinstance(ti, int) and 0 <= ti < len(stats) else 0
+    n = len(stats)
+    label = (f"[{(roots[ti].get('branch') if ti < len(roots) else None) or 'trunk'}] "
+             if n > 1 else "")
+    line = (f"{prefix}{label}{_status_line(stats[ti])}"
+            + (f" · {n} checkouts" if n > 1 else "")
+            + (f"  → {url}" if url else ""))
+    out = [line]
+    if verbose and n > 1:
+        for m, st in zip(roots, stats):
+            out.append(f"      [{_checkout_label(m)}] {_status_line(st)}")
+    return out
+
+
 def _roadmap_signature(rm, root: Path):
     """Cheap change token: newest mtime across .roadmap/ and ROADMAP.md."""
     latest = 0.0
@@ -250,8 +278,10 @@ class _Broadcaster:
     """
     RESCAN_TICKS = 5
 
-    def __init__(self, rm, origin: Path):
+    def __init__(self, rm, origin: Path, verbose: bool = False):
         self.rm, self.origin = rm, origin
+        self.verbose = verbose
+        self.url: str | None = None   # set by serve() once the port is bound
         self.cond = threading.Condition()
         self.version = 0
         self.roots = _discover_roots(rm, origin)
@@ -285,10 +315,19 @@ class _Broadcaster:
         if rescan:
             new = _discover_roots(self.rm, self.origin)
             if [p for p, _ in new] != [p for p, _ in self.roots]:
+                old = {p for p, _ in self.roots}
                 self.roots = new
                 self._sigs = []   # force a payload rebuild below
-                print("  ↻ worktrees now: "
-                      + ", ".join(b or p.name for p, b in new), flush=True)
+                cur = {p for p, _ in new}
+                added = sum(1 for p in cur if p not in old)
+                removed = sum(1 for p in old if p not in cur)
+                print(f"  ↻ {time.strftime('%H:%M:%S')} worktrees now: "
+                      f"{len(new)} checkout{'s' if len(new) != 1 else ''}"
+                      f" (+{added} -{removed})"
+                      + (f"  → {self.url}" if self.url else ""), flush=True)
+                if self.verbose:
+                    print("      " + ", ".join(b or p.name for p, b in new),
+                          flush=True)
         sigs = self._signature()
         if sigs == self._sigs:
             return
@@ -302,11 +341,9 @@ class _Broadcaster:
             self.json = snap
             self.version += 1
             self.cond.notify_all()
-        data = json.loads(snap)
-        trunk = data["statuses"][data["trunkRoot"]]
-        label = (f"[{data['_roots'][data['trunkRoot']]['branch'] or 'trunk'}] "
-                 if len(self.roots) > 1 else "")
-        print(f"  ↻ {label}{_status_line(trunk)}", flush=True)
+        for line in _summary_lines(json.loads(snap), self.url, self.verbose,
+                                   prefix=f"  ↻ {time.strftime('%H:%M:%S')} "):
+            print(line, flush=True)
 
     def snapshot(self):
         with self.cond:
@@ -320,13 +357,15 @@ class _Broadcaster:
 
 
 def serve(rm, root: Path, port: int | None = None,
-          open_browser: bool = True) -> int:
+          open_browser: bool = True, verbose: bool = False) -> int:
     """Run a local, read-only web dashboard that pushes live updates via SSE.
 
     One dashboard per project: port=None derives a stable port from the project
     path. If this project is already being served (in another terminal), point
     at that instance instead of starting a duplicate. Different projects get
     different ports and run side by side. An explicit port is honored strictly.
+    Every refresh line in the terminal carries the URL; `verbose` adds one
+    line per checkout under each summary.
     """
     if not rm.roadmap_dir(root).exists():
         print("No .roadmap/ here — run `roadmap init` first, then `roadmap serve`.")
@@ -336,7 +375,7 @@ def serve(rm, root: Path, port: int | None = None,
     # has a .roadmap/ (re-discovered live by the broadcaster). Port + dedupe
     # key on the primary (main-checkout) root, so `roadmap serve` from any
     # checkout converges on the same dashboard.
-    bcast = _Broadcaster(rm, root)
+    bcast = _Broadcaster(rm, root, verbose=verbose)
     primary = bcast.roots[0][0]
     root_id = str(primary)
     dashboard_html = _dashboard_html()
@@ -439,8 +478,10 @@ def serve(rm, root: Path, port: int | None = None,
         for candidate in range(preferred, preferred + PORT_SPAN):
             existing = _running_dashboard(primary, candidate)
             if existing:
-                print(f"This project is already being served → {existing}"
-                      "  (one dashboard per project)")
+                print(f"roadmap dashboard already running → {existing}\n"
+                      "  This project is already being served (one dashboard "
+                      "per project) — open the URL above; nothing new started.",
+                      flush=True)
                 if open_browser:
                     try:
                         webbrowser.open(existing)
@@ -467,15 +508,17 @@ def serve(rm, root: Path, port: int | None = None,
             return 1
     port = httpd.server_address[1]
 
+    url = f"http://127.0.0.1:{port}"
+    bcast.url = url
     bcast.start()
 
-    url = f"http://127.0.0.1:{port}"
     print(f"roadmap dashboard → {url}  (Ctrl-C to stop)")
     data = json.loads(bcast.json)
-    for m, st in zip(data["_roots"], data["statuses"]):
-        label = (f"[{m['branch'] or m['name']}] "
-                 if len(data["statuses"]) > 1 else "")
-        print(f"  {label}{_status_line(st)}", flush=True)
+    for line in _summary_lines(data, url, verbose, prefix="  "):
+        print(line, flush=True)
+    if len(data.get("statuses") or []) > 1 and not verbose:
+        print("  (one line per refresh; `serve --verbose` adds per-checkout detail)",
+              flush=True)
     if open_browser:
         try:
             webbrowser.open(url)
