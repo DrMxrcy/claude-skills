@@ -239,7 +239,9 @@ def _item_detail(rm, root: Path, item_id: int) -> dict:
                   "dependsOn": list(item.get("dependsOn") or []),
                   "blockedBy": [],
                   "steps": [{"done": d, "text": t} for d, t in plan["steps"]],
-                  "lane": None, "claim": None, "branch": None}
+                  "lane": None, "claim": None, "branch": None,
+                  "rulings": list(plan.get("rulings") or []),
+                  "needsApproval": False}
         # Lane/claim/branch come from status() so the expanded row agrees with
         # the list (claim branch override included); commits are added here
         # only, keeping the streamed status payload small.
@@ -248,6 +250,7 @@ def _item_detail(rm, root: Path, item_id: int) -> dict:
         if row is not None:
             detail["lane"], detail["claim"] = row.get("lane"), row.get("claim")
             detail["blockedBy"] = list(row.get("blockedBy") or [])
+            detail["needsApproval"] = bool(row.get("needsApproval"))
             for k in ("displayId", "pct", "done", "total"):
                 detail[k] = row.get(k)
             if row.get("branch"):

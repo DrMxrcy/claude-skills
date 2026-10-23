@@ -27,7 +27,8 @@ from rmlib.sync import (  # noqa: E402
 
 from rmlib.parse import (  # noqa: E402
     STEP_RE, _is_fence, parse_plan, count_progress, _plan_path,
-    CLAIM_STAGES, CLAIM_VERDICTS, CLAIM_FIELDS, read_claim)
+    CLAIM_STAGES, CLAIM_VERDICTS, CLAIM_FIELDS, read_claim, needs_approval,
+    parse_rulings)
 
 
 from rmlib.ops import (  # noqa: E402
@@ -88,7 +89,7 @@ __all__ = [  # public facade: names re-exported for callers/tests/hooks (roadmap
     'uncut_complete_version', 'warn_incomplete_deps', 'MAX_ROADMAP_LINES', 'MAX_FREEFORM_LINES',
     'MAX_FREEFORM_CHARS', 'STEP_RE', '_is_fence', 'parse_plan',
     'count_progress', '_plan_path', 'CLAIM_STAGES', 'CLAIM_VERDICTS',
-    'CLAIM_FIELDS', 'read_claim', 'set_claim', 'clear_claim', 'set_claims',
+    'CLAIM_FIELDS', 'read_claim', 'needs_approval', 'parse_rulings', 'set_claim', 'clear_claim', 'set_claims',
     'clear_claims', 'claim_landed', 'check_landed', 'add_ruling', 'TEMPLATE_BY_TYPE',
     '_incomplete_items', '_refuse_status_note', 'backfill_changelog',
     'check_step', 'import_file', 'merge_items', 'new_item', 'promote_idea',

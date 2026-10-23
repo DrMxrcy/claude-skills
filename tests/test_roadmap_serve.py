@@ -671,3 +671,19 @@ def test_dashboard_html_markdown_renderer_is_dom_only(served):
     import re
     assigns = re.findall(r"\.href\s*=\s*([^;]+);", body)
     assert sorted(assigns) == sorted(['href', 'id === "roadmap" ? "#/" : "#/"+id']), assigns
+
+
+def test_api_item_returns_rulings(served):
+    """Plan 34 acceptance: `ruling 1 --text ... --approval` shows in /api/item."""
+    base, roadmap, repo = served
+    pf = _plan_file(repo)
+    pf.write_text(pf.read_text() + "\n- **Ruling (2026-10-22, owner):** hand-written\n")
+    assert roadmap.main(["ruling", "1", "--text", "Use tabs", "--approval"]) == 0
+    code, d = _get_json(base + "/api/item?id=1")
+    assert code == 200
+    assert [(r["by"], r["text"], r["approval"]) for r in d["rulings"]] == [
+        ("owner", "hand-written", False), ("owner", "Use tabs", True)]
+    assert d["rulings"][0]["date"] == "2026-10-22"
+    assert d["needsApproval"] is False
+    # The streamed status (built by status()) carries the same list.
+    assert roadmap.status(repo)["items"][0]["rulings"] == d["rulings"]
