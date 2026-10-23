@@ -215,6 +215,7 @@ On invocation, detect state and pick a phase:
    - After each step passes its test: `roadmap.py check --plan <id> --step <n> --evidence
      "<command>: <real result>"` (the actual test output, not a guess), then commit code +
      roadmap together.
+   - Per-item builds run on branch `roadmap/<id>` with `(plan N)` commit tags; the parent records `claim <id> --stage …` as review, fixing, gating, or blocked starts (see `references/quality-build.md` → "In-flight claims").
 
 4. **A version's items are all done** → Review, then release.
    - Verify the phase against its specs + code-review the work (`/roadmap-review`) before
@@ -287,7 +288,8 @@ Anywhere a command takes `--plan ID` (or an id list), the id may be `7`, `#7`, o
   `.roadmap/config.json` controls it: `"nudge"` (default) prints the reminder, `"auto"`
   runs the release itself (target = the later version being started, else the lowest
   existing version above current; never invents a number), `"off"` disables the gate.
-- `status [--type T] [--version V] [--status S] [--json]` — print current state (shows `blocked by […]` when deps incomplete); all given filters must match, and they narrow the item list only; `--json` also includes `counts` (`byType`/`byStatus`/`byVersion`) computed across all items regardless of filters
+- `claim ID --stage {review,fixing,gate-ready,gating,blocked} [--verdict V] [--note "..."] [--branch B]` (or `ID --clear`) — record the in-flight build stage in plan frontmatter; trunk checkboxes stay the only done source (see `references/state-model.md`)
+- `status [--type T] [--version V] [--status S] [--open] [--in-flight] [--json]` — print current state (shows lane, branch, and `blocked by […]` when deps incomplete); all given filters must match, and they narrow the item list only; `--json` also includes `counts` (`byType`/`byStatus`/`byVersion`) computed across all items regardless of filters
 - `search <text> [--json]` — case-insensitive substring search across item titles, item note lines, plan bodies and the Idea Incubator (linked `.roadmap/notes/` files are not scanned)
 - `import PATH` — extract checklist lines from a file into a plan
 
@@ -295,7 +297,7 @@ Anywhere a command takes `--plan ID` (or an id list), the id may be `7`, `#7`, o
 - **Stop** (`hooks/roadmap-sync.sh`): `sync` + `drift-check` each turn — safety net + catchup nudge.
 
 ## Routing for parallel and isolated builds
-- One item → `build <id> --worktree` (branch `roadmap/<id>-<slug>`); one orchestrator per item. See `references/quality-build.md` → "Orchestration per item".
+- One item → `build <id> --worktree` (branch `roadmap/<id>`); one orchestrator per item. See `references/quality-build.md` → "Orchestration per item".
 - A whole version → `build <version> --worktree` (branch `roadmap/v<version>`, one shared worktree).
 - Parallel `--auto` is **opt-in** and not yet built (plan 27). Serial `build --auto` remains the default.
 - **SessionStart** (`hooks/roadmap-orient.sh`): injects current version + next item into context.
