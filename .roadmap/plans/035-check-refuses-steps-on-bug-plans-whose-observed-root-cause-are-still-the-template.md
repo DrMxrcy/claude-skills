@@ -3,7 +3,7 @@ id: 35
 title: check refuses steps on bug plans whose Observed/Root cause are still the template
 type: feature
 version: 0.21.0
-status: planned
+status: done
 created: 2026-10-23
 ---
 
@@ -28,6 +28,9 @@ created: 2026-10-23
 - **Fails if:** plans created before the template had these sections become uncheckable without `--force` (only refuse when the section heading exists and is empty, or the type requires it and the template defines it).
 
 ## 🚶 Step-by-Step Checklist
-- [ ] Step 1: section extraction and placeholder detection -> target: rmlib/parse.py, tests
-- [ ] Step 2: check gate, `--force`, evidence note -> target: rmlib/ops.py, roadmap.py, tests
-- [ ] Step 3: tidy report and docs -> target: tidy module, references/state-model.md
+- [x] Step 1: section extraction and placeholder detection -> target: rmlib/parse.py, tests
+  > evidence: 185a52d b5d9170 2bc31bc; 0 false refusals over 38 plans; merged to main (f2a809f); roadmap+serve+e2e tests 392 passed; reviews skipped at owner request (2026-10-23)
+- [x] Step 2: check gate, `--force`, evidence note -> target: rmlib/ops.py, roadmap.py, tests
+  > evidence: 185a52d b5d9170 2bc31bc; 0 false refusals over 38 plans; merged to main (f2a809f); roadmap+serve+e2e tests 392 passed; reviews skipped at owner request (2026-10-23)
+- [x] Step 3: tidy report and docs -> target: tidy module, references/state-model.md
+  > evidence: 185a52d b5d9170 2bc31bc; 0 false refusals over 38 plans; merged to main (f2a809f); roadmap+serve+e2e tests 392 passed; reviews skipped at owner request (2026-10-23)

@@ -3,7 +3,7 @@ id: 39
 title: Auto-collapse shipped versions in ROADMAP.md instead of a length warning on every call
 type: chore
 version: 0.21.0
-status: planned
+status: done
 created: 2026-10-23
 ---
 
@@ -26,5 +26,7 @@ created: 2026-10-23
 - **Fails if:** a genuinely long free-form region is never reported.
 
 ## 🚶 Step-by-Step Checklist
-- [ ] Step 1: measure the free-form region, warn only in orient and tidy -> target: rmlib/sync.py or core, tests
-- [ ] Step 2: collapse-off hint -> target: same, tests
+- [x] Step 1: measure the free-form region, warn only in orient and tidy -> target: rmlib/sync.py or core, tests
+  > evidence: 8e57e74 ad9e7a9; merged to main (f2a809f); roadmap+serve+e2e tests 392 passed; reviews skipped at owner request (2026-10-23)
+- [x] Step 2: collapse-off hint -> target: same, tests
+  > evidence: 8e57e74 ad9e7a9; merged to main (f2a809f); roadmap+serve+e2e tests 392 passed; reviews skipped at owner request (2026-10-23)

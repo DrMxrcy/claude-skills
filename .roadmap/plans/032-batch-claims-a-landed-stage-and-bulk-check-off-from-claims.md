@@ -3,7 +3,7 @@ id: 32
 title: Batch claims, a landed stage, and bulk check-off from claims
 type: feature
 version: 0.21.0
-status: planned
+status: done
 created: 2026-10-23
 ---
 
@@ -31,8 +31,13 @@ created: 2026-10-23
 - **Fails if:** an item is ticked whose work is not contained in trunk.
 
 ## 🚶 Step-by-Step Checklist
-- [ ] Step 1: multi-id `claim` with all-or-nothing validation -> target: roadmap.py, rmlib/ops.py, tests
-- [ ] Step 2: `landed` stage, integrationBranch containment in discovery, lane precedence -> target: rmlib/branches.py, rmlib/sync.py, rmlib/parse.py, tests
-- [ ] Step 3: `claim --landed <sha>` -> target: roadmap.py, rmlib/ops.py, tests
-- [ ] Step 4: `check --landed` dry-run and `--yes` -> target: roadmap.py, rmlib/ops.py, tests
-- [ ] Step 5: docs (state-model, quality-build merge gate flow) -> target: references/*.md, SKILL.md
+- [x] Step 1: multi-id `claim` with all-or-nothing validation -> target: roadmap.py, rmlib/ops.py, tests
+  > evidence: d540173 0d95635 1646f24 2494eba 5991cdf 401475e; inherited-tag fix for statewide 401; merged to main (f2a809f); roadmap+serve+e2e tests 392 passed; reviews skipped at owner request (2026-10-23)
+- [x] Step 2: `landed` stage, integrationBranch containment in discovery, lane precedence -> target: rmlib/branches.py, rmlib/sync.py, rmlib/parse.py, tests
+  > evidence: d540173 0d95635 1646f24 2494eba 5991cdf 401475e; inherited-tag fix for statewide 401; merged to main (f2a809f); roadmap+serve+e2e tests 392 passed; reviews skipped at owner request (2026-10-23)
+- [x] Step 3: `claim --landed <sha>` -> target: roadmap.py, rmlib/ops.py, tests
+  > evidence: d540173 0d95635 1646f24 2494eba 5991cdf 401475e; inherited-tag fix for statewide 401; merged to main (f2a809f); roadmap+serve+e2e tests 392 passed; reviews skipped at owner request (2026-10-23)
+- [x] Step 4: `check --landed` dry-run and `--yes` -> target: roadmap.py, rmlib/ops.py, tests
+  > evidence: d540173 0d95635 1646f24 2494eba 5991cdf 401475e; inherited-tag fix for statewide 401; merged to main (f2a809f); roadmap+serve+e2e tests 392 passed; reviews skipped at owner request (2026-10-23)
+- [x] Step 5: docs (state-model, quality-build merge gate flow) -> target: references/*.md, SKILL.md
+  > evidence: d540173 0d95635 1646f24 2494eba 5991cdf 401475e; inherited-tag fix for statewide 401; merged to main (f2a809f); roadmap+serve+e2e tests 392 passed; reviews skipped at owner request (2026-10-23)
