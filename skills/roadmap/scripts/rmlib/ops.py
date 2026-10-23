@@ -14,8 +14,9 @@ from rmlib.core import (
 from rmlib.parse import (
     CLAIM_FIELDS, CLAIM_PREFIX, CLAIM_STAGES, CLAIM_VERDICTS, FRONTMATTER_RE,
     RULING_APPROVAL_TAG, RULINGS_HEADING, RULINGS_SECTION_KEY,
-    STEP_RE, _HEADING_RE, _is_fence, _norm_name, _plan_path, count_progress,
-    parse_plan, read_claim, required_sections, template_stubs)
+    STEP_RE, WAIT_BOX, _HEADING_RE, _is_fence, _norm_name, _plan_path, count_progress,
+    parse_plan, read_claim, required_sections, split_wait_marker, template_stubs,
+    wait_marker)
 from rmlib.changelog import (
     demote_tells, item_audience, lint_note, status_tells)
 from rmlib.sync import (
@@ -101,17 +102,23 @@ def check_step(root: Path, plan_id: int, step: int | None,
     spend = f" · tokens: {tokens}" if tokens is not None and evidence and not undo else ""
     stamp = f"  > evidence: {evidence} ({datetime.date.today().isoformat()}){spend}"
     box = "[ ]" if undo else "[x]"
-    out, n, ticked, in_fence = [], 0, 0, False
+    out, n, ticked, in_fence, kept_waiting = [], 0, 0, False, 0
     for line in path.read_text(encoding="utf-8").splitlines():
         if _is_fence(line):
             in_fence = not in_fence
             out.append(line)
             continue
         sm = None if in_fence else STEP_RE.match(line)
-        hit = sm and (all_done or n + 1 == step)
+        # --all-done never touches a waiting step (plan 46): its verification is
+        # time-gated, so only an explicit `--step N` may tick it.
+        waiting = bool(sm) and sm.group(2) == WAIT_BOX
+        hit = sm and (n + 1 == step or (all_done and not waiting))
         if sm:
             n += 1
-            if hit:
+            kept_waiting += bool(waiting and all_done and not undo)
+            if hit and waiting:         # checking (or undoing) ends the wait
+                line = f"{sm.group(1)}{box} {split_wait_marker(sm.group(3).strip())[0]}"
+            elif hit:
                 line = re.sub(r"\[( |x|X)\]", box, line, count=1)
             ticked += STEP_RE.match(line).group(2).lower() == "x"
         out.append(line)
@@ -123,10 +130,78 @@ def check_step(root: Path, plan_id: int, step: int | None,
     if not undo and n and ticked == n:
         text = _apply_claim(text, None)     # item is done: its in-flight claim ends
     atomic_write(path, text)
+    if kept_waiting:
+        print(f"note: left {kept_waiting} waiting step(s) of plan {plan_id} unticked — "
+              f"tick each once verified: roadmap.py check --plan {plan_id} --step N",
+              file=sys.stderr)
     sync(root)
     if not undo:
         _record_last_seen_sha(root)
         release_gate(root)
+
+
+_REL_UNTIL_RE = re.compile(r"^(\d+)\s*([dw])$", re.IGNORECASE)
+
+
+def parse_until(value: str, today: datetime.date | None = None) -> str:
+    """`2026-10-30` or a relative `7d` / `2w` (from today) → ISO date string."""
+    today = today or datetime.date.today()
+    v = (value or "").strip()
+    rel = _REL_UNTIL_RE.match(v)
+    if rel:
+        days = int(rel.group(1)) * (7 if rel.group(2).lower() == "w" else 1)
+        return (today + datetime.timedelta(days=days)).isoformat()
+    try:
+        return datetime.date.fromisoformat(v).isoformat()
+    except ValueError:
+        raise ValueError(f"--until {value!r}: use a date (2026-10-30) or a "
+                         f"relative span (7d, 2w)") from None
+
+
+def wait_step(root: Path, plan_id: int, step: int, until: str | None = None,
+              reason: str | None = None, clear: bool = False) -> dict:
+    """Mark checklist step `step` as waiting (plan 46): `- [~] Step N: text
+    (waiting until DATE[: reason])`. A waiting step counts as NOT done; the item
+    shows lane `waiting` once every other step is ticked, and the step is listed
+    as due by orient/next/status from its date. Re-running on a waiting step
+    updates its date/reason. `clear` turns it back into an unticked step. A
+    ticked step is refused (undo it first). Returns {step, text, until, reason}."""
+    path = _plan_path(root, plan_id)
+    reason = " ".join(reason.split()) if reason else None
+    if not clear:
+        if not until:
+            raise ValueError("wait needs --until <date|7d> (or --clear)")
+        until = parse_until(until)
+    out, n, in_fence, found = [], 0, False, None
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if _is_fence(line):
+            in_fence = not in_fence
+        sm = None if in_fence or _is_fence(line) else STEP_RE.match(line)
+        if sm:
+            n += 1
+            if n == step:
+                text, _, old_reason = split_wait_marker(sm.group(3).strip())
+                if sm.group(2).lower() == "x":
+                    raise ValueError(
+                        f"plan {plan_id} step {step} is already checked — undo it "
+                        f"first (check --plan {plan_id} --step {step} --undo)")
+                if clear:
+                    if sm.group(2) != WAIT_BOX:
+                        raise ValueError(f"plan {plan_id} step {step} is not waiting")
+                    line = f"{sm.group(1)}[ ] {text}"
+                else:
+                    if reason is None and sm.group(2) == WAIT_BOX:
+                        reason = old_reason          # re-dating keeps the reason
+                    line = f"{sm.group(1)}[{WAIT_BOX}] {text}{wait_marker(until, reason)}"
+                found = {"step": step, "text": text,
+                         "until": None if clear else until,
+                         "reason": None if clear else reason}
+        out.append(line)
+    if found is None:
+        raise ValueError(f"plan {plan_id} step {step} out of range (1..{n})")
+    atomic_write(path, "\n".join(out) + "\n")
+    sync(root)
+    return found
 
 
 def _apply_claim(text: str, claim: dict | None) -> str:
@@ -760,9 +835,13 @@ def merge_items(root: Path, keep_id: int, source_ids: list[int]) -> None:
         src = by_id[sid]
         sp = roadmap_dir(root) / src["file"]
         if sp.exists():
-            steps = parse_plan(sp)["steps"]
+            plan = parse_plan(sp)
+            waits = plan.get("waiting") or {}
             appended.append(f"\n## Merged from #{sid} {src['title']}\n")
-            appended += [f"- [{'x' if done else ' '}] {txt}" for done, txt in steps]
+            appended += [
+                f"- [{WAIT_BOX}] {txt}{wait_marker(waits[n]['until'], waits[n]['reason'])}"
+                if n in waits else f"- [{'x' if done else ' '}] {txt}"
+                for n, (done, txt) in enumerate(plan["steps"], 1)]
             sp.unlink()
     if appended:
         atomic_write(keep_path, keep_path.read_text(encoding="utf-8").rstrip()

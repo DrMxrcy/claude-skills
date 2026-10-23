@@ -29,7 +29,7 @@ from rmlib.sync import (  # noqa: E402
 from rmlib.parse import (  # noqa: E402
     STEP_RE, _is_fence, parse_plan, count_progress, _plan_path,
     CLAIM_STAGES, CLAIM_VERDICTS, CLAIM_FIELDS, read_claim, needs_approval,
-    parse_rulings)
+    parse_rulings, waiting_steps)
 
 
 from rmlib.ops import (  # noqa: E402
@@ -38,7 +38,8 @@ from rmlib.ops import (  # noqa: E402
     clear_claims,
     import_file, merge_items, new_item,
     promote_idea, release, release_gate, remove_item, reorder, retarget,
-    set_audience, set_claim, set_claims, set_depends, set_note, set_release_summary)
+    set_audience, set_claim, set_claims, set_depends, set_note, set_release_summary,
+    parse_until, wait_step)
 
 
 from rmlib.incubator import (  # noqa: E402
@@ -92,7 +93,8 @@ __all__ = [  # public facade: names re-exported for callers/tests/hooks (roadmap
     'format_worktrees', 'worktree_payload', 'uncut_complete_version', 'warn_incomplete_deps', 'MAX_ROADMAP_LINES', 'MAX_FREEFORM_LINES',
     'MAX_FREEFORM_CHARS', 'STEP_RE', '_is_fence', 'parse_plan',
     'count_progress', '_plan_path', 'CLAIM_STAGES', 'CLAIM_VERDICTS',
-    'CLAIM_FIELDS', 'read_claim', 'needs_approval', 'parse_rulings', 'set_claim', 'clear_claim', 'set_claims',
+    'CLAIM_FIELDS', 'read_claim', 'needs_approval', 'parse_rulings',
+    'waiting_steps', 'parse_until', 'wait_step', 'set_claim', 'clear_claim', 'set_claims',
     'clear_claims', 'claim_landed', 'check_landed', 'add_ruling', 'TEMPLATE_BY_TYPE',
     '_incomplete_items', '_refuse_status_note', 'backfill_changelog',
     'check_step', 'import_file', 'merge_items', 'new_item', 'promote_idea',
@@ -298,6 +300,17 @@ def main(argv: list[str]) -> int:
                               "unless --yes")
     p_check.add_argument("--yes", action="store_true",
                          help="with --landed: apply instead of listing")
+
+    p_wait = sub.add_parser(
+        "wait", help="mark a step as waiting on time (soak, propagation, review): "
+                     "not done, but the item reads `waiting` once its other steps "
+                     "are ticked; `check --step N` ticks it once verified")
+    p_wait.add_argument("plan", help=ID_HELP)
+    p_wait.add_argument("--step", type=int, required=True)
+    p_wait.add_argument("--until", help="due date: 2026-10-30, or relative 7d / 2w")
+    p_wait.add_argument("--reason", help="what is being waited on (e.g. soak)")
+    p_wait.add_argument("--clear", action="store_true",
+                        help="end the wait: the step goes back to unticked")
 
     def claim_stage(value: str) -> str:
         v = value.strip().lower()
@@ -545,6 +558,20 @@ def main(argv: list[str]) -> int:
             check_step(root, rid(args.plan), args.step, undo=args.undo,
                        all_done=args.all_done, evidence=args.evidence,
                        tokens=args.tokens, force=args.force)
+            return 0
+        if args.command == "wait":
+            if args.clear and (args.until or args.reason):
+                p_wait.error("--clear takes no --until/--reason")
+            if not args.clear and not args.until:
+                p_wait.error("--until is required (or --clear)")
+            plan_id = rid(args.plan)
+            w = wait_step(root, plan_id, args.step, until=args.until,
+                          reason=args.reason, clear=args.clear)
+            if args.clear:
+                print(f"#{plan_id} step {w['step']}: no longer waiting")
+            else:
+                print(f"#{plan_id} step {w['step']}: waiting until {w['until']}"
+                      + (f" ({w['reason']})" if w["reason"] else ""))
             return 0
         if args.command == "claim":
             if args.clear and any(v is not None for v in
