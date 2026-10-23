@@ -189,6 +189,9 @@ def main(argv: list[str]) -> int:
                               "With --all-done the same text is recorded under every "
                               "step; ignored with --undo. Required when "
                               "settings.requireEvidence is true.")
+    p_check.add_argument("--force", action="store_true",
+                         help="check even though the plan's required sections are "
+                              "still template text (recorded in the evidence line)")
 
     def claim_stage(value: str) -> str:
         v = value.strip().lower()
@@ -366,7 +369,7 @@ def main(argv: list[str]) -> int:
         if args.command == "check":
             check_step(root, rid(args.plan), args.step, undo=args.undo,
                        all_done=args.all_done, evidence=args.evidence,
-                       tokens=args.tokens)
+                       tokens=args.tokens, force=args.force)
             return 0
         if args.command == "claim":
             plan_id = rid(args.id)

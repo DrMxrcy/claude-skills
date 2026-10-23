@@ -9,11 +9,28 @@ def run(repo, *args):
                           cwd=repo, capture_output=True, text=True)
 
 
+def fill_feature_plan(repo, plan="001-*.md"):
+    """Fill the required sections of a freshly generated feature plan so `check`
+    accepts it (the template gate refuses while they are still template text)."""
+    path = next((repo / ".roadmap/plans").glob(plan))
+    text = path.read_text().replace("- **Core objective:**", "- **Core objective:** ship")
+    text = text.replace("<observable behavior a reviewer can verify without reading the diff>",
+                        "the flow works").replace("<test/command that must be green>",
+                                                  "pytest").replace(
+        "<regression or out-of-scope change that blocks sign-off>", "anything regresses")
+    path.write_text(text)
+
+
 def test_full_flow(repo):
     assert run(repo, "init", "--name", "E2E").returncode == 0
     out = run(repo, "new", "--type", "feature", "--title", "Login",
               "--note", "Sign in with email", "--audience", "public")
     assert out.returncode == 0
+    # a plan whose required sections are still template text cannot be checked
+    refused = run(repo, "check", "--plan", "1", "--step", "1")
+    assert refused.returncode == 1
+    assert "Core objective, Acceptance" in refused.stderr and "001-login.md" in refused.stderr
+    fill_feature_plan(repo)
     assert run(repo, "check", "--plan", "1", "--step", "1").returncode == 0
     st = run(repo, "status")
     assert "Login" in st.stdout
@@ -47,7 +64,7 @@ def test_summary_cli_roundtrip(repo):
     assert run(repo, "init", "--name", "E2E").returncode == 0
     assert run(repo, "new", "--type", "feature", "--title", "Trips",
                "--note", "Share trips with friends", "--audience", "public").returncode == 0
-    assert run(repo, "check", "--plan", "1", "--all-done").returncode == 0
+    assert run(repo, "check", "--plan", "1", "--all-done", "--force").returncode == 0
     bad = run(repo, "summary", "--version", "0.0.1", "--text", "Step 3 DONE")
     assert bad.returncode == 1 and "status/progress dump" in bad.stderr
     ok = run(repo, "summary", "--version", "0.0.1",

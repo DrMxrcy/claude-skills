@@ -3229,3 +3229,63 @@ def test_required_sections_defaults_and_override():
     assert required_sections(cfg, "bug") == (["Observed"], True)
     assert required_sections(cfg, "chore") == ([], True)
     assert required_sections(cfg, "feature")[1] is False
+
+
+def _fill_bug(path):
+    text = path.read_text()
+    text = text.replace("- **Observed:**", "- **Observed:** it crashes")
+    text = text.replace("- **Culprit:**", "- **Culprit:** parse.py")
+    text = text.replace("- **Why:**", "- **Why:** off by one")
+    text = text.replace("<previously green test or adjacent behavior breaks>",
+                        "the parse suite regresses")
+    path.write_text(text)
+
+
+def test_check_refuses_fresh_bug_plan_then_succeeds_when_filled(
+        roadmap, repo, template_gate):
+    roadmap.init_project(repo, "P")
+    path = roadmap.new_item(repo, "bug", "B")
+    with pytest.raises(ValueError) as e:
+        roadmap.check_step(repo, 1, 1)
+    msg = str(e.value)
+    assert "Observed, Root Cause, Acceptance" in msg and path.name in msg
+    assert roadmap.count_progress(path) == (0, 3)            # nothing was written
+    _fill_bug(path)
+    roadmap.check_step(repo, 1, 1)
+    assert roadmap.count_progress(path) == (1, 3)
+
+
+def test_check_force_records_override_in_evidence(roadmap, repo, template_gate):
+    roadmap.init_project(repo, "P")
+    path = roadmap.new_item(repo, "feature", "F")
+    roadmap.check_step(repo, 1, 1, evidence="pytest: ok", force=True)
+    body = path.read_text()
+    assert ("> evidence: pytest: ok · forced past empty template "
+            "(Core objective, Acceptance)") in body
+    roadmap.check_step(repo, 1, 2, force=True)               # no --evidence given
+    body = path.read_text()
+    assert "  > evidence: forced past empty template (Core objective, Acceptance)" in body
+    assert body.count("forced past empty template") == 2
+    assert roadmap.count_progress(path) == (2, 2)
+
+
+def test_check_gate_skips_undo_and_honours_settings(roadmap, repo, template_gate):
+    roadmap.init_project(repo, "P")
+    path = roadmap.new_item(repo, "feature", "F")
+    roadmap.check_step(repo, 1, 1, force=True)
+    roadmap.check_step(repo, 1, 1, undo=True)                # undo is never gated
+    assert roadmap.count_progress(path) == (0, 2)
+    cfg = roadmap.read_config(repo)
+    cfg.setdefault("settings", {})["requiredSections"] = {"feature": []}
+    roadmap.write_config(repo, cfg)
+    roadmap.check_step(repo, 1, 1)                           # gate off for features
+    assert roadmap.count_progress(path) == (1, 2)
+    assert path.read_text().count("forced past") == 1        # only the earlier --force
+
+
+def test_check_force_does_not_satisfy_require_evidence(roadmap, repo, template_gate):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "F")
+    _set_require_evidence(roadmap, repo, True)
+    with pytest.raises(ValueError, match="requireEvidence"):
+        roadmap.check_step(repo, 1, 1, force=True)
