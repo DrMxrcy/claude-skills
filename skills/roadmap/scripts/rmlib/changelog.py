@@ -311,7 +311,7 @@ def render_internal_changelog(root: Path) -> str:
 
 def audit_public_notes(root: Path) -> list[str]:
     """Full pre-release audit of the public changelog: flag every public item missing a
-    note, and lint existing public notes for internal language. Used by /roadmap:changelog."""
+    note, and lint existing public notes for internal language. Used by /roadmap-changelog."""
     cfg = read_config(root)
     extra = cfg.get("settings", {}).get("internalTerms", [])
     summaries = cfg.get("releaseNotes", {})

@@ -33,60 +33,60 @@ default to **implement → spec review → quality review → tests → check** 
 ## The loop
 
 ```
-/roadmap:init                 # set up tracking (auto-adopts an existing repo)
-/roadmap:plan <idea>          # brainstorm an idea into a tracked, versioned plan
-/roadmap:build <id|version>   # implement an item or a whole phase, checking off as tests pass
-/roadmap:review <version>     # verify a finished phase against its specs + code review
-/roadmap:release <version>    # optional: pin a new version / git-tag (changelog is automatic)
+/roadmap-init                 # set up tracking (auto-adopts an existing repo)
+/roadmap-plan <idea>          # brainstorm an idea into a tracked, versioned plan
+/roadmap-build <id|version>   # implement an item or a whole phase, checking off as tests pass
+/roadmap-review <version>     # verify a finished phase against its specs + code review
+/roadmap-release <version>    # optional: pin a new version / git-tag (changelog is automatic)
 ```
 
 Two changelogs render automatically on every sync — **`CHANGELOG.md`** (public, curated, only
 `audience: public` items in user-facing language) and **`CHANGELOG.internal.md`** (the full
 dev log, every item). Each item shows up once it hits 100%, grouped by its version. You don't
-need `/roadmap:release` to get a changelog.
+need `/roadmap-release` to get a changelog.
 
-`/roadmap:next` builds the next unfinished item in the current version. `/roadmap:status`
-shows progress anytime; `/roadmap:sync` re-renders the dashboard.
+`/roadmap-next` builds the next unfinished item in the current version. `/roadmap-status`
+shows progress anytime; `/roadmap-sync` re-renders the dashboard.
 
-For an **unattended phase build**, `/roadmap:build <version> --auto` (Grok: `/roadmap-build`)
+For an **unattended phase build**, `/roadmap-build <version> --auto` (Grok: `/roadmap-build`)
 runs items back-to-back **without skipping quality gates**: each checklist step still gets
 implement → spec review → quality review → real tests → `check` (see
 [`references/quality-build.md`](references/quality-build.md)). `--auto` only removes *user*
 pauses between items. Add `--worktree` to isolate in `roadmap/v<version>` and `--pr` to open
 a PR at 100% without merging to main. Optional
 [`ralph-loop`](https://github.com/anthropics/claude-code/tree/main/plugins/ralph-wiggum)
-harness: see [`commands/roadmap/build.md`](../../commands/roadmap/build.md).
+harness: see [`commands/roadmap-build.md`](../../commands/roadmap-build.md).
 
 ## Agent commands
 
-Names differ by agent: Claude Code uses a colon (`/roadmap:next`); Grok Build uses a
+Names differ by agent: Every agent uses the hyphen form (`/roadmap-next`); Grok Build uses a
 hyphen (`/roadmap-next`); Codex invokes the skill (`$roadmap next`). Claude and Grok
 command files are installed where each agent can discover them. Bare
 `/roadmap <subcommand>` also routes correctly on Claude and Grok.
 
 | Command (Claude / Grok; Codex uses `$roadmap <action>`) | Does |
 |---|---|
-| `/roadmap:init` · `/roadmap-init` | Initialize tracking (auto-detects adopt for existing repos) |
-| `/roadmap:plan <idea>` · `/roadmap-plan` | Brainstorm an idea into a tracked, versioned plan; links its spec/detailed plan |
-| `/roadmap:idea <idea>` · `/roadmap-idea` | Park an idea in the Idea Incubator — one bullet; long write-ups become linked `.roadmap/notes/` files |
-| `/roadmap:build [id\|version] [--auto] [--worktree] [--pr]` · `/roadmap-build` | Build one item, a whole version/phase, or the current version — step-by-step, tests before each check; `--auto` skips per-item checkpoints, `--worktree` isolates in a git worktree, `--pr` opens a PR at 100% (never merges to main) |
-| `/roadmap:next` · `/roadmap-next` | Build the next unfinished item in the current version |
-| `/roadmap:catchup [id]` · `/roadmap-catchup` | Reconcile the roadmap with work done outside the commands (checks off completed steps) |
-| `/roadmap:status` · `/roadmap-status` | Show versions, items, types, and progress |
+| `/roadmap-init` · `/roadmap-init` | Initialize tracking (auto-detects adopt for existing repos) |
+| `/roadmap-plan <idea>` · `/roadmap-plan` | Brainstorm an idea into a tracked, versioned plan; links its spec/detailed plan |
+| `/roadmap-idea <idea>` · `/roadmap-idea` | Park an idea in the Idea Incubator — one bullet; long write-ups become linked `.roadmap/notes/` files |
+| `/roadmap-build [id\|version] [--auto] [--worktree] [--pr]` · `/roadmap-build` | Build one item, a whole version/phase, or the current version — step-by-step, tests before each check; `--auto` skips per-item checkpoints, `--worktree` isolates in a git worktree, `--pr` opens a PR at 100% (never merges to main) |
+| `/roadmap-next` · `/roadmap-next` | Build the next unfinished item in the current version |
+| `/roadmap-catchup [id]` · `/roadmap-catchup` | Reconcile the roadmap with work done outside the commands (checks off completed steps) |
+| `/roadmap-status` · `/roadmap-status` | Show versions, items, types, and progress |
 | `roadmap serve [--port N] [--no-open]` | Local live web dashboard — pushes progress over SSE as you build; read-only; one dashboard per project (different projects coexist on their own ports) |
-| `/roadmap:done <id> [step]` · `/roadmap-done` | Mark a step/item done and resync |
-| `/roadmap:remove <id>` · `/roadmap-remove` | Remove a tracked item — archive its plan, demote it to the Idea Incubator |
-| `/roadmap:retarget …` · `/roadmap-retarget` | Re-stamp items onto another version (e.g. consolidate shipped work into one release on a branch) |
-| `/roadmap:review [version]` · `/roadmap-review` | Verify a finished phase against its specs + code review before release |
-| `/roadmap:release <version>` · `/roadmap-release` | Optional: pin a new current version / `git tag` (changelog is automatic) |
-| `/roadmap:changelog [version]` · `/roadmap-changelog` | Print the live changelog; backfill past versions' dates from git tags / notes from history |
-| `/roadmap:reevaluate [version]` · `/roadmap-reevaluate` | Audit the codebase against the roadmap — surface missed/duplicate/stale work and resequence |
-| `/roadmap:tidy [--externalize]` · `/roadmap-tidy` | Groom the Idea Incubator / free-form region — prose walls into linked `.roadmap/notes/` files, one bullet per idea, ideas curated against the current roadmap (merge/drop/promote, with approval); `--externalize` moves the incubator into `.roadmap/IDEAS.md` so `ROADMAP.md` stays a pure dashboard |
-| `/roadmap:sync` · `/roadmap-sync` | Recompute progress and re-render `ROADMAP.md` |
-| `/roadmap:upgrade` · `/roadmap-upgrade` | Refresh this project's `CLAUDE.md` + `AGENTS.md` rules to the installed skill version (after a global update) |
-| `/roadmap:promote [match]` · `/roadmap-promote` | Lift an Idea Incubator bullet into a tracked plan |
-| `/roadmap:next` · `/roadmap-next` | Next unfinished item — **skips** items blocked by incomplete `dependsOn` |
-| `/roadmap:handoff` · `/roadmap-handoff` | **Switch AI coders** — next item, drift, dirty tree, skill version, checklist |
+| `/roadmap-done <id> [step]` · `/roadmap-done` | Mark a step/item done and resync |
+| `/roadmap-remove <id>` · `/roadmap-remove` | Remove a tracked item — archive its plan, demote it to the Idea Incubator |
+| `/roadmap-retarget …` · `/roadmap-retarget` | Re-stamp items onto another version (e.g. consolidate shipped work into one release on a branch) |
+| `/roadmap-review [version]` · `/roadmap-review` | Verify a finished phase against its specs + code review before release |
+| `/roadmap-release <version>` · `/roadmap-release` | Optional: pin a new current version / `git tag` (changelog is automatic) |
+| `/roadmap-changelog [version]` · `/roadmap-changelog` | Print the live changelog; backfill past versions' dates from git tags / notes from history |
+| `/roadmap-reevaluate [version]` · `/roadmap-reevaluate` | Audit the codebase against the roadmap — surface missed/duplicate/stale work and resequence |
+| `/roadmap-tidy [--externalize]` · `/roadmap-tidy` | Groom the Idea Incubator / free-form region — prose walls into linked `.roadmap/notes/` files, one bullet per idea, ideas curated against the current roadmap (merge/drop/promote, with approval); `--externalize` moves the incubator into `.roadmap/IDEAS.md` so `ROADMAP.md` stays a pure dashboard |
+| `/roadmap-sync` · `/roadmap-sync` | Recompute progress and re-render `ROADMAP.md` |
+| `/roadmap-upgrade` · `/roadmap-upgrade` | Refresh this project's `CLAUDE.md` + `AGENTS.md` rules to the installed skill version (after a global update) |
+| `/roadmap-promote [match]` · `/roadmap-promote` | Lift an Idea Incubator bullet into a tracked plan |
+| `/roadmap-next` · `/roadmap-next` | Next unfinished item — **skips** items blocked by incomplete `dependsOn` |
+| `/roadmap-handoff` · `/roadmap-handoff` | **Switch AI coders** — next item, drift, dirty tree, skill version, checklist |
 
 Also CLI-only (hooks use them): `orient` (session briefing), `drift-check`, `deps-check`, `next --json`.
 
@@ -97,7 +97,7 @@ Also CLI-only (hooks use them): `orient` (session briefing), `drift-check`, `dep
 ./install.sh --global --both
 
 # When leaving one coder for another:
-python3 $roadmap handoff    # or /roadmap:handoff / /roadmap-handoff
+python3 $roadmap handoff    # or /roadmap-handoff / /roadmap-handoff
 git add -A && git commit && git push   # code + roadmap together
 
 # On the other coder:
@@ -119,12 +119,12 @@ dupes, flags stale work, resequences). Use the one that matches the drift you ha
 
 ### Setup & planning
 
-- **`/roadmap:init`** — Sets up tracking in the current project: creates `.roadmap/`
+- **`/roadmap-init`** — Sets up tracking in the current project: creates `.roadmap/`
   (`config.json` + `plans/`), a `ROADMAP.md` with managed markers, and adds the rules
   block to `CLAUDE.md`. On an existing repo it auto-adopts (detects the current version
   from `package.json`/`pyproject.toml`/git tags). Idempotent — safe to re-run; existing
   items and version are preserved.
-- **`/roadmap:plan <idea>`** — Turns a raw idea into a tracked, versioned item. Brainstorms
+- **`/roadmap-plan <idea>`** — Turns a raw idea into a tracked, versioned item. Brainstorms
   scope, classifies the **type** (`feature`/`bug`/`refactor`/`chore`) and **version** (the
   semver bump), researches as needed, then runs `new` to create the plan file with a
   step-by-step checklist. If it produces a spec or detailed plan, those are saved under
@@ -132,7 +132,7 @@ dupes, flags stale work, resequences). Use the one that matches the drift you ha
 
 ### Building
 
-- **`/roadmap:build [id|version] [--auto] [--worktree] [--pr]`** — The workhorse. A bare
+- **`/roadmap-build [id|version] [--auto] [--worktree] [--pr]`** — The workhorse. A bare
   **id** builds that one item; a **version** (e.g. `1.0.0`) builds every incomplete item in
   that phase; **empty** builds the current version. Works one checklist step at a time,
   requires build/tests to pass before checking a step off, and commits code + roadmap
@@ -140,21 +140,21 @@ dupes, flags stale work, resequences). Use the one that matches the drift you ha
   whole selection back-to-back. `--worktree` isolates the build in a `roadmap/v<version>` git
   worktree; `--pr` opens a PR once the selection hits 100% and never merges to main. Together
   (`--auto --worktree --pr`) they make a fully hands-off phase build.
-- **`/roadmap:next`** — Builds just the next unfinished item in the current version (the
+- **`/roadmap-next`** — Builds just the next unfinished item in the current version (the
   lowest-id item that isn't 100%). Equivalent to one item of a `build` run.
-- **`/roadmap:done <id> [step]`** — Manually mark a step (or a whole item, if no step given)
+- **`/roadmap-done <id> [step]`** — Manually mark a step (or a whole item, if no step given)
   complete and resync. The quick path when you finished something by hand and just need the
   dashboard to reflect it.
 
 ### Reconciling drift
 
-- **`/roadmap:sync`** — Recomputes progress from the plan checkboxes and re-renders the
+- **`/roadmap-sync`** — Recomputes progress from the plan checkboxes and re-renders the
   managed region of `ROADMAP.md`. Pure view refresh; never inspects source code. Runs
   automatically after every mutation and via the optional Stop hook.
-- **`/roadmap:catchup [id]`** — For work done *outside* the commands: reads the code and git
+- **`/roadmap-catchup [id]`** — For work done *outside* the commands: reads the code and git
   history for the targeted (or current-version) items and checks off the steps that are
   genuinely implemented. Reconciles **progress** of items that already exist.
-- **`/roadmap:reevaluate [version]`** — The structural audit. Scans the codebase + git
+- **`/roadmap-reevaluate [version]`** — The structural audit. Scans the codebase + git
   history and produces an **advisory** report of: missed/untracked work, done-but-untracked
   features, **duplicates/overlap**, stale/obsolete items, gaps, and sequencing problems.
   After you approve, it applies changes via the CLI only — `new`, `check`, `depends`,
@@ -163,20 +163,20 @@ dupes, flags stale work, resequences). Use the one that matches the drift you ha
 
 ### Status, shipping & sharing
 
-- **`/roadmap:status`** — Prints the project, current version, and every item with its type
+- **`/roadmap-status`** — Prints the project, current version, and every item with its type
   and progress. The fast orientation command at the start of a session.
-- **`/roadmap:review [version]`** — Before releasing, verifies a finished phase against its
+- **`/roadmap-review [version]`** — Before releasing, verifies a finished phase against its
   linked specs and does a code review, so you cut a version only when the work truly matches
   the plan.
-- **`/roadmap:remove <id>`** — Removes a tracked item the clean way: archives its plan to
+- **`/roadmap-remove <id>`** — Removes a tracked item the clean way: archives its plan to
   `.roadmap/archive/`, drops it from the registry, clears any dependency on it, and leaves a
   `- (was #id) title ([archived plan](…))` breadcrumb under the Idea Incubator that links the
   archived plan. The recoverable alternative to
   hand-editing `config.json`. (To consolidate two items instead of dropping one, use `merge`.)
-- **`/roadmap:release <version>`** — **Optional.** Pins a new current version and can `git tag`
+- **`/roadmap-release <version>`** — **Optional.** Pins a new current version and can `git tag`
   it. **Guarded**: refuses if the current version still has incomplete items (`--force` to
   override). It no longer writes the changelog — that's automatic (see below).
-- **`/roadmap:changelog [version]`** — Curates and prints the live changelog. Audits the
+- **`/roadmap-changelog [version]`** — Curates and prints the live changelog. Audits the
   version and warns about public items missing a `note` or worded internally. Prints the
   public `CHANGELOG.md` (or `--internal` for the full log). `--backfill` dates past versions
   from their `git tag v<ver>`; you can also reconstruct missing notes from git history.
@@ -211,7 +211,7 @@ python3 $roadmap import PATH
 python3 $roadmap version
 ```
 
-`reorder`, `merge`, and `depends` are the verbs `/roadmap:reevaluate` uses to resequence and
+`reorder`, `merge`, and `depends` are the verbs `/roadmap-reevaluate` uses to resequence and
 dedupe: `reorder` sets an explicit order for items in a version (the dashboard renders by that
 order, falling back to id order); `merge` folds the source items' checklist steps into the
 keeper, deletes the source plans, and retargets any dependencies onto the keeper; `depends`
@@ -224,7 +224,7 @@ release (do it on a branch; the CLI edits roadmap state, not git).
 
 - **Semver picks the version**: bug fix → patch (`x.y.Z`), backward-compatible feature →
   minor (`x.Y.0`), breaking change or a whole new phase → major (`X.0.0`). A *phase* is just
-  a version; type (`bug`/`feature`/…) is set per item. `/roadmap:plan` classifies both.
+  a version; type (`bug`/`feature`/…) is set per item. `/roadmap-plan` classifies both.
 - Each item carries an **`audience`** (`public` | `internal`) and a plain-language **`note`**
   (set at `new --note/--audience` or later via `note` / `audience`). Audience defaults by type
   — `feature`/`bug` → public, `refactor`/`chore` → internal — and you override per judgment.
@@ -281,16 +281,16 @@ CHANGELOG.internal.md # full dev log — rendered on every sync (every item)
   [`references/state-model.md`](references/state-model.md).
 
 **Tags** = the `type` field (feature/bug/refactor/chore). **Milestones** = `version`; a
-phase is just a version (`v1.0.0`), so `/roadmap:build 1.0.0` builds the whole phase.
+phase is just a version (`v1.0.0`), so `/roadmap-build 1.0.0` builds the whole phase.
 
 ## Project rules (CLAUDE.md + AGENTS.md)
 
 `init` and the installer add a small, idempotent rules block to your project's **`CLAUDE.md`
 and `AGENTS.md`** (creating them if absent) so every agent — Claude Code, Grok Build, Codex,
 Cursor, etc. — sees the same discipline. See [`example/CLAUDE.md`](example/CLAUDE.md). The
-block documents both slash forms (`/roadmap:cmd` and `/roadmap-cmd`), session orient,
+block documents both slash forms (`/roadmap-cmd` and `/roadmap-cmd`), session orient,
 depends-aware `next`, and promote. Opt out with `--no-claude-md`. Refresh after a global
-skill update with `/roadmap:upgrade` / `/roadmap-upgrade`.
+skill update with `/roadmap-upgrade` / `/roadmap-upgrade`.
 
 ## Lifecycle hooks
 

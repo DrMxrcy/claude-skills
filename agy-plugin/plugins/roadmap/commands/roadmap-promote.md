@@ -19,8 +19,8 @@ Target: $ARGUMENTS
    - sole bullet: `python3 <roadmap.py> promote --type <T> ...`
 5. Open the new plan file the CLI printed, fill scope / blueprint / ✅ Acceptance
    (real pass/fail criteria, not the placeholders) / checklist (or link a
-   Spec / Detailed plan), then continue with `/roadmap:build` / `/roadmap-build` or
-   `/roadmap:next` / `/roadmap-next`.
+   Spec / Detailed plan), then continue with `/roadmap-build` / `/roadmap-build` or
+   `/roadmap-next` / `/roadmap-next`.
 6. Commit the roadmap change.
 
 The CLI removes only the promoted bullet from the incubator and registers a real plan
@@ -36,5 +36,5 @@ for d in .claude .grok .agents "$HOME/.claude" "$HOME/.grok" "$HOME/.agents"; do
 
 Run `python3 "$RM" …` — use `$RM` wherever `<roadmap.py>` appears.
 
-**Agent slash names:** Claude Code → `/roadmap:promote`; Grok → `/roadmap-promote`.
+**Agent slash names:** Claude Code → `/roadmap-promote`; Grok → `/roadmap-promote`.
 Arguments after the command replace `$ARGUMENTS` (Claude) or are passed as the user message (Grok).

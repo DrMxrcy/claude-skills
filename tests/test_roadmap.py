@@ -176,7 +176,7 @@ def test_check_evidence_written_under_the_step(roadmap, repo):
 
 
 def test_build_worktree_scopes_branch_per_item_or_version():
-    text = (Path(__file__).resolve().parents[1] / "commands/roadmap/build.md").read_text()
+    text = (Path(__file__).resolve().parents[1] / "commands/roadmap-build.md").read_text()
     assert "roadmap/<id>-<slug>" in text          # single item gets its own branch
     assert "roadmap/v<version>" in text           # whole version gets one shared branch
     assert "Never create a version-wide branch for a single item" in text
@@ -217,7 +217,7 @@ def test_quality_build_documents_merge_gate():
 def test_routing_docs_name_branch_scope_and_pending_handoff():
     root = Path(__file__).resolve().parents[1]
     skill = (root / "skills/roadmap/SKILL.md").read_text()
-    nxt = (root / "commands/roadmap/next.md").read_text()
+    nxt = (root / "commands/roadmap-next.md").read_text()
     assert "handoff --plan ID --pending" in skill
     assert "[--tokens N]" in skill
     assert "Parallel `--auto` is **opt-in** and not yet built" in skill
@@ -538,7 +538,7 @@ def test_init_creates_claude_md_rules(roadmap, repo):
     assert "Orient first" in cm
     assert "Micro-commit" in cm
     assert "Never hand-edit `ROADMAP.md`" in cm
-    assert "hyphen only" in cm
+    assert "All agents use the hyphen form" in cm
     assert "next` has no `--auto`" in cm or "next has no" in cm
 
 
@@ -1547,7 +1547,7 @@ def test_cli_tidy_json(roadmap, repo, monkeypatch, capsys):
     _inject_freeform(roadmap, repo, "- prose wall " + "z" * 400)
     assert roadmap.main(["tidy"]) == 0
     out = capsys.readouterr().out
-    assert "needs grooming" in out and "/roadmap:tidy" in out
+    assert "needs grooming" in out and "/roadmap-tidy" in out
 
 
 # ---- changelog --json --------------------------------------------------------------
@@ -2016,7 +2016,7 @@ def test_orient_payload(roadmap, repo):
     text = roadmap.format_orient(payload)
     assert "Auth" in text and "v0.0.1" in text
     # Dual slash forms so Grok never gets colon-only recommendations
-    assert "/roadmap-next" in text and "/roadmap:next" in text
+    assert "/roadmap-next" in text and "/roadmap:next" not in text
     assert "/roadmap-build" in text
     assert "not next --auto" in text
 
@@ -2105,8 +2105,8 @@ def test_init_writes_agents_md_and_dual_slash_names(roadmap, repo):
     for name in ("CLAUDE.md", "AGENTS.md"):
         text = (repo / name).read_text()
         assert "roadmap:rules:start" in text
-        assert "/roadmap:build" in text and "/roadmap-build" in text
-        assert "hyphen only" in text
+        assert "/roadmap-build" in text and "/roadmap:build" not in text
+        assert "All agents use the hyphen form" in text
         assert "Quality-first build" in text
         assert "spec review" in text
         assert "Micro-commit" in text
@@ -2130,7 +2130,7 @@ def test_rules_block_in_example(roadmap):
     text = example.read_text()
     assert roadmap.RULES_START in text
     body = text.split(roadmap.RULES_START, 1)[1].split(roadmap.RULES_END, 1)[0]
-    assert "/roadmap-build" in body and "hyphen only" in body
+    assert "/roadmap-build" in body and "All agents use the hyphen form" in body
     # example must stay byte-identical to the shipped block (it is the doc of record)
     assert body.strip() == roadmap.RULES_BLOCK.split(roadmap.RULES_START, 1)[1] \
         .split(roadmap.RULES_END, 1)[0].strip()

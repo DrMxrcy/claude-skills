@@ -25,7 +25,7 @@ First run `python3 <roadmap.py> status`, then interpret the argument:
 Flags compose: `--auto --worktree --pr` on a version = hands-off phase build with full quality gates.
 
 **Agent slash names (always cite both — Grok does not load colon forms):**
-- Claude Code: `/roadmap:build 80` · `/roadmap:build 1.2.0 --auto`
+- Claude Code: `/roadmap-build 80` · `/roadmap-build 1.2.0 --auto`
 - Grok Build: **`/roadmap-build 80`** · **`/roadmap-build 1.2.0 --auto`**
 - Either: `/roadmap build 80` · `/roadmap build 1.2.0 --auto`
 - **Not valid:** `next --auto` (use `build … --auto` to chain items; `next` is one item only)
@@ -78,7 +78,7 @@ before each `check`. Default for `/roadmap-build … --auto` remains **serial im
 - With `--auto`: one-line status, then the next unblocked selected item.
 
 When the whole selection is 100%: if `--pr`, follow the PR gate; else suggest
-`/roadmap:review` / `/roadmap-review` then `/roadmap:release` / `/roadmap-release`.
+`/roadmap-review` / `/roadmap-review` then `/roadmap-release` / `/roadmap-release`.
 The CLI's release gate fires here too (`settings.autoRelease`): `nudge` (default)
 prints the reminder after the final `check`; `auto` cuts the release itself once a
 next version exists — don't double-release.

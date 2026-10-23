@@ -19,7 +19,7 @@ warns if a public item ships without a note or with internal-sounding wording, a
 a public note that is a status/progress dump (dates, "Step N", version refs, paths, issue
 refs, ALL-CAPS status words) — the note is the App Store "What's New" line, one sentence of
 user benefit; progress/acceptance text stays in the plan file. Full curation
-can wait for `/roadmap:changelog` / `/roadmap:release`, but a one-liner now saves rework.
+can wait for `/roadmap-changelog` / `/roadmap-release`, but a one-liner now saves rework.
 
 After updating, commit the code and the roadmap changes together in one micro-commit.
 

@@ -390,7 +390,7 @@ function loadIdeas(){
     TABCOUNTS.ideas = items.length; renderTabs(TABCOUNTS);
     if(!items.length){
       pane.replaceChildren(txt("div","empty",
-        d.error || "no ideas parked yet — /roadmap:idea · /roadmap-idea"));
+        d.error || "no ideas parked yet — /roadmap-idea · /roadmap-idea"));
       return;
     }
     const out = [txt("div","srcfile", d.file || "")];

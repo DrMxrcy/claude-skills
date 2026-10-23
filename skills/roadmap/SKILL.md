@@ -33,16 +33,16 @@ python3 "$RM" <command>
 
 | Action | Claude Code | Grok Build | OpenAI Codex | Antigravity (`agy`) |
 |---|---|---|---|---|
-| Init | `/roadmap:init` | `/roadmap-init` | `$roadmap init` | `/roadmap-init` |
-| Plan | `/roadmap:plan …` | `/roadmap-plan …` | `$roadmap plan …` | `/roadmap-plan …` |
-| Next item | `/roadmap:next` | `/roadmap-next` | `$roadmap next` | `/roadmap-next` |
-| Build | `/roadmap:build …` | `/roadmap-build …` | `$roadmap build …` | `/roadmap-build …` |
-| Status | `/roadmap:status` | `/roadmap-status` | `$roadmap status` | `/roadmap-status` |
+| Init | `/roadmap-init` | `/roadmap-init` | `$roadmap init` | `/roadmap-init` |
+| Plan | `/roadmap-plan …` | `/roadmap-plan …` | `$roadmap plan …` | `/roadmap-plan …` |
+| Next item | `/roadmap-next` | `/roadmap-next` | `$roadmap next` | `/roadmap-next` |
+| Build | `/roadmap-build …` | `/roadmap-build …` | `$roadmap build …` | `/roadmap-build …` |
+| Status | `/roadmap-status` | `/roadmap-status` | `$roadmap status` | `/roadmap-status` |
 | (rest) | `/roadmap:<cmd>` | `/roadmap-<cmd>` | `$roadmap <cmd>` | `/roadmap-<cmd>` |
 
 **When recommending a command to the user, always list hyphen (Grok / AGY) and/or bare form —
 never colon-only.** Grok and AGY only discover flat `commands/roadmap-*.md`; nested
-`commands/roadmap/next.md` → `/roadmap:next` does **not** show in Grok's menu.
+`commands/roadmap-next.md` → `/roadmap-next` does **not** show in Grok's menu.
 `--auto` only on **build** (not next).
 
 Codex has a fixed built-in slash-command list; skills do not add dynamic slash commands.
@@ -93,13 +93,13 @@ If there are no args on bare `/roadmap` in Claude/Grok, use **Phase routing** be
 > [`references/state-model.md`](references/state-model.md) — read them on demand.
 
 - At the start of a session, run `roadmap.py orient` / `handoff` (or status) before writing code.
-- New features or found bugs become roadmap items (`/roadmap:plan`) before coding; park stray ideas in the Idea Incubator — nothing is built off-roadmap.
+- New features or found bugs become roadmap items (`/roadmap-plan`) before coding; park stray ideas in the Idea Incubator — nothing is built off-roadmap.
 - **Incubator hygiene — ROADMAP.md stays skimmable.** One bullet per parked idea, added via
   `roadmap.py idea --title "..."`. Long-form content — brainstorm output, deferred review
   findings, phase sketches, option analyses — goes to a linked `.roadmap/notes/` file
   (`idea --body/--body-file`) or a spec under `docs/`, and gets ONE linked bullet; never
   paste prose walls into ROADMAP.md. `status` warns when the file outgrows these bounds;
-  groom it back with `/roadmap:tidy` · `/roadmap-tidy` (`roadmap.py tidy` prints the
+  groom it back with `/roadmap-tidy` · `/roadmap-tidy` (`roadmap.py tidy` prints the
   report — the only sanctioned direct edit of the free-form region, never the auto region).
   The incubator itself may live in an external file (`settings.incubatorFile`, usually
   `.roadmap/IDEAS.md` via `tidy --externalize`) — the CLI resolves the location; groom
@@ -217,7 +217,7 @@ On invocation, detect state and pick a phase:
      roadmap together.
 
 4. **A version's items are all done** → Review, then release.
-   - Verify the phase against its specs + code-review the work (`/roadmap:review`) before
+   - Verify the phase against its specs + code-review the work (`/roadmap-review`) before
      shipping — confirm every item is genuinely implemented and matches its spec.
    - Confirm each completed item's **audience** (`roadmap.py audience --plan <id> --to
      public|internal`) and give every *public* item a clear user-facing `note`
@@ -226,7 +226,7 @@ On invocation, detect state and pick a phase:
      plumbing) **auto-route to the internal changelog** unless you explicitly set them public;
      softer wording tells only warn, but `note` **refuses** a public note that is a status
      dump (dates, step/version refs, paths, shouted status words) unless `--force` — status
-     text belongs in the plan checklist, never the changelog. `/roadmap:changelog` audits
+     text belongs in the plan checklist, never the changelog. `/roadmap-changelog` audits
      the version and reports
      auto-routings, public items missing a note, and notes worded internally.
    - Give each released version a short public **release-notes blurb**:
@@ -276,7 +276,7 @@ Anywhere a command takes `--plan ID` (or an id list), the id may be `7`, `#7`, o
 - `handoff --plan ID --resolve` — close the open decision for that plan
 - `orient` also reports the branch, dirty files and the last 5 commits (in handoff mode)
 - `drift-check` — nudge if commits landed without a check-off
-- `tidy [--json] [--externalize [PATH]]` — report-only free-form/incubator hygiene analysis (long bullets, nested blocks, dupes vs tracked items, stray prose); `--externalize` moves the incubator into a linked external file (default `.roadmap/IDEAS.md`; `idea`/`promote`/`remove` follow via `settings.incubatorFile`); `/roadmap:tidy` applies the grooming + idea curation
+- `tidy [--json] [--externalize [PATH]]` — report-only free-form/incubator hygiene analysis (long bullets, nested blocks, dupes vs tracked items, stray prose); `--externalize` moves the incubator into a linked external file (default `.roadmap/IDEAS.md`; `idea`/`promote`/`remove` follow via `settings.incubatorFile`); `/roadmap-tidy` applies the grooming + idea curation
 - `sync` — recompute progress + re-render ROADMAP.md **and both changelogs** (safe anytime)
 - `upgrade` — refresh this project's `CLAUDE.md` + `AGENTS.md` rules to the installed skill version
 - `changelog [--internal] [--backfill] [--json]` — print the public (or `--internal`) changelog + audit warnings; `--backfill` dates past versions from git tags; `--json` emits structured data (versions, dates, sections, pending flags) for in-app changelog screens / What's New popups

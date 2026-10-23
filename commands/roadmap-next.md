@@ -5,7 +5,7 @@ description: Build the next unfinished (unblocked) item — quality-first multi-
 Pick up the next piece of roadmap work using the **roadmap** skill.
 
 This is **one item, high quality, then stop** — the ideal unit for focused work.
-For a whole version with the same quality gates, use `/roadmap:build <ver> --auto` /
+For a whole version with the same quality gates, use `/roadmap-build <ver> --auto` /
 `/roadmap-build <ver> --auto` instead.
 
 ## Steps
@@ -13,13 +13,13 @@ For a whole version with the same quality gates, use `/roadmap:build <ver> --aut
 1. Run `python3 <roadmap.py> next` (or `next --json`). Picks the lowest `order`/id
    unfinished item in the **current version** whose `dependsOn` targets are complete.
 2. If `No unfinished unblocked items.`:
-   - Version truly done → suggest `/roadmap:review` / `/roadmap-review` then release.
+   - Version truly done → suggest `/roadmap-review` / `/roadmap-review` then release.
      (The CLI prints this nudge itself; with `settings.autoRelease: "auto"` it cuts the
      release on its own once a next version exists — don't double-release.)
    - Items blocked → show `status`; finish blockers or `next --force` only if the user asks.
    Stop.
 3. Build that **single item** with the **same quality-first multi-agent protocol as
-   `/roadmap:build` / `/roadmap-build`** (full detail in the skill’s
+   `/roadmap-build` / `/roadmap-build`** (full detail in the skill’s
    `references/quality-build.md`). Use the tiered fleet, not an unlabeled subagent:
 
    | Phase | Who | What |
@@ -36,13 +36,13 @@ For a whole version with the same quality gates, use `/roadmap:build <ver> --aut
    --worktree` creates `roadmap/<id>-<slug>`). If the item stops with an open decision, record it
    with `handoff --plan <id> --pending "<decision>"` before ending the session.
 
-4. When the item is 100%, **stop** and report — run `/roadmap:next` / `/roadmap-next`
+4. When the item is 100%, **stop** and report — run `/roadmap-next` / `/roadmap-next`
    again for the following item (or switch to `/roadmap-build <ver> --auto` to chain).
 
 **Agent slash names (always cite both — Grok does not load colon forms):**
-- Claude: `/roadmap:next` · Grok: **`/roadmap-next`** · Either: `/roadmap next`
+- Claude: `/roadmap-next` · Grok: **`/roadmap-next`** · Either: `/roadmap next`
 - **No `--auto` on next.** One item then stop. To chain: `/roadmap-build <version> --auto`
-  or `/roadmap:build <version> --auto`.
+  or `/roadmap-build <version> --auto`.
 
 **Finding the CLI (`<roadmap.py>`) — do not search for it.**
 

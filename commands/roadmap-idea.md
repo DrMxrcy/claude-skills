@@ -19,7 +19,7 @@ Rules of thumb:
 - The incubator is a *parking lot*, not a document: one bullet per idea, always.
 - Never paste brainstorm output, review findings, or multi-paragraph analyses into
   `ROADMAP.md` — give them a notes file (or a spec under `docs/`) and link it.
-- When an idea is prioritized, promote it with `/roadmap:plan` and delete its bullet.
+- When an idea is prioritized, promote it with `/roadmap-plan` and delete its bullet.
 
 **Finding the CLI (`<roadmap.py>`) — do not search for it.** It ships with the skill under
 the agent's skills dir; probe the fixed candidates once and reuse `$RM`:

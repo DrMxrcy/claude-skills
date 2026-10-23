@@ -57,9 +57,9 @@ it natively), and installs **flat** slash commands Grok can actually discover:
 
 | Claude Code | Grok Build |
 |---|---|
-| `/roadmap:next` | `/roadmap-next` |
-| `/roadmap:build` | `/roadmap-build` |
-| `/roadmap:status` | `/roadmap-status` |
+| `/roadmap-next` | `/roadmap-next` |
+| `/roadmap-build` | `/roadmap-build` |
+| `/roadmap-status` | `/roadmap-status` |
 | `/roadmap:<cmd>` | `/roadmap-<cmd>` |
 
 Grok only loads flat `commands/*.md` (nested `commands/roadmap/*.md` never show up in the

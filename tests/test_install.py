@@ -106,15 +106,13 @@ def test_install_global_uses_home(tmp_path):
 
 def test_install_copies_slash_commands(tmp_path):
     _run(tmp_path, "--project")
-    cmds = tmp_path / ".claude/commands/roadmap"
-    assert (cmds / "init.md").exists()
-    assert (cmds / "plan.md").exists()
-    assert (cmds / "status.md").exists()
-    # Flat Grok-compat aliases ship alongside the nested Claude layout
     flat = tmp_path / ".claude/commands"
     assert (flat / "roadmap-init.md").exists()
     assert (flat / "roadmap-next.md").exists()
     assert (flat / "roadmap-build.md").exists()
+    assert (flat / "roadmap-status.md").exists()
+    # One layout only: the nested Claude directory is no longer written.
+    assert not (tmp_path / ".claude/commands/roadmap").exists()
 
 
 def test_install_no_commands_flag(tmp_path):
@@ -125,11 +123,9 @@ def test_install_no_commands_flag(tmp_path):
 
 def test_install_ships_all_commands(tmp_path):
     _run(tmp_path, "--project")
-    src = {p.name for p in (REPO / "commands/roadmap").glob("*.md")}
-    dest = {p.name for p in (tmp_path / ".claude/commands/roadmap").glob("*.md")}
-    assert src and src == dest          # every command in the repo gets installed
+    src = {p.name for p in (REPO / "commands").glob("roadmap-*.md")}
     flat = {p.name for p in (tmp_path / ".claude/commands").glob("roadmap-*.md")}
-    assert flat == {f"roadmap-{n}" for n in src}
+    assert src and src == flat          # every command in the repo gets installed
 
 
 def test_install_grok_project_copies_skill_and_wires_native_hook(tmp_path):
@@ -171,8 +167,8 @@ def test_install_grok_flat_command_files(tmp_path):
     assert (cmds / "roadmap-status.md").exists()
     # Nested Claude layout is intentionally omitted on pure Grok installs
     assert not (cmds / "roadmap").exists()
-    src = {p.stem for p in (REPO / "commands/roadmap").glob("*.md")}
-    flat = {p.stem.removeprefix("roadmap-") for p in cmds.glob("roadmap-*.md")}
+    src = {p.stem for p in (REPO / "commands").glob("roadmap-*.md")}
+    flat = {p.stem for p in cmds.glob("roadmap-*.md")}
     assert src and src == flat
 
 
@@ -182,8 +178,9 @@ def test_install_grok_writes_claude_md_rules(tmp_path):
     for name in ("CLAUDE.md", "AGENTS.md"):
         text = (tmp_path / name).read_text()
         assert "roadmap:rules:start" in text
-        assert "/roadmap-build" in text and "/roadmap:build" in text
-        assert "hyphen only" in text
+        assert "/roadmap-build" in text
+        assert "/roadmap:build" not in text
+        assert "All agents use the hyphen form" in text
 
 
 def test_install_grok_global_uses_home(tmp_path):
@@ -218,7 +215,7 @@ def test_install_writes_claude_md_rules(tmp_path):
     assert "Quality-first build" in cm
     assert "Micro-commit" in cm
     assert "Orient first" in cm
-    assert "/roadmap-build" in cm and "hyphen only" in cm
+    assert "/roadmap-build" in cm and "All agents use the hyphen form" in cm
     agents = (tmp_path / "AGENTS.md").read_text()
     assert "roadmap:rules:start" in agents
     assert "high-quality" in agents
@@ -258,8 +255,7 @@ def test_install_both_agents(tmp_path):
     assert res.returncode == 0, res.stderr + res.stdout
     assert (tmp_path / ".claude/skills/roadmap/SKILL.md").exists()
     assert (tmp_path / ".grok/skills/roadmap/SKILL.md").exists()
-    assert (tmp_path / ".claude/commands/roadmap-handoff.md").exists() or \
-           (tmp_path / ".claude/commands/roadmap/handoff.md").exists()
+    assert (tmp_path / ".claude/commands/roadmap-handoff.md").exists()
     assert (tmp_path / ".grok/commands/roadmap-handoff.md").exists()
 
 

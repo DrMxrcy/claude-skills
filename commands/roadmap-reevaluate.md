@@ -5,9 +5,9 @@ argument-hint: <version | empty for the whole roadmap>
 
 Reconcile the roadmap's STRUCTURE and COMPLETENESS against reality. This is broader than
 the other two reconcilers:
-- `/roadmap:sync` only re-renders `ROADMAP.md` from existing checkboxes (never reads code).
-- `/roadmap:catchup` only checks off steps of items that already exist.
-- `/roadmap:reevaluate` (this) audits the whole roadmap vs the codebase and reorganizes it.
+- `/roadmap-sync` only re-renders `ROADMAP.md` from existing checkboxes (never reads code).
+- `/roadmap-catchup` only checks off steps of items that already exist.
+- `/roadmap-reevaluate` (this) audits the whole roadmap vs the codebase and reorganizes it.
 
 Target: $ARGUMENTS (default: the whole roadmap).
 

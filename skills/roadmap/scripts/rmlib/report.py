@@ -70,7 +70,7 @@ def drift_check(root: Path) -> str | None:
     if not unfinished:
         return None
     return (f"⚠ {n} commit(s) since last roadmap check-off — "
-            f"run /roadmap:catchup or /roadmap-catchup?")
+            f"run /roadmap-catchup or /roadmap-catchup?")
 
 
 def _git_dirty(root: Path) -> bool:
@@ -159,18 +159,18 @@ def format_orient(payload: dict, handoff: bool = False) -> str:
             lines.append(f"Plan: .roadmap/{nxt['file']}")
         # Dual slash forms so Grok never gets colon-only recommendations
         lines.append(
-            f"Continue: /roadmap:next · /roadmap-next · /roadmap next"
-            f"  OR  /roadmap:build {nid} · /roadmap-build {nid} · /roadmap build {nid}"
+            f"Continue: /roadmap-next · /roadmap-next · /roadmap next"
+            f"  OR  /roadmap-build {nid} · /roadmap-build {nid} · /roadmap build {nid}"
         )
         lines.append(
-            f"Chain version (pauses off): /roadmap:build {payload['currentVersion']} --auto"
+            f"Chain version (pauses off): /roadmap-build {payload['currentVersion']} --auto"
             f" · /roadmap-build {payload['currentVersion']} --auto"
             f"  (not next --auto — next is always one item)"
         )
     elif payload.get("versionComplete"):
         lines.append(
             f"🎉 v{payload['currentVersion']} is 100% complete but uncut — cut it: "
-            f"/roadmap:release · /roadmap-release · roadmap.py release --version <next> "
+            f"/roadmap-release · /roadmap-release · roadmap.py release --version <next> "
             f'(or set settings.autoRelease to "auto")')
     else:
         lines.append("Next: (none — current version complete or all remaining items blocked)")
@@ -203,7 +203,7 @@ def format_orient(payload: dict, handoff: bool = False) -> str:
     if payload.get("gitDirty") or payload.get("drift") or handoff:
         lines.append(
             "Resume: commit or catchup if needed, then continue the plan checklist "
-            "(/roadmap:next · /roadmap-next) — formal handoff is optional; git is the sync.")
+            "(/roadmap-next · /roadmap-next) — formal handoff is optional; git is the sync.")
     if handoff:
         lines.extend([
             "",
@@ -212,7 +212,7 @@ def format_orient(payload: dict, handoff: bool = False) -> str:
             "  2. If you could not handoff: just open the other agent — run orient/handoff there",
             "  3. Commit any dirty tree (code + roadmap) the previous agent left",
             "  4. git pull/push if machines differ",
-            "  5. Drift → /roadmap:catchup after tests; then next unfinished step",
+            "  5. Drift → /roadmap-catchup after tests; then next unfinished step",
             "  6. Continue quality-first build (do not re-plan from chat memory)",
             "Shared source of truth: ROADMAP.md + .roadmap/ + CHANGELOG*.md in git.",
         ])

@@ -564,11 +564,11 @@ fi
 # Install agent-supported command files unless --no-commands.
 #
 # Claude Code discovers nested commands/<ns>/<cmd>.md as /ns:cmd
-#   e.g. commands/roadmap/next.md → /roadmap:next
+#   e.g. commands/roadmap-next.md → /roadmap-next
 # Grok Build only discovers *flat* commands/*.md (filename stem = command name);
 # nested dirs are ignored, and ":" in names is not accepted (normalized away).
 # So we also install flat aliases as <ns>-<cmd>.md → /ns-cmd
-#   e.g. commands/roadmap/next.md → roadmap-next.md → /roadmap-next
+#   e.g. commands/roadmap-next.md → roadmap-next.md → /roadmap-next
 #
 # Claude installs get both layouts (Claude users keep /roadmap:*, Grok reading
 # .claude/commands via compat gets /roadmap-*). Pure --grok installs get flat only.
@@ -586,47 +586,23 @@ fi
 if [ "$commands" = "1" ] && _want roadmap && [ "$agent" != "codex" ]; then
   cmd_src="$(dirname "$SRC_DIR")/commands"
   if [ -d "$cmd_src" ]; then
-    # Claude and Grok read commands/. Both get the flat <ns>-<cmd> layout; only
-    # Claude also gets the nested <ns>/<cmd> dir (/ns:cmd).
+    # Every agent gets the same flat roadmap-<cmd>.md layout (/roadmap-<cmd>).
+    # Claude's nested /roadmap:<cmd> form is retired: one form everywhere.
     flat_dir="$base/commands"
     mkdir -p "$flat_dir"
     flat_count=0
-    for cdir in "$cmd_src"/*/; do
-      [ -d "$cdir" ] || continue
-      cname="$(basename "$cdir")"
-
-      # Nested layout for Claude Code (/ns:cmd) only.
-      if [ "$agent" = "claude" ]; then
-        rm -rf "$base/commands/$cname"
-        if [ "$link" = "1" ]; then
-          ln -s "${cdir%/}" "$base/commands/$cname"
-        else
-          cp -R "${cdir%/}" "$base/commands/$cname"
-        fi
+    for f in "$cmd_src"/roadmap-*.md; do
+      [ -f "$f" ] || continue
+      dest="$flat_dir/$(basename "$f")"
+      if [ "$link" = "1" ]; then
+        # Absolute target so the link survives even if CWD changes later.
+        ln -sfn "$(cd "$(dirname "$f")" && pwd)/$(basename "$f")" "$dest"
+      else
+        cp "$f" "$dest"
       fi
-
-      # Flat namespaced layout for Grok (/ns-cmd). Also useful on Claude Code
-      # as hyphenated aliases that show up in autocomplete the same way.
-      for f in "$cdir"*.md; do
-        [ -f "$f" ] || continue
-        stem="$(basename "$f" .md)"
-        dest="$flat_dir/${cname}-${stem}.md"
-        if [ "$link" = "1" ]; then
-          # Absolute target so the link survives even if CWD changes later.
-          ln -sfn "$(cd "$(dirname "$f")" && pwd)/$(basename "$f")" "$dest"
-        else
-          cp "$f" "$dest"
-        fi
-        flat_count=$((flat_count + 1))
-      done
+      flat_count=$((flat_count + 1))
     done
-    if [ "$agent" = "grok" ]; then
-      echo "Installed $flat_count Grok commands -> $flat_dir (try /roadmap-init, /roadmap-next, /roadmap-build)"
-    elif [ "$agent" = "agy" ]; then
-      echo "Installed $flat_count AGY commands -> $flat_dir (try /roadmap-init, /roadmap-next, /roadmap-build)"
-    else
-      echo "Installed commands -> $flat_dir (Claude: /roadmap:init; Grok-compat: /roadmap-init, /roadmap-next)"
-    fi
+    echo "Installed $flat_count roadmap commands -> $flat_dir (try /roadmap-init, /roadmap-next, /roadmap-build)"
   fi
 fi
 

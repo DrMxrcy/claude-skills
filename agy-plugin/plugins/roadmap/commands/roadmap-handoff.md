@@ -10,14 +10,14 @@ recovery path after rate limits, crashes, or killed sessions.
 2. Act on warnings:
    - **Uncommitted changes** → inspect `git status` / `git diff`. Commit code + roadmap
      together if the previous agent finished a step; otherwise finish or stash carefully.
-   - **Drift** (commits since last check-off) → `/roadmap:catchup` / `/roadmap-catchup`
+   - **Drift** (commits since last check-off) → `/roadmap-catchup` / `/roadmap-catchup`
      after verifying tests, then commit.
    - **Stale skill rules** → `python3 <roadmap.py> upgrade`.
 3. If a decision is still open (`handoff` refuses and names it), settle it with the user, then
    `handoff --plan <id> --resolve`. A BLOCKED step (respawn budget spent — see
    `references/quality-build.md`) goes in the handoff note the same way.
 4. Continue from the **plan checklist** (next unfinished step), not from chat memory:
-   `/roadmap:next` / `/roadmap-next` or `/roadmap:build` / `/roadmap-build`.
+   `/roadmap-next` / `/roadmap-next` or `/roadmap-build` / `/roadmap-build`.
 
 ## Rate limit / no formal handoff
 
@@ -43,7 +43,7 @@ rate-limit loses at most the in-flight step, never a whole item.
 | `CHANGELOG.md` / `CHANGELOG.internal.md` | Rendered on sync |
 | `CLAUDE.md` + `AGENTS.md` rules block | Same discipline for every agent |
 
-**Agent slash names:** Claude Code → `/roadmap:handoff`; Grok → `/roadmap-handoff`.
+**Agent slash names:** Claude Code → `/roadmap-handoff`; Grok → `/roadmap-handoff`.
 
 **Finding the CLI (`<roadmap.py>`) — do not search for it.**
 

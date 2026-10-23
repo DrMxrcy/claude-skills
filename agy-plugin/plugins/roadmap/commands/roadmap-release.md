@@ -8,8 +8,8 @@ Cut a new roadmap version: $ARGUMENTS
 Pick the next version by **semver**: bug fixes → patch (x.y.Z), backward-compatible features
 → minor (x.Y.0), breaking changes / a whole new phase → major (X.0.0).
 
-Ideally run `/roadmap:review` first. Then make the **public** changelog read for end users.
-The quickest path is `/roadmap:changelog`, which audits the outgoing version and warns about
+Ideally run `/roadmap-review` first. Then make the **public** changelog read for end users.
+The quickest path is `/roadmap-changelog`, which audits the outgoing version and warns about
 public items missing a note or worded internally. For each completed item:
 - Confirm its **audience** — user-visible work is `public`, backend/infra/tooling/CI is
   `internal` (`python3 <roadmap.py> audience --plan <id> --to public|internal`). Internal
@@ -25,7 +25,7 @@ replaces the item bullets in `CHANGELOG.md`; the full detail stays in
 `CHANGELOG.internal.md`.
 
 If notes are missing (e.g. you adopted an existing repo), backfill from git history
-(`git log v<previous>..HEAD --oneline`) — or run `/roadmap:changelog`.
+(`git log v<previous>..HEAD --oneline`) — or run `/roadmap-changelog`.
 
 Then bump the version with the roadmap CLI:
 

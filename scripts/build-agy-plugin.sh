@@ -15,7 +15,7 @@ agent_pkg="$pkg/plugins/agent"
 
 roadmap_src="$repo/skills/roadmap"
 agent_src="$repo/skills/agent"
-commands_src="$repo/commands/roadmap"
+commands_src="$repo/commands"
 
 [ -f "$roadmap_src/SKILL.md" ] || { echo "roadmap skill not found at $roadmap_src" >&2; exit 1; }
 [ -f "$agent_src/SKILL.md" ] || { echo "agent skill not found at $agent_src" >&2; exit 1; }
@@ -36,10 +36,9 @@ echo "Bundled skill: skills/roadmap -> $roadmap_pkg/skills/roadmap (v$roadmap_ve
 
 # Copy flat slash commands
 rm -f "$roadmap_pkg/commands"/*.md
-for cmd_file in "$commands_src"/*.md; do
+for cmd_file in "$commands_src"/roadmap-*.md; do
   [ -f "$cmd_file" ] || continue
-  cmd_name="$(basename "$cmd_file")"
-  cp "$cmd_file" "$roadmap_pkg/commands/roadmap-$cmd_name"
+  cp "$cmd_file" "$roadmap_pkg/commands/$(basename "$cmd_file")"
 done
 echo "Copied commands -> $roadmap_pkg/commands/ (flat /roadmap-*)"
 

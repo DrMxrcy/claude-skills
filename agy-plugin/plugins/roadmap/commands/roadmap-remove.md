@@ -16,7 +16,7 @@ Remove a tracked item with the **roadmap** skill — the clean alternative to ha
 3. Commit the roadmap change.
 
 Use this for stray, duplicated, or abandoned items. To **consolidate** two items into one
-instead of dropping work, use `merge` (see `/roadmap:reevaluate`).
+instead of dropping work, use `merge` (see `/roadmap-reevaluate`).
 
 **Finding the CLI (`<roadmap.py>`) — do not search for it.** It ships with the skill under
 the agent's skills dir; probe the fixed candidates once and reuse `$RM`:

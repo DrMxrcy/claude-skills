@@ -165,7 +165,7 @@ def tidy_report(root: Path) -> dict:
     """Analyze the free-form region of ROADMAP.md (Idea Incubator + surrounding prose,
     plus the external incubator file when settings.incubatorFile is set) and report
     what needs grooming. Report-only by design: scripts never rewrite the free-form
-    region — the /roadmap:tidy command flow applies the judgment edits."""
+    region — the /roadmap-tidy command flow applies the judgment edits."""
     import difflib
     rm = root / "ROADMAP.md"
     report = {"clean": True, "warnings": [], "bullets": [],
@@ -268,7 +268,7 @@ def format_tidy(report: dict) -> str:
         leads = "; ".join(report["prose"]["leads"][:5])
         out.append(f"  - {report['prose']['lines']} prose line(s) outside any bullet"
                    + (f" (sections: {leads})" if leads else ""))
-    out.append("Groom with /roadmap:tidy · /roadmap-tidy — move bodies to linked "
+    out.append("Groom with /roadmap-tidy · /roadmap-tidy — move bodies to linked "
                ".roadmap/notes/ files, one bullet per idea; drop bullets that "
                "duplicate tracked items (or promote them).")
     return "\n".join(out)

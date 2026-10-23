@@ -48,7 +48,7 @@ so the grooming judgment is yours. **Never touch anything between
 5. Re-run `python3 <roadmap.py> tidy` to confirm clean (or explain what remains), run
    `python3 <roadmap.py> sync`, and commit the roadmap + notes files together.
 
-Rules of thumb (same as `/roadmap:idea` · `/roadmap-idea`):
+Rules of thumb (same as `/roadmap-idea` · `/roadmap-idea`):
 - The incubator is a *parking lot*, not a document: one bullet per idea, always.
 - Long-form content lives in `.roadmap/notes/` (or a spec under `docs/`) and gets linked.
 - Run this whenever `status` warns the free-form region has outgrown its bounds.

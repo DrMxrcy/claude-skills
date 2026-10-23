@@ -114,7 +114,7 @@ nothing is flagged. The lint is a seatbelt, not the rule.**
 4. **Write the version blurb** from those notes:
    `python3 <roadmap.py> summary --version <v> --text "<What's New blurb>"` — generic
    one-liner for patches, intro + 3–4 highlights for big releases (sizing guide above).
-5. Re-run until clean, then preview both files. `/roadmap:release` stamps the dated section;
+5. Re-run until clean, then preview both files. `/roadmap-release` stamps the dated section;
    this command just gets it clean.
 
 **The exclusions, and the principle behind each** (each sends an item to `internal` even when

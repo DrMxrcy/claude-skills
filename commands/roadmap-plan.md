@@ -33,7 +33,7 @@ Follow the skill's intake phase:
    against), and a checklist of tiny, testable steps.
 6. If `brainstorming`/`writing-plans` produced a spec or detailed plan document, save it
    under `docs/superpowers/` and add `**Spec:**` / `**Detailed plan:**` links near the top
-   of the plan file — `/roadmap:build` follows those links for the implementation detail.
+   of the plan file — `/roadmap-build` follows those links for the implementation detail.
 7. The CLI auto-syncs `ROADMAP.md`. Show the new plan file and the updated dashboard.
 
 **Finding the CLI (`<roadmap.py>`) — do not search for it.** It ships with the skill under

@@ -10,7 +10,7 @@ This is the **quality gate before ship** — same bar as the quality-first build
 applied to the whole version.
 
 1. Run `python3 <roadmap.py> status` and list the target version's items. Confirm each is
-   100% on the dashboard (if not, send unfinished work back to `/roadmap:build` /
+   100% on the dashboard (if not, send unfinished work back to `/roadmap-build` /
    `/roadmap-build` — do not release partial work).
 2. **Spec conformance** — for each item, open its plan file and any linked **Spec** /
    **Detailed plan**. For every checklist step, verify it is *actually implemented in the
@@ -24,11 +24,11 @@ applied to the whole version.
    - Otherwise review the diff since the version began against the specs.
 4. **Report** a per-item verdict: ✅ done & matches spec · ⚠️ partial · ❌ missing — plus any
    bugs or spec deviations found.
-5. If gaps exist, propose fixes or `/roadmap:build` / `/roadmap-build` the unfinished steps.
+5. If gaps exist, propose fixes or `/roadmap-build` / `/roadmap-build` the unfinished steps.
    Only once the phase is clean, suggest `python3 <roadmap.py> release --version <next>`
-   (and confirm public `note` / `audience` via `/roadmap:changelog` / `/roadmap-changelog`).
+   (and confirm public `note` / `audience` via `/roadmap-changelog` / `/roadmap-changelog`).
 
-**Agent slash names:** Claude Code → `/roadmap:review`; Grok → `/roadmap-review`.
+**Agent slash names:** Claude Code → `/roadmap-review`; Grok → `/roadmap-review`.
 
 **Finding the CLI (`<roadmap.py>`) — do not search for it.**
 

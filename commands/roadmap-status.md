@@ -9,7 +9,7 @@ Show the current roadmap status. Run the roadmap CLI:
 Summarize the current version, each version's items grouped by type, and progress
 percentages. Also surface the latest `CHANGELOG.md` entry (the most recently released version)
 if the file exists, so the user sees what shipped last. If `.roadmap/` does not exist yet,
-tell the user to run `/roadmap:init` first.
+tell the user to run `/roadmap-init` first.
 
 **Finding the CLI (`<roadmap.py>`) — do not search for it.** It ships with the skill under
 the agent's skills dir; probe the fixed candidates once and reuse `$RM`:

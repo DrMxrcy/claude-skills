@@ -291,7 +291,7 @@ def set_audience(root: Path, plan_id: int, audience: str, force: bool = False) -
 
 def set_depends(root: Path, plan_id: int, on: list[int], clear: bool = False) -> None:
     """Set (or clear) an item's `dependsOn` list. Consumed by `next` (skips blocked),
-    `build` (warns), /roadmap:reevaluate, and retargeted by merge/remove."""
+    `build` (warns), /roadmap-reevaluate, and retargeted by merge/remove."""
     cfg = read_config(root)
     by_id = {i["id"]: i for i in cfg["items"]}
     if plan_id not in by_id:
@@ -491,7 +491,7 @@ def release(root: Path, version: str, tag: bool = False, force: bool = False) ->
         names = ", ".join(f"#{i['id']} {i['title']}" for i in incomplete)
         raise ValueError(
             f"v{outgoing} still has incomplete items: {names}. "
-            f"Finish them (see /roadmap:review) or pass --force.")
+            f"Finish them (see /roadmap-review) or pass --force.")
     cfg["currentVersion"] = version
     write_config(root, cfg)
     sync(root)
