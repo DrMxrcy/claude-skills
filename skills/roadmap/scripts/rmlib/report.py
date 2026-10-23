@@ -142,6 +142,8 @@ def orient(root: Path) -> dict | None:
     payload["owner"] = owner
     payload["held"] = _own_holds(st["items"], owner,
                                  rmowners.claim_ttl_hours(cfg))
+    if st.get("wip"):                       # settings.wipLimit set
+        payload["wip"] = st["wip"]
     # ROADMAP.md size (plan 39): orient is the once-per-session place to say it.
     payload["health"] = roadmap_health(root)
     # settings.buildRoles: free-form per-role model/agent names, surfaced only when set
@@ -199,6 +201,9 @@ def format_orient(payload: dict, handoff: bool = False) -> str:
     if held:
         lines.append(f"Held by you ({payload.get('owner')}): " + " · ".join(
             f"{h['displayId']} {h['title']} ({h['lane']})" for h in held))
+    over = rmowners.wip_warning(payload.get("wip"))
+    if over:
+        lines.append(f"⚠ {over}")
     if payload.get("drift"):
         lines.append(payload["drift"])
     if payload.get("branch"):

@@ -2,6 +2,8 @@
 import datetime
 import json
 import re
+import shutil
+import subprocess
 
 import pytest
 
@@ -223,3 +225,116 @@ def test_orient_without_holds_prints_no_line(roadmap, repo, monkeypatch):
     _repo(roadmap, repo, monkeypatch)
     payload = roadmap.orient(repo)
     assert payload["held"] == [] and "Held by you" not in roadmap.format_orient(payload)
+
+
+# --- step 3: settings.wipLimit warning in CLI and dashboard -----------------
+
+def _in_flight(roadmap, repo, n):
+    for i in range(1, n + 1):
+        roadmap.set_claim(repo, i, owner="alice")      # owner-only claim: in-flight
+
+
+def test_status_warns_over_wip_limit(roadmap, repo, monkeypatch, capsys):
+    _repo(roadmap, repo, monkeypatch, n=5, settings={"wipLimit": 3})
+    _in_flight(roadmap, repo, 3)
+    capsys.readouterr()
+    assert roadmap.main(["status"]) == 0
+    assert "wipLimit" not in capsys.readouterr().err        # at the limit: quiet
+    roadmap.set_claim(repo, 4, stage="review", owner="alice")
+    capsys.readouterr()
+    assert roadmap.main(["status"]) == 0
+    err = capsys.readouterr().err
+    assert err.count("\n") == 1 and err.startswith("warning: work in progress: 4 "
+                                                   "in-flight items, over "
+                                                   "settings.wipLimit (3)")
+    assert roadmap.main(["status", "--json"]) == 0
+    out = capsys.readouterr()
+    assert json.loads(out.out)["wip"] == {"count": 4, "limit": 3, "over": True}
+    assert out.err == ""
+
+
+def test_next_and_orient_warn_over_wip_limit(roadmap, repo, monkeypatch, capsys):
+    _repo(roadmap, repo, monkeypatch, n=5, settings={"wipLimit": 3})
+    _in_flight(roadmap, repo, 4)
+    _as(monkeypatch, "alice")
+    capsys.readouterr()
+    assert roadmap.main(["next"]) == 0
+    assert capsys.readouterr().err.count("over settings.wipLimit (3)") == 1
+    assert roadmap.main(["orient"]) == 0
+    out = capsys.readouterr().out
+    assert out.count("⚠ work in progress: 4 in-flight items") == 1
+    assert roadmap.orient(repo)["wip"]["over"] is True
+    assert roadmap.next_item(repo, quiet=True)["id"] == 1   # a warning, not a refusal
+
+
+def test_no_wip_limit_means_no_payload_and_no_warning(roadmap, repo, monkeypatch,
+                                                      capsys):
+    _repo(roadmap, repo, monkeypatch, n=4)
+    _in_flight(roadmap, repo, 4)
+    assert "wip" not in roadmap.status(repo)
+    assert "wip" not in roadmap.orient(repo)
+    capsys.readouterr()
+    assert roadmap.main(["status"]) == 0
+    assert "wipLimit" not in capsys.readouterr().err
+    for junk in (0, -2, "x", True):
+        cfg = roadmap.read_config(repo)
+        cfg.setdefault("settings", {})["wipLimit"] = junk
+        roadmap.write_config(repo, cfg)
+        assert "wip" not in roadmap.status(repo)
+
+
+def test_merged_view_carries_trunk_wip(dashboard):
+    wip = {"count": 4, "limit": 3, "over": True}
+    st = [{"project": "p", "currentVersion": "0.1.0", "trunk": "main", "items": []},
+          {"project": "p", "currentVersion": "0.1.0", "trunk": "main", "items": [],
+           "wip": wip}]
+    meta = [{"branch": "roadmap/1", "name": "a"}, {"branch": "main", "name": "b"}]
+    assert dashboard._merge_status(st, meta)["wip"] == wip
+    assert "wip" not in dashboard._merge_status(
+        [{"items": []}], [{"branch": "main", "name": "a"}])
+
+
+def test_dashboard_html_has_owner_and_wip_hooks(dashboard):
+    body = dashboard._dashboard_html()
+    for hook in ("function wipFlag", "wipFlag(chip(k.fly", "d.wip", ".chip.over",
+                 '"owner "+c.owner', "c.refreshed"):
+        assert hook in body, hook
+    assert ".innerHTML" not in body and "insertAdjacentHTML" not in body
+
+
+_HARNESS = r"""
+class Node { constructor(tag){ this.tag=tag; this.kids=[]; this.className="";
+  this._t=""; this.title=""; }
+  appendChild(c){ this.kids.push(c); return c; }
+  get lastChild(){ return this.kids[this.kids.length-1]; }
+  set textContent(s){ this._t=String(s); this.kids=[]; }
+  get textContent(){ return this._t + this.kids.map(k=>k.textContent).join(""); } }
+const el = (tag,cls) => { const e=new Node(tag); if(cls) e.className=cls; return e; };
+const txt = (tag,cls,s) => { const e=el(tag,cls); e.textContent=s; return e; };
+const chip = (n,label,cls) => { const c = el("span","chip");
+  c.appendChild(el("span","cdot"+(cls?" "+cls:""))); c.appendChild(txt("span",null, n+" "+label));
+  return c; };
+"""
+
+
+def test_dashboard_header_flags_wip_over_limit(dashboard, tmp_path):
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node not installed")
+    body = dashboard._dashboard_html()
+    start = body.index("// settings.wipLimit (plan 40)")
+    end = body.index("// ---- plan page", start)
+    js = tmp_path / "wip.js"
+    js.write_text(_HARNESS + body[start:end] + """
+const show = c => [c.className, c.textContent, c.title];
+console.log(JSON.stringify([
+  show(wipFlag(chip(4,"in flight","lg-build"), 4, {count:4, limit:3, over:true})),
+  show(wipFlag(chip(3,"in flight","lg-build"), 3, {count:3, limit:3, over:false})),
+  show(wipFlag(chip(9,"in flight","lg-build"), 9, undefined)),
+]));
+""")
+    out = subprocess.run([node, str(js)], capture_output=True, text=True, check=True)
+    over, at, none = json.loads(out.stdout)
+    assert over == ["chip over", "4 in flight (limit 3)",
+                    "over settings.wipLimit (3) — finish or land one first"]
+    assert at == ["chip", "3 in flight", ""] and none == ["chip", "9 in flight", ""]

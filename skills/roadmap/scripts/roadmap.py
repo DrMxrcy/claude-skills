@@ -75,6 +75,7 @@ from rmlib.project import (  # noqa: E402
 from rmlib import slots as rmslots  # noqa: E402  (plan 33: numbered slots)
 from rmlib import forecast as rmforecast  # noqa: E402  (plan 44: version forecast)
 from rmlib import runs as rmruns  # noqa: E402  (plan 38: run log)
+from rmlib import owners as rmowners  # noqa: E402  (plan 40: claim owners, WIP limit)
 
 
 __all__ = [  # public facade: names re-exported for callers/tests/hooks (roadmap.X)
@@ -765,6 +766,9 @@ def main(argv: list[str]) -> int:
             if not args.as_json:
                 for w in st.get("runWarnings") or []:
                     print(f"warning: {w}", file=sys.stderr)
+                over = rmowners.wip_warning(st.get("wip"))      # plan 40
+                if over:
+                    print(f"warning: {over}", file=sys.stderr)
             if args.runs:
                 if args.as_json:
                     print(json.dumps({k: st.get(k) for k in
