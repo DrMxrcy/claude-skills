@@ -1,0 +1,35 @@
+CHANGELOG.internal.md
+  s_46e1afb656488b::t_b4c4d10a520622 36
+ROADMAP.md
+  s_46e1afb656488b::t_b4c4d10a520622 24,26
+.roadmap/plans/029-adversarial-review-skill-multi-cli-review-with-triage-from-claude-code.md
+  s_fbae122c7a65de::t_686aab8bb3bce1 42-43
+  s_46e1afb656488b::t_b4c4d10a520622 6,49,51-52
+  s_46e1afb656488b::t_76f0234907c6cf 48,50
+  s_46e1afb656488b::t_2427ae03baa2ef 44-47
+  s_46e1afb656488b::t_1a7f9671885e71 40-41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e0d4e152bdc4dfd1998fe0b62fbd71bbb315cb35",
+  "prompts": {},
+  "sessions": {
+    "s_46e1afb656488b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "29cbd46b-401e-4ab9-8990-06b287088024",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    },
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
