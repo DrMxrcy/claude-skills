@@ -13,6 +13,7 @@ from rmlib.core import (
 from rmlib.parse import (
     CLAIM_STAGES, count_progress, read_claim)
 from rmlib import branches as rmbranches
+from rmlib import slots as rmslots
 from rmlib.changelog import (
     render_internal_changelog, render_public_changelog)
 
@@ -351,10 +352,14 @@ def status(root: Path) -> dict:
     counts["lanes"] = lane_counts(items)
     other = [_public_branch(b, b["item"]) for b in found["other"]
              if b["name"] not in claimed_from_other]
+    # Numbered slots (plan 33): only present when settings.slots is configured,
+    # so projects without it see an unchanged payload.
+    extra = ({"slots": rmslots.slots_status(root, cfg, items, found)}
+             if (cfg.get("settings") or {}).get("slots") else {})
     return {"project": cfg["project"], "currentVersion": cfg["currentVersion"],
             "versionComplete": _version_complete(cur_items, progress),
             "counts": counts, "items": items,
-            "trunk": found["trunk"], "otherBranches": other}
+            "trunk": found["trunk"], "otherBranches": other, **extra}
 
 
 def _item_done(progress: dict[int, tuple[int, int]], plan_id: int) -> bool:

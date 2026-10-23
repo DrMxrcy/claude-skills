@@ -68,6 +68,8 @@ from rmlib.project import (  # noqa: E402
     _apply_rules_block, ensure_claude_md_rules, ensure_project_rules,
     init_project, upgrade)
 
+from rmlib import slots as rmslots  # noqa: E402  (plan 33: numbered slots)
+
 
 __all__ = [  # public facade: names re-exported for callers/tests/hooks (roadmap.X)
     'TEMPLATES_DIR', 'AUTO_START', 'AUTO_END', 'RULES_START', 'RULES_END',
@@ -135,6 +137,47 @@ def serve(root: Path, port: int | None = None, open_browser: bool = True,
     spec.loader.exec_module(mod)
     return mod.serve(_dashboard_api(), root, port=port, open_browser=open_browser,
                      verbose=verbose)
+
+
+def _slot_cmd(root: Path, args, p_slot, rid) -> int:
+    """`slot ID --kind K [--name N] [--add]`, `slot ID --kind K --release`,
+    `slot [ID] --check` (plan 33)."""
+    if args.check:
+        if args.release or args.add or args.name:
+            p_slot.error("--check takes only an optional ID (and --json)")
+        plan_id = rid(args.id) if args.id else None
+        payload = status(root).get("slots")
+        bad = rmslots.check_failures(payload, plan_id)
+        if args.as_json:
+            print(json.dumps({"slots": payload, "failures": bad}, indent=2))
+        else:
+            print(rmslots.format_slots(payload, plan_id))
+            if bad:
+                print(f"slot check: {len(bad)} clash(es) — "
+                      + "; ".join(f"#{b['plan']} {b['kind']} {b['state']}: {b['detail']}"
+                                  for b in bad))
+            elif payload and not payload.get("error"):
+                print("slot check: no clashes")
+        return 1 if bad or (payload or {}).get("error") else 0
+    if not args.id or not args.kind:
+        p_slot.error("reserve/release need an ID and --kind (or use --check)")
+    plan_id = rid(args.id)
+    if args.release:
+        if args.add or args.name:
+            p_slot.error("--release takes no --name/--add")
+        freed = rmslots.release(root, plan_id, args.kind)
+        print(f"#{plan_id}: released {args.kind} {freed}" if freed
+              else f"#{plan_id}: no {args.kind} reservation to release")
+        return 0
+    res = rmslots.reserve(root, plan_id, args.kind, name=args.name, add=args.add)
+    if args.as_json:
+        print(json.dumps({"plan": plan_id, **res}))
+    else:
+        print(res["token"] if res["new"] else res["value"])
+        if not res["new"]:
+            print(f"#{plan_id} already holds {args.kind} {res['value']} "
+                  f"(--add reserves another)", file=sys.stderr)
+    return 0
 
 
 def main(argv: list[str]) -> int:
@@ -217,6 +260,20 @@ def main(argv: list[str]) -> int:
                          help="branch override (default: the discovered branch)")
     p_claim.add_argument("--clear", action="store_true",
                          help="remove the claim (lane reverts to the derived one)")
+
+    p_slot = sub.add_parser(
+        "slot", help="reserve the next number of a numbered sequence (settings.slots, "
+                     "e.g. migrations) for an item, release it, or --check for clashes")
+    p_slot.add_argument("id", nargs="?", help=ID_HELP + " (optional with --check)")
+    p_slot.add_argument("--kind", help="slot kind configured in settings.slots")
+    p_slot.add_argument("--name", help="suffix recorded with the number (0269_<name>)")
+    p_slot.add_argument("--add", action="store_true",
+                        help="reserve one more number for an item that already holds one")
+    p_slot.add_argument("--release", action="store_true",
+                        help="free the item's reservation of --kind")
+    p_slot.add_argument("--check", action="store_true",
+                        help="exit 1 when any reservation (or the item's) clashes or is taken")
+    p_slot.add_argument("--json", action="store_true", dest="as_json")
 
     p_rel = sub.add_parser("release")
     p_rel.add_argument("--version", required=True)
@@ -388,6 +445,8 @@ def main(argv: list[str]) -> int:
             print(f"#{plan_id}: " + " · ".join(f"{f}={c[f]}" for f in CLAIM_FIELDS
                                                 if c.get(f)))
             return 0
+        if args.command == "slot":
+            return _slot_cmd(root, args, p_slot, rid)
         if args.command == "release":
             release(root, args.version, tag=args.tag, force=args.force)
             return 0
