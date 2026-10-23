@@ -1,0 +1,27 @@
+.roadmap/config.json
+  s_fbc496dffa0e96::t_1551235cd79bff 525
+.roadmap/plans/036-worktree-map-status-worktrees-and-a-dashboard-worktree-panel-with-safe-to-remove-marks.md
+  s_fbc496dffa0e96::t_3e963a9a302ce0 6,31-38
+CHANGELOG.internal.md
+  s_fbc496dffa0e96::t_047f94eaeeb151 12
+CHANGELOG.md
+  s_fbc496dffa0e96::t_269e9c87c81934 10
+ROADMAP.md
+  s_fbc496dffa0e96::t_2721dd0376d89d 33,38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a951f408dc0c3de5b8c2095c1c4d847b60f4285a",
+  "prompts": {},
+  "sessions": {
+    "s_fbc496dffa0e96": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "652f2b9d-5a18-4cca-8f56-9faf34444282",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
