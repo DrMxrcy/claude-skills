@@ -1,0 +1,24 @@
+.roadmap/config.json
+  h_d6b80c4f15405d 250
+.roadmap/plans/027-parallel-safe-roadmap-builds-per-item-worktrees-fresh-session-orchestration-pending-decision-handoff-and-per-item-token-spend.md
+  h_d6b80c4f15405d 42-43
+ROADMAP.md
+  h_d6b80c4f15405d 23-24
+skills/roadmap/scripts/rmlib/handoff_note.py
+  h_d6b80c4f15405d 1-58
+skills/roadmap/scripts/roadmap.py
+  h_d6b80c4f15405d 61-63,221-225,410-423,428-436
+tests/test_roadmap.py
+  h_d6b80c4f15405d 2126-2159
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8722231268fc6df7aef3b093b6a62c26c6bfd665",
+  "prompts": {},
+  "humans": {
+    "h_d6b80c4f15405d": {
+      "author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
