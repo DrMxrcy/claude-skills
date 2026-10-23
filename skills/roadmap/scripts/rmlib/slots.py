@@ -408,17 +408,18 @@ def _checkout_slots(root: Path) -> list[dict[str, str]]:
 # ---- lock ---------------------------------------------------------------
 
 @contextlib.contextmanager
-def _locked(root: Path):
+def _locked(root: Path, name: str = "roadmap-slots"):
     """Exclusive lock shared by every checkout of the clone (the git common
-    dir); outside git, a temp-dir lock keyed by the project path."""
+    dir); outside git, a temp-dir lock keyed by the project path. `name`
+    picks the lock file, so unrelated writers (the run log) never contend."""
     common = _git(root, "rev-parse", "--git-common-dir")
     if common and common.strip():
         d = Path(common.strip())
         d = d if d.is_absolute() else (root / d)
-        path = d / "roadmap-slots.lock"
+        path = d / f"{name}.lock"
     else:
         h = hashlib.md5(str(root.resolve()).encode("utf-8")).hexdigest()[:12]
-        path = Path(tempfile.gettempdir()) / f"roadmap-slots-{h}.lock"
+        path = Path(tempfile.gettempdir()) / f"{name}-{h}.lock"
     with open(path, "a+b") as f:
         try:
             import fcntl
