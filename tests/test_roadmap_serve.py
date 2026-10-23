@@ -639,3 +639,35 @@ def test_api_ideas_carry_index_and_note(served):
     assert noted["note"].startswith(".roadmap/notes/") and noted["note"].endswith(".md")
     code, n = _get_json(base + "/api/note?path=" + noted["note"])
     assert code == 200 and "Long *form*." in n["body"]
+
+
+# --- pages (plan 31) ------------------------------------------------------
+
+def test_dashboard_html_has_router_and_pages(served):
+    base, _, _ = served
+    body = _get(base + "/")[2].decode()
+    for hook in ('"hashchange"', "parseRoute", '"#/plan/"', '"#/idea/"',
+                 '"#/notes/"', "/api/note?path=", "planPage", "ideaPage",
+                 "notePage", 'id="page"', "promote --index", "function md(",
+                 "SCROLL[", "scrollRestoration"):
+        assert hook in body, hook
+    # inline dropdown expansion is gone
+    assert "loadSteps" not in body and "openItems" not in body
+    # the tab is a route now, never stored
+    assert 'store.set("rm-tab"' not in body and 'store.get("rm-tab"' not in body
+
+
+def test_dashboard_html_markdown_renderer_is_dom_only(served):
+    """Plan/note markdown is untrusted: no HTML parsing sinks anywhere, and
+    hrefs are gated to http(s) and in-app #/ routes."""
+    base, _, _ = served
+    body = _get(base + "/")[2].decode()
+    for sink in (".innerHTML", "outerHTML", "insertAdjacentHTML",
+                 "document.write", "DOMParser", "createContextualFragment",
+                 "srcdoc", "eval(", "new Function"):
+        assert sink not in body, sink
+    assert r"const SAFE_HREF = /^(https?:\/\/[^\s]+|#\/[^\s]*)$/i;" in body
+    # every href assignment goes through link() (or a fixed tab route)
+    import re
+    assigns = re.findall(r"\.href\s*=\s*([^;]+);", body)
+    assert sorted(assigns) == sorted(['href', 'id === "roadmap" ? "#/" : "#/"+id']), assigns

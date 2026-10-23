@@ -161,8 +161,69 @@
   .ob .bname { overflow-wrap:anywhere; }
   .ob .muted { color:var(--muted); }
   .ob .ahead { color:var(--build); }
+  /* ---- pages (plan 31): #/plan/<id>, #/idea/<n>, #/notes/<file> -------- */
+  a { color:var(--accent); }
+  .tab { text-decoration:none; }
+  .item .t a { color:inherit; text-decoration:none; }
+  .item .t a:hover { text-decoration:underline; }
+  .idea a.body { color:inherit; text-decoration:none; }
+  .idea a.body:hover { text-decoration:underline; }
+  .page { display:flex; flex-direction:column; gap:14px; }
+  .crumb { display:flex; gap:12px; align-items:baseline; flex-wrap:wrap;
+    font-size:12px; color:var(--muted); }
+  .crumb a { color:var(--muted); text-decoration:none; }
+  .crumb a:hover { color:var(--fg); }
+  .crumb .path { overflow-wrap:anywhere; }
+  .phead { display:flex; flex-direction:column; gap:8px; }
+  .phead h2 { margin:0; font-size:17px; font-weight:600; display:flex;
+    gap:10px; align-items:baseline; flex-wrap:wrap; }
+  .phead h2 .num { color:var(--muted); font-weight:400; }
+  .pmeta { display:flex; gap:8px; align-items:center; flex-wrap:wrap;
+    font-size:12px; color:var(--muted); }
+  .pmeta .flight { margin-top:0; }
+  .facts { display:grid; grid-template-columns:auto 1fr; gap:6px 14px;
+    font-size:12px; border-top:1px solid var(--line); padding-top:10px; }
+  .facts > .k { color:var(--muted); }
+  .facts > .v { display:flex; gap:8px; flex-wrap:wrap; overflow-wrap:anywhere;
+    min-width:0; }
+  .facts a { text-decoration:none; }
+  .facts a:hover { text-decoration:underline; }
+  .facts .blk { color:var(--blocked); }
+  .hint { font-size:12px; color:var(--muted); border:1px dashed var(--line);
+    border-radius:6px; padding:8px 10px; }
+  .hint code { color:var(--fg); }
+  .md { border-top:1px solid var(--line); padding-top:6px;
+    overflow-wrap:anywhere; min-width:0; }
+  .md h1, .md h2, .md h3, .md h4, .md h5, .md h6 { margin:18px 0 6px;
+    font-weight:600; line-height:1.3; }
+  .md h1 { font-size:16px; } .md h2 { font-size:15px; }
+  .md h3 { font-size:14px; } .md h4, .md h5, .md h6 { font-size:13px;
+    color:var(--muted); }
+  .md p { margin:6px 0; }
+  .md ul, .md ol { margin:4px 0; padding-left:22px; }
+  .md li { margin:2px 0; }
+  .md li.task { list-style:none; margin-left:-18px; display:flex; gap:8px;
+    align-items:baseline; }
+  .md li.task > .box { flex:none; color:var(--todo); }
+  .md li.task.done > .box { color:var(--done); }
+  .md li.task > .tbody { min-width:0; flex:1; }
+  .md li.task.done > .tbody > .ttext { color:var(--muted); }
+  .md code { background:var(--bar); border-radius:4px; padding:0 4px;
+    font-size:12px; }
+  .md pre { background:var(--bar); border:1px solid var(--line);
+    border-radius:6px; padding:10px 12px; overflow-x:auto; font-size:12px; }
+  .md pre code { background:none; padding:0; white-space:pre; }
+  .md blockquote { margin:6px 0; padding:2px 12px; color:var(--muted);
+    border-left:3px solid var(--line); }
+  .md hr { border:0; border-top:1px solid var(--line); margin:14px 0; }
+  .md .tw { overflow-x:auto; }
+  .md table { border-collapse:collapse; font-size:12px; margin:6px 0; }
+  .md th, .md td { border:1px solid var(--line); padding:4px 8px;
+    text-align:left; vertical-align:top; }
+  .md th { color:var(--muted); font-weight:600; }
   @media (max-width:640px) {
     header, main { padding-left:16px; padding-right:16px; }
+    .facts { grid-template-columns:1fr; }
     .ctrls { margin-left:0; flex-wrap:wrap; }
     .bar { width:60px; }
     .ob { grid-template-columns:1fr auto; }
@@ -198,6 +259,7 @@
   <div id="app"><div class="empty">connecting…</div></div>
   <div id="ideas" hidden></div>
   <div id="changelog" hidden></div>
+  <div id="page" hidden></div>
 </main>
 <script>
 // All text goes in via textContent (attributes via properties) — never parsed
@@ -230,10 +292,9 @@ const inFlight = it => laneOf(it) !== "done" && !!(it.branch || it.claim);
 const prefs = store.get("rm-prefs", {}) || {};
 const savePrefs = () => store.set("rm-prefs", prefs);
 const isOpen = (v,cur) => (v in prefs) ? prefs[v] : (v === cur);
-// Items the user drilled into (checklist expanded). Persisted across reloads.
-const openItems = new Set(Array.isArray(store.get("rm-open-items", []))
-  ? store.get("rm-open-items", []) : []);
-const saveOpenItems = () => store.set("rm-open-items", [...openItems]);
+// Items open in a page now (plan 31) — the inline-expand key and the
+// remembered tab (now a #/ route) are retired.
+for(const k of ["rm-open-items","rm-tab"]){ try { localStorage.removeItem(k); } catch(_){} }
 // Client-side filters, remembered per browser.
 const FILT = Object.assign({open:false, lane:""}, store.get("rm-filters", {}) || {});
 const saveFilt = () => store.set("rm-filters", FILT);
@@ -355,60 +416,17 @@ function flightLine(it){
   return line;
 }
 
-function loadSteps(it, panel){
-  fetch("/api/item?id="+it.id+"&root="+viewRoot(it),{cache:"no-store"})
-   .then(r=>r.json()).then(d=>{
-    panel.replaceChildren();
-    if(d.error){ panel.appendChild(txt("div","muted", d.error)); return; }
-    if(d.note) panel.appendChild(txt("div","note", d.note));
-    if(!d.steps || !d.steps.length)
-      panel.appendChild(txt("div","muted","no checklist steps in this plan"));
-    for(const s of (d.steps||[])){
-      const line = el("div","step");
-      line.appendChild(txt("span","box"+(s.done?" done":""), s.done?"✓":"○"));
-      line.appendChild(txt("span","stext"+(s.done?" done":""), s.text));
-      panel.appendChild(line);
-    }
-    if(d.claim){
-      const c = d.claim, box = el("div","claim");
-      box.appendChild(txt("h4",null,"claim"));
-      box.appendChild(txt("div",null, [c.stage, c.verdict, c.note,
-        c.updated && "updated "+c.updated].filter(Boolean).join(" · ")));
-      panel.appendChild(box);
-    }
-    const b = d.branch;
-    if(b){
-      const box = el("div","commits");
-      box.appendChild(txt("h4",null, "branch "+b.name+(b.ahead?" · +"+b.ahead:"")
-        +(b.behind?" · -"+b.behind+" behind":"")+(b.merged?" · merged":"")));
-      const cs = b.commits || [];
-      if(!cs.length) box.appendChild(txt("div","muted","no commits ahead of trunk"));
-      for(const c of cs){
-        const row = el("div","commit");
-        row.appendChild(txt("span","sha", c.sha||""));
-        const a = txt("span","age", age(c.date)); a.title = c.date||"";
-        row.appendChild(a);
-        row.appendChild(txt("span","subj", c.subject||""));
-        box.appendChild(row);
-      }
-      if(b.ahead > cs.length)
-        box.appendChild(txt("div","muted","…"+(b.ahead-cs.length)+" more"));
-      panel.appendChild(box);
-    }
-    if(d.file) panel.appendChild(txt("div","file", ".roadmap/"+d.file));
-  }).catch(()=>{ panel.replaceChildren(txt("div","muted","failed to load")); });
-}
-
 function itemRow(it){
   const wrap = el("div","item-wrap");
   const row = el("div","item");
-  const isO = openItems.has(it.id);
   const fly = inFlight(it);
+  const href = "#/plan/"+it.id;
   row.appendChild(el("span","dot "+lg(it)));
   const title = el("span","title");
-  title.appendChild(txt("span","icaret", isO?"▾":"▸"));
   title.appendChild(txt("span","num", it.displayId || "#"+it.id));
-  title.appendChild(txt("span","t", it.title));
+  const t = el("span","t");
+  t.appendChild(link(href, it.title));
+  title.appendChild(t);
   title.appendChild(txt("span","badge", it.type));
   if(VIEW === "all" && it.checkout) title.appendChild(txt("span","badge", it.checkout));
   if(it.blockedBy && it.blockedBy.length)
@@ -417,29 +435,25 @@ function itemRow(it){
   row.appendChild(title);
   const right = el("span","right");
   if(fly) right.appendChild(laneBadge(it));
-  // Trunk checkboxes tick at the merge gate, so an in-flight item at 0% gets
-  // a striped lane-coloured bar instead of an empty one that reads as idle.
+  right.appendChild(progressBar(it, fly));
+  right.appendChild(txt("span","frac", (it.done||0)+"/"+(it.total||0)));
+  row.appendChild(right);
+  if(fly) row.appendChild(flightLine(it));
+  // The whole row opens the plan page; the title is a real link, so
+  // middle-click / copy-link / open-in-new-tab work too.
+  row.onclick = e => { if(!e.target.closest("a")) location.hash = href; };
+  wrap.appendChild(row);
+  return wrap;
+}
+
+// Trunk checkboxes tick at the merge gate, so an in-flight item at 0% gets a
+// striped lane-coloured bar instead of an empty one that reads as idle.
+function progressBar(it, fly){
   const bar = el("span","bar"+(fly && !(it.pct>0) ? " inflight "+lg(it) : ""));
   if(fly && !(it.pct>0)) bar.title = "in flight on a branch — trunk ticks at merge";
   const fill = el("i");
   fill.style.width = (it.pct||0)+"%"; bar.appendChild(fill);
-  right.appendChild(bar);
-  right.appendChild(txt("span","frac", (it.done||0)+"/"+(it.total||0)));
-  row.appendChild(right);
-  if(fly) row.appendChild(flightLine(it));
-  row.onclick = () => {
-    openItems.has(it.id) ? openItems.delete(it.id) : openItems.add(it.id);
-    saveOpenItems();
-    if(LAST) render(LAST);
-  };
-  wrap.appendChild(row);
-  if(isO){
-    const panel = el("div","steps");
-    panel.appendChild(txt("div","muted","loading…"));
-    wrap.appendChild(panel);
-    loadSteps(it, panel);
-  }
-  return wrap;
+  return bar;
 }
 
 function verSection(v, items, cur){
@@ -593,68 +607,429 @@ document.getElementById("collapseAll").onclick = () => {
 
 // Server-Sent Events: server pushes a fresh status on every .roadmap or
 // branch-ref change. EventSource auto-reconnects on drop, so a closed
-// terminal just goes stale-grey.
+// terminal just goes stale-grey. A refresh re-renders whatever route is
+// open, in place, keeping the route and the scroll position.
 let es;
 function connect(){
   es = new EventSource("/events");
   es.onmessage = ev => { try { LASTP = JSON.parse(ev.data);
-    render(view(LASTP)); stale(false);
-    if(TAB === "ideas") loadIdeas();
-    if(TAB === "changelog") loadChangelog(); } catch(_){} };
+    render(view(LASTP)); stale(false); refreshRoute(); } catch(_){} };
   es.onerror = () => stale(true);
 }
 document.getElementById("rootsel").addEventListener("change", e => {
   const v = e.target.value;
   VIEW = (v === "trunk" || v === "all") ? v : (parseInt(v, 10) || 0);
   if(LASTP) render(view(LASTP));   // view switch is local — no reconnect
-  if(TAB !== "roadmap") setTab(TAB);   // re-fetch the open pane for this root
-});
-// A page restored from the back/forward cache keeps its JS state; a fresh
-// view is still the rule, so reset it there too.
-window.addEventListener("pageshow", e => {
-  if(e.persisted && VIEW !== DEFAULT_VIEW){
-    VIEW = DEFAULT_VIEW; if(LASTP) render(view(LASTP));
-  }
+  refreshRoute();                  // re-fetch the open pane/page for this root
 });
 // Relative ages ("3h ago") drift without new data; refresh them each minute.
-setInterval(() => { if(LAST && TAB === "roadmap") render(LAST); }, 60000);
-// ---- tabs -------------------------------------------------------------
-// Three read-only views over the same server. Roadmap is SSE-driven; Ideas and
-// Changelog are fetched on activation and refreshed whenever a new SSE payload
-// lands, so they track edits without their own polling.
-const TABS = [["roadmap","Roadmap"],["ideas","Ideas"],["changelog","Changelog"]];
-let TAB = store.get("rm-tab", "roadmap");
-if(!TABS.some(t=>t[0]===TAB)) TAB = "roadmap";
-const paneOf = t => document.getElementById(t==="roadmap" ? "app" : t);
+setInterval(() => { if(LAST && ROUTE.name === "roadmap") render(LAST); }, 60000);
 
-function renderTabs(counts){
-  const bar = document.getElementById("tabs");
-  bar.replaceChildren(...TABS.map(([id,label])=>{
-    const b = el("div","tab"+(id===TAB?" on":""));
-    b.appendChild(document.createTextNode(label));
-    if(counts && counts[id] != null) b.appendChild(txt("span","n", counts[id]));
-    b.onclick = () => setTab(id);
-    return b;
+// ---- routes (plan 31) -------------------------------------------------
+// Hash routes, so deep links and Back work without any server change:
+//   #/  #/ideas  #/changelog          the three list tabs
+//   #/plan/<id>  #/idea/<n>  #/notes/<root-relative .md path>   full pages
+// The route lives only in the URL; nothing about it is stored.
+const TABS = [["roadmap","Roadmap"],["ideas","Ideas"],["changelog","Changelog"]];
+const TABCOUNTS = {};
+const LISTS = ["roadmap","ideas","changelog"];
+const paneOf = t => document.getElementById(t==="roadmap" ? "app" : t);
+const rootParam = () => "root=" + viewRoot(null);
+let ROUTE = {name:"roadmap"};
+let PREV_HASH = "";          // where a note page's "back" link goes
+const SCROLL = {};           // list scroll positions, restored on return
+try { history.scrollRestoration = "manual"; } catch(_){}
+
+function parseRoute(h){
+  const parts = String(h||"").replace(/^#\/?/, "").split("/");
+  const head = parts[0] || "";
+  if(head === "plan" && /^\d+$/.test(parts[1]||"")) return {name:"plan", id:+parts[1]};
+  if(head === "idea" && /^\d+$/.test(parts[1]||"")) return {name:"idea", n:+parts[1]};
+  if(head === "notes" && parts.length > 1){
+    let p = parts.slice(1).join("/");
+    try { p = decodeURIComponent(p); } catch(_){ return {name:"roadmap"}; }
+    return {name:"notes", path:p};
+  }
+  if(head === "ideas" || head === "changelog") return {name:head};
+  return {name:"roadmap"};
+}
+const noteHref = p => "#/notes/" + encodeURIComponent(p).replace(/%2F/g, "/");
+const tabOf = r => r.name === "plan" ? "roadmap" : r.name === "idea" ? "ideas"
+  : LISTS.includes(r.name) ? r.name : "";
+
+// An in-app link: text only, and only an http(s) URL or a #/ route is ever
+// assigned as href (anything else renders as plain text).
+const SAFE_HREF = /^(https?:\/\/[^\s]+|#\/[^\s]*)$/i;
+function link(href, text, cls){
+  if(!SAFE_HREF.test(String(href||""))) return txt("span", cls||null, text);
+  const a = txt("a", cls||null, text);
+  a.href = href;
+  if(/^https?:/i.test(href)){ a.target = "_blank"; a.rel = "noopener noreferrer"; }
+  return a;
+}
+
+function renderTabs(){
+  const cur = tabOf(ROUTE);
+  document.getElementById("tabs").replaceChildren(...TABS.map(([id,label])=>{
+    const a = el("a","tab"+(id===cur?" on":""));
+    a.href = id === "roadmap" ? "#/" : "#/"+id;
+    a.appendChild(document.createTextNode(label));
+    if(TABCOUNTS[id] != null) a.appendChild(txt("span","n", TABCOUNTS[id]));
+    return a;
   }));
 }
 
-function setTab(t){
-  TAB = t; store.set("rm-tab", t);
-  for(const [id] of TABS) paneOf(id).hidden = id !== t;
-  document.getElementById("rmctrls").hidden = t !== "roadmap";
-  renderTabs(TABCOUNTS);
-  if(t === "ideas") loadIdeas();
-  if(t === "changelog") loadChangelog();
+function showPane(name){
+  for(const id of [...LISTS, "page"])
+    (id === "page" ? document.getElementById("page") : paneOf(id)).hidden = id !== name;
+  document.getElementById("rmctrls").hidden = name !== "roadmap";
 }
 
-const TABCOUNTS = {};
-const rootParam = () => "?root=" + viewRoot(null);
+function onRoute(){
+  const leaving = ROUTE;
+  if(LISTS.includes(leaving.name)) SCROLL[leaving.name] = window.scrollY;
+  ROUTE = parseRoute(location.hash);
+  renderTabs();
+  if(LISTS.includes(ROUTE.name)){
+    showPane(ROUTE.name);
+    if(ROUTE.name === "roadmap" && LAST) render(LAST);
+    const y = SCROLL[ROUTE.name] || 0;
+    const done = () => window.scrollTo(0, y);
+    if(ROUTE.name === "ideas") loadIdeas(done);
+    else if(ROUTE.name === "changelog") loadChangelog(done);
+    else done();
+  } else {
+    showPane("page");
+    window.scrollTo(0, 0);
+    renderPage(false);
+  }
+}
+window.addEventListener("hashchange", () => {
+  PREV_HASH = ROUTE.name === "notes" ? PREV_HASH : routeHash(ROUTE);
+  onRoute();
+});
+function routeHash(r){
+  return r.name === "plan" ? "#/plan/"+r.id : r.name === "idea" ? "#/idea/"+r.n
+    : r.name === "notes" ? noteHref(r.path) : r.name === "roadmap" ? "#/" : "#/"+r.name;
+}
 
-function loadIdeas(){
+// Re-render the open route after an SSE payload or a view switch.
+function refreshRoute(){
+  if(ROUTE.name === "ideas") loadIdeas();
+  else if(ROUTE.name === "changelog") loadChangelog();
+  else if(!LISTS.includes(ROUTE.name)) renderPage(true);
+}
+
+// Fetch → build off-DOM → swap in one go, then put the scroll back, so an
+// SSE refresh never jumps the page. A stale response (route changed while
+// in flight) is dropped.
+let PAGE_SEQ = 0;
+function renderPage(inPlace){
+  const pane = document.getElementById("page");
+  const seq = ++PAGE_SEQ, r = ROUTE;
+  if(!inPlace) pane.replaceChildren(txt("div","empty","loading…"));
+  // A deep link loads before the first SSE payload; which checkout to read
+  // depends on it, so wait — connect()'s first message re-renders the route.
+  if(!LASTP) return;
+  const build = r.name === "plan" ? planPage(r) : r.name === "idea" ? ideaPage(r)
+    : notePage(r);
+  build.then(nodes => {
+    if(seq !== PAGE_SEQ) return;
+    const y = window.scrollY;
+    pane.replaceChildren(...nodes);
+    if(inPlace) window.scrollTo(0, y);
+  }).catch(() => {
+    if(seq === PAGE_SEQ && !inPlace)
+      pane.replaceChildren(txt("div","empty","failed to load"));
+  });
+}
+
+const getJSON = url => fetch(url, {cache:"no-store"}).then(r => r.json());
+
+function crumb(backHref, backLabel, path){
+  const c = el("div","crumb");
+  c.appendChild(link(backHref, "← "+backLabel));
+  if(path) c.appendChild(txt("span","path", path));
+  return c;
+}
+function fact(box, key, ...vals){
+  const v = el("span","v");
+  for(const x of vals) if(x) v.appendChild(typeof x === "string" ? txt("span",null,x) : x);
+  if(!v.childNodes.length) return;
+  box.appendChild(txt("span","k", key));
+  box.appendChild(v);
+}
+
+// ---- plan page --------------------------------------------------------
+function planPage(r){
+  // Which checkout to read: the one the current view shows this item from.
+  const items = (LAST && LAST.items) || [];
+  const it = items.find(x => x.id === r.id);
+  return getJSON("/api/item?id="+r.id+"&root="+viewRoot(it)).then(d => {
+    const out = [crumb("#/", "roadmap", d.planPath || "")];
+    if(d.error){ out.push(txt("div","empty", d.error)); return out; }
+    const row = {...(it||{}), ...d};   // list row fields + fresh detail
+    const fly = inFlight(row);
+    const head = el("div","phead");
+    const h = el("h2");
+    h.appendChild(txt("span","num", d.displayId || "#"+d.id));
+    h.appendChild(txt("span",null, d.title||""));
+    head.appendChild(h);
+    const meta = el("div","pmeta");
+    meta.appendChild(el("span","dot "+lg(row)));
+    meta.appendChild(laneBadge(row));
+    meta.appendChild(txt("span","badge", d.type||""));
+    if(d.version) meta.appendChild(txt("span","badge", "v"+d.version));
+    if(d.status) meta.appendChild(txt("span","badge", d.status));
+    meta.appendChild(progressBar(row, fly));
+    meta.appendChild(txt("span","frac", (row.done||0)+"/"+(row.total||0)));
+    head.appendChild(meta);
+    if(fly) { const f = flightLine(row); head.appendChild(f); }
+    out.push(head);
+
+    const facts = el("div","facts");
+    if(d.note) fact(facts, "note", d.note);
+    const c = d.claim;
+    if(c){
+      const v = [];
+      if(c.stage) v.push(txt("span","lane "+lg(row), c.stage));
+      if(c.verdict) v.push(txt("span","verdict "+c.verdict, c.verdict));
+      if(c.note) v.push(c.note);
+      if(c.updated) v.push("updated "+c.updated);
+      if(c.branch) v.push("branch "+c.branch);
+      fact(facts, "claim", ...v);
+    }
+    const planLinks = ids => (ids||[]).map(x => link("#/plan/"+x, "#"+x));
+    fact(facts, "depends on", ...planLinks(d.dependsOn));
+    if(d.blockedBy && d.blockedBy.length){
+      const s = el("span","blk");
+      s.appendChild(document.createTextNode("blocked by "));
+      for(const a of planLinks(d.blockedBy)){ s.appendChild(a);
+        s.appendChild(document.createTextNode(" ")); }
+      fact(facts, "blocked", s);
+    }
+    const b = d.branch;
+    if(b) fact(facts, "branch", b.name, b.ahead ? "+"+b.ahead+" ahead" : "",
+      b.behind ? "-"+b.behind+" behind" : "", b.merged ? "merged" : "",
+      b.taggedCommits ? b.taggedCommits+" tagged" : "",
+      b.worktree ? "wt "+base(b.worktree) : "");
+    if(d.planPath) fact(facts, "plan file", link(noteHref(d.planPath), d.planPath));
+    if(d.notes && d.notes.length)
+      fact(facts, "notes", ...d.notes.map(n => link(noteHref(n), n)));
+    if(facts.childNodes.length) out.push(facts);
+
+    if(b){
+      const box = el("div","commits");
+      box.appendChild(txt("h4",null, "commits on "+b.name+" not on trunk"));
+      const cs = b.commits || [];
+      if(!cs.length) box.appendChild(txt("div","muted","no commits ahead of trunk"));
+      for(const cm of cs){
+        const line = el("div","commit");
+        line.appendChild(txt("span","sha", cm.sha||""));
+        const a = txt("span","age", age(cm.date)); a.title = cm.date||"";
+        line.appendChild(a);
+        line.appendChild(txt("span","subj", cm.subject||""));
+        box.appendChild(line);
+      }
+      if(b.ahead > cs.length)
+        box.appendChild(txt("div","muted","…"+(b.ahead-cs.length)+" more"));
+      out.push(box);
+    }
+    out.push(md(d.body || "", d.planPath || ""));
+    return out;
+  });
+}
+
+// ---- idea page --------------------------------------------------------
+function ideaPage(r){
+  return getJSON("/api/ideas?"+rootParam()).then(d => {
+    const out = [crumb("#/ideas", "ideas", d.file || "")];
+    const b = (d.bullets||[]).find(x => x.index === r.n);
+    if(!b){ out.push(txt("div","empty", d.error || "no idea #"+r.n
+      +" — the incubator may have changed")); return out; }
+    const head = el("div","phead");
+    const h = el("h2");
+    h.appendChild(txt("span","num", "idea "+b.index));
+    h.appendChild(txt("span",null, b.title || b.body));
+    head.appendChild(h);
+    out.push(head);
+    if((b.body || "") !== (b.title || "")){   // body carries more than the title
+      const bullet = el("div","md");
+      const p = el("p"); inline(p, b.body || "", d.file || ""); bullet.appendChild(p);
+      out.push(bullet);
+    }
+    const hint = el("div","hint");
+    hint.appendChild(document.createTextNode("Promote to a plan (the dashboard is read-only — run it in a terminal): "));
+    hint.appendChild(txt("code",null, "roadmap.py promote --index "+b.index+" --type feature"));
+    out.push(hint);
+    if(!b.note) return out;
+    const facts = el("div","facts");
+    fact(facts, "notes", link(noteHref(b.note), b.note));
+    out.push(facts);
+    return getJSON("/api/note?path="+encodeURIComponent(b.note)+"&"+rootParam())
+      .then(n => { out.push(n.error ? txt("div","muted", n.error)
+        : md(n.body || "", b.note)); return out; });
+  });
+}
+
+// ---- note page --------------------------------------------------------
+function notePage(r){
+  const back = PREV_HASH || "#/";
+  return getJSON("/api/note?path="+encodeURIComponent(r.path)+"&"+rootParam())
+    .then(n => [crumb(back, "back", r.path),
+      n.error ? txt("div","empty", n.error) : md(n.body || "", r.path)]);
+}
+
+// ---- markdown → DOM -----------------------------------------------------
+// A deliberately small renderer for plan and note files: headings, lists
+// (nested, with [ ] / [x] tasks), fenced code, quotes, tables, rules and
+// inline code / bold / italic / strike / links. It only ever creates
+// elements and text nodes — no HTML string is parsed — and links go through
+// link(): http(s) URLs and .md paths that map to a #/notes route, nothing else.
+const FM = /^---\r?\n[\s\S]*?\r?\n---\r?\n?/;
+function md(src, path){
+  const root = el("div","md");
+  const lines = String(src).replace(FM, "").replace(/\r\n?/g, "\n").split("\n");
+  let i = 0, para = null, stack = [];   // stack: [{indent, list}]
+  const flush = () => { para = null; };
+  const closeLists = () => { stack = []; };
+  const appendBlock = node => { flush(); closeLists(); root.appendChild(node); };
+  while(i < lines.length){
+    const line = lines[i];
+    let m;
+    if((m = line.match(/^\s*(```|~~~)/))){
+      const fence = m[1], buf = [];
+      i++;
+      while(i < lines.length && !lines[i].trim().startsWith(fence)) buf.push(lines[i++]);
+      i++;
+      const pre = el("pre"); pre.appendChild(txt("code",null, buf.join("\n")));
+      appendBlock(pre); continue;
+    }
+    if(!line.trim()){ flush(); i++; continue; }
+    if((m = line.match(/^(#{1,6})\s+(.*?)\s*#*\s*$/))){
+      const h = el("h"+m[1].length); inline(h, m[2], path); appendBlock(h); i++; continue;
+    }
+    if(/^\s{0,3}([-*_])(\s*\1){2,}\s*$/.test(line)){ appendBlock(el("hr")); i++; continue; }
+    if(/^\s*>/.test(line)){
+      const buf = [];
+      while(i < lines.length && /^\s*>/.test(lines[i]))
+        buf.push(lines[i++].replace(/^\s*>\s?/, ""));
+      const q = el("blockquote"), inner = md(buf.join("\n"), path);
+      inner.className = "";
+      q.appendChild(inner);
+      appendBlock(q); continue;
+    }
+    if(/^\s*\|.*\|\s*$/.test(line) && i+1 < lines.length
+       && /^\s*\|?\s*:?-{2,}/.test(lines[i+1])){
+      const cells = l => l.trim().replace(/^\||\|$/g, "").split("|").map(c => c.trim());
+      const table = el("table"), thead = el("thead"), tbody = el("tbody");
+      const hr = el("tr");
+      for(const c of cells(line)){ const th = el("th"); inline(th, c, path); hr.appendChild(th); }
+      thead.appendChild(hr); table.appendChild(thead);
+      i += 2;
+      while(i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])){
+        const tr = el("tr");
+        for(const c of cells(lines[i++])){ const td = el("td"); inline(td, c, path); tr.appendChild(td); }
+        tbody.appendChild(tr);
+      }
+      table.appendChild(tbody);
+      const w = el("div","tw"); w.appendChild(table); appendBlock(w); continue;
+    }
+    if((m = line.match(/^(\s*)([-*+]|\d+[.)])\s+(.*)$/))){
+      flush();
+      const indent = m[1].replace(/\t/g, "    ").length;
+      const ordered = /\d/.test(m[2]);
+      while(stack.length && indent < stack[stack.length-1].indent) stack.pop();
+      let top = stack[stack.length-1];
+      if(!top || indent > top.indent){
+        const list = el(ordered ? "ol" : "ul");
+        if(top && top.list.lastChild) (top.list.lastChild.querySelector(":scope > .tbody")
+          || top.list.lastChild).appendChild(list);
+        else root.appendChild(list);
+        top = {indent, list}; stack.push(top);
+      }
+      const li = el("li");
+      const task = m[3].match(/^\[([ xX])\]\s*(.*)$/);
+      if(task){
+        const done = task[1] !== " ";
+        li.className = "task" + (done ? " done" : "");
+        li.appendChild(txt("span","box", done ? "✓" : "○"));
+        const body = el("span","tbody"), t = el("span","ttext");
+        inline(t, task[2], path); body.appendChild(t); li.appendChild(body);
+      } else inline(li, m[3], path);
+      top.list.appendChild(li);
+      i++; continue;
+    }
+    // continuation of a list item or a paragraph
+    if(stack.length && /^\s+\S/.test(line) && !para){
+      const li = stack[stack.length-1].list.lastChild;
+      const tgt = (li && li.querySelector(":scope > .tbody > .ttext")) || li;
+      if(tgt){ tgt.appendChild(document.createTextNode(" ")); inline(tgt, line.trim(), path); }
+      i++; continue;
+    }
+    closeLists();
+    if(!para){ para = el("p"); root.appendChild(para); }
+    else para.appendChild(document.createTextNode(" "));
+    inline(para, line.trim(), path);
+    i++;
+  }
+  return root;
+}
+
+// Resolve a markdown link target to an in-app route or a safe external URL;
+// "" means render the link text only.
+function mdHref(ref, path){
+  ref = String(ref||"").trim();
+  if(/^https?:\/\//i.test(ref)) return ref;
+  if(/^#\//.test(ref)) return ref;
+  const clean = ref.split("#")[0];
+  if(!/\.md$/i.test(clean) || /^[a-z]+:/i.test(clean) || clean.startsWith("/")) return "";
+  const dir = String(path||"").split("/").slice(0, -1);
+  const tries = [clean.startsWith(".roadmap/") ? [] : dir, [".roadmap"], []];
+  for(const b of tries){
+    const out = [];
+    let ok = true;
+    for(const seg of [...b, ...clean.split("/")]){
+      if(seg === "" || seg === ".") continue;
+      if(seg !== "..") out.push(seg);
+      else if(out.length) out.pop();
+      else { ok = false; break; }   // climbs above the project root
+    }
+    const p = out.join("/");
+    if(ok && /^\.roadmap\/(notes|plans)\/[^/]+\.md$/.test(p)) return noteHref(p);
+  }
+  return "";
+}
+
+const INLINE_SRC = /(`+)([\s\S]*?[^`])\1(?!`)|!?\[([^\]]*)\]\(([^)\s]*)(?:\s+"[^"]*")?\)|\*\*([^*]+)\*\*|__([^_]+)__|~~([^~]+)~~|\*([^*\s][^*]*)\*|(?<![\w])_([^_\s][^_]*)_(?![\w])|(https?:\/\/[^\s<>()]+[^\s<>().,;:!?'"])/g;
+function inline(parent, s, path){
+  s = String(s||"");
+  let last = 0, m;
+  const re = new RegExp(INLINE_SRC.source, "g");   // own lastIndex: inline() recurses
+  while((m = re.exec(s))){
+    if(m.index > last) parent.appendChild(document.createTextNode(s.slice(last, m.index)));
+    if(m[1]) parent.appendChild(txt("code",null, m[2]));
+    else if(m[4] !== undefined && m[0][0] !== "!"){
+      const href = mdHref(m[4], path);
+      const a = href ? link(href, "") : el("span");
+      inline(a, m[3], path); parent.appendChild(a);
+    }
+    else if(m[4] !== undefined) parent.appendChild(document.createTextNode(m[3] || ""));
+    else if(m[5] || m[6]){ const b = el("strong"); inline(b, m[5]||m[6], path); parent.appendChild(b); }
+    else if(m[7]){ const d = el("del"); inline(d, m[7], path); parent.appendChild(d); }
+    else if(m[8] || m[9]){ const e = el("em"); inline(e, m[8]||m[9], path); parent.appendChild(e); }
+    else if(m[10]) parent.appendChild(link(m[10], m[10]));
+    last = re.lastIndex;
+  }
+  if(last < s.length) parent.appendChild(document.createTextNode(s.slice(last)));
+}
+
+// ---- list tabs ----------------------------------------------------------
+function loadIdeas(after){
   const pane = document.getElementById("ideas");
-  fetch("/api/ideas"+rootParam(),{cache:"no-store"}).then(r=>r.json()).then(d=>{
+  getJSON("/api/ideas?"+rootParam()).then(d=>{
     const items = d.bullets || [];
-    TABCOUNTS.ideas = items.length; renderTabs(TABCOUNTS);
+    TABCOUNTS.ideas = items.length; renderTabs();
     if(!items.length){
       pane.replaceChildren(txt("div","empty",
         d.error || "no ideas parked yet — /roadmap-idea · /roadmap-idea"));
@@ -664,23 +1039,28 @@ function loadIdeas(){
     for(const b of items){
       const row = el("div","idea");
       row.appendChild(txt("span","bullet","•"));
-      row.appendChild(txt("span","body", b.body));
+      row.appendChild(link("#/idea/"+b.index, b.title || b.body, "body"));
+      if(b.note) row.appendChild(txt("span","badge","notes"));
       out.push(row);
     }
+    const y = window.scrollY;
     pane.replaceChildren(...out);
-  }).catch(()=>pane.replaceChildren(txt("div","empty","failed to load ideas")));
+    if(!after) window.scrollTo(0, y);
+  }).catch(()=>pane.replaceChildren(txt("div","empty","failed to load ideas")))
+    .finally(()=>{ if(after) after(); });
 }
 
-function loadChangelog(){
+function loadChangelog(after){
   const pane = document.getElementById("changelog");
-  fetch("/api/changelog"+rootParam(),{cache:"no-store"}).then(r=>r.json()).then(d=>{
+  getJSON("/api/changelog?"+rootParam()).then(d=>{
     const vers = Array.isArray(d) ? d : [];
-    TABCOUNTS.changelog = vers.length; renderTabs(TABCOUNTS);
+    TABCOUNTS.changelog = vers.length; renderTabs();
     if(!vers.length){
       pane.replaceChildren(txt("div","empty",
         (d && d.error) || "nothing user-facing published yet"));
       return;
     }
+    const y = window.scrollY;
     pane.replaceChildren(...vers.map(v=>{
       const sec = el("section","rel");
       const h = el("h3");
@@ -701,10 +1081,12 @@ function loadChangelog(){
         "…plus internal changes not shown here"));
       return sec;
     }));
-  }).catch(()=>pane.replaceChildren(txt("div","empty","failed to load changelog")));
+    if(!after) window.scrollTo(0, y);
+  }).catch(()=>pane.replaceChildren(txt("div","empty","failed to load changelog")))
+    .finally(()=>{ if(after) after(); });
 }
 
-setTab(TAB);
+onRoute();
 connect();
 </script>
 </body>
