@@ -32,9 +32,10 @@ from rmlib.parse import (  # noqa: E402
 
 from rmlib.ops import (  # noqa: E402
     TEMPLATE_BY_TYPE, _incomplete_items, _refuse_status_note,
-    backfill_changelog, check_step, clear_claim, import_file, merge_items, new_item,
+    backfill_changelog, check_step, clear_claim, clear_claims, import_file,
+    merge_items, new_item,
     promote_idea, release, release_gate, remove_item, reorder, retarget,
-    set_audience, set_claim, set_depends, set_note, set_release_summary)
+    set_audience, set_claim, set_claims, set_depends, set_note, set_release_summary)
 
 
 from rmlib.incubator import (  # noqa: E402
@@ -84,7 +85,8 @@ __all__ = [  # public facade: names re-exported for callers/tests/hooks (roadmap
     'uncut_complete_version', 'warn_incomplete_deps', 'MAX_ROADMAP_LINES', 'MAX_FREEFORM_LINES',
     'MAX_FREEFORM_CHARS', 'STEP_RE', '_is_fence', 'parse_plan',
     'count_progress', '_plan_path', 'CLAIM_STAGES', 'CLAIM_VERDICTS',
-    'CLAIM_FIELDS', 'read_claim', 'set_claim', 'clear_claim', 'TEMPLATE_BY_TYPE',
+    'CLAIM_FIELDS', 'read_claim', 'set_claim', 'clear_claim', 'set_claims',
+    'clear_claims', 'TEMPLATE_BY_TYPE',
     '_incomplete_items', '_refuse_status_note', 'backfill_changelog',
     'check_step', 'import_file', 'merge_items', 'new_item', 'promote_idea',
     'release', 'release_gate', 'remove_item', 'reorder', 'retarget', 'set_audience',
@@ -203,9 +205,11 @@ def main(argv: list[str]) -> int:
         return v
 
     p_claim = sub.add_parser(
-        "claim", help="record an item's in-flight stage/verdict (what git cannot know) "
-                      "in its plan frontmatter; --clear removes it")
-    p_claim.add_argument("id", help=ID_HELP)
+        "claim", help="record in-flight stage/verdict (what git cannot know) in the "
+                      "plan frontmatter of one or more items; --clear removes it")
+    p_claim.add_argument("ids", nargs="+", metavar="id",
+                         help=ID_HELP + "; several ids (or 7,8,9) get the same options, "
+                              "all-or-nothing")
     p_claim.add_argument("--stage", type=claim_stage, metavar="{" + ",".join(CLAIM_STAGES) + "}",
                          help="build-loop stage (required for a new claim)")
     p_claim.add_argument("--verdict", type=str.upper, choices=CLAIM_VERDICTS,
@@ -369,19 +373,22 @@ def main(argv: list[str]) -> int:
                        tokens=args.tokens)
             return 0
         if args.command == "claim":
-            plan_id = rid(args.id)
+            if args.clear and any(v is not None for v in
+                                  (args.stage, args.verdict, args.note, args.branch)):
+                p_claim.error("--clear takes no other options")
+            plan_ids = [n for tok in args.ids for n in rids(tok)]
+            if not plan_ids:
+                p_claim.error("no item id given")
             if args.clear:
-                if any(v is not None for v in
-                       (args.stage, args.verdict, args.note, args.branch)):
-                    p_claim.error("--clear takes no other options")
-                cleared = clear_claim(root, plan_id)
-                print(f"#{plan_id}: claim cleared" if cleared
-                      else f"#{plan_id}: no claim to clear")
+                for plan_id, cleared in clear_claims(root, plan_ids).items():
+                    print(f"#{plan_id}: claim cleared" if cleared
+                          else f"#{plan_id}: no claim to clear")
                 return 0
-            c = set_claim(root, plan_id, stage=args.stage, verdict=args.verdict,
-                          note=args.note, branch=args.branch)
-            print(f"#{plan_id}: " + " · ".join(f"{f}={c[f]}" for f in CLAIM_FIELDS
-                                                if c.get(f)))
+            claims = set_claims(root, plan_ids, stage=args.stage, verdict=args.verdict,
+                                note=args.note, branch=args.branch)
+            for plan_id, c in claims.items():
+                print(f"#{plan_id}: " + " · ".join(f"{f}={c[f]}" for f in CLAIM_FIELDS
+                                                    if c.get(f)))
             return 0
         if args.command == "release":
             release(root, args.version, tag=args.tag, force=args.force)

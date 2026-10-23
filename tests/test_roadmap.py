@@ -2914,6 +2914,55 @@ def test_check_undo_keeps_claim(roadmap, repo, monkeypatch):
     assert roadmap.read_claim(plan)["stage"] == "fixing"
 
 
+def _claim_repo3(roadmap, repo, monkeypatch):
+    _claim_repo(roadmap, repo, monkeypatch)
+    for title in ("B", "C"):
+        roadmap.new_item(repo, "feature", title)
+    return [repo / f".roadmap/plans/00{n}-{t}.md" for n, t in ((1, "a"), (2, "b"),
+                                                            (3, "c"))]
+
+
+def test_claim_many_ids_same_options(roadmap, repo, monkeypatch, capsys):
+    plans = _claim_repo3(roadmap, repo, monkeypatch)
+    assert roadmap.main(["claim", "1", "#2", "FEAT-3", "--stage", "gating",
+                         "--verdict", "CONFIRMED"]) == 0
+    out = capsys.readouterr().out.splitlines()
+    assert [l.split(":")[0] for l in out] == ["#1", "#2", "#3"]
+    for plan in plans:
+        c = roadmap.read_claim(plan)
+        assert (c["stage"], c["verdict"]) == ("gating", "CONFIRMED")
+    # comma lists and duplicates resolve to the same set, each item once
+    assert roadmap.main(["claim", "1,2", "2", "--stage", "review"]) == 0
+    assert len(capsys.readouterr().out.splitlines()) == 2
+    assert roadmap.read_claim(plans[2])["stage"] == "gating"
+    assert roadmap.main(["claim", "1", "2", "3", "--clear"]) == 0
+    assert capsys.readouterr().out.count("claim cleared") == 3
+    assert all(roadmap.read_claim(p) is None for p in plans)
+
+
+@pytest.mark.parametrize("bad", ["9", "BUG-2"])
+def test_claim_many_ids_all_or_nothing(roadmap, repo, monkeypatch, capsys, bad):
+    plans = _claim_repo3(roadmap, repo, monkeypatch)
+    roadmap.set_claim(repo, 3, stage="review")
+    before = [p.read_text() for p in plans]
+    assert roadmap.main(["claim", "1", bad, "3", "--stage", "gating"]) == 1
+    assert capsys.readouterr().err.startswith("Error:")
+    assert [p.read_text() for p in plans] == before
+    # a done item among them also blocks the whole batch
+    roadmap.check_step(repo, 2, None, all_done=True)
+    before = [p.read_text() for p in plans]
+    assert roadmap.main(["claim", "1", "2", "3", "--stage", "gating"]) == 1
+    assert "done" in capsys.readouterr().err
+    assert [p.read_text() for p in plans] == before
+    # so does an item with no claim when --stage is omitted
+    with pytest.raises(ValueError, match="no claim yet"):
+        roadmap.set_claims(repo, [3, 1], verdict="CONFIRMED")
+    assert roadmap.read_claim(plans[2])["verdict"] is None
+    # and --clear validates every id first
+    assert roadmap.main(["claim", "3", "9", "--clear"]) == 1
+    assert roadmap.read_claim(plans[2])["stage"] == "review"
+
+
 def test_claim_leaves_sync_output_and_status_unchanged(roadmap, repo, monkeypatch):
     plan = _claim_repo(roadmap, repo, monkeypatch)
     roadmap.check_step(repo, 1, 1)

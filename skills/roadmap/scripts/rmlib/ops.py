@@ -123,13 +123,12 @@ def _apply_claim(text: str, claim: dict | None) -> str:
     return "---\n" + "\n".join(keep) + "\n---\n" + text[m.end():]
 
 
-def set_claim(root: Path, plan_id: int, stage: str | None = None,
-              verdict: str | None = None, note: str | None = None,
-              branch: str | None = None) -> dict:
-    """Record (or update in place) an item's in-flight claim: the build-loop stage
-    and review verdict git cannot know. Fields not passed keep their prior values;
-    `updated` is always restamped. An empty --note/--branch removes that field.
-    Refused on a done item — trunk ticks are the only source of done."""
+def _prepare_claim(root: Path, plan_id: int, stage: str | None = None,
+                   verdict: str | None = None, note: str | None = None,
+                   branch: str | None = None) -> tuple[Path, str, dict]:
+    """Validate a claim update and return (plan path, new plan text, claim)
+    without writing anything — the shared core of set_claim / set_claims, so a
+    multi-id claim can validate every item before touching any file."""
     if stage is not None:
         stage = stage.strip().lower()
         if stage == "building":
@@ -169,24 +168,71 @@ def set_claim(root: Path, plan_id: int, stage: str | None = None,
     if branch is not None:
         claim["branch"] = branch or None
     claim["updated"] = datetime.date.today().isoformat()
-    atomic_write(path, _apply_claim(path.read_text(encoding="utf-8"), claim))
+    text = _apply_claim(path.read_text(encoding="utf-8"), claim)
+    return path, text, {f: claim.get(f) for f in CLAIM_FIELDS}
+
+
+def set_claim(root: Path, plan_id: int, stage: str | None = None,
+              verdict: str | None = None, note: str | None = None,
+              branch: str | None = None) -> dict:
+    """Record (or update in place) an item's in-flight claim: the build-loop stage
+    and review verdict git cannot know. Fields not passed keep their prior values;
+    `updated` is always restamped. An empty --note/--branch removes that field.
+    Refused on a done item — trunk ticks are the only source of done."""
+    path, text, claim = _prepare_claim(root, plan_id, stage=stage, verdict=verdict,
+                                       note=note, branch=branch)
+    atomic_write(path, text)
     sync(root)
-    return {f: claim.get(f) for f in CLAIM_FIELDS}
+    return claim
+
+
+def _unique(ids) -> list[int]:
+    return list(dict.fromkeys(int(i) for i in ids))
+
+
+def set_claims(root: Path, plan_ids, stage: str | None = None,
+               verdict: str | None = None, note: str | None = None,
+               branch: str | None = None) -> dict[int, dict]:
+    """set_claim for several items with the same options, all-or-nothing: every
+    item is validated before any plan file is written, so one bad id (unknown,
+    missing plan, done, no claim and no --stage) changes none of them."""
+    ids = _unique(plan_ids)
+    if not ids:
+        raise ValueError("claim needs at least one item id")
+    prepared = [(pid, *_prepare_claim(root, pid, stage=stage, verdict=verdict,
+                                      note=note, branch=branch)) for pid in ids]
+    for _, path, text, _ in prepared:
+        atomic_write(path, text)
+    sync(root)
+    return {pid: claim for pid, _, _, claim in prepared}
 
 
 def clear_claim(root: Path, plan_id: int) -> bool:
     """Remove an item's claim (its lane reverts to the derived one). Allowed on done
     items. Returns False when there was nothing to clear."""
-    path = _plan_path(root, plan_id)
-    if not path.exists():
-        raise ValueError(f"plan file for #{plan_id} is missing ({path.name})")
-    text = path.read_text(encoding="utf-8")
-    new = _apply_claim(text, None)
-    if new == text:
-        return False
-    atomic_write(path, new)
-    sync(root)
-    return True
+    return clear_claims(root, [plan_id])[plan_id]
+
+
+def clear_claims(root: Path, plan_ids) -> dict[int, bool]:
+    """clear_claim for several items, all-or-nothing: every id must resolve to an
+    existing plan file before any claim is removed. {id: cleared?}."""
+    ids = _unique(plan_ids)
+    paths = {}
+    for pid in ids:
+        path = _plan_path(root, pid)
+        if not path.exists():
+            raise ValueError(f"plan file for #{pid} is missing ({path.name})")
+        paths[pid] = path
+    out = {}
+    for pid, path in paths.items():
+        text = path.read_text(encoding="utf-8")
+        new = _apply_claim(text, None)
+        out[pid] = new != text
+        if out[pid]:
+            atomic_write(path, new)
+    if any(out.values()):
+        sync(root)
+    return out
 
 
 TEMPLATE_BY_TYPE = {"feature": "feature-plan.md", "chore": "feature-plan.md",
