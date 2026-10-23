@@ -7,7 +7,7 @@ _Plus behind-the-scenes performance and reliability work._
 ## v0.19.0 — (in progress)
 
 ### ✨ New
-- (pending) Built-but-unmerged work shows its real state instead of 0%.
+- Built-but-unmerged work shows its real state instead of 0%.
 
 ## v0.18.0 — 2026-10-21
 

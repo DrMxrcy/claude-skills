@@ -12,7 +12,7 @@ _Full work log — every item, including internal/dev work. The curated public c
 ### ✨ New
 - (pending) Adds a council of installed agent CLIs that reviews each plan before build and each diff before merge.
 - (pending) Adversarial review skill: multi-CLI review with triage from Claude Code
-- (pending) Built-but-unmerged work shows its real state instead of 0%.
+- Built-but-unmerged work shows its real state instead of 0%.
 
 ## v0.18.0 — 2026-10-21
 

@@ -3,7 +3,7 @@ id: 30
 title: Honest in-flight tracking: claim branch/stage/verdict per item, branch progress and stage filters in status and dashboard
 type: feature
 version: 0.19.0
-status: planned
+status: done
 created: 2026-10-23
 ---
 
@@ -33,9 +33,15 @@ created: 2026-10-23
 - **Fails if:** done/active/planned derivation changes, any command writes outside the current checkout, ROADMAP.md is hand-edited, or the dashboard tick runs more than a few git calls per second when refs are unchanged.
 
 ## 🚶 Step-by-Step Checklist
-- [ ] Step 1: `rmlib/branches.py` — ref discovery, branchPattern + `(plan N)`/`(bug N)` commit attribution, ahead/behind, worktree map, ref-signature cache, fixture-repo tests -> target: rmlib/branches.py, tests/test_roadmap.py
-- [ ] Step 2: `claim` CLI — frontmatter write/clear, enum validation, auto-clear on done -> target: roadmap.py, rmlib/ops.py, tests/test_roadmap.py
-- [ ] Step 3: lane derivation in the status payload and `status` text; `--open`, `--version`, `--in-flight` filters -> target: rmlib/sync.py, roadmap.py, tests/test_roadmap.py
-- [ ] Step 4: dashboard — trunk plus branch overlay as the default view, lane badges, verdict chips, header counts, commit list on expand, open/lane filters, "other branches" panel -> target: rmlib/dashboard.py, rmlib/dashboard.html, tests/test_roadmap_serve.py
-- [ ] Step 5: docs and build loop — claim at review/fixing/gate-ready/gating, branch naming `roadmap/<id>` and `(plan N)` commit tags as the convention -> target: references/state-model.md, references/quality-build.md, SKILL.md
-- [ ] Step 6: read-only smoke run of `serve` and `status --in-flight` against statewide-app; record the before/after counts as evidence -> target: plan evidence
+- [x] Step 1: `rmlib/branches.py` — ref discovery, branchPattern + `(plan N)`/`(bug N)` commit attribution, ahead/behind, worktree map, ref-signature cache, fixture-repo tests -> target: rmlib/branches.py, tests/test_roadmap.py
+  > evidence: 7387fed branches.py + 13 tests; merged 1e99ed7; uvx pytest -q tests/: 1 failed (pre-existing test_agy_cli_plugin_validate), 444 passed; reviews skipped at owner request (no spec or adversarial pass) (2026-10-23)
+- [x] Step 2: `claim` CLI — frontmatter write/clear, enum validation, auto-clear on done -> target: roadmap.py, rmlib/ops.py, tests/test_roadmap.py
+  > evidence: 33962b3 claim CLI, flat claim_* keys + 12 tests; merged 1e99ed7; uvx pytest -q tests/: 1 failed (pre-existing test_agy_cli_plugin_validate), 444 passed; reviews skipped at owner request (no spec or adversarial pass) (2026-10-23)
+- [x] Step 3: lane derivation in the status payload and `status` text; `--open`, `--version`, `--in-flight` filters -> target: rmlib/sync.py, roadmap.py, tests/test_roadmap.py
+  > evidence: 8a8b66b lanes + status --open/--version/--in-flight; merged 1e99ed7; uvx pytest -q tests/: 1 failed (pre-existing test_agy_cli_plugin_validate), 444 passed; reviews skipped at owner request (no spec or adversarial pass) (2026-10-23)
+- [x] Step 4: dashboard — trunk plus branch overlay as the default view, lane badges, verdict chips, header counts, commit list on expand, open/lane filters, "other branches" panel -> target: rmlib/dashboard.py, rmlib/dashboard.html, tests/test_roadmap_serve.py
+  > evidence: 80dc6ff dashboard lanes/filters/commits/other branches, Playwright check no console errors; merged 1e99ed7; uvx pytest -q tests/: 1 failed (pre-existing test_agy_cli_plugin_validate), 444 passed; reviews skipped at owner request (no spec or adversarial pass) (2026-10-23)
+- [x] Step 5: docs and build loop — claim at review/fixing/gate-ready/gating, branch naming `roadmap/<id>` and `(plan N)` commit tags as the convention -> target: references/state-model.md, references/quality-build.md, SKILL.md
+  > evidence: 466b976 state-model, quality-build, SKILL.md; merged 1e99ed7; uvx pytest -q tests/: 1 failed (pre-existing test_agy_cli_plugin_validate), 444 passed; reviews skipped at owner request (no spec or adversarial pass) (2026-10-23)
+- [x] Step 6: read-only smoke run of `serve` and `status --in-flight` against statewide-app; record the before/after counts as evidence -> target: plan evidence
+  > evidence: statewide-app read-only: installed v0.18 status shows built branches 0%; new status --in-flight: 323 done · 27 in-flight · 7 active · 62 planned, all 27 lane building with +ahead; statewide git status unchanged (2026-10-23)
