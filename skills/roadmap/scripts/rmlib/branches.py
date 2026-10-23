@@ -147,7 +147,7 @@ def _branch_commits(root: Path, trunk: str, tips: dict[str, str]) -> dict[str, l
             continue
         sha, short, parents, date, subject = parts
         order.append(sha)
-        commits[sha] = {"sha": short, "date": date, "subject": subject,
+        commits[sha] = {"sha": short, "full": sha, "date": date, "subject": subject,
                         "parents": parents.split(),
                         "tags": sorted({int(n) for n in TAG_RE.findall(subject)})}
     result: dict[str, list[dict]] = {}
@@ -197,7 +197,35 @@ def _scan(root: Path, trunk: str, refs: list[dict],
     per_branch = _branch_commits(root, trunk, tips)
     for b in branches:
         b["commits"] = per_branch.get(b["name"], [])
+    _mark_inherited(branches, tips, integration)
     return {"trunk": trunk, "integration": integration, "branches": branches}
+
+
+def _mark_inherited(branches: list[dict], tips: dict[str, str],
+                    integration: str | None) -> None:
+    """Set b["inherited"]: full shas of commits a branch only carries because it
+    was built on top of other work, so their `(plan N)` tags must not attribute
+    item N to it (plan 32). A commit is inherited when it is reachable from
+    another branch whose tip is an ancestor of this one (a base it was cut from,
+    or a branch merged into it), or — for a branch the integration branch does
+    not contain — from the integration branch (it was cut from integration, and
+    that work belongs to the items already landed there). Pure set work on the
+    commit lists already fetched: no extra git call."""
+    reach = {b["name"]: {c["full"] for c in b["commits"]} for b in branches
+             if b["name"] in tips}
+    integ = reach.get(integration or "", set())
+    for b in branches:
+        own = reach.get(b["name"])
+        if not own:
+            b["inherited"] = frozenset()
+            continue
+        inherited: set[str] = set()
+        for other, tip in tips.items():
+            if other != b["name"] and tip != b["sha"] and tip in own:
+                inherited |= reach[other]
+        if integration and b["name"] != integration and not b.get("landed"):
+            inherited |= own & integ
+        b["inherited"] = frozenset(inherited & own)
 
 
 _EPOCH = datetime.datetime.min.replace(tzinfo=datetime.timezone.utc)
@@ -222,7 +250,9 @@ def _info(b: dict, item: int | None, stale_days: int,
     """Public per-branch record. taggedCommits counts commits tagged for
     `item` (0 for unattributed branches). `sha` is the full tip; `landed`
     (plan 32) marks a branch the integration branch contains but trunk does not."""
-    tagged = sum(1 for c in b["commits"] if item is not None and item in c["tags"])
+    skip = b.get("inherited") or ()
+    tagged = sum(1 for c in b["commits"] if item is not None and item in c["tags"]
+                 and c["full"] not in skip)
     return {"name": b["name"], "item": item, "ahead": b["ahead"],
             "behind": b["behind"], "lastCommit": b["short"],
             "lastSubject": b["subject"], "lastDate": b["date"],
@@ -302,7 +332,10 @@ def discover(root: Path, item_ids=None, trunk: str | None = None,
         if b["merged"]:
             continue
         counts: dict[int, int] = {}
+        skip = b.get("inherited") or ()
         for c in b["commits"]:
+            if c["full"] in skip:       # carried from a base branch, not its work
+                continue
             for n in c["tags"]:
                 counts[n] = counts.get(n, 0) + 1
         for n, k in counts.items():

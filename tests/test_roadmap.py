@@ -3460,3 +3460,59 @@ def test_check_landed_cli_validation(roadmap, branches, repo, monkeypatch, capsy
         with pytest.raises(SystemExit):
             roadmap.main(argv)
     assert all(i["done"] == 0 for i in roadmap.status(repo)["items"])
+
+
+# --- inherited (plan N) commits never attribute an item elsewhere (plan 32) --
+
+def _stacked_repo(roadmap, repo, monkeypatch, keep_a=False):
+    """Item A (1) built on roadmap/1 and merged into `integration`; feature
+    branch roadmap/2 (item B) is then cut FROM integration and gets its own
+    commits, so it also carries A's (plan 1) commits. Afterwards item C (3)
+    lands in integration too, moving its tip past roadmap/2's base."""
+    _landed_repo(roadmap, repo, monkeypatch)            # 1, 2 merged; 3 open
+    _git(repo, "branch", "-D", "roadmap/2")             # rebuild 2 on integration
+    _git(repo, "checkout", "-q", "integration")
+    _git(repo, "reset", "-q", "--hard", "integration~1")   # integration = A only
+    _git(repo, "checkout", "-qb", "roadmap/2")
+    for k in range(3):       # B's work is the newest, so a tag tie would pick it
+        _commit(repo, f"b work {k} (plan 2)", date="2030-01-01T00:00:00+00:00")
+    _git(repo, "checkout", "-q", "integration")
+    _git(repo, "merge", "--no-ff", "-q", "-m", "merge roadmap/3", "roadmap/3")
+    _git(repo, "checkout", "-q", "main")
+    if not keep_a:
+        _git(repo, "branch", "-D", "roadmap/1")         # usual after merging
+    return repo
+
+
+@pytest.mark.parametrize("keep_a", [False, True])
+def test_inherited_tags_do_not_attribute_landed_item_to_feature_branch(
+        roadmap, branches, repo, monkeypatch, keep_a):
+    _stacked_repo(roadmap, repo, monkeypatch, keep_a=keep_a)
+    items = _by_id(roadmap.status(repo))
+    a, b = items[1], items[2]
+    assert a["lane"] == "landed"
+    assert a["branch"]["name"] == ("roadmap/1" if keep_a else "integration")
+    assert b["lane"] == "building" and b["branch"]["name"] == "roadmap/2"
+    assert b["branch"]["taggedCommits"] == 3           # A's 2 inherited don't count
+    assert items[3]["lane"] == "landed"
+    # claim --landed on integration lands A and C, never B
+    res = roadmap.claim_landed(repo, "integration")
+    assert sorted(pid for pid, _ in res["landed"]) == [1, 3]
+
+
+def test_inherited_tags_from_a_base_branch_without_integration(
+        roadmap, branches, repo, monkeypatch):
+    """Stacked branches, no integration branch configured: roadmap/2 is cut
+    from `base` (which carries item 1's commits) and is newer, yet item 1 still
+    belongs to `base`."""
+    _landed_repo(roadmap, repo, monkeypatch, integration=None)
+    _git(repo, "branch", "-D", "roadmap/1")
+    _git(repo, "checkout", "-qb", "base", "main")
+    for k in range(2):
+        _commit(repo, f"a work {k} (plan 1)")
+    _git(repo, "checkout", "-qb", "stacked")
+    _commit(repo, "b work (plan 2)", date="2030-01-01T00:00:00+00:00")
+    _git(repo, "checkout", "-q", "main")
+    res = branches.discover(repo, [1, 2, 3])
+    assert res["items"][1]["name"] == "base"
+    assert res["items"][1]["taggedCommits"] == 2
