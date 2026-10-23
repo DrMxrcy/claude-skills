@@ -1,0 +1,29 @@
+.roadmap/config.json
+  s_fbae122c7a65de::t_493d34f0b71ae5 4,474-487,495
+.roadmap/plans/031-dashboard-trunk-plus-branches-always-the-default-view-url-in-every-refresh-log-line-and-full-pages-for-each-plan-and-idea.md
+  s_fbae122c7a65de::t_daaf30dc1b2018 6,38-47
+.roadmap/plans/047-bug-routing-a-bug-command-that-fixes-in-flight-plans-in-place-or-files-a-linked-bug-item-and-an-incubator-that-refuses-bugs.md
+  s_fbae122c7a65de::t_b8f058d9e6ee3d 1-39
+CHANGELOG.internal.md
+  s_fbae122c7a65de::t_36f555c2038093 22,38
+CHANGELOG.md
+  s_fbae122c7a65de::t_3874522b571395 20,33
+ROADMAP.md
+  s_fbae122c7a65de::t_c576871bcbd480 24,28,49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "143668e42288760c9dfd3b1df5e2686d526a31ce",
+  "prompts": {},
+  "sessions": {
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
