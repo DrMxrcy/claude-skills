@@ -1,0 +1,31 @@
+.roadmap/config.json
+  s_fbae122c7a65de::t_5cd380c1fc6838 4,488-517
+.roadmap/plans/048-all-projects-dashboard-home-every-roadmap-project-on-one-page-registered-automatically.md
+  s_fbae122c7a65de::t_b03b418505919f 1-37
+.roadmap/plans/049-dashboard-navigation-version-pages-dependency-graph-full-text-search-keyboard-shortcuts-and-copy-command-buttons.md
+  s_fbae122c7a65de::t_f318c191c895bd 1-37
+.roadmap/plans/050-dashboard-resilience-and-polish-reconnect-banner-tab-title-alerts-light-theme-fast-first-paint.md
+  s_fbae122c7a65de::t_883be012dee151 1-37
+CHANGELOG.internal.md
+  s_fbae122c7a65de::t_0f5d23f2ca9015 23-25
+CHANGELOG.md
+  s_fbae122c7a65de::t_70f237b28619a0 21-23
+ROADMAP.md
+  s_fbae122c7a65de::t_a3f0f3bd0e69bb 33,50-52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "052b7328c25d4c1a3af404b5b89deea7bb284469",
+  "prompts": {},
+  "sessions": {
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
