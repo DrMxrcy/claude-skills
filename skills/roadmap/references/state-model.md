@@ -22,13 +22,24 @@
 - `settings.requireEvidence` — defaults to `false`; when `true`, `check` refuses without `--evidence "<verify command + result>"` (`--undo` is never gated).
 - `settings.buildRoles` — optional map of quality-first build roles to model/agent names (`{"implementer":"…","specReviewer":"…","qualityReviewer":"…","explorer":"…"}`). Free-form, host-specific values; the CLI never validates them, only surfaces the map in `orient`/`handoff` so the parent can apply it when spawning subagents. Absent → nothing changes.
 - `settings.incubatorFile` — when set (by `tidy --externalize`), the Idea Incubator lives in this file instead of `ROADMAP.md`.
+- `settings.branchPattern` — default `roadmap/{id}`; also matches `roadmap/{id}-<suffix>`. Maps item branches for discovery.
+- `settings.staleDays` — default `7`. An item branch whose last commit is older than this is `stale` rather than `building`.
 
 ## Plan frontmatter
 - `id, title, type (feature|bug|refactor|chore), version, status, created`
 - `status` is DERIVED by `sync` from checkboxes: planned (0 done) / active (some) / done (all).
+- **Claim keys** (optional, flat `claim_*` keys) — `claim_stage` (`review|fixing|gate-ready|gating|blocked`), `claim_verdict` (`CONFIRMED|PARTIAL|REFUTED`), `claim_note`, `claim_branch`, `claim_updated`. Written only by `roadmap.py claim <id> --stage … [--verdict] [--note] [--branch]`; `claim <id> --clear` removes them, and `check` ticking the final step on trunk removes them automatically. Flat keys because the frontmatter parser is line-based (no nesting). Never hand-edit.
+
+## Lanes and branch discovery
+- Each item has a derived **lane** (`status` JSON `item.lane`), first match wins: `done` > claim `stage` > `stale` / `building` (an item branch with commits trunk lacks, or `(plan N)` / `(bug N)`-tagged commits) > trunk status (`planned` / `active`).
+- Lanes are display-only. `status` (planned / active / done) still comes only from trunk checkboxes.
+- Discovery reads git only, never writes `.roadmap/`: branches matching `branchPattern`, and commits tagged `(plan N)` / `(bug N)` (case-insensitive).
+- `status --json` adds per item `lane`, `claim`, `branch`; top-level `trunk` and `otherBranches` (unmerged branches tied to no item); `counts.byLane` and `counts.lanes` (`done` / `inFlight` / `active` / `planned`).
+- Filters: `status --open` (not done), `--in-flight` (has a branch or claim, not done), plus `--version` / `--type` / `--status`.
 
 ## Invariants
 - Never hand-edit the managed region of ROADMAP.md; run `sync`.
 - All mutations go through `roadmap.py` (atomic writes; safe on partial failure).
 - Checklist lines inside fenced code blocks are ignored by parsing/sync/import.
+- Claims are advisory state about in-flight work. Only trunk checkboxes make a step or item done.
 - `check --evidence` appends an indented blockquote sub-line (`  > evidence: <text> (<date>)`) under the checked step; it is never parsed as a step, so progress counts are unaffected.

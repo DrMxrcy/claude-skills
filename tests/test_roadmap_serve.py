@@ -1,5 +1,6 @@
 """Tests for `roadmap serve` — the local live dashboard."""
 import json
+import subprocess
 import threading
 import time
 import urllib.request
@@ -7,16 +8,9 @@ import urllib.request
 import pytest
 
 
-@pytest.fixture
-def served(roadmap, repo, monkeypatch):
-    """Init a roadmap with one item, start `serve` on an auto port in a thread,
-    and yield (base_url, roadmap_module, repo_path). Server is a daemon thread."""
-    monkeypatch.chdir(repo)
-    roadmap.main(["init", "--name", "Demo"])
-    roadmap.main(["new", "--type", "feature", "--title", "First thing"])
-
-    # Build the handler/server without blocking on serve_forever(); reuse the
-    # public serve() by running it in a thread with browser opening disabled.
+def _start(roadmap, repo, monkeypatch):
+    """Start `serve` on an auto port in a daemon thread; return (base_url,
+    shutdown). Browser opening is disabled."""
     import http.server
 
     holder = {}
@@ -43,8 +37,51 @@ def served(roadmap, repo, monkeypatch):
         time.sleep(0.02)
     assert "srv" in holder, "server did not start"
     port = holder["srv"].server_address[1]
-    yield f"http://127.0.0.1:{port}", roadmap, repo
-    holder["srv"].shutdown()
+    return f"http://127.0.0.1:{port}", holder["srv"].shutdown
+
+
+@pytest.fixture
+def served(roadmap, repo, monkeypatch):
+    """Init a roadmap with one item, start `serve` on an auto port in a thread,
+    and yield (base_url, roadmap_module, repo_path). Server is a daemon thread."""
+    monkeypatch.chdir(repo)
+    roadmap.main(["init", "--name", "Demo"])
+    roadmap.main(["new", "--type", "feature", "--title", "First thing"])
+    base, stop = _start(roadmap, repo, monkeypatch)
+    yield base, roadmap, repo
+    stop()
+
+
+def _git(repo, *args):
+    subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True)
+
+
+def _commit(repo, msg):
+    _git(repo, "commit", "--allow-empty", "-qm", msg)
+
+
+@pytest.fixture
+def served_branches(roadmap, repo, monkeypatch):
+    """Item 1 at 0/N on trunk with `roadmap/1` three commits ahead (two tagged
+    `(plan 1)`), item 2 untouched, plus an unattributed `experiment` branch."""
+    import importlib
+    monkeypatch.chdir(repo)
+    _git(repo, "symbolic-ref", "HEAD", "refs/heads/main")
+    _commit(repo, "init")
+    roadmap.main(["init", "--name", "Demo"])
+    roadmap.main(["new", "--type", "feature", "--title", "First thing"])
+    roadmap.main(["new", "--type", "feature", "--title", "Second thing"])
+    importlib.import_module("rmlib.branches")._CACHE.clear()
+    _git(repo, "checkout", "-qb", "roadmap/1")
+    for msg in ("build a (plan 1)", "<b>tidy</b> & polish", "build b (plan 1)"):
+        _commit(repo, msg)
+    _git(repo, "checkout", "-q", "main")
+    _git(repo, "checkout", "-qb", "experiment")
+    _commit(repo, "try something")
+    _git(repo, "checkout", "-q", "main")
+    base, stop = _start(roadmap, repo, monkeypatch)
+    yield base, roadmap, repo
+    stop()
 
 
 def _get(url):
@@ -198,3 +235,148 @@ def test_dashboard_html_has_tabs(served):
     for label in ("Roadmap", "Ideas", "Changelog"):
         assert label in body
     assert "/api/ideas" in body and "/api/changelog" in body
+
+
+# --- in-flight overlay (plan 30) ------------------------------------------
+
+def _trunk_view(payload):
+    return payload["statuses"][payload["trunkRoot"]]
+
+
+def test_api_status_default_view_has_lanes_and_branch(served_branches):
+    base, roadmap, repo = served_branches
+    d = json.loads(_get(base + "/api/status")[2])
+    st = _trunk_view(d)
+    assert st == roadmap.status(repo)
+    one, two = st["items"]
+    assert one["lane"] == "building" and one["status"] == "planned"
+    assert one["branch"]["name"] == "roadmap/1"
+    assert one["branch"]["ahead"] == 3 and one["branch"]["taggedCommits"] == 2
+    assert "commits" not in one["branch"]        # list only on expand
+    assert two["lane"] == "planned" and two["branch"] is None
+    assert st["counts"]["lanes"]["inFlight"] == 1
+    assert st["trunk"] == "main"
+    assert [b["name"] for b in st["otherBranches"]] == ["experiment"]
+
+
+def test_api_item_lists_branch_commits(served_branches):
+    base, _, _ = served_branches
+    d = json.loads(_get(base + "/api/item?id=1")[2])
+    assert d["lane"] == "building" and d["claim"] is None
+    b = d["branch"]
+    assert b["name"] == "roadmap/1" and b["ahead"] == 3
+    assert [c["subject"] for c in b["commits"]] == [
+        "build b (plan 1)", "<b>tidy</b> & polish", "build a (plan 1)"]
+    assert all(set(c) == {"sha", "date", "subject"} for c in b["commits"])
+    assert json.loads(_get(base + "/api/item?id=2")[2])["branch"] is None
+
+
+def test_api_item_commit_list_capped_at_20(served_branches):
+    base, _, repo = served_branches
+    _git(repo, "checkout", "-q", "roadmap/1")
+    for n in range(25):
+        _commit(repo, f"more {n} (plan 1)")
+    _git(repo, "checkout", "-q", "main")
+    b = json.loads(_get(base + "/api/item?id=1")[2])["branch"]
+    assert b["ahead"] == 28 and len(b["commits"]) == 20
+    assert b["commits"][0]["subject"] == "more 24 (plan 1)"
+
+
+def test_api_item_reflects_claim(served_branches):
+    base, roadmap, _ = served_branches
+    roadmap.main(["claim", "1", "--stage", "gate-ready", "--verdict", "CONFIRMED"])
+    d = json.loads(_get(base + "/api/item?id=1")[2])
+    assert d["lane"] == "gate-ready"
+    assert d["claim"]["verdict"] == "CONFIRMED"
+    assert d["branch"]["commits"]
+
+
+def test_api_item_no_branches_degrades(served):
+    """Unborn repo (no commits, no refs): lane falls back, branch is null."""
+    base, _, _ = served
+    d = json.loads(_get(base + "/api/item?id=1")[2])
+    assert d["branch"] is None and d["lane"] == "planned"
+    st = _trunk_view(json.loads(_get(base + "/api/status")[2]))
+    assert st["otherBranches"] == [] and st["trunk"] is None
+
+
+def test_item_detail_outside_git(roadmap, dashboard, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    roadmap.main(["init", "--name", "Demo"])
+    roadmap.main(["new", "--type", "feature", "--title", "No git here"])
+    d = dashboard._item_detail(roadmap._dashboard_api(), tmp_path, 1)
+    assert d["title"] == "No git here" and d["branch"] is None
+
+
+def test_item_detail_without_discovery_hook(roadmap, dashboard, repo, monkeypatch):
+    """An rm interface lacking discover_branches still serves the item."""
+    import types
+    monkeypatch.chdir(repo)
+    roadmap.main(["init", "--name", "Demo"])
+    roadmap.main(["new", "--type", "feature", "--title", "x"])
+    api = vars(roadmap._dashboard_api()).copy()
+    api.pop("discover_branches")
+    d = dashboard._item_detail(types.SimpleNamespace(**api), repo, 1)
+    assert d["id"] == 1 and "error" not in d
+
+
+def test_sse_pushes_on_branch_commit(served_branches):
+    """Branch work never touches .roadmap/; the ref signature still refreshes."""
+    base, _, repo = served_branches
+    req = urllib.request.urlopen(base + "/events", timeout=5)
+    first = _trunk_view(_read_sse_data(req))
+    assert first["items"][0]["branch"]["ahead"] == 3
+    _git(repo, "checkout", "-q", "roadmap/1")
+    _commit(repo, "one more (plan 1)")
+    _git(repo, "checkout", "-q", "main")
+    updated = _trunk_view(_read_sse_data(req, deadline=5))
+    assert updated["items"][0]["branch"]["ahead"] == 4
+    req.close()
+
+
+def test_tick_with_unchanged_refs_runs_one_git_call(roadmap, dashboard,
+                                                    served_branches, monkeypatch):
+    _, _, repo = served_branches
+    bc = dashboard._Broadcaster(roadmap._dashboard_api(), repo)
+    calls = []
+    real = subprocess.run
+    me = threading.current_thread()
+
+    def counting(cmd, *a, **k):
+        # other servers' broadcaster threads tick concurrently — count ours only
+        if cmd and cmd[0] == "git" and threading.current_thread() is me:
+            calls.append(cmd)
+        return real(cmd, *a, **k)
+
+    monkeypatch.setattr(subprocess, "run", counting)
+    bc._tick()
+    assert len(calls) == 1 and "for-each-ref" in calls[0]
+
+
+def test_merged_view_keeps_branch_object(dashboard):
+    branch = {"name": "roadmap/1", "ahead": 2}
+    st = [{"project": "p", "currentVersion": "0.1.0",
+           "items": [{"id": 1, "done": 0, "pct": 0, "branch": branch}]},
+          {"project": "p", "currentVersion": "0.1.0",
+           "items": [{"id": 1, "done": 1, "pct": 50, "branch": branch}]}]
+    meta = [{"branch": "main", "name": "a"}, {"branch": "roadmap/1", "name": "b"}]
+    it = dashboard._merge_status(st, meta)["items"][0]
+    assert it["branch"] == branch and it["checkout"] == "roadmap/1"
+    assert it["_root"] == 1
+
+
+def test_trunk_root_prefers_trunk_checkout(dashboard):
+    meta = [{"branch": "roadmap/1"}, {"branch": "main"}]
+    assert dashboard._trunk_root([{"trunk": "main"}, {"trunk": "main"}], meta) == 1
+    assert dashboard._trunk_root([{"trunk": None}], meta[:1]) == 0
+
+
+def test_dashboard_html_has_inflight_hooks(served):
+    base, _, _ = served
+    body = _get(base + "/")[2].decode()
+    for hook in ('id="openOnly"', 'id="laneFilter"', "otherBranches",
+                 "trunkRoot", "verdict", "rm-filters", "/api/item"):
+        assert hook in body, hook
+    # untrusted branch names / commit subjects only ever go in as text
+    assert ".innerHTML" not in body and "insertAdjacentHTML" not in body
+    assert "outerHTML" not in body

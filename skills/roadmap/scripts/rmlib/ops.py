@@ -12,7 +12,8 @@ from rmlib.core import (
     _norm_version, _render_template, _set_frontmatter, _version_key,
     atomic_write, read_config, roadmap_dir, slugify, write_config)
 from rmlib.parse import (
-    STEP_RE, _is_fence, _plan_path, count_progress, parse_plan)
+    CLAIM_FIELDS, CLAIM_PREFIX, CLAIM_STAGES, CLAIM_VERDICTS, FRONTMATTER_RE,
+    STEP_RE, _is_fence, _plan_path, count_progress, parse_plan, read_claim)
 from rmlib.changelog import (
     demote_tells, item_audience, lint_note, status_tells)
 from rmlib.sync import (
@@ -80,7 +81,7 @@ def check_step(root: Path, plan_id: int, step: int | None,
     spend = f" · tokens: {tokens}" if tokens is not None and evidence and not undo else ""
     stamp = f"  > evidence: {evidence} ({datetime.date.today().isoformat()}){spend}"
     box = "[ ]" if undo else "[x]"
-    out, n, in_fence = [], 0, False
+    out, n, ticked, in_fence = [], 0, 0, False
     for line in path.read_text(encoding="utf-8").splitlines():
         if _is_fence(line):
             in_fence = not in_fence
@@ -92,16 +93,100 @@ def check_step(root: Path, plan_id: int, step: int | None,
             n += 1
             if hit:
                 line = re.sub(r"\[( |x|X)\]", box, line, count=1)
+            ticked += STEP_RE.match(line).group(2).lower() == "x"
         out.append(line)
         if hit and evidence and not undo:
             out.append(stamp)
     if step is not None and not all_done and (step < 1 or step > n):
         raise ValueError(f"plan {plan_id} step {step} out of range (1..{n})")
-    atomic_write(path, "\n".join(out) + "\n")
+    text = "\n".join(out) + "\n"
+    if not undo and n and ticked == n:
+        text = _apply_claim(text, None)     # item is done: its in-flight claim ends
+    atomic_write(path, text)
     sync(root)
     if not undo:
         _record_last_seen_sha(root)
         release_gate(root)
+
+
+def _apply_claim(text: str, claim: dict | None) -> str:
+    """Return plan `text` with every `claim_*` frontmatter key replaced by `claim`
+    (None removes them). Other frontmatter lines and the body are untouched."""
+    m = FRONTMATTER_RE.match(text)
+    if not m:
+        if claim is None:
+            return text
+        raise ValueError("plan file has no frontmatter block — cannot record a claim")
+    keep = [ln for ln in m.group(1).splitlines() if not ln.startswith(CLAIM_PREFIX)]
+    if claim:
+        keep += [f"{CLAIM_PREFIX}{f}: {claim[f]}" for f in CLAIM_FIELDS if claim.get(f)]
+    return "---\n" + "\n".join(keep) + "\n---\n" + text[m.end():]
+
+
+def set_claim(root: Path, plan_id: int, stage: str | None = None,
+              verdict: str | None = None, note: str | None = None,
+              branch: str | None = None) -> dict:
+    """Record (or update in place) an item's in-flight claim: the build-loop stage
+    and review verdict git cannot know. Fields not passed keep their prior values;
+    `updated` is always restamped. An empty --note/--branch removes that field.
+    Refused on a done item — trunk ticks are the only source of done."""
+    if stage is not None:
+        stage = stage.strip().lower()
+        if stage == "building":
+            raise ValueError(
+                f"'building' is a derived lane, not a claim stage — an item with a "
+                f"branch or (plan N) commits and no claim already shows as building. "
+                f"To return to it, drop the claim: roadmap.py claim {plan_id} --clear")
+        if stage not in CLAIM_STAGES:
+            raise ValueError(f"invalid stage {stage!r} — choose from "
+                             f"{', '.join(CLAIM_STAGES)}")
+    if verdict is not None:
+        verdict = verdict.strip().upper()
+        if verdict not in CLAIM_VERDICTS:
+            raise ValueError(f"invalid verdict {verdict!r} — choose from "
+                             f"{', '.join(CLAIM_VERDICTS)}")
+    if branch is not None:
+        branch = branch.strip()
+        if any(c.isspace() for c in branch):
+            raise ValueError(f"invalid branch name {branch!r} (contains whitespace)")
+    path = _plan_path(root, plan_id)
+    if not path.exists():
+        raise ValueError(f"plan file for #{plan_id} is missing ({path.name})")
+    done, total = count_progress(path)
+    if total and done == total:
+        raise ValueError(f"#{plan_id} is done ({done}/{total} steps ticked on trunk) — "
+                         f"a done item cannot be claimed")
+    claim = read_claim(path) or {}
+    if stage is None and not claim:
+        raise ValueError(f"#{plan_id} has no claim yet — pass --stage "
+                         f"{{{','.join(CLAIM_STAGES)}}}")
+    if stage is not None:
+        claim["stage"] = stage
+    if verdict is not None:
+        claim["verdict"] = verdict
+    if note is not None:
+        claim["note"] = " ".join(note.split()) or None
+    if branch is not None:
+        claim["branch"] = branch or None
+    claim["updated"] = datetime.date.today().isoformat()
+    atomic_write(path, _apply_claim(path.read_text(encoding="utf-8"), claim))
+    sync(root)
+    return {f: claim.get(f) for f in CLAIM_FIELDS}
+
+
+def clear_claim(root: Path, plan_id: int) -> bool:
+    """Remove an item's claim (its lane reverts to the derived one). Allowed on done
+    items. Returns False when there was nothing to clear."""
+    path = _plan_path(root, plan_id)
+    if not path.exists():
+        raise ValueError(f"plan file for #{plan_id} is missing ({path.name})")
+    text = path.read_text(encoding="utf-8")
+    new = _apply_claim(text, None)
+    if new == text:
+        return False
+    atomic_write(path, new)
+    sync(root)
+    return True
 
 
 TEMPLATE_BY_TYPE = {"feature": "feature-plan.md", "chore": "feature-plan.md",

@@ -20,19 +20,21 @@ from rmlib.sync import (  # noqa: E402
     _incomplete_deps, _item_done, _next_current_version, _progress_map,
     _version_complete, incomplete_deps, next_item, render_region,
     roadmap_health, status, sync, uncut_complete_version,
+    derive_lane, is_in_flight, lane_counts, lane_label,
     warn_incomplete_deps, MAX_ROADMAP_LINES,
     MAX_FREEFORM_LINES, MAX_FREEFORM_CHARS)
 
 
 from rmlib.parse import (  # noqa: E402
-    STEP_RE, _is_fence, parse_plan, count_progress, _plan_path)
+    STEP_RE, _is_fence, parse_plan, count_progress, _plan_path,
+    CLAIM_STAGES, CLAIM_VERDICTS, CLAIM_FIELDS, read_claim)
 
 
 from rmlib.ops import (  # noqa: E402
     TEMPLATE_BY_TYPE, _incomplete_items, _refuse_status_note,
-    backfill_changelog, check_step, import_file, merge_items, new_item,
+    backfill_changelog, check_step, clear_claim, import_file, merge_items, new_item,
     promote_idea, release, release_gate, remove_item, reorder, retarget,
-    set_audience, set_depends, set_note, set_release_summary)
+    set_audience, set_claim, set_depends, set_note, set_release_summary)
 
 
 from rmlib.incubator import (  # noqa: E402
@@ -78,9 +80,11 @@ __all__ = [  # public facade: names re-exported for callers/tests/hooks (roadmap
     '_incomplete_deps', '_item_done', '_next_current_version',
     '_progress_map', '_version_complete', 'incomplete_deps', 'next_item',
     'render_region', 'roadmap_health', 'status', 'sync',
+    'derive_lane', 'is_in_flight', 'lane_counts', 'lane_label',
     'uncut_complete_version', 'warn_incomplete_deps', 'MAX_ROADMAP_LINES', 'MAX_FREEFORM_LINES',
     'MAX_FREEFORM_CHARS', 'STEP_RE', '_is_fence', 'parse_plan',
-    'count_progress', '_plan_path', 'TEMPLATE_BY_TYPE',
+    'count_progress', '_plan_path', 'CLAIM_STAGES', 'CLAIM_VERDICTS',
+    'CLAIM_FIELDS', 'read_claim', 'set_claim', 'clear_claim', 'TEMPLATE_BY_TYPE',
     '_incomplete_items', '_refuse_status_note', 'backfill_changelog',
     'check_step', 'import_file', 'merge_items', 'new_item', 'promote_idea',
     'release', 'release_gate', 'remove_item', 'reorder', 'retarget', 'set_audience',
@@ -105,24 +109,30 @@ __all__ = [  # public facade: names re-exported for callers/tests/hooks (roadmap
 ]
 
 
+def _dashboard_api():
+    """The small read-only interface the dashboard reads all data through —
+    passed explicitly so it never has to import (or find in sys.modules) this
+    module."""
+    import types
+    from rmlib import branches as rmbranches
+    return types.SimpleNamespace(
+        status=status, read_config=read_config, roadmap_dir=roadmap_dir,
+        parse_plan=parse_plan, changelog_json=changelog_json,
+        incubator_file=incubator_file,
+        list_incubator_bullets=list_incubator_bullets,
+        discover_branches=rmbranches.discover)
+
+
 def serve(root: Path, port: int | None = None, open_browser: bool = True) -> int:
     """Delegate to the dashboard module (loaded from the sibling dashboard.py).
     Loaded lazily and by file path so it works both when roadmap.py is run as a
     script and when it is imported under a different module name (tests)."""
     import importlib.util
-    import types
     path = Path(__file__).resolve().parent / "rmlib" / "dashboard.py"
     spec = importlib.util.spec_from_file_location("roadmap_dashboard", path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    # The dashboard reads all data through this small interface — passed
-    # explicitly so it never has to import (or find in sys.modules) this module.
-    rm = types.SimpleNamespace(
-        status=status, read_config=read_config, roadmap_dir=roadmap_dir,
-        parse_plan=parse_plan, changelog_json=changelog_json,
-        incubator_file=incubator_file,
-        list_incubator_bullets=list_incubator_bullets)
-    return mod.serve(rm, root, port=port, open_browser=open_browser)
+    return mod.serve(_dashboard_api(), root, port=port, open_browser=open_browser)
 
 
 def main(argv: list[str]) -> int:
@@ -180,6 +190,32 @@ def main(argv: list[str]) -> int:
                               "step; ignored with --undo. Required when "
                               "settings.requireEvidence is true.")
 
+    def claim_stage(value: str) -> str:
+        v = value.strip().lower()
+        if v == "building":
+            raise argparse.ArgumentTypeError(
+                "'building' is a derived lane, not a claim stage — an item with a "
+                "branch or (plan N) commits and no claim already shows as building; "
+                "use --clear to drop a claim and return to it")
+        if v not in CLAIM_STAGES:
+            raise argparse.ArgumentTypeError(
+                f"invalid choice: {value!r} (choose from {', '.join(CLAIM_STAGES)})")
+        return v
+
+    p_claim = sub.add_parser(
+        "claim", help="record an item's in-flight stage/verdict (what git cannot know) "
+                      "in its plan frontmatter; --clear removes it")
+    p_claim.add_argument("id", help=ID_HELP)
+    p_claim.add_argument("--stage", type=claim_stage, metavar="{" + ",".join(CLAIM_STAGES) + "}",
+                         help="build-loop stage (required for a new claim)")
+    p_claim.add_argument("--verdict", type=str.upper, choices=CLAIM_VERDICTS,
+                         help="latest review verdict")
+    p_claim.add_argument("--note", help="short free-text note ('' removes it)")
+    p_claim.add_argument("--branch",
+                         help="branch override (default: the discovered branch)")
+    p_claim.add_argument("--clear", action="store_true",
+                         help="remove the claim (lane reverts to the derived one)")
+
     p_rel = sub.add_parser("release")
     p_rel.add_argument("--version", required=True)
     p_rel.add_argument("--tag", action="store_true")
@@ -192,6 +228,10 @@ def main(argv: list[str]) -> int:
     p_st.add_argument("--version", help="only items targeting this version")
     p_st.add_argument("--status", choices=["planned", "active", "done"],
                       help="only items with this progress status")
+    p_st.add_argument("--open", action="store_true", dest="open_only",
+                      help="hide done items (and with them every shipped version)")
+    p_st.add_argument("--in-flight", action="store_true", dest="in_flight",
+                      help="only unfinished items with a branch or a claim")
 
     p_search = sub.add_parser(
         "search", help="case-insensitive substring search across item titles/notes, "
@@ -327,6 +367,21 @@ def main(argv: list[str]) -> int:
             check_step(root, rid(args.plan), args.step, undo=args.undo,
                        all_done=args.all_done, evidence=args.evidence,
                        tokens=args.tokens)
+            return 0
+        if args.command == "claim":
+            plan_id = rid(args.id)
+            if args.clear:
+                if any(v is not None for v in
+                       (args.stage, args.verdict, args.note, args.branch)):
+                    p_claim.error("--clear takes no other options")
+                cleared = clear_claim(root, plan_id)
+                print(f"#{plan_id}: claim cleared" if cleared
+                      else f"#{plan_id}: no claim to clear")
+                return 0
+            c = set_claim(root, plan_id, stage=args.stage, verdict=args.verdict,
+                          note=args.note, branch=args.branch)
+            print(f"#{plan_id}: " + " · ".join(f"{f}={c[f]}" for f in CLAIM_FIELDS
+                                                if c.get(f)))
             return 0
         if args.command == "release":
             release(root, args.version, tag=args.tag, force=args.force)
@@ -485,16 +540,22 @@ def main(argv: list[str]) -> int:
             st["items"] = [i for i in st["items"]
                            if (args.type is None or i["type"] == args.type)
                            and (ver is None or i["version"] == ver)
-                           and (args.status is None or i["status"] == args.status)]
+                           and (args.status is None or i["status"] == args.status)
+                           and (not args.open_only or i["lane"] != "done")
+                           and (not args.in_flight or is_in_flight(i))]
             if args.as_json:
                 print(json.dumps(st, indent=2))
             else:
-                print(f"{st['project']} — v{st['currentVersion']}")
+                lc = st["counts"]["lanes"]
+                active = f" · {lc['active']} active" if lc["active"] else ""
+                print(f"{st['project']} — v{st['currentVersion']} · {lc['done']} done"
+                      f" · {lc['inFlight']} in-flight{active} · {lc['planned']} planned")
                 for it in st["items"]:
                     block = (f" blocked by {it['blockedBy']}"
                              if it.get("blockedBy") else "")
+                    lane = f" — {lane_label(it)}" if is_in_flight(it) else ""
                     print(f"  {it['displayId']} {it['title']} [{it['type']}] "
-                          f"{it['pct']}% ({it['status']}){block}")
+                          f"{it['pct']}% ({it['status']}){lane}{block}")
             for w in roadmap_health(root):
                 print(f"warning: {w}", file=sys.stderr)
             return 0

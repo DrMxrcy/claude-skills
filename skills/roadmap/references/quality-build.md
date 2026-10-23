@@ -34,13 +34,29 @@ Keep AI coders **on-task** (one plan item, real checklist, no dashboard thrash) 
 - **One orchestrator per item.** One parent session owns one item from start to check-off. It is the only session that runs `roadmap.py`. A new item gets a new parent, not the old one with a longer context.
 - **Respawn budget: four respawns per step** (five attempts in total). A respawn is a fresh subagent for the same step after a failure, a stall, or a BLOCKED report. Once the budget is spent, mark the step BLOCKED, record the reason in the handoff note (`handoff --plan <id> --pending "<decision>"`), and stop that item. Do not keep retrying.
 - **Respawn, never resume.** A resumed subagent re-sends its whole transcript on every turn. A respawn starts clean from the shared brief (`brief-common.md`, then `brief-task.md`), the plan body, and the branch state on disk.
-- **Merge-only roadmap writes.** Builders never edit `ROADMAP.md`, `.roadmap/`, or the changelogs. Roadmap state changes only in the parent's `check` and in the single merge step for a per-item branch. This keeps parallel items from colliding on shared roadmap files.
+- **Merge-only roadmap writes.** Builders never edit `ROADMAP.md`, `.roadmap/`, or the changelogs. Roadmap state changes only in the parent's `check`, `claim`, and the single merge step for a per-item branch. This keeps parallel items from colliding on shared roadmap files.
 
 The review-loop cap (two fix→review loops, above) is separate from the respawn budget: it limits how many times one step is re-reviewed, while the respawn budget limits how many times a stuck step gets a new subagent.
 
+## In-flight claims (visibility while building)
+
+Steps tick on trunk only after the merge gate, so a long review or gate would otherwise look idle. Name the item branch `roadmap/<id>` and tag each feature commit `(plan N)` or `(bug N)` so discovery attributes the work. The parent records the stage as the item moves:
+
+| Moment | Command |
+|---|---|
+| Review starts | `python3 "$RM" claim <id> --stage review` |
+| A fix round starts | `python3 "$RM" claim <id> --stage fixing` |
+| Review passes | `python3 "$RM" claim <id> --stage gate-ready --verdict <CONFIRMED\|PARTIAL\|REFUTED>` |
+| Merge gate runs | `python3 "$RM" claim <id> --stage gating` |
+| Stuck (BLOCKED, budget spent, conflict) | `python3 "$RM" claim <id> --stage blocked --note "<reason>"` |
+
+- Claims live in plan frontmatter (`claim_*` keys, see `state-model.md`). `claim <id> --clear` drops one.
+- Ticking the final step on trunk (step 5 below) removes the claim automatically.
+- `status --in-flight` lists claimed or branch-backed items. The dashboard shows each lane, branch, and commit count.
+
 ## Merge gate (per-item branches)
 
-When an item was built in its own worktree (`roadmap/<id>-<slug>`, see `build.md`), its branch lands in the version trunk `roadmap/v<version>` through one gate. Only the parent runs this, one item at a time.
+When an item was built in its own worktree (`roadmap/<id>`, see `build.md`), its branch lands in the version trunk `roadmap/v<version>` through one gate. Only the parent runs this, one item at a time.
 
 1. **Clean trunk first.** `git -C <trunk-worktree> status` must be clean. A dirty trunk stops the merge; report it, do not stash.
 2. **Merge the item branch into the trunk** with `--no-ff`. Do not rebase the item branch and do not force-push.

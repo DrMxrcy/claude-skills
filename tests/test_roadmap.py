@@ -1757,7 +1757,7 @@ def test_status_filters_narrow_items_text_and_json(roadmap, repo, monkeypatch, c
     # summary header stays global regardless of filters
     assert payload["currentVersion"] == roadmap.read_config(repo)["currentVersion"]
     assert set(payload) == {"project", "currentVersion", "versionComplete",
-                            "counts", "items"}
+                            "counts", "items", "trunk", "otherBranches"}
     # counts stay global even though the item list is filtered down to one row
     assert payload["counts"]["byType"] == {"bug": 2, "feature": 1, "chore": 1}
     assert payload["counts"]["byStatus"] == {"planned": 3, "done": 1}
@@ -2348,9 +2348,11 @@ def test_merge_status_most_progressed_wins(dashboard):
     assert m["currentVersion"] == "1.0.0"
     by_id = {i["id"]: i for i in m["items"]}
     assert set(by_id) == {1, 2, 3}
-    assert by_id[1]["done"] == 4 and by_id[1]["branch"] == "roadmap/v1"
+    assert by_id[1]["done"] == 4 and by_id[1]["checkout"] == "roadmap/v1"
     assert by_id[1]["_root"] == 1
-    assert by_id[2]["branch"] == "main"          # only copy, from main
+    assert by_id[2]["checkout"] == "main"        # only copy, from main
+    # `checkout` tags the source worktree; `branch` stays the git overlay
+    assert "branch" not in by_id[2]
 
 
 def test_broadcaster_payload_shape(roadmap, dashboard, repo):
@@ -2613,3 +2615,506 @@ def test_audit_flags_noted_but_unclassified_item(roadmap, repo):
     roadmap.new_item(repo, "bug", "Old leak", note="A user-facing fix", force=True)
     msgs = roadmap.audit_public_notes(repo)
     assert any("#1" in m and "no explicit audience" in m for m in msgs)
+
+
+# --- branch discovery (rmlib/branches.py) ---------------------------------
+
+@pytest.fixture
+def branches(roadmap):
+    """rmlib.branches, importable once the roadmap fixture has put scripts/ on
+    sys.path. The ref cache is module-global, so start each test clean."""
+    import importlib
+    mod = importlib.import_module("rmlib.branches")
+    mod._CACHE.clear()
+    return mod
+
+
+def _git(repo, *args, env=None):
+    import os
+    full = {**os.environ, **(env or {})}
+    subprocess.run(["git", *args], cwd=repo, check=True, env=full,
+                   capture_output=True)
+
+
+def _commit(repo, msg, date=None):
+    env = {"GIT_COMMITTER_DATE": date, "GIT_AUTHOR_DATE": date} if date else None
+    _git(repo, "commit", "--allow-empty", "-qm", msg, env=env)
+
+
+@pytest.fixture
+def branch_repo(repo):
+    """main with one commit; roadmap/7 four commits ahead; fix/side carries one
+    commit tagged (plan 9); roadmap/3 merged back into main."""
+    _git(repo, "symbolic-ref", "HEAD", "refs/heads/main")
+    _commit(repo, "init")
+    _git(repo, "checkout", "-qb", "roadmap/7")
+    for n in range(4):
+        _commit(repo, f"step {n} (plan 7)" if n % 2 == 0 else f"step {n}")
+    _git(repo, "checkout", "-q", "main")
+    _git(repo, "checkout", "-qb", "fix/side")
+    _commit(repo, "side quest (plan 9)")
+    _git(repo, "checkout", "-q", "main")
+    _git(repo, "checkout", "-qb", "roadmap/3")
+    _commit(repo, "done work (plan 3)")
+    _git(repo, "checkout", "-q", "main")
+    _git(repo, "merge", "-q", "--ff-only", "roadmap/3")
+    _git(repo, "checkout", "-qb", "experiment")
+    _commit(repo, "unrelated")
+    _git(repo, "checkout", "-q", "main")
+    return repo
+
+
+def test_branches_named_branch_ahead_count(branches, branch_repo):
+    res = branches.discover(branch_repo, [3, 7, 9])
+    assert res["trunk"] == "main"
+    b7 = res["items"][7]
+    assert b7["name"] == "roadmap/7"
+    assert (b7["ahead"], b7["behind"], b7["merged"]) == (4, 1, False)
+    assert b7["taggedCommits"] == 2       # only the (plan 7) subjects count
+    assert b7["lastSubject"] == "step 3" and len(b7["lastCommit"]) >= 7
+    assert b7["worktree"] is None and b7["stale"] is False
+    assert [c["subject"] for c in b7["commits"]][0] == "step 3"
+    assert len(b7["commits"]) == 4
+
+
+def test_branches_tagged_commit_attaches_to_item(branches, branch_repo):
+    res = branches.discover(branch_repo, [3, 7, 9])
+    b9 = res["items"][9]
+    assert b9["name"] == "fix/side" and b9["taggedCommits"] == 1
+    # attached branches leave "other"; the untagged unmerged one stays there
+    assert [b["name"] for b in res["other"]] == ["experiment"]
+
+
+def test_branches_merged_branch_flagged(branches, branch_repo):
+    res = branches.discover(branch_repo, [3, 7, 9])
+    b3 = res["items"][3]
+    assert b3["merged"] is True and b3["ahead"] == 0
+    assert b3["taggedCommits"] == 0       # its commits already live on trunk
+    assert all(b["name"] != "roadmap/3" for b in res["other"])
+
+
+def test_branches_item_ids_limit_attribution(branches, branch_repo):
+    res = branches.discover(branch_repo, [7])
+    assert set(res["items"]) == {7}
+    assert {b["name"] for b in res["other"]} == {"fix/side", "experiment"}
+
+
+def test_branches_custom_pattern_and_suffix(branches, branch_repo):
+    _git(branch_repo, "branch", "feat-12-login", "roadmap/7")
+    res = branches.discover(branch_repo, [12], pattern="feat-{id}")
+    assert res["items"][12]["name"] == "feat-12-login"
+    res = branches.discover(branch_repo, [7], pattern="roadmap/{id}")
+    assert res["items"][7]["name"] == "roadmap/7"
+
+
+def test_branches_stale_detection(branches, repo):
+    _git(repo, "symbolic-ref", "HEAD", "refs/heads/main")
+    _commit(repo, "init")
+    _git(repo, "checkout", "-qb", "roadmap/5")
+    _commit(repo, "old work (plan 5)", date="2020-01-01T00:00:00+00:00")
+    _git(repo, "checkout", "-q", "main")
+    res = branches.discover(repo, [5])
+    assert res["items"][5]["stale"] is True
+    assert res["items"][5]["lastDate"].startswith("2020-01-01")
+    assert branches.discover(repo, [5], stale_days=10000)["items"][5]["stale"] is False
+
+
+def test_branches_stale_days_from_config(branches, roadmap, repo):
+    _git(repo, "symbolic-ref", "HEAD", "refs/heads/main")
+    roadmap.init_project(repo, "P")
+    cfg = roadmap.read_config(repo)
+    cfg["settings"]["staleDays"] = 100000
+    roadmap.write_config(repo, cfg)
+    _commit(repo, "init")
+    _git(repo, "checkout", "-qb", "roadmap/5")
+    _commit(repo, "old work", date="2020-01-01T00:00:00+00:00")
+    _git(repo, "checkout", "-q", "main")
+    assert branches.discover(repo, [5])["items"][5]["stale"] is False
+
+
+def test_branches_worktree_path(branches, branch_repo, tmp_path_factory):
+    wt = tmp_path_factory.mktemp("wt") / "seven"
+    _git(branch_repo, "worktree", "add", "-q", str(wt), "roadmap/7")
+    res = branches.discover(branch_repo, [7])
+    assert Path(res["items"][7]["worktree"]).resolve() == wt.resolve()
+
+
+def test_branches_cache_hit_runs_one_git_call(branches, branch_repo, monkeypatch):
+    first = branches.discover(branch_repo, [3, 7, 9])
+    calls = []
+    real = subprocess.run
+
+    def spy(cmd, *a, **kw):
+        calls.append(cmd)
+        return real(cmd, *a, **kw)
+
+    monkeypatch.setattr(branches.subprocess, "run", spy)
+    again = branches.discover(branch_repo, [3, 7, 9])
+    assert again == first
+    assert len(calls) == 1 and "for-each-ref" in calls[0]
+    # a new commit changes the ref signature -> full rescan, fresh numbers
+    monkeypatch.setattr(branches.subprocess, "run", real)
+    _git(branch_repo, "checkout", "-q", "roadmap/7")
+    _commit(branch_repo, "step 4 (plan 7)")
+    _git(branch_repo, "checkout", "-q", "main")
+    monkeypatch.setattr(branches.subprocess, "run", spy)
+    calls.clear()
+    assert branches.discover(branch_repo, [3, 7, 9])["items"][7]["ahead"] == 5
+    assert 1 < len(calls) <= 3
+
+
+def test_branches_git_calls_bounded_with_many_branches(branches, repo, monkeypatch):
+    _git(repo, "symbolic-ref", "HEAD", "refs/heads/main")
+    _commit(repo, "init")
+    for n in range(1, 36):
+        _git(repo, "checkout", "-qb", f"roadmap/{n}", "main")
+        _commit(repo, f"work (plan {n})")
+    _git(repo, "checkout", "-q", "main")
+    calls = []
+    real = subprocess.run
+    monkeypatch.setattr(branches.subprocess, "run",
+                        lambda cmd, *a, **kw: calls.append(cmd) or real(cmd, *a, **kw))
+    res = branches.discover(repo, range(1, 36))
+    assert len(res["items"]) == 35
+    assert all(b["ahead"] == 1 and b["taggedCommits"] == 1
+               for b in res["items"].values())
+    assert len(calls) <= 3
+
+
+def test_branches_non_git_dir_returns_empty(branches, tmp_path):
+    assert branches.discover(tmp_path, [1]) == {"trunk": None, "items": {},
+                                                "other": []}
+
+
+def test_branches_unborn_repo_and_missing_git(branches, repo, monkeypatch):
+    assert branches.discover(repo, [1])["items"] == {}
+
+    def boom(*a, **kw):
+        raise FileNotFoundError("git")
+
+    monkeypatch.setattr(branches.subprocess, "run", boom)
+    assert branches.discover(repo, [1]) == {"trunk": None, "items": {},
+                                            "other": []}
+
+
+def test_branches_trunk_override(branches, branch_repo):
+    _git(branch_repo, "branch", "-m", "main", "trunk")
+    res = branches.discover(branch_repo, [7], trunk="trunk")
+    assert res["trunk"] == "trunk" and res["items"][7]["ahead"] == 4
+    assert branches.discover(branch_repo, [7], trunk="nope")["items"] == {}
+
+
+# --- in-flight claim (roadmap.py claim) -----------------------------------
+
+def _claim_repo(roadmap, repo, monkeypatch):
+    monkeypatch.chdir(repo)
+    roadmap.init_project(repo, "P", claude_md=False)
+    roadmap.new_item(repo, "feature", "A")
+    return repo / ".roadmap/plans/001-a.md"
+
+
+def test_claim_set_writes_flat_frontmatter_keys(roadmap, repo, monkeypatch):
+    plan = _claim_repo(roadmap, repo, monkeypatch)
+    assert roadmap.main(["claim", "1", "--stage", "gate-ready", "--verdict",
+                         "CONFIRMED", "--note", "spec + quality\npassed",
+                         "--branch", "roadmap/1"]) == 0
+    today = datetime.date.today().isoformat()
+    assert roadmap.read_claim(plan) == {
+        "stage": "gate-ready", "verdict": "CONFIRMED", "note": "spec + quality passed",
+        "branch": "roadmap/1", "updated": today}
+    meta = roadmap.parse_plan(plan)["meta"]
+    assert meta["id"] == "1" and meta["claim_stage"] == "gate-ready"
+    assert "stage" not in meta and "claim" not in meta     # flat, no nesting
+    assert roadmap.count_progress(plan) == (0, 2)           # body untouched
+
+
+def test_claim_update_keeps_unpassed_fields(roadmap, repo, monkeypatch):
+    plan = _claim_repo(roadmap, repo, monkeypatch)
+    roadmap.set_claim(repo, 1, stage="review", note="first pass", branch="roadmap/1")
+    roadmap.main(["claim", "#1", "--stage", "fixing", "--verdict", "partial"])
+    c = roadmap.read_claim(plan)
+    assert (c["stage"], c["verdict"], c["note"], c["branch"]) == \
+        ("fixing", "PARTIAL", "first pass", "roadmap/1")
+    roadmap.set_claim(repo, 1, verdict="CONFIRMED", note="")   # stage optional on update
+    c = roadmap.read_claim(plan)
+    assert (c["stage"], c["verdict"], c["note"]) == ("fixing", "CONFIRMED", None)
+    assert plan.read_text().count("claim_stage:") == 1
+
+
+def test_claim_stage_required_for_new_claim(roadmap, repo, monkeypatch, capsys):
+    _claim_repo(roadmap, repo, monkeypatch)
+    assert roadmap.main(["claim", "1", "--verdict", "CONFIRMED"]) == 1
+    assert "--stage" in capsys.readouterr().err
+
+
+def test_claim_clear_removes_and_is_idempotent(roadmap, repo, monkeypatch, capsys):
+    plan = _claim_repo(roadmap, repo, monkeypatch)
+    before = plan.read_text()
+    roadmap.set_claim(repo, 1, stage="blocked", verdict="REFUTED")
+    assert roadmap.main(["claim", "1", "--clear"]) == 0
+    assert "claim cleared" in capsys.readouterr().out
+    assert roadmap.read_claim(plan) is None
+    assert plan.read_text() == before
+    assert roadmap.clear_claim(repo, 1) is False
+    with pytest.raises(SystemExit):
+        roadmap.main(["claim", "1", "--clear", "--stage", "review"])
+
+
+@pytest.mark.parametrize("args", [["--stage", "nope"], ["--stage", "done"],
+                                  ["--stage", "review", "--verdict", "MAYBE"]])
+def test_claim_rejects_invalid_values(roadmap, repo, monkeypatch, capsys, args):
+    plan = _claim_repo(roadmap, repo, monkeypatch)
+    with pytest.raises(SystemExit):
+        roadmap.main(["claim", "1", *args])
+    assert "invalid choice" in capsys.readouterr().err
+    assert roadmap.read_claim(plan) is None
+    with pytest.raises(ValueError, match="invalid"):
+        roadmap.set_claim(repo, 1, stage="nope")
+    with pytest.raises(ValueError, match="invalid verdict"):
+        roadmap.set_claim(repo, 1, stage="review", verdict="MAYBE")
+
+
+def test_claim_rejects_building_with_derived_lane_hint(roadmap, repo, monkeypatch, capsys):
+    plan = _claim_repo(roadmap, repo, monkeypatch)
+    with pytest.raises(SystemExit):
+        roadmap.main(["claim", "1", "--stage", "building"])
+    err = capsys.readouterr().err
+    assert "derived lane" in err and "--clear" in err
+    with pytest.raises(ValueError, match="derived lane"):
+        roadmap.set_claim(repo, 1, stage="building")
+    assert roadmap.read_claim(plan) is None
+
+
+def test_claim_unknown_and_done_items_refused(roadmap, repo, monkeypatch, capsys):
+    plan = _claim_repo(roadmap, repo, monkeypatch)
+    assert roadmap.main(["claim", "9", "--stage", "review"]) == 1
+    assert "no plan with id 9" in capsys.readouterr().err
+    roadmap.check_step(repo, 1, None, all_done=True)
+    assert roadmap.main(["claim", "1", "--stage", "review"]) == 1
+    assert "done" in capsys.readouterr().err
+    assert roadmap.read_claim(plan) is None
+
+
+def test_check_final_step_auto_clears_claim(roadmap, repo, monkeypatch):
+    plan = _claim_repo(roadmap, repo, monkeypatch)
+    roadmap.set_claim(repo, 1, stage="gating", verdict="CONFIRMED")
+    roadmap.check_step(repo, 1, 1)
+    assert roadmap.read_claim(plan)["stage"] == "gating"     # not done yet: kept
+    roadmap.check_step(repo, 1, 2, evidence="pytest: green")
+    assert roadmap.read_claim(plan) is None
+    assert "claim_" not in plan.read_text()
+    assert "status: done" in plan.read_text()
+
+
+def test_check_undo_keeps_claim(roadmap, repo, monkeypatch):
+    plan = _claim_repo(roadmap, repo, monkeypatch)
+    roadmap.check_step(repo, 1, 1)
+    roadmap.set_claim(repo, 1, stage="fixing")
+    roadmap.check_step(repo, 1, 1, undo=True)
+    assert roadmap.read_claim(plan)["stage"] == "fixing"
+
+
+def test_claim_leaves_sync_output_and_status_unchanged(roadmap, repo, monkeypatch):
+    plan = _claim_repo(roadmap, repo, monkeypatch)
+    roadmap.check_step(repo, 1, 1)
+    rm_before = (repo / "ROADMAP.md").read_text()
+    st_before = roadmap.status(repo)
+    roadmap.set_claim(repo, 1, stage="review", note="key: value: colons ok")
+    roadmap.sync(repo)
+    assert (repo / "ROADMAP.md").read_text() == rm_before
+    st_after = roadmap.status(repo)
+    # the claim only adds display fields; trunk-derived progress is untouched
+    display = {"claim", "lane"}
+    strip = lambda st: [{k: v for k, v in i.items() if k not in display}
+                        for i in st["items"]]
+    assert strip(st_after) == strip(st_before)
+    assert st_after["counts"]["byStatus"] == st_before["counts"]["byStatus"]
+    assert st_after["items"][0]["lane"] == "review"
+    assert st_before["items"][0]["lane"] == "active"
+    assert roadmap.read_claim(plan)["note"] == "key: value: colons ok"
+    assert roadmap.parse_plan(plan)["meta"]["status"] == "active"
+
+
+# --- lanes in the status payload and `status` text (plan 30) --------------
+
+def _lane_repo(roadmap, repo, monkeypatch):
+    """Items on main, then branches cut from it:
+    1 done (+ a leftover branch with work)   2 roadmap/2, 4 commits ahead
+    3 roadmap/3 + claim gate-ready/CONFIRMED  4 roadmap/4, last commit in 2020
+    5 roadmap/5 cut at trunk tip (no work)    6 no branch, no claim
+    7 one step ticked, no branch              8 (v0.15.0) only a `(plan 8)`
+    commit on side/x; `experiment` is an untagged, unattributed branch."""
+    monkeypatch.chdir(repo)
+    _git(repo, "symbolic-ref", "HEAD", "refs/heads/main")
+    roadmap.init_project(repo, "P", claude_md=False)
+    for title in "ABCDEFG":
+        roadmap.new_item(repo, "feature", title)
+    roadmap.new_item(repo, "feature", "H", version="0.15.0")
+    roadmap.check_step(repo, 1, None, all_done=True)
+    roadmap.check_step(repo, 7, 1)
+    roadmap.set_claim(repo, 3, stage="gate-ready", verdict="CONFIRMED")
+    _git(repo, "add", "-A")
+    _commit(repo, "init")
+    for item, n, date in ((1, 1, None), (2, 4, None), (3, 2, None),
+                          (4, 1, "2020-01-01T00:00:00+00:00")):
+        _git(repo, "checkout", "-qb", f"roadmap/{item}")
+        for k in range(n):
+            _commit(repo, f"work {k} (plan {item})", date=date)
+        _git(repo, "checkout", "-q", "main")
+    _git(repo, "branch", "roadmap/5")
+    _git(repo, "checkout", "-qb", "side/x")
+    _commit(repo, "side quest (plan 8)")
+    _git(repo, "checkout", "-q", "main")
+    _git(repo, "checkout", "-qb", "experiment")
+    _commit(repo, "unrelated")
+    _git(repo, "checkout", "-q", "main")
+    return repo
+
+
+def _by_id(st):
+    return {i["id"]: i for i in st["items"]}
+
+
+def test_status_lane_for_each_derivation(roadmap, branches, repo, monkeypatch):
+    st = roadmap.status(_lane_repo(roadmap, repo, monkeypatch))
+    items = _by_id(st)
+    lanes = {n: i["lane"] for n, i in items.items()}
+    assert lanes == {1: "done", 2: "building", 3: "gate-ready", 4: "stale",
+                     5: "planned", 6: "planned", 7: "active", 8: "building"}
+    # progress status is derived exactly as before — lanes are display only
+    assert {n: i["status"] for n, i in items.items()} == {
+        1: "done", 2: "planned", 3: "planned", 4: "planned", 5: "planned",
+        6: "planned", 7: "active", 8: "planned"}
+    b2 = items[2]["branch"]
+    assert (b2["name"], b2["ahead"], b2["merged"], b2["taggedCommits"]) == \
+        ("roadmap/2", 4, False, 4)
+    assert "commits" not in b2 and b2["item"] == 2
+    assert items[2]["claim"] is None
+    assert items[3]["claim"]["verdict"] == "CONFIRMED"
+    assert items[3]["branch"]["name"] == "roadmap/3"   # discovered: claim has no branch
+    assert items[8]["branch"]["name"] == "side/x"      # attached by its (plan 8) tag
+    assert items[6]["branch"] is None and items[7]["branch"] is None
+    assert st["trunk"] == "main"
+    assert [b["name"] for b in st["otherBranches"]] == ["experiment"]
+    assert "commits" not in st["otherBranches"][0]
+    assert st["counts"]["byLane"] == {"done": 1, "building": 2, "gate-ready": 1,
+                                      "stale": 1, "planned": 2, "active": 1}
+    assert st["counts"]["lanes"] == {"done": 1, "inFlight": 5, "active": 1,
+                                     "planned": 1}
+
+
+def test_status_fresh_branch_at_trunk_tip_is_not_building(roadmap, branches, repo,
+                                                          monkeypatch):
+    st = roadmap.status(_lane_repo(roadmap, repo, monkeypatch))
+    b5 = _by_id(st)[5]["branch"]
+    assert (b5["merged"], b5["ahead"], b5["taggedCommits"]) == (True, 0, 0)
+    assert _by_id(st)[5]["lane"] == "planned"
+    assert roadmap.derive_lane("planned", None, b5) == "planned"
+    # a stale flag on a branch with no work never turns it stale either
+    assert roadmap.derive_lane("active", None, {**b5, "stale": True}) == "active"
+
+
+def test_status_lane_precedence(roadmap):
+    work = {"name": "roadmap/1", "merged": False, "ahead": 2, "taggedCommits": 0,
+            "stale": True}
+    claim = {"stage": "fixing"}
+    assert roadmap.derive_lane("done", claim, work) == "done"
+    assert roadmap.derive_lane("active", claim, work) == "fixing"
+    assert roadmap.derive_lane("active", None, work) == "stale"
+    assert roadmap.derive_lane("active", None, {**work, "stale": False}) == "building"
+    # tagged commits alone count as work (attached from an unrelated branch)
+    assert roadmap.derive_lane("planned", None, {**work, "ahead": 0, "stale": False,
+                                                 "taggedCommits": 1}) == "building"
+    # a hand-edited unknown stage is ignored, not trusted
+    assert roadmap.derive_lane("planned", {"stage": "shipping"}, None) == "planned"
+    for stage in roadmap.CLAIM_STAGES:
+        assert roadmap.derive_lane("planned", {"stage": stage}, None) == stage
+
+
+def test_status_claim_branch_overrides_discovery(roadmap, branches, repo, monkeypatch):
+    _lane_repo(roadmap, repo, monkeypatch)
+    roadmap.set_claim(repo, 2, stage="review", branch="experiment")
+    st = roadmap.status(repo)
+    b2 = _by_id(st)[2]["branch"]
+    assert (b2["name"], b2["item"], b2["ahead"]) == ("experiment", 2, 1)
+    assert _by_id(st)[2]["lane"] == "review"
+    # the claimed branch is the item's now, so it leaves the "other" list
+    assert st["otherBranches"] == []
+    # a claimed branch that no longer exists falls back to the discovered one
+    roadmap.set_claim(repo, 2, branch="roadmap/gone")
+    assert _by_id(roadmap.status(repo))[2]["branch"]["name"] == "roadmap/2"
+
+
+def test_status_text_shows_lane_branch_verdict_and_counts(roadmap, branches, repo,
+                                                          monkeypatch, capsys):
+    _lane_repo(roadmap, repo, monkeypatch)
+    assert roadmap.main(["status"]) == 0
+    out = capsys.readouterr().out
+    lines = out.splitlines()
+    assert lines[0].endswith("· 1 done · 5 in-flight · 1 active · 1 planned")
+    line = {l.split()[0]: l for l in lines[1:]}
+    assert line["FEAT-2"].endswith("0% (planned) — building · roadmap/2 · +4")
+    assert line["FEAT-3"].endswith("— gate-ready · roadmap/3 · CONFIRMED · +2")
+    assert line["FEAT-4"].endswith("— stale · roadmap/4 · +1")
+    assert line["FEAT-5"].endswith("— planned · roadmap/5")
+    assert line["FEAT-8"].endswith("— building · side/x · +1")
+    for quiet in ("FEAT-1", "FEAT-6", "FEAT-7"):    # done / no branch, no claim
+        assert "—" not in line[quiet].split("]", 1)[1]
+
+
+def test_status_open_filter_hides_done_and_shipped(roadmap, branches, repo,
+                                                   monkeypatch, capsys):
+    _lane_repo(roadmap, repo, monkeypatch)
+    roadmap.new_item(repo, "chore", "Old", version="0.0.1")
+    roadmap.check_step(repo, 9, None, all_done=True)          # a shipped version
+    assert roadmap.main(["status", "--open", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert [i["id"] for i in payload["items"]] == [2, 3, 4, 5, 6, 7, 8]
+    assert payload["counts"]["lanes"]["done"] == 2           # counts stay global
+    assert roadmap.main(["status", "--open"]) == 0
+    out = capsys.readouterr().out
+    assert "FEAT-1 " not in out and "CHORE-9" not in out and "FEAT-6" in out
+
+
+def test_status_version_filter(roadmap, branches, repo, monkeypatch, capsys):
+    _lane_repo(roadmap, repo, monkeypatch)
+    assert roadmap.main(["status", "--version", "0.15.0", "--json"]) == 0
+    assert [i["id"] for i in json.loads(capsys.readouterr().out)["items"]] == [8]
+
+
+def test_status_in_flight_filter_and_combinations(roadmap, branches, repo,
+                                                  monkeypatch, capsys):
+    _lane_repo(roadmap, repo, monkeypatch)
+    assert roadmap.main(["status", "--in-flight", "--json"]) == 0
+    assert [i["id"] for i in json.loads(capsys.readouterr().out)["items"]] == \
+        [2, 3, 4, 5, 8]
+    cur = roadmap.read_config(repo)["currentVersion"]
+    assert roadmap.main(["status", "--in-flight", "--open", "--version", cur,
+                         "--json"]) == 0
+    assert [i["id"] for i in json.loads(capsys.readouterr().out)["items"]] == \
+        [2, 3, 4, 5]
+    assert roadmap.main(["status", "--in-flight", "--version", "0.15.0"]) == 0
+    out = capsys.readouterr().out.splitlines()
+    assert len(out) == 2 and out[1].startswith("  FEAT-8 H ")
+
+
+def test_status_lanes_without_git(roadmap, branches, tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)                      # not a git repo at all
+    roadmap.init_project(tmp_path, "P", claude_md=False)
+    roadmap.new_item(tmp_path, "feature", "A")
+    roadmap.set_claim(tmp_path, 1, stage="blocked", note="waiting on API")
+    st = roadmap.status(tmp_path)
+    assert st["trunk"] is None and st["otherBranches"] == []
+    item = st["items"][0]
+    assert item["branch"] is None and item["lane"] == "blocked"
+    assert roadmap.main(["status", "--in-flight"]) == 0
+    assert "— blocked" in capsys.readouterr().out
+
+    def boom(*a, **kw):
+        raise FileNotFoundError("git")
+
+    monkeypatch.setattr(branches.subprocess, "run", boom)    # git not installed
+    roadmap.clear_claim(tmp_path, 1)
+    st = roadmap.status(tmp_path)
+    assert st["items"][0]["lane"] == "planned" and st["items"][0]["branch"] is None
+
