@@ -1,0 +1,33 @@
+skills/roadmap/scripts/rmlib/sync.py
+  s_fbae122c7a65de::t_8642201cd6e85a 347-349,393-509
+skills/roadmap/scripts/roadmap.py
+  s_0d994e3368ddf8::t_b6e734035c8d5e 24,89,129-131,348-351,692-698
+tests/test_cli_e2e.py
+  s_fbae122c7a65de::t_a637f833d3a0d6 75-96
+tests/test_roadmap.py
+  s_0d994e3368ddf8::t_132ca80005c760 2878-2960
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e12ead61a3fb46ed5edf8554c9d935d55e98ca90",
+  "prompts": {},
+  "sessions": {
+    "s_0d994e3368ddf8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1e59e42f-734a-4197-96a1-8f7a72731de8",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    },
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
