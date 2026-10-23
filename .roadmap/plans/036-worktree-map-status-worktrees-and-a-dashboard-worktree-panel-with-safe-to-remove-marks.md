@@ -3,7 +3,7 @@ id: 36
 title: Worktree map: status --worktrees and a dashboard worktree panel with safe-to-remove marks
 type: feature
 version: 0.21.0
-status: planned
+status: done
 created: 2026-10-23
 ---
 
@@ -28,7 +28,11 @@ created: 2026-10-23
 - **Fails if:** any command deletes a worktree or branch.
 
 ## 🚶 Step-by-Step Checklist
-- [ ] Step 1: worktree enumeration with dirty counts and time-budgeted cache -> target: rmlib/branches.py, tests
-- [ ] Step 2: `status --worktrees` and payload -> target: roadmap.py, rmlib/sync.py, tests
-- [ ] Step 3: dashboard panel -> target: rmlib/dashboard.html, tests
-- [ ] Step 4: docs -> target: references/*.md
+- [x] Step 1: worktree enumeration with dirty counts and time-budgeted cache -> target: rmlib/branches.py, tests
+  > evidence: e8b56f4 345555f e12ead6 090b37b 8680a67 9ad6763; integrationBranch list+glob; statewide read-only 390/401/410 landed in integration, 11 worktrees 0 safe; merged eff4163; 489 passed in 232.26s (0:03:52); reviews skipped at owner request (2026-10-23)
+- [x] Step 2: `status --worktrees` and payload -> target: roadmap.py, rmlib/sync.py, tests
+  > evidence: e8b56f4 345555f e12ead6 090b37b 8680a67 9ad6763; integrationBranch list+glob; statewide read-only 390/401/410 landed in integration, 11 worktrees 0 safe; merged eff4163; 489 passed in 232.26s (0:03:52); reviews skipped at owner request (2026-10-23)
+- [x] Step 3: dashboard panel -> target: rmlib/dashboard.html, tests
+  > evidence: e8b56f4 345555f e12ead6 090b37b 8680a67 9ad6763; integrationBranch list+glob; statewide read-only 390/401/410 landed in integration, 11 worktrees 0 safe; merged eff4163; 489 passed in 232.26s (0:03:52); reviews skipped at owner request (2026-10-23)
+- [x] Step 4: docs -> target: references/*.md
+  > evidence: e8b56f4 345555f e12ead6 090b37b 8680a67 9ad6763; integrationBranch list+glob; statewide read-only 390/401/410 landed in integration, 11 worktrees 0 safe; merged eff4163; 489 passed in 232.26s (0:03:52); reviews skipped at owner request (2026-10-23)
