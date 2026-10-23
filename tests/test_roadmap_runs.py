@@ -271,3 +271,41 @@ def test_payload_unchanged_without_runs_or_integration(roadmap, proj, capsys):
 def test_trunk_ahead_outside_git(runs, tmp_path):
     assert runs.trunk_ahead(tmp_path, "dev", "main") == []
 
+
+# ---- step 3: union-merge gitattribute via init / upgrade -------------------
+
+def test_init_adds_union_merge_line(roadmap, runs, repo):
+    roadmap.init_project(repo, "P", claude_md=False)
+    text = (repo / ".gitattributes").read_text()
+    assert text == runs.GITATTR_LINE + "\n"
+    roadmap.init_project(repo, "P", claude_md=False)
+    assert (repo / ".gitattributes").read_text() == text           # idempotent
+
+
+def test_upgrade_adds_line_once_and_keeps_content(roadmap, runs, repo, capsys):
+    roadmap.init_project(repo, "P", claude_md=False)
+    (repo / ".gitattributes").write_text("* text=auto")             # no newline, no line
+    roadmap.upgrade(repo)
+    assert (repo / ".gitattributes").read_text() == "* text=auto\n" + runs.GITATTR_LINE + "\n"
+    assert "merge=union" in capsys.readouterr().out
+    roadmap.upgrade(repo)
+    assert (repo / ".gitattributes").read_text().count("merge=union") == 1
+    assert "merge=union" not in capsys.readouterr().out
+
+
+def test_union_merge_resolves_concurrent_appends(roadmap, runs, proj):
+    _git(proj, "symbolic-ref", "HEAD", "refs/heads/main")
+    _git(proj, "add", "-A")
+    _git(proj, "commit", "-qm", "init")
+    _git(proj, "checkout", "-qb", "side")
+    runs.append_run(proj, _rec(runs, "side-gate", minute=2))
+    _git(proj, "add", "-A")
+    _git(proj, "commit", "-qm", "side run")
+    _git(proj, "checkout", "-q", "main")
+    runs.append_run(proj, _rec(runs, "main-gate", minute=1))
+    _git(proj, "add", "-A")
+    _git(proj, "commit", "-qm", "main run")
+    _git(proj, "merge", "-q", "--no-edit", "side")                  # no conflict
+    got, warnings = runs.read_runs(proj)
+    assert [r["label"] for r in got] == ["side-gate", "main-gate"] and warnings == []
+

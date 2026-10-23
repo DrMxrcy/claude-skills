@@ -8,6 +8,20 @@ from rmlib.core import (
     get_version, read_config, roadmap_dir, write_config)
 from rmlib.sync import (
     sync)
+from rmlib.runs import GITATTR_LINE
+
+
+def ensure_gitattributes(root: Path) -> bool:
+    """Idempotently add the run log's union-merge line to .gitattributes, so
+    two branches that each appended to .roadmap/runs.jsonl merge without a
+    conflict (plan 38). Existing content is kept. True when the line was added."""
+    path = root / ".gitattributes"
+    existing = path.read_text(encoding="utf-8") if path.exists() else ""
+    if any(" ".join(ln.split()) == GITATTR_LINE for ln in existing.splitlines()):
+        return False
+    sep = "" if not existing or existing.endswith("\n") else "\n"
+    atomic_write(path, existing + sep + GITATTR_LINE + "\n")
+    return True
 
 
 def _apply_rules_block(path: Path) -> None:
@@ -66,6 +80,7 @@ def init_project(root: Path, name: str, adopt: bool = False, claude_md: bool = T
         atomic_write(roadmap_md, f"{existing}\n\n{AUTO_START}\n{AUTO_END}\n")
     if claude_md:
         ensure_project_rules(root)
+    ensure_gitattributes(root)
     sync(root)
     return cfg
 
@@ -78,6 +93,8 @@ def upgrade(root: Path) -> None:
     old = cfg.get("skillVersion", "unknown")
     new = get_version()
     paths = ensure_project_rules(root)
+    if ensure_gitattributes(root):
+        print(f"Added `{GITATTR_LINE}` to .gitattributes")
     cfg["skillVersion"] = new
     write_config(root, cfg)
     sync(root)
