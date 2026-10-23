@@ -3,7 +3,7 @@ id: 38
 title: Run log: record merge-gate and trunk suite runs from the CLI, shown as a gate timeline and trunk health tile
 type: feature
 version: 0.21.0
-status: planned
+status: done
 created: 2026-10-23
 ---
 
@@ -29,8 +29,13 @@ created: 2026-10-23
 - **Fails if:** an unparseable line breaks status (skip it with a warning).
 
 ## 🚶 Step-by-Step Checklist
-- [ ] Step 1: runs.jsonl writer with lock, trim, and reader -> target: rmlib/runs.py, tests
-- [ ] Step 2: `run` command and `status --runs`, payload `runs` + `trunkHealth` -> target: roadmap.py, rmlib/sync.py, tests
-- [ ] Step 3: gitattributes union merge via init/upgrade -> target: rmlib/project.py, tests
-- [ ] Step 4: dashboard gate timeline and trunk health tile -> target: rmlib/dashboard.html, tests
-- [ ] Step 5: docs: merge gate records a run -> target: references/quality-build.md, SKILL.md
+- [x] Step 1: runs.jsonl writer with lock, trim, and reader -> target: rmlib/runs.py, tests
+  > evidence: 5ba3432 a05c050 abd61d1 8d2bcb1 2cf347c; 28 run-log tests incl. concurrent append and git union merge; merged aa5bbe6; 472 passed in 179.86s (0:02:59); reviews skipped at owner request (2026-10-23)
+- [x] Step 2: `run` command and `status --runs`, payload `runs` + `trunkHealth` -> target: roadmap.py, rmlib/sync.py, tests
+  > evidence: 5ba3432 a05c050 abd61d1 8d2bcb1 2cf347c; 28 run-log tests incl. concurrent append and git union merge; merged aa5bbe6; 472 passed in 179.86s (0:02:59); reviews skipped at owner request (2026-10-23)
+- [x] Step 3: gitattributes union merge via init/upgrade -> target: rmlib/project.py, tests
+  > evidence: 5ba3432 a05c050 abd61d1 8d2bcb1 2cf347c; 28 run-log tests incl. concurrent append and git union merge; merged aa5bbe6; 472 passed in 179.86s (0:02:59); reviews skipped at owner request (2026-10-23)
+- [x] Step 4: dashboard gate timeline and trunk health tile -> target: rmlib/dashboard.html, tests
+  > evidence: 5ba3432 a05c050 abd61d1 8d2bcb1 2cf347c; 28 run-log tests incl. concurrent append and git union merge; merged aa5bbe6; 472 passed in 179.86s (0:02:59); reviews skipped at owner request (2026-10-23)
+- [x] Step 5: docs: merge gate records a run -> target: references/quality-build.md, SKILL.md
+  > evidence: 5ba3432 a05c050 abd61d1 8d2bcb1 2cf347c; 28 run-log tests incl. concurrent append and git union merge; merged aa5bbe6; 472 passed in 179.86s (0:02:59); reviews skipped at owner request (2026-10-23)

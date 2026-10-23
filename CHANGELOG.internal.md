@@ -11,7 +11,7 @@ _Full work log — every item, including internal/dev work. The curated public c
 - Steps can no longer be checked off on a plan that is still the empty template.
 - (pending) See every worktree at a glance, which branch it holds, and which ones are safe to clean up.
 - (pending) A board view on the dashboard shows every item in its column, from planned to done.
-- (pending) Merge gates and test runs are recorded, so everyone can see what ran, what passed, and how far the trunk is ahead.
+- Merge gates and test runs are recorded, so everyone can see what ran, what passed, and how far the trunk is ahead.
 - (pending) Each claimed item shows who is working on it, and the roadmap warns when too much is in flight at once.
 - (pending) See which in-flight branches touch the same files, so merge order can be planned before the gate.
 - (pending) Branches that wander outside their plan get flagged before review.
