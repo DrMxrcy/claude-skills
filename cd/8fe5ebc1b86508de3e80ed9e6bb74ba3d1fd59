@@ -1,0 +1,29 @@
+skills/roadmap/scripts/rmlib/slots.py
+  s_fbae122c7a65de::t_4c4abe097328ea 545-558,560-562,572-575,594-599,669-670,676-684,688
+tests/test_roadmap_slots.py
+  s_0d994e3368ddf8::t_fdaffe67ee91ba 238,241-242,246,251-260
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cd8fe5ebc1b86508de3e80ed9e6bb74ba3d1fd59",
+  "prompts": {},
+  "sessions": {
+    "s_0d994e3368ddf8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1e59e42f-734a-4197-96a1-8f7a72731de8",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    },
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
