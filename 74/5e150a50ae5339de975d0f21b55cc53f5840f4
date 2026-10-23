@@ -1,0 +1,23 @@
+skills/roadmap/scripts/rmlib/forecast.py
+  s_fbae122c7a65de::t_f3428cae164be1 1-295
+  s_fbae122c7a65de::t_64ec3aa9d098ea 296-299
+tests/test_roadmap_forecast.py
+  s_fbae122c7a65de::t_543b4b1466b7c0 1-249
+  s_fbae122c7a65de::t_6ad5a40f958ade 250
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "745e150a50ae5339de975d0f21b55cc53f5840f4",
+  "prompts": {},
+  "sessions": {
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
