@@ -1,0 +1,21 @@
+skills/roadmap/scripts/rmlib/project.py
+  s_fbae122c7a65de::t_a213f011975338 11-24,83,96-97
+tests/test_roadmap_runs.py
+  s_fbae122c7a65de::t_58997fe4b1a212 274-311
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "abd61d154fbeca63f5456e194805dceac8260dc5",
+  "prompts": {},
+  "sessions": {
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
