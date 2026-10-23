@@ -3118,3 +3118,114 @@ def test_status_lanes_without_git(roadmap, branches, tmp_path, monkeypatch, caps
     st = roadmap.status(tmp_path)
     assert st["items"][0]["lane"] == "planned" and st["items"][0]["branch"] is None
 
+
+
+# ---- required plan sections / template gate (plan 35) ---------------------------
+
+FILLED_BUG = """---
+id: 1
+title: B
+type: bug
+---
+
+# 🐛 Plan 1: B
+
+## 🔍 Symptom & Reproduction
+- **Observed:** serve reprints the same line
+- **Expected:**
+- **Repro steps:**
+
+## 🩺 Root Cause
+- **Culprit:** mtime signature
+- **Why:**
+  - it flaps on every touch
+
+## ✅ Acceptance
+- **Passes when:** the repro steps above no longer reproduce the symptom
+- **Fails if:** `check <id>` prints anything for an unchanged payload
+
+## 🛠️ Checklist
+- [ ] Step 1: fix
+"""
+
+
+def _stubs(tmp_path, text, type_="bug", strict=False):
+    from rmlib.parse import template_stubs
+    p = tmp_path / "plan.md"
+    p.write_text(text)
+    names = {"bug": ["Observed", "Root Cause", "Acceptance"],
+             "feature": ["Core objective", "Acceptance"]}[type_]
+    return template_stubs(p, names, strict)
+
+
+def test_template_stubs_fresh_bug_template_names_all_three(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    path = roadmap.new_item(repo, "bug", "B")
+    from rmlib.parse import template_stubs
+    assert template_stubs(path, ["Observed", "Root Cause", "Acceptance"]) == [
+        "Observed", "Root Cause", "Acceptance"]
+
+
+def test_template_stubs_fresh_feature_template(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    path = roadmap.new_item(repo, "feature", "F")
+    from rmlib.parse import template_stubs
+    assert template_stubs(path, ["Core objective", "Acceptance"]) == [
+        "Core objective", "Acceptance"]
+
+
+def test_template_stubs_filled_bug_passes(tmp_path):
+    # Expected/Repro left blank are not required; an indented continuation fills Why;
+    # a `<id>` inside prose is not a placeholder.
+    assert _stubs(tmp_path, FILLED_BUG) == []
+
+
+def test_template_stubs_flags_partially_filled_section(tmp_path):
+    text = FILLED_BUG.replace("- **Why:**\n  - it flaps on every touch\n", "- **Why:**\n")
+    assert _stubs(tmp_path, text) == ["Root Cause"]
+
+
+def test_template_stubs_whole_value_placeholder_is_a_stub(tmp_path):
+    text = FILLED_BUG.replace("`check <id>` prints anything for an unchanged payload",
+                              "<previously green test or adjacent behavior breaks>")
+    assert _stubs(tmp_path, text) == ["Acceptance"]
+
+
+def test_template_stubs_empty_field_and_missing_section(tmp_path):
+    text = FILLED_BUG.replace("- **Observed:** serve reprints the same line",
+                              "- **Observed:**")
+    assert _stubs(tmp_path, text) == ["Observed"]
+    legacy = FILLED_BUG.split("## ✅ Acceptance")[0] + "## 🛠️ Checklist\n- [ ] Step 1\n"
+    assert _stubs(tmp_path, legacy) == []                       # pre-Acceptance plan
+    assert _stubs(tmp_path, legacy, strict=True) == ["Acceptance"]
+
+
+def test_template_stubs_ignores_comments_fences_and_bold_prose(tmp_path):
+    text = """---
+type: feature
+---
+# Plan 1: F
+
+## 🎯 Target Scope & Boundaries
+- **Core objective:** ship it
+<!-- - **Core objective:** -->
+
+## ✅ Acceptance
+- **All tests pass.**
+```
+- **Fails if:** <example inside a fence>
+```
+"""
+    assert _stubs(tmp_path, text, "feature") == []
+    assert _stubs(tmp_path, text.replace("ship it", ""), "feature") == ["Core objective"]
+    empty = text.split("## ✅ Acceptance")[0] + "## ✅ Acceptance\n<!-- todo -->\n"
+    assert _stubs(tmp_path, empty, "feature") == ["Acceptance"]
+
+
+def test_required_sections_defaults_and_override():
+    from rmlib.parse import required_sections
+    assert required_sections({}, "nope") == ([], False)
+    cfg = {"settings": {"requiredSections": {"bug": ["Observed"], "chore": []}}}
+    assert required_sections(cfg, "bug") == (["Observed"], True)
+    assert required_sections(cfg, "chore") == ([], True)
+    assert required_sections(cfg, "feature")[1] is False
