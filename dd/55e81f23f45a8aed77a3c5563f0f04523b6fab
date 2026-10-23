@@ -1,0 +1,27 @@
+.roadmap/config.json
+  s_fbae122c7a65de::t_137364a24a22ab 495
+.roadmap/plans/033-numbered-slot-reservations-reserve-the-next-migration-or-any-numbered-sequence-per-plan-with-clash-detection.md
+  s_fbae122c7a65de::t_196293369ba97a 6,34-43
+CHANGELOG.internal.md
+  s_fbae122c7a65de::t_bc83d235e9c28a 9
+CHANGELOG.md
+  s_fbae122c7a65de::t_474022c4888a62 7
+ROADMAP.md
+  s_fbae122c7a65de::t_3969a7d9df36db 33,35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dd55e81f23f45a8aed77a3c5563f0f04523b6fab",
+  "prompts": {},
+  "sessions": {
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
