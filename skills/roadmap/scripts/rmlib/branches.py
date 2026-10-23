@@ -607,7 +607,10 @@ def worktrees(root: Path, trunk: str | None = None, integration=_FROM_SETTINGS,
         b = by_name.get(w["branch"] or "")
         on_trunk = bool(resolved) and w["branch"] == resolved
         if b is not None:
-            ahead, behind, merged = b["ahead"], b["behind"], b["merged"]
+            # Unmerged with nothing ahead only happens when ahead/behind could
+            # not be read: unknown, so never safe.
+            ahead = b["ahead"] if b["merged"] or b["ahead"] else None
+            behind, merged = b["behind"], b["merged"]
             date, subject = b["date"], b["subject"]
             landed_in = b.get("landedIn")
         else:

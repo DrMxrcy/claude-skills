@@ -2843,6 +2843,15 @@ def test_worktrees_locked_and_missing_are_never_safe(branches, wt_repo):
     assert "prune" in gone["reason"]
 
 
+def test_worktrees_unknown_merge_state_is_never_safe(branches, wt_repo, monkeypatch):
+    repo, paths = wt_repo
+    monkeypatch.setattr(branches, "_ahead_behind", lambda *a: {})   # git trouble
+    rows = _rows_by_path(branches.worktrees(repo))
+    m = rows[paths["merged"]]
+    assert (m["ahead"], m["safe"]) == (None, False)
+    assert "unmerged count unknown" in m["reason"]
+
+
 def test_worktrees_outside_git_and_without_linked_worktrees(branches, branch_repo,
                                                             tmp_path_factory):
     assert branches.worktrees(tmp_path_factory.mktemp("nogit")) == \
