@@ -109,6 +109,34 @@ def _refs_signature(root: Path) -> str | None:
     return out.stdout if out.returncode == 0 else None
 
 
+def _worktree_signature(rm, root: Path):
+    """Change token for the worktree map (plan 36): each linked worktree's
+    branch, head and dirty count. The facts are cached on a 10 s budget, so a
+    1 s tick runs no per-worktree git call more often than that. None when
+    the API has no worktree hook or git fails."""
+    facts_fn = getattr(rm, "worktree_facts", None)
+    if facts_fn is None:
+        return None
+    try:
+        facts = facts_fn(root)
+    except Exception:  # noqa: BLE001 — the tick must survive any git surprise
+        return None
+    return [(w["path"], w["branch"], w["head"], w["dirty"], w["locked"],
+             w["prunable"]) for w in facts or []]
+
+
+def _safe_worktrees(rm, root: Path, st: dict) -> dict | None:
+    """The worktree map for the trunk view's status `st`; None without the
+    hook or on any failure (the panel simply does not render)."""
+    fn = getattr(rm, "worktree_payload", None)
+    if fn is None:
+        return None
+    try:
+        return fn(root, st)
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def _safe_status(rm, root: Path) -> dict:
     try:
         return rm.status(root)
@@ -416,21 +444,31 @@ class _Broadcaster:
         self.cond = threading.Condition()
         self.version = 0
         self.roots = _discover_roots(rm, origin)
-        self._sigs = self._signature()
+        self._wt_root = origin    # trunk checkout once known (set by _dump)
         self.json = self._dump()
+        self._sigs = self._signature()
 
     def _signature(self) -> list:
-        # Refs are shared by every checkout of the repo: one call covers all.
+        # Refs and worktrees are shared by every checkout of the repo: one
+        # call covers all. The worktree part is time-budgeted (10 s).
         return ([_roadmap_signature(self.rm, p) for p, _ in self.roots]
-                + [_refs_signature(self.origin)])
+                + [_refs_signature(self.origin),
+                   _worktree_signature(self.rm, self._wt_root)])
 
     def _dump(self) -> str:
         meta = [{"path": str(p), "branch": b, "name": p.name}
                 for p, b in self.roots]
         stats = [_safe_status(self.rm, p) for p, _ in self.roots]
         merged = _merge_status(stats, meta) if len(stats) > 1 else stats[0]
-        return json.dumps({"_roots": meta, "statuses": stats, "merged": merged,
-                           "trunkRoot": _trunk_root(stats, meta)})
+        trunk = _trunk_root(stats, meta)
+        # The worktree map is repo-wide: computed once, from the trunk view.
+        self._wt_root = self.roots[trunk][0] if trunk < len(self.roots) else self.origin
+        out = {"_roots": meta, "statuses": stats, "merged": merged,
+               "trunkRoot": trunk}
+        wt = _safe_worktrees(self.rm, self._wt_root, stats[trunk])
+        if wt is not None:
+            out["worktrees"] = wt
+        return json.dumps(out)
 
     def start(self) -> None:
         threading.Thread(target=self._run, daemon=True).start()

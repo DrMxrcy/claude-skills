@@ -671,3 +671,111 @@ def test_dashboard_html_markdown_renderer_is_dom_only(served):
     import re
     assigns = re.findall(r"\.href\s*=\s*([^;]+);", body)
     assert sorted(assigns) == sorted(['href', 'id === "roadmap" ? "#/" : "#/"+id']), assigns
+
+
+# --- worktree map (plan 36) -------------------------------------------------
+
+def _wt_branches_mod():
+    import importlib
+    mod = importlib.import_module("rmlib.branches")
+    for cache in (mod._CACHE, mod._WT_LIST, mod._DIRTY, mod._UNMERGED):
+        cache.clear()
+    return mod
+
+
+def _wt_repo(roadmap, repo, monkeypatch, tmp_path_factory, extra=0):
+    """Items 1-2 (roadmap state uncommitted, so worktrees are not dashboard
+    roots). Worktrees: `dirty` on roadmap/1 (one commit, one untracked file),
+    `merged` on done (merged into main, clean), `open` on roadmap/2 (one
+    commit, clean), plus `extra` clean worktrees on fresh branches at main."""
+    monkeypatch.chdir(repo)
+    _git(repo, "symbolic-ref", "HEAD", "refs/heads/main")
+    _commit(repo, "init")
+    roadmap.main(["init", "--name", "Demo"])
+    roadmap.main(["new", "--type", "feature", "--title", "First thing"])
+    roadmap.main(["new", "--type", "feature", "--title", "Second thing"])
+    base = tmp_path_factory.mktemp("dash-wt")
+    paths = {}
+    for key, branch in (("dirty", "roadmap/1"), ("merged", "done"),
+                        ("open", "roadmap/2")):
+        paths[key] = base / key
+        _git(repo, "worktree", "add", "-q", "-b", branch, str(paths[key]))
+        if key != "merged":
+            _commit(paths[key], f"work ({'plan 1' if key == 'dirty' else 'plan 2'})")
+    _commit(paths["merged"], "finished")
+    _git(repo, "merge", "-q", "--ff-only", "done")
+    (paths["dirty"] / "scratch.txt").write_text("x")
+    for i in range(extra):
+        _git(repo, "worktree", "add", "-q", "-b", f"spare/{i}", str(base / f"s{i}"))
+    _wt_branches_mod()
+    return paths
+
+
+def test_dashboard_payload_has_worktree_map(roadmap, dashboard, repo, monkeypatch,
+                                            tmp_path_factory):
+    paths = _wt_repo(roadmap, repo, monkeypatch, tmp_path_factory)
+    bc = dashboard._Broadcaster(roadmap._dashboard_api(), repo)
+    d = json.loads(bc.snapshot()[1])
+    assert d["merged"] == roadmap.status(repo)          # views stay unchanged
+    wt = d["worktrees"]
+    assert wt == roadmap.status(repo, worktrees=True)["worktrees"]  # same rows
+    assert (wt["count"], wt["safe"], wt["over"]) == (3, 1, False)
+    rows = {r["branch"]: r for r in wt["rows"]}
+    assert (rows["roadmap/1"]["dirty"], rows["roadmap/1"]["ahead"],
+            rows["roadmap/1"]["item"], rows["roadmap/1"]["lane"]) == (1, 1, 1, "building")
+    assert rows["done"]["safe"] and rows["done"]["removeCmd"].endswith(
+        str(paths["merged"]))
+    assert (rows["roadmap/2"]["dirty"], rows["roadmap/2"]["ahead"],
+            rows["roadmap/2"]["safe"]) == (0, 1, False)
+    # past settings.worktreeWarn the panel header goes red
+    cfg = roadmap.read_config(repo)
+    cfg.setdefault("settings", {})["worktreeWarn"] = 2
+    roadmap.write_config(repo, cfg)
+    bc._tick()
+    wt = json.loads(bc.snapshot()[1])["worktrees"]
+    assert (wt["warnAt"], wt["over"]) == (2, True)
+    assert all(p.is_dir() for p in paths.values())      # nothing removed
+
+
+def test_dashboard_tick_30_worktrees_status_calls_every_10s(
+        roadmap, dashboard, repo, monkeypatch, tmp_path_factory):
+    _wt_repo(roadmap, repo, monkeypatch, tmp_path_factory, extra=27)
+    branches = _wt_branches_mod()
+    clock = [5000.0]
+    monkeypatch.setattr(branches, "_now", lambda: clock[0])
+    bc = dashboard._Broadcaster(roadmap._dashboard_api(), repo)
+    assert json.loads(bc.snapshot()[1])["worktrees"]["count"] == 30
+    calls = []
+    real = subprocess.run
+    me = threading.current_thread()
+
+    def counting(cmd, *a, **k):
+        if cmd and cmd[0] == "git" and threading.current_thread() is me:
+            calls.append((clock[0], cmd))
+        return real(cmd, *a, **k)
+
+    monkeypatch.setattr(subprocess, "run", counting)
+    for _ in range(25):                       # 25 one-second ticks, refs unchanged
+        clock[0] += 1
+        bc._tick()
+    per_wt: dict[str, list[float]] = {}
+    for t, cmd in calls:
+        if "status" in cmd:
+            per_wt.setdefault(cmd[2], []).append(t)
+    assert len(per_wt) == 30
+    for times in per_wt.values():
+        assert len(times) == 2                # at t+10 and t+20 only
+        assert all(b - a >= 10 for a, b in zip(times, times[1:]))
+    # quiet ticks (budget not expired) cost the single for-each-ref
+    quiet = [c for t, c in calls if t == 5001.0]
+    assert len(quiet) == 1 and "for-each-ref" in quiet[0]
+    assert not any("worktree" in c and "remove" in c for _, c in calls)
+
+
+def test_dashboard_html_has_worktree_panel(served):
+    base, _, _ = served
+    body = _get(base + "/")[2].decode()
+    for hook in ("function worktreePanel", "wt-over", "removeCmd",
+                 "worktrees: P.worktrees", "safe to remove"):
+        assert hook in body, hook
+    assert ".innerHTML" not in body and "insertAdjacentHTML" not in body
