@@ -57,11 +57,11 @@ def _fc(roadmap, fc, repo, today=TODAY):
     return fc.forecast(repo, cfg, roadmap._progress_map(repo, cfg), today=today)
 
 
-def _twenty_over_ten():
+def _twenty_over_ten(today=TODAY):
     """20 ticks over the last 10 days, alternating 1 and 3 a day (mean 2, sd 1)."""
     out = []
     for d in range(10):
-        out += [_ago(d)] * (1 if d % 2 else 3)
+        out += [_ago(d, today)] * (1 if d % 2 else 3)
     return out
 
 
@@ -248,3 +248,69 @@ def test_no_git_no_undated_steps_never_shells_out(roadmap, tmp_path, fc, monkeyp
     calls.clear()
     _fc(roadmap, fc, tmp_path)
     assert calls == []
+
+
+def test_plan_file_older_than_window_skips_git(roadmap, repo, fc, monkeypatch):
+    _project(roadmap, repo)
+    path = _plan_path(roadmap, repo, 1)
+    _set_steps(roadmap, repo, 1, _twenty_over_ten() + [True, None])
+    old = datetime.datetime(2020, 1, 1).timestamp()
+    os.utime(path, (old, old))
+    calls = []
+    monkeypatch.setattr(fc, "_git", lambda root, *a: calls.append(a) or None)
+    ver = roadmap.read_config(repo)["currentVersion"]
+    assert _fc(roadmap, fc, repo)[ver]["ticks"] == 20
+    assert calls == []
+
+# ---- step 2: status payload and text ---------------------------------------
+
+def test_status_payload_carries_forecast_per_open_version(roadmap, repo, fc):
+    today = datetime.date.today()
+    _project(roadmap, repo, n_items=2)
+    ver = roadmap.read_config(repo)["currentVersion"]
+    roadmap.retarget(repo, "9.0.0", plan_ids=[2])
+    _set_steps(roadmap, repo, 1, _twenty_over_ten(today) + [None] * 30)
+    _set_steps(roadmap, repo, 2, [None] * 3)
+    cfg = roadmap.read_config(repo)
+    cfg["settings"]["versionTargets"] = {ver: _ago(-60, today)}
+    roadmap.write_config(repo, cfg)
+    st = roadmap.status(repo)
+    assert list(st["forecast"]) == [ver, "9.0.0"]
+    f = st["forecast"][ver]
+    assert (f["state"], f["remaining"], f["days"]) == ("forecast", 30, 15)
+    assert f["targetStatus"] == "on track"
+    assert st["forecast"]["9.0.0"]["ahead"] == 30
+
+
+def test_status_text_prints_forecast_on_version_headers(roadmap, repo, fc,
+                                                        monkeypatch, capsys):
+    today = datetime.date.today()
+    monkeypatch.chdir(repo)
+    _project(roadmap, repo, n_items=2)
+    ver = roadmap.read_config(repo)["currentVersion"]
+    roadmap.retarget(repo, "9.0.0", plan_ids=[2])
+    _set_steps(roadmap, repo, 1, _twenty_over_ten(today) + [None] * 30)
+    _set_steps(roadmap, repo, 2, [None, None])
+    cfg = roadmap.read_config(repo)
+    cfg["settings"]["versionTargets"] = {"9.0.0": _ago(-3, today)}
+    roadmap.write_config(repo, cfg)
+    capsys.readouterr()
+    assert roadmap.main(["status"]) == 0
+    lines = capsys.readouterr().out.splitlines()
+    head = {l.split()[0]: l for l in lines if l.startswith("v")}
+    assert head[f"v{ver}"] == (f"v{ver} — 30 steps left · 2/day · forecast "
+                               f"{_ago(-15, today)} ({_ago(-10, today)}..{_ago(-30, today)})")
+    assert head["v9.0.0"].startswith("v9.0.0 — 2 steps left (+30 ahead) · 2/day")
+    assert head["v9.0.0"].endswith(f"target {_ago(-3, today)}: late")
+    assert lines.index(f"v{ver}" + head[f"v{ver}"][len(ver) + 1:]) < \
+        next(i for i, l in enumerate(lines) if l.startswith("  FEAT-1 "))
+
+    _set_steps(roadmap, repo, 1, [_ago(0, today)] * 3 + [None])
+    assert roadmap.main(["status", "--version", ver]) == 0
+    out = capsys.readouterr().out.splitlines()
+    assert out[1] == f"v{ver} — 1 step left · not enough history (3 ticks in 1d)"
+    assert out[2].startswith("  FEAT-1 ")
+
+    _set_steps(roadmap, repo, 1, [_ago(0, today)] * 3)
+    assert roadmap.main(["status", "--version", ver]) == 0
+    assert capsys.readouterr().out.splitlines()[1] == f"v{ver} — done"

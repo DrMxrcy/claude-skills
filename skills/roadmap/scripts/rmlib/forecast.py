@@ -4,9 +4,9 @@ Pace = checklist steps ticked per day over the last `settings.forecastDays` (def
 14). A tick's date is the `(YYYY-MM-DD)` stamp on the dated evidence line `check`
 writes under the step (`  > evidence: ... (2026-10-23)[ · tokens: N]`). A checked
 step with no dated evidence line falls back to git: the author date of the commit
-that turned its box from `[ ]` to `[x]` (read from `git log -p` of the roadmap dir,
-window-limited, cached on HEAD sha so a long-lived `serve` process re-runs it only
-when history moves).
+that turned its box from `[ ]` to `[x]` (read from `git log -p` of just those plan
+files, window-limited, cached on HEAD sha so a long-lived `serve` process re-runs it
+only when history moves).
 
 Per open version: remaining steps, pace, forecast date and a range (pace ±1
 standard deviation of the daily tick counts). Open versions are assumed to finish
@@ -84,6 +84,13 @@ def step_dates(path: Path) -> list[tuple[bool, datetime.date | None]]:
     return out
 
 
+def _mtime_date(path: Path) -> datetime.date:
+    try:
+        return datetime.date.fromtimestamp(path.stat().st_mtime)
+    except OSError:
+        return datetime.date.min
+
+
 def _git(root: Path, *args: str) -> str | None:
     try:
         r = subprocess.run(["git", *args], cwd=str(root), capture_output=True,
@@ -93,24 +100,27 @@ def _git(root: Path, *args: str) -> str | None:
     return r.stdout if r.returncode == 0 else None
 
 
-def git_tick_dates(root: Path, since: datetime.date) -> dict[str, list[datetime.date]]:
-    """Plan basename -> one date per box ticked in a commit since `since` (net per
-    commit and file: a `[ ]`->`[x]` flip counts, a reworded checked step does not).
-    Cached on (root, HEAD sha, since). {} outside git or on any git trouble."""
+def git_tick_dates(root: Path, since: datetime.date, paths: list[Path]
+                   ) -> dict[str, list[datetime.date]]:
+    """Plan basename -> one date per box ticked in a commit since `since`, for the
+    given plan files only (net per commit and file: a `[ ]`->`[x]` flip counts, a
+    reworded checked step does not). Cached on (root, HEAD sha, since, paths).
+    {} outside git or on any git trouble."""
     head = (_git(root, "rev-parse", "HEAD") or "").strip()
-    if not head:
+    if not head or not paths:
         return {}
-    key = (str(root), head, since.isoformat())
+    rels = []
+    for p in paths:
+        try:
+            rels.append(str(p.relative_to(root)))
+        except ValueError:
+            rels.append(str(p))
+    key = (str(root), head, since.isoformat(), tuple(sorted(rels)))
     if key in _GIT_CACHE:
         return _GIT_CACHE[key]
-    rel = roadmap_dir(root)
-    try:
-        rel = rel.relative_to(root)
-    except ValueError:
-        pass
     log = _git(root, "log", f"--since={since.isoformat()} 00:00:00", "--date=short",
                "--format=%x01%ad", "-p", "--unified=0", "--no-color", "--no-ext-diff",
-               "--", str(rel)) or ""
+               "--", *rels) or ""
     out: dict[str, list[datetime.date]] = {}
     for chunk in log.split("\x01")[1:]:
         lines = chunk.splitlines()
@@ -159,10 +169,13 @@ def collect_ticks(root: Path, cfg: dict, today: datetime.date, days: int
             first = min(dated)
             earliest = first if earliest is None else min(earliest, first)
         ticks += [(d, item["version"]) for d in dated if since <= d <= today]
-        if n_undated:
+        # A file last written before the window cannot hold a tick made inside it
+        # (pulls, merges and checkouts all rewrite it), so it needs no git lookup.
+        if n_undated and _mtime_date(path) >= since:
             undated.append((item, n_undated, dated))
     if undated:
-        from_git = git_tick_dates(root, since)
+        from_git = git_tick_dates(root, since, [roadmap_dir(root) / i["file"]
+                                                for i, _, _ in undated])
         for item, n, dated in undated:
             pool = list(from_git.get(Path(item["file"]).name, []))
             for d in dated:          # a dated tick is already counted: drop its commit

@@ -380,7 +380,7 @@ def test_no_config_leaves_status_unchanged(roadmap, repo, slots, monkeypatch, ca
     st = roadmap.status(repo)
     assert "slots" not in st
     assert set(st) == {"project", "currentVersion", "versionComplete", "counts",
-                       "items", "trunk", "otherBranches"}
+                       "items", "trunk", "otherBranches", "forecast"}
     assert roadmap.main(["status", "--slots"]) == 0
     assert "no slot kinds configured" in capsys.readouterr().out
 

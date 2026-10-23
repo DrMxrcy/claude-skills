@@ -71,6 +71,7 @@ from rmlib.project import (  # noqa: E402
     init_project, upgrade)
 
 from rmlib import slots as rmslots  # noqa: E402  (plan 33: numbered slots)
+from rmlib import forecast as rmforecast  # noqa: E402  (plan 44: version forecast)
 
 
 __all__ = [  # public facade: names re-exported for callers/tests/hooks (roadmap.X)
@@ -704,12 +705,19 @@ def main(argv: list[str]) -> int:
                 active = f" · {lc['active']} active" if lc["active"] else ""
                 print(f"{st['project']} — v{st['currentVersion']} · {lc['done']} done"
                       f" · {lc['inFlight']} in-flight{active} · {lc['planned']} planned")
+                # Items grouped under a version header carrying its forecast (plan 44).
+                groups: dict[str, list] = {}
                 for it in st["items"]:
-                    block = (f" blocked by {it['blockedBy']}"
-                             if it.get("blockedBy") else "")
-                    lane = f" — {lane_label(it)}" if is_in_flight(it) else ""
-                    print(f"  {it['displayId']} {it['title']} [{it['type']}] "
-                          f"{it['pct']}% ({it['status']}){lane}{block}")
+                    groups.setdefault(it["version"], []).append(it)
+                for ver, its in groups.items():
+                    fc = rmforecast.summary((st.get("forecast") or {}).get(ver))
+                    print(f"v{ver}" + (f" — {fc}" if fc else ""))
+                    for it in its:
+                        block = (f" blocked by {it['blockedBy']}"
+                                 if it.get("blockedBy") else "")
+                        lane = f" — {lane_label(it)}" if is_in_flight(it) else ""
+                        print(f"  {it['displayId']} {it['title']} [{it['type']}] "
+                              f"{it['pct']}% ({it['status']}){lane}{block}")
             return 0
         if args.command == "search":
             if not args.text.strip():
