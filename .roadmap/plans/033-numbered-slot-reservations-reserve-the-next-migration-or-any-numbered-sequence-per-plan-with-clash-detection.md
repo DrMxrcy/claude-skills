@@ -3,7 +3,7 @@ id: 33
 title: Numbered slot reservations: reserve the next migration (or any numbered sequence) per plan, with clash detection
 type: feature
 version: 0.21.0
-status: planned
+status: done
 created: 2026-10-23
 ---
 
@@ -31,8 +31,13 @@ created: 2026-10-23
 - **Fails if:** two reservations can receive the same number.
 
 ## 🚶 Step-by-Step Checklist
-- [ ] Step 1: config schema, trunk-highest scan, `slot` reserve/release -> target: rmlib/slots.py, roadmap.py, tests
-- [ ] Step 2: branch match states and `slot --check` -> target: rmlib/slots.py, tests
-- [ ] Step 3: `status --slots` and status payload -> target: rmlib/sync.py, roadmap.py, tests
-- [ ] Step 4: dashboard slot strip -> target: rmlib/dashboard.html, rmlib/dashboard.py, tests
-- [ ] Step 5: docs and merge-gate guidance -> target: references/*.md, SKILL.md
+- [x] Step 1: config schema, trunk-highest scan, `slot` reserve/release -> target: rmlib/slots.py, roadmap.py, tests
+  > evidence: 22a389a 979930a cd8fe5e 8e2af65 dca63e1 ad6338e; merged 8b580f5; 446 passed incl. 40 slot tests; 6 concurrent reservations distinct; statewide read-only: trunk 0259, double-booked 0262/0263 at branch tips; reviews skipped at owner request (2026-10-23)
+- [x] Step 2: branch match states and `slot --check` -> target: rmlib/slots.py, tests
+  > evidence: 22a389a 979930a cd8fe5e 8e2af65 dca63e1 ad6338e; merged 8b580f5; 446 passed incl. 40 slot tests; 6 concurrent reservations distinct; statewide read-only: trunk 0259, double-booked 0262/0263 at branch tips; reviews skipped at owner request (2026-10-23)
+- [x] Step 3: `status --slots` and status payload -> target: rmlib/sync.py, roadmap.py, tests
+  > evidence: 22a389a 979930a cd8fe5e 8e2af65 dca63e1 ad6338e; merged 8b580f5; 446 passed incl. 40 slot tests; 6 concurrent reservations distinct; statewide read-only: trunk 0259, double-booked 0262/0263 at branch tips; reviews skipped at owner request (2026-10-23)
+- [x] Step 4: dashboard slot strip -> target: rmlib/dashboard.html, rmlib/dashboard.py, tests
+  > evidence: 22a389a 979930a cd8fe5e 8e2af65 dca63e1 ad6338e; merged 8b580f5; 446 passed incl. 40 slot tests; 6 concurrent reservations distinct; statewide read-only: trunk 0259, double-booked 0262/0263 at branch tips; reviews skipped at owner request (2026-10-23)
+- [x] Step 5: docs and merge-gate guidance -> target: references/*.md, SKILL.md
+  > evidence: 22a389a 979930a cd8fe5e 8e2af65 dca63e1 ad6338e; merged 8b580f5; 446 passed incl. 40 slot tests; 6 concurrent reservations distinct; statewide read-only: trunk 0259, double-booked 0262/0263 at branch tips; reviews skipped at owner request (2026-10-23)

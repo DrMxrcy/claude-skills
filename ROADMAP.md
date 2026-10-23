@@ -30,9 +30,9 @@
 ### [x] v0.20.0 — 100%
 - [x] **#27 Parallel-safe roadmap builds: per-item worktrees, fresh-session orchestration, pending-decision handoff and per-item token spend** `feature` — 100% ([plan](.roadmap/plans/027-parallel-safe-roadmap-builds-per-item-worktrees-fresh-session-orchestration-pending-decision-handoff-and-per-item-token-spend.md))
 
-### [ ] v0.21.0 — 16%
+### [ ] v0.21.0 — 24%
 - [x] **#32 Batch claims, a landed stage, and bulk check-off from claims** `feature` — 100% ([plan](.roadmap/plans/032-batch-claims-a-landed-stage-and-bulk-check-off-from-claims.md))
-- [ ] **#33 Numbered slot reservations: reserve the next migration (or any numbered sequence) per plan, with clash detection** `feature` — 0% ([plan](.roadmap/plans/033-numbered-slot-reservations-reserve-the-next-migration-or-any-numbered-sequence-per-plan-with-clash-detection.md))
+- [x] **#33 Numbered slot reservations: reserve the next migration (or any numbered sequence) per plan, with clash detection** `feature` — 100% ([plan](.roadmap/plans/033-numbered-slot-reservations-reserve-the-next-migration-or-any-numbered-sequence-per-plan-with-clash-detection.md))
 - [ ] **#34 Rulings: record dated decisions on a plan from the CLI and show them on the dashboard** `feature` — 0% ([plan](.roadmap/plans/034-rulings-record-dated-decisions-on-a-plan-from-the-cli-and-show-them-on-the-dashboard.md))
 - [x] **#35 check refuses steps on bug plans whose Observed/Root cause are still the template** `feature` — 100% ([plan](.roadmap/plans/035-check-refuses-steps-on-bug-plans-whose-observed-root-cause-are-still-the-template.md))
 - [ ] **#36 Worktree map: status --worktrees and a dashboard worktree panel with safe-to-remove marks** `feature` — 0% ([plan](.roadmap/plans/036-worktree-map-status-worktrees-and-a-dashboard-worktree-panel-with-safe-to-remove-marks.md))
