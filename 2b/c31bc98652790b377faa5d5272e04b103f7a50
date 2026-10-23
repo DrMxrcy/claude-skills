@@ -1,0 +1,33 @@
+skills/roadmap/SKILL.md
+  s_fbae122c7a65de::t_997a440d702d2c 262,266-268,282
+skills/roadmap/references/state-model.md
+  s_fbae122c7a65de::t_57e6811934cb7e 23
+skills/roadmap/scripts/rmlib/incubator.py
+  s_fbae122c7a65de::t_99968fb35381ce 8,249-251,255-277,281-289,309
+tests/test_roadmap.py
+  s_fbc496dffa0e96::t_5dfeed41b7f7c1 3292-3307
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2bc31bc98652790b377faa5d5272e04b103f7a50",
+  "prompts": {},
+  "sessions": {
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    },
+    "s_fbc496dffa0e96": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "652f2b9d-5a18-4cca-8f56-9faf34444282",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
