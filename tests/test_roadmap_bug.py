@@ -296,3 +296,40 @@ def test_promote_defaults_to_bug_for_bug_like_bullets(roadmap, proj):
     assert roadmap.main(["promote", "--match", "Export", "--type", "feature"]) == 0
     assert roadmap.read_config(proj)["items"][-1]["type"] == "feature"   # explicit wins
 
+
+# ---- payload and dashboard (step 4) -----------------------------------------------
+
+def test_status_payload_carries_bug_links_and_found_fixes(roadmap, proj, dashboard):
+    roadmap.set_claim(proj, 5, stage="review")
+    roadmap.file_bug(proj, "Menu clips", found_in=5, observed="cut at 375 px")
+    roadmap.file_bug(proj, "Export empty", found_in=6)
+    st = {i["id"]: i for i in roadmap.status(proj)["items"]}
+    assert st[5]["foundDuringBuild"] == [
+        f"Step 3: Menu clips ({TODAY}) — observed: cut at 375 px"]
+    assert (st[7]["foundIn"], st[7]["bugsFound"]) == (6, [])
+    assert (st[6]["foundIn"], st[6]["bugsFound"]) == (None, [7])
+    assert (st[1]["foundIn"], st[1]["bugsFound"], st[1]["foundDuringBuild"]) == \
+        (None, [], [])
+    json.dumps(st)                                   # payload stays JSON-clean
+    d = dashboard._item_detail(roadmap, proj, 7)
+    assert d["foundIn"] == 6
+    d = dashboard._item_detail(roadmap, proj, 5)
+    assert d["foundDuringBuild"] == st[5]["foundDuringBuild"]
+
+
+def test_dashboard_html_shows_found_fixes_and_origin_links(dashboard):
+    body = dashboard._dashboard_html()
+    for hook in ('"found in"', '"bugs found"', "row.foundDuringBuild",
+                 "found during build", '"from #"+it.foundIn'):
+        assert hook in body, hook
+    assert ".innerHTML" not in body and "insertAdjacentHTML" not in body
+
+
+def test_upgrade_writes_the_bug_rules_line(roadmap, repo, monkeypatch):
+    monkeypatch.chdir(repo)
+    roadmap.init_project(repo, "P", claude_md=False)
+    (repo / "CLAUDE.md").write_text("# Notes\n")
+    roadmap.upgrade(repo)
+    text = (repo / "CLAUDE.md").read_text()
+    assert "**Bugs never go in the incubator:**" in text
+    assert 'roadmap.py bug "<title>" --found-in <id>' in text

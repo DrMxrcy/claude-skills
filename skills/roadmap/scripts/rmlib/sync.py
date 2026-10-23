@@ -11,7 +11,7 @@ from rmlib.core import (
     atomic_write, derive_status, display_id, read_config, roadmap_dir,
     write_config)
 from rmlib.parse import (
-    CLAIM_STAGES, count_progress, needs_approval, parse_plan, read_claim)
+    CLAIM_STAGES, count_progress, meta_ids, needs_approval, parse_plan, read_claim)
 from rmlib import branches as rmbranches
 from rmlib import slots as rmslots
 from rmlib import forecast as rmforecast
@@ -382,7 +382,11 @@ def status(root: Path, worktrees: bool = False) -> dict:
                "claim": claim, "branch": branch,
                # Rulings (plan 34): dated decisions from the plan body.
                "rulings": list(plan.get("rulings") or []),
-               "needsApproval": needs_approval(plan) if plan else False}
+               "needsApproval": needs_approval(plan) if plan else False,
+               # Bug routing (plan 47): origin link, back-links, in-place fixes.
+               "foundIn": next(iter(meta_ids(plan.get("meta") or {}, "foundIn")), None),
+               "bugsFound": meta_ids(plan.get("meta") or {}, "bugsFound"),
+               "foundDuringBuild": list(plan.get("foundDuringBuild") or [])}
         items.append(row)
     cur_items = [i for i in cfg["items"] if i["version"] == cfg["currentVersion"]]
     # Counts cover every item — callers may filter `items`, the summary stays global.

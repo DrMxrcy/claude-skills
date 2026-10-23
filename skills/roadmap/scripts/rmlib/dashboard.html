@@ -268,6 +268,10 @@
   .ruling .rtext { overflow-wrap:anywhere; }
   .ruling .rctx { color:var(--muted); }
   .appr { color:var(--done); border-color:var(--done); font-weight:600; }
+  /* ---- bug routing (plan 47): fixes found during build --------------- */
+  .found { margin-top:8px; display:flex; flex-direction:column; gap:4px; font-size:12px; }
+  .found h4 { margin:0 0 2px; font-size:12px; color:var(--muted); font-weight:600; }
+  .found div { overflow-wrap:anywhere; }
   .needs-appr { color:var(--blocked); border-color:var(--blocked); font-weight:600; }
   /* ---- run log (plan 38): trunk health tile + gate timeline ------------ */
   .runs { display:flex; flex-direction:column; gap:8px; font-size:12px; }
@@ -503,6 +507,7 @@ function itemRow(it){
   title.appendChild(t);
   title.appendChild(txt("span","badge", it.type));
   rulingBadges(it).forEach(b => title.appendChild(b));
+  if(it.foundIn != null) title.appendChild(txt("span","badge", "from #"+it.foundIn));
   if(VIEW === "all" && it.checkout) title.appendChild(txt("span","badge", it.checkout));
   if(it.blockedBy && it.blockedBy.length)
     title.appendChild(txt("span","blockedby",
@@ -1124,6 +1129,9 @@ function planPage(r){
     }
     const planLinks = ids => (ids||[]).map(x => link("#/plan/"+x, "#"+x));
     fact(facts, "depends on", ...planLinks(d.dependsOn));
+    // Bug routing (plan 47): a bug's origin and an origin's filed bugs.
+    if(row.foundIn != null) fact(facts, "found in", ...planLinks([row.foundIn]));
+    fact(facts, "bugs found", ...planLinks(row.bugsFound));
     if(d.blockedBy && d.blockedBy.length){
       const s = el("span","blk");
       s.appendChild(document.createTextNode("blocked by "));
@@ -1159,6 +1167,12 @@ function planPage(r){
       out.push(box);
     }
     if(d.rulings && d.rulings.length) out.push(rulingsBlock(d.rulings));
+    if(row.foundDuringBuild && row.foundDuringBuild.length){
+      const box = el("div","found");
+      box.appendChild(txt("h4",null, "🐞 found during build"));
+      for(const f of row.foundDuringBuild) box.appendChild(txt("div",null, f));
+      out.push(box);
+    }
     out.push(md(d.body || "", d.planPath || ""));
     return out;
   });
