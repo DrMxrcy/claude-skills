@@ -8,6 +8,7 @@ _Plus behind-the-scenes performance and reliability work._
 
 ### ✨ New
 - Built-but-unmerged work shows its real state instead of 0%.
+- (pending) The live roadmap page opens on everything, and every plan and idea gets its own page.
 
 ## v0.18.0 — 2026-10-21
 

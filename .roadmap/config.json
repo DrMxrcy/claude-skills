@@ -1,7 +1,7 @@
 {
   "project": "claude-skills",
   "currentVersion": "0.19.0",
-  "nextId": 31,
+  "nextId": 32,
   "items": [
     {
       "id": 1,
@@ -267,6 +267,16 @@
       "version": "0.19.0",
       "file": "plans/030-honest-in-flight-tracking-claim-branch-stage-verdict-per-item-branch-progress-and-stage-filters-in-status-and-dashboard.md",
       "note": "Built-but-unmerged work shows its real state instead of 0%.",
+      "audience": "public"
+    },
+    {
+      "id": 31,
+      "slug": "dashboard-trunk-plus-branches-always-the-default-view-url-in-every-refresh-log-line-and-full-pages-for-each-plan-and-idea",
+      "title": "Dashboard: trunk plus branches always the default view, URL in every refresh log line, and full pages for each plan and idea",
+      "type": "feature",
+      "version": "0.19.0",
+      "file": "plans/031-dashboard-trunk-plus-branches-always-the-default-view-url-in-every-refresh-log-line-and-full-pages-for-each-plan-and-idea.md",
+      "note": "The live roadmap page opens on everything, and every plan and idea gets its own page.",
       "audience": "public"
     }
   ],
