@@ -1,0 +1,16 @@
+.roadmap/config.json
+  h_d6b80c4f15405d 241-242
+CHANGELOG.internal.md
+  h_d6b80c4f15405d 8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6741bf7318e30d545d622e27a090ae81706aec64",
+  "prompts": {},
+  "humans": {
+    "h_d6b80c4f15405d": {
+      "author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
