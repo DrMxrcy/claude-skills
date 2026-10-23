@@ -41,6 +41,14 @@ RULING_RE = re.compile(
     r"^(\s*)(?:[-*+]\s+)?\*\*(?:([A-Za-z][\w-]*)\s+)?[Rr]ulings?\b([^*]*?)"
     r"(?::\*\*|\*\*:)\s*(.*)$")
 _DATE_RE = re.compile(r"\b(\d{4}-\d{2}-\d{2})\b")
+
+# Bug routing (plan 47): `roadmap.py bug --found-in <in-flight id>` appends a
+# `Fix:` step to that plan and one bullet per bug under FOUND_HEADING. A bug in
+# shipped work is a new `bug` item instead, linked both ways by flat frontmatter
+# keys: `foundIn: <origin id>` on the bug plan, `bugsFound: <id>[, <id>]` on the
+# origin plan.
+FOUND_HEADING = "## 🐞 Found during build"
+FOUND_SECTION_KEY = "found during build"  # _norm_name of the heading text
 _LIST_MARKER_RE = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s")
 
 # Parse results are cached by (path, mtime, size). A short CLI run barely touches
@@ -81,8 +89,9 @@ def parse_plan(path: Path) -> dict:
         sm = STEP_RE.match(line)
         if sm:
             steps.append((sm.group(2).lower() == "x", sm.group(3).strip()))
-    result = {"meta": meta, "steps": steps,
-              "rulings": parse_rulings(text[m.end():] if m else text)}
+    body = text[m.end():] if m else text
+    result = {"meta": meta, "steps": steps, "rulings": parse_rulings(body),
+              "foundDuringBuild": parse_found(body)}
     if key is not None:
         _CACHE[str(path)] = (key, result)
     return result
@@ -140,6 +149,33 @@ def parse_rulings(body: str) -> list[dict]:
             i += 1
         out.append(_ruling(rm, segments))
     return out
+
+
+def parse_found(body: str) -> list[str]:
+    """Bullet texts under the plan's `## 🐞 Found during build` section (plan 47),
+    in file order. Fenced code and HTML comments are skipped."""
+    out, in_fence, inside = [], False, False
+    for line in _strip_comments(body.splitlines()):
+        if _is_fence(line):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        hm = _HEADING_RE.match(line)
+        if hm:
+            if len(hm.group(1)) <= 2:
+                inside = _norm_name(hm.group(2)) == FOUND_SECTION_KEY
+            continue
+        bm = re.match(r"^[-*+]\s+(.+)$", line) if inside else None
+        if bm:
+            out.append(bm.group(1).strip())
+    return out
+
+
+def meta_ids(meta: dict, key: str) -> list[int]:
+    """Integer ids from a comma-separated frontmatter value (`bugsFound: 7, 9`);
+    non-numeric tokens are ignored."""
+    return [int(t) for t in re.findall(r"\d+", str(meta.get(key) or ""))]
 
 
 def needs_approval(plan: dict) -> bool:
