@@ -1,0 +1,41 @@
+---
+id: 29
+title: Adversarial review skill: multi-CLI review with triage from Claude Code
+type: feature
+version: 0.19.0
+status: planned
+created: 2026-10-23
+---
+
+# Plan 29: Adversarial review skill: multi-CLI review with triage from Claude Code
+> Type: feature · Target: v0.19.0
+
+## 🎯 Target Scope & Boundaries
+- **Core objective:** a `/adversarial-review` skill that runs independent, read-only adversarial reviews of a target (a diff or branch, a roadmap version, a single plan item, or the whole repo including roadmap state) across every installed agent CLI, then has Claude triage the findings. Members: `codex`, `claude`, `agy`, `kimi`, `opencode` (`opencode run -m opencode/deepseek-v4.1-flash-free --agent plan`, read-only verified: the plan agent refused a file write and no file was created), `cursor-agent` (`--mode plan`). Each member is run once; a member that is over its usage limit, missing, or failing is recorded and skipped, never retried.
+- **Added from research (in scope):** (a) optional refutation round, `--refute`: after round 1, each member gets the other members' findings and must try to disprove them with cited evidence; findings refuted with evidence are dropped from the ranked list and listed under `refuted`, survivors are ranked. Off by default because it costs one extra call per member. (b) fresh sessions only: every member call is a new process, never `--continue`, `-c`, `--session` or `--fork`. (c) `--exclude <member>` flag; for a diff authored by Claude, `--exclude claude` gives a cross-vendor review. (d) deterministic ranking stays as already specified.
+- **Out of scope:** any member writing to the repo or to `.roadmap/`; automatic fixes; `freebuff` (no non-interactive mode) and `gemini` (not installed); the plan-review and merge-gate checkpoints (plan 028, which may reuse this engine later); auto-retry on usage limits; council-style deliberation (this is adversarial review, not planning consensus).
+
+## 🏗️ Architectural Blueprint
+- **Files to create:** `skills/adversarial-review/SKILL.md`; `skills/adversarial-review/scripts/run_review.py` (member detection, parallel fan-out, caps, usage-limit detection, transcript, triage input); `skills/adversarial-review/references/members.md` (per-CLI invocation and read-only proof); `skills/adversarial-review/prompts/adversarial.md`; `commands/adversarial-review.md`; `tests/test_adversarial_review.py`.
+- **Files to modify:** `install.sh` (register the skill); `scripts/validate_skills.py` if it needs to know the new skill.
+- **Schema/interface changes:** output goes to `.roadmap/notes/review-<date>-<target-slug>/`: one `<member>.md` per member and a `summary.md` with a status table (`ran` / `skipped: <reason>` / `failed: <reason>`) and the triaged findings list (severity, number of members agreeing, `path:line` evidence). No change to `.roadmap/config.json` schema in this plan.
+- **Downstream impact:** `/roadmap-review` step 3 (code review) can call this skill as its multi-model reviewer; plan 028 can reuse `run_review.py` later. Nothing is run automatically.
+
+## ✅ Acceptance
+- **Passes when:** `/adversarial-review <target>` runs each installed member read-only and writes one file per member plus `summary.md`, and every member appears in the status table as `ran`, `skipped: <reason>`, or `failed: <reason>`.
+- **Passes when:** a member that hits a usage or rate limit (detected from its output text or exit code) is recorded as `skipped: usage limit`, and the other members still complete the review.
+- **Passes when:** each member runs under a 300s wall-time cap, and the run leaves `git status` unchanged before and after (no member wrote to the repo or `.roadmap/`).
+- **Passes when:** members without a verified read-only mode are excluded from the run, and `references/members.md` records the read-only proof for each included member.
+- **Passes when:** triage ranks findings by severity and by how many members agree, and each finding carries `path:line` evidence.
+- **Passes when:** `python3 -m pytest` is green from the repo root and `python3 scripts/validate_skills.py` exits 0.
+- **Passes when:** with `--refute`, a finding that a member refutes with cited evidence is absent from the ranked list and appears under `refuted` in `summary.md`, and a finding that no member refutes stays ranked. Without `--refute`, no extra model call is made.
+- **Passes when:** `--exclude <member>` removes that member from the run and records `skipped: excluded by user`.
+- **Passes when:** no member call uses a continue, session or fork flag (checked by a test on the built command lines).
+- **Fails if:** any member can write to the repo or `.roadmap/`; a usage-limit error aborts the whole review; a finding with no evidence is ranked as confirmed; or a member is run with write or exec tools enabled.
+
+## 🚶 Step-by-Step Checklist
+- [ ] Step 1: Member registry and detection: find installed CLIs, record each non-interactive call and its read-only proof, probe `--version` with a 15s cap -> target: `skills/adversarial-review/references/members.md`, `skills/adversarial-review/scripts/run_review.py`
+- [ ] Step 2: Runner: parallel fan-out, 300s cap per member, usage-limit and failure detection, per-member files and `summary.md` status table -> target: `skills/adversarial-review/scripts/run_review.py`, `tests/test_adversarial_review.py`
+- [ ] Step 3: Adversarial prompt and targets (diff/branch, version, plan item, whole repo incl. roadmap state) -> target: `skills/adversarial-review/prompts/adversarial.md`, `commands/adversarial-review.md`
+- [ ] Step 4: Triage: parse member findings, dedupe, rank by severity and agreement, reject findings without evidence -> target: `skills/adversarial-review/scripts/run_review.py`, `skills/adversarial-review/SKILL.md`
+- [ ] Step 5: Install wiring and docs: register in `install.sh`, validate script, SKILL.md -> target: `install.sh`, `scripts/validate_skills.py`, `skills/adversarial-review/SKILL.md`

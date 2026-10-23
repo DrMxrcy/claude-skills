@@ -1,7 +1,7 @@
 {
   "project": "claude-skills",
   "currentVersion": "0.19.0",
-  "nextId": 28,
+  "nextId": 31,
   "items": [
     {
       "id": 1,
@@ -240,6 +240,34 @@
       "file": "plans/027-parallel-safe-roadmap-builds-per-item-worktrees-fresh-session-orchestration-pending-decision-handoff-and-per-item-token-spend.md",
       "audience": "internal",
       "note": "Respawn budget set to 4 respawns per step (5 attempts total). After that the step is BLOCKED and written to the handoff note."
+    },
+    {
+      "id": 28,
+      "slug": "council-review-plan-review-and-merge-gate-by-multiple-agent-clis",
+      "title": "Council review: plan review and merge gate by multiple agent CLIs",
+      "type": "feature",
+      "version": "0.19.0",
+      "file": "plans/028-council-review-plan-review-and-merge-gate-by-multiple-agent-clis.md",
+      "note": "Adds a council of installed agent CLIs that reviews each plan before build and each diff before merge.",
+      "audience": "internal"
+    },
+    {
+      "id": 29,
+      "slug": "adversarial-review-skill-multi-cli-review-with-triage-from-claude-code",
+      "title": "Adversarial review skill: multi-CLI review with triage from Claude Code",
+      "type": "feature",
+      "version": "0.19.0",
+      "file": "plans/029-adversarial-review-skill-multi-cli-review-with-triage-from-claude-code.md"
+    },
+    {
+      "id": 30,
+      "slug": "honest-in-flight-tracking-claim-branch-stage-verdict-per-item-branch-progress-and-stage-filters-in-status-and-dashboard",
+      "title": "Honest in-flight tracking: claim branch/stage/verdict per item, branch progress and stage filters in status and dashboard",
+      "type": "feature",
+      "version": "0.19.0",
+      "file": "plans/030-honest-in-flight-tracking-claim-branch-stage-verdict-per-item-branch-progress-and-stage-filters-in-status-and-dashboard.md",
+      "note": "Built-but-unmerged work shows its real state instead of 0%.",
+      "audience": "public"
     }
   ],
   "settings": {
