@@ -238,7 +238,8 @@
       "type": "feature",
       "version": "0.20.0",
       "file": "plans/027-parallel-safe-roadmap-builds-per-item-worktrees-fresh-session-orchestration-pending-decision-handoff-and-per-item-token-spend.md",
-      "audience": "internal"
+      "audience": "internal",
+      "note": "Respawn budget set to 4 respawns per step (5 attempts total). After that the step is BLOCKED and written to the handoff note."
     }
   ],
   "settings": {

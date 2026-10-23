@@ -5,7 +5,7 @@ _Full work log — every item, including internal/dev work. The curated public c
 ## v0.20.0 — (in progress)
 
 ### ✨ New
-- (pending) Parallel-safe roadmap builds: per-item worktrees, fresh-session orchestration, pending-decision handoff and per-item token spend
+- (pending) Respawn budget set to 4 respawns per step (5 attempts total). After that the step is BLOCKED and written to the handoff note.
 
 ## v0.18.0 — 2026-10-21
 
