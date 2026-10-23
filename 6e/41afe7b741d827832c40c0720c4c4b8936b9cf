@@ -1,0 +1,27 @@
+.roadmap/config.json
+  s_fbae122c7a65de::t_5efdcd2c773b22 525
+.roadmap/plans/034-rulings-record-dated-decisions-on-a-plan-from-the-cli-and-show-them-on-the-dashboard.md
+  s_fbae122c7a65de::t_1acaa23ea8637f 6,30-37
+CHANGELOG.internal.md
+  s_fbae122c7a65de::t_940fa54370e020 10
+CHANGELOG.md
+  s_fbae122c7a65de::t_629c64669dd495 8
+ROADMAP.md
+  s_fbae122c7a65de::t_662bd5cea11aeb 33,36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6e41afe7b741d827832c40c0720c4c4b8936b9cf",
+  "prompts": {},
+  "sessions": {
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
