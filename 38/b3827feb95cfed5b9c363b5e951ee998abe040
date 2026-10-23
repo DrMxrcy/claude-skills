@@ -1,0 +1,14 @@
+agy-plugin/plugins/roadmap/commands/roadmap-next.md
+  h_d6b80c4f15405d 23,27-30,35-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "38b3827feb95cfed5b9c363b5e951ee998abe040",
+  "prompts": {},
+  "humans": {
+    "h_d6b80c4f15405d": {
+      "author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
