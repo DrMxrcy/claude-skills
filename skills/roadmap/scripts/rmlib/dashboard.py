@@ -19,6 +19,7 @@ from pathlib import Path
 
 DEFAULT_PORT = 4700
 PORT_SPAN = 40
+MAX_COMMITS = 20   # branch commits shown when an item row is expanded
 
 
 def _dashboard_html() -> str:
@@ -34,8 +35,10 @@ def _status_line(st: dict) -> str:
     active = sum(1 for i in items if i.get("status") == "active")
     ver = st.get("currentVersion") or "?"
     nvers = len({i.get("version") for i in items})
+    flying = (st.get("counts") or {}).get("lanes", {}).get("inFlight", 0)
     return (f"current v{ver} · {pct}% ({td}/{tt}) · {active} active"
-            f" · {nvers} version{'s' if nvers != 1 else ''}")
+            + (f" · {flying} in flight" if flying else "")
+            + f" · {nvers} version{'s' if nvers != 1 else ''}")
 
 
 def _roadmap_signature(rm, root: Path):
@@ -53,6 +56,20 @@ def _roadmap_signature(rm, root: Path):
     except OSError:
         pass
     return latest
+
+
+def _refs_signature(root: Path) -> str | None:
+    """Change token for branch work, which never touches .roadmap/: one cheap
+    `for-each-ref` per tick (names + tip shas). None outside git or on any git
+    failure, so a repo without git simply never triggers on refs."""
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(root), "for-each-ref", "refs/heads",
+             "--format=%(refname) %(objectname)"],
+            capture_output=True, text=True, timeout=5)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return out.stdout if out.returncode == 0 else None
 
 
 def _safe_status(rm, root: Path) -> dict:
@@ -73,12 +90,45 @@ def _item_detail(rm, root: Path, item_id: int) -> dict:
             return {"error": f"no item #{item_id}"}
         pp = rm.roadmap_dir(root) / item["file"]
         plan = rm.parse_plan(pp) if pp.exists() else {"steps": [], "meta": {}}
-        return {"id": item_id, "title": item["title"], "type": item["type"],
-                "version": item["version"], "note": item.get("note"),
-                "file": item["file"],
-                "steps": [{"done": d, "text": t} for d, t in plan["steps"]]}
+        detail = {"id": item_id, "title": item["title"], "type": item["type"],
+                  "version": item["version"], "note": item.get("note"),
+                  "file": item["file"],
+                  "steps": [{"done": d, "text": t} for d, t in plan["steps"]],
+                  "lane": None, "claim": None, "branch": None}
+        # Lane/claim/branch come from status() so the expanded row agrees with
+        # the list (claim branch override included); commits are added here
+        # only, keeping the streamed status payload small.
+        row = next((i for i in rm.status(root).get("items", [])
+                    if i.get("id") == item_id), None)
+        if row is not None:
+            detail["lane"], detail["claim"] = row.get("lane"), row.get("claim")
+            if row.get("branch"):
+                detail["branch"] = {
+                    **row["branch"],
+                    "commits": _branch_commits(
+                        rm, root, row["branch"]["name"],
+                        [i["id"] for i in cfg["items"]])}
+        return detail
     except (ValueError, FileNotFoundError, OSError) as e:
         return {"error": str(e)}
+
+
+def _branch_commits(rm, root: Path, name: str, item_ids: list) -> list[dict]:
+    """Newest-first commits on branch `name` that trunk lacks (max 20), as
+    {sha, date, subject}. Empty when discovery is unavailable or fails — the
+    detail view degrades to steps only, never to an error."""
+    discover = getattr(rm, "discover_branches", None)
+    if discover is None:
+        return []
+    try:
+        found = discover(root, item_ids)
+    except Exception:  # noqa: BLE001 — detail view must survive git surprises
+        return []
+    for info in [*found.get("items", {}).values(), *found.get("other", [])]:
+        if info.get("name") == name:
+            return [{k: c.get(k) for k in ("sha", "date", "subject")}
+                    for c in (info.get("commits") or [])[:MAX_COMMITS]]
+    return []
 
 
 def _ideas(rm, root: Path) -> dict:
@@ -128,18 +178,29 @@ def _discover_roots(rm, root: Path) -> list[tuple[Path, str | None]]:
     return roots
 
 
+def _trunk_root(statuses: list[dict], roots_meta: list[dict]) -> int:
+    """Index of the checkout to show by default: the one on the trunk branch
+    discovery resolved, else the main checkout (index 0)."""
+    trunk = next((st.get("trunk") for st in statuses if st.get("trunk")), None)
+    for i, m in enumerate(roots_meta):
+        if trunk and m.get("branch") == trunk:
+            return i
+    return 0
+
+
 def _merge_status(statuses: list[dict], roots_meta: list[dict]) -> dict:
     """Merge per-checkout status payloads into one 'all worktrees' view: items
     merged by id, the copy with the most steps done wins and is tagged with the
-    branch it lives on; currentVersion is the highest across checkouts.
+    checkout it lives on (`checkout`; `branch` stays the git branch overlay);
+    currentVersion is the highest across checkouts.
     ponytail: same id with different meaning across branches → most-progressed
     copy wins; per-branch views remain in the dropdown for the exact picture.
     """
     items: dict[int, dict] = {}
     for i, st in enumerate(statuses):
-        branch = roots_meta[i].get("branch") or roots_meta[i]["name"]
+        checkout = roots_meta[i].get("branch") or roots_meta[i]["name"]
         for it in st.get("items", []):
-            cand = {**it, "_root": i, "branch": branch}
+            cand = {**it, "_root": i, "checkout": checkout}
             cur = items.get(it["id"])
             if cur is None or ((cand.get("done", 0), cand.get("pct", 0))
                                > (cur.get("done", 0), cur.get("pct", 0))):
@@ -180,8 +241,12 @@ class _Broadcaster:
     One thread scans every checkout's change-signature once per second and
     re-runs worktree discovery every RESCAN_TICKS seconds, so checkouts added
     or deleted while serving appear and disappear live. Each payload carries
-    every root's status plus the merged view — clients switch views locally,
-    so N open tabs (and N worktrees) still cost one scanner.
+    every root's status plus the merged view and `trunkRoot` (the default
+    view: the trunk checkout with its branch overlay) — clients switch views
+    locally, so N open tabs (and N worktrees) still cost one scanner.
+
+    Branch commits never touch .roadmap/, so the signature also carries the
+    ref list: one `git for-each-ref` per tick while refs are unchanged.
     """
     RESCAN_TICKS = 5
 
@@ -190,15 +255,21 @@ class _Broadcaster:
         self.cond = threading.Condition()
         self.version = 0
         self.roots = _discover_roots(rm, origin)
-        self._sigs = [_roadmap_signature(rm, p) for p, _ in self.roots]
+        self._sigs = self._signature()
         self.json = self._dump()
+
+    def _signature(self) -> list:
+        # Refs are shared by every checkout of the repo: one call covers all.
+        return ([_roadmap_signature(self.rm, p) for p, _ in self.roots]
+                + [_refs_signature(self.origin)])
 
     def _dump(self) -> str:
         meta = [{"path": str(p), "branch": b, "name": p.name}
                 for p, b in self.roots]
         stats = [_safe_status(self.rm, p) for p, _ in self.roots]
         merged = _merge_status(stats, meta) if len(stats) > 1 else stats[0]
-        return json.dumps({"_roots": meta, "statuses": stats, "merged": merged})
+        return json.dumps({"_roots": meta, "statuses": stats, "merged": merged,
+                           "trunkRoot": _trunk_root(stats, meta)})
 
     def start(self) -> None:
         threading.Thread(target=self._run, daemon=True).start()
@@ -218,7 +289,7 @@ class _Broadcaster:
                 self._sigs = []   # force a payload rebuild below
                 print("  ↻ worktrees now: "
                       + ", ".join(b or p.name for p, b in new), flush=True)
-        sigs = [_roadmap_signature(self.rm, p) for p, _ in self.roots]
+        sigs = self._signature()
         if sigs == self._sigs:
             return
         self._sigs = sigs
@@ -231,9 +302,11 @@ class _Broadcaster:
             self.json = snap
             self.version += 1
             self.cond.notify_all()
-        label = "[all] " if len(self.roots) > 1 else ""
-        print(f"  ↻ {label}{_status_line(json.loads(snap)['merged'])}",
-              flush=True)
+        data = json.loads(snap)
+        trunk = data["statuses"][data["trunkRoot"]]
+        label = (f"[{data['_roots'][data['trunkRoot']]['branch'] or 'trunk'}] "
+                 if len(self.roots) > 1 else "")
+        print(f"  ↻ {label}{_status_line(trunk)}", flush=True)
 
     def snapshot(self):
         with self.cond:

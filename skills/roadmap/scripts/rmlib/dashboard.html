@@ -9,7 +9,7 @@
   :root {
     --bg:#0e1116; --line:#232a34; --fg:#e6edf3; --muted:#8b98a5;
     --bar:#242c38; --done:#3fb950; --active:#d29922; --blocked:#f85149;
-    --todo:#4b5563; --accent:#58a6ff;
+    --todo:#4b5563; --accent:#58a6ff; --build:#39c5cf; --gate:#a371f7;
   }
   * { box-sizing:border-box; }
   /* #app sets display:flex, which outranks the UA rule for [hidden] — without
@@ -114,6 +114,59 @@
     font-weight:600; }
   .rel .sec div { padding-left:14px; }
   .rel .pending { color:var(--active); }
+  /* ---- in-flight overlay (plan 30): one colour per lane group ---------- */
+  .lg-done { --lc:var(--done); }
+  .lg-gate { --lc:var(--gate); }
+  .lg-review { --lc:var(--active); }
+  .lg-hold { --lc:var(--blocked); }
+  .lg-build { --lc:var(--build); }
+  .lg-plan { --lc:var(--todo); }
+  .dot[class*="lg-"], .chip .cdot[class*="lg-"] { background:var(--lc); }
+  .lane { font-size:10px; border-radius:4px; padding:1px 6px; flex:none;
+    color:var(--lc); border:1px solid var(--lc); white-space:nowrap;
+    background:color-mix(in srgb, var(--lc) 14%, transparent); }
+  .lane.lg-plan { color:var(--muted); }
+  .verdict { font-size:10px; border-radius:4px; padding:1px 5px; flex:none;
+    font-weight:600; border:1px solid currentColor; }
+  .verdict.CONFIRMED { color:var(--done); }
+  .verdict.PARTIAL { color:var(--active); }
+  .verdict.REFUTED { color:var(--blocked); }
+  .flight { grid-column:2 / 4; display:flex; gap:10px; flex-wrap:wrap;
+    align-items:center; font-size:12px; color:var(--muted); margin-top:-2px; }
+  .flight .bname { color:var(--fg); overflow-wrap:anywhere; }
+  .flight .ahead { color:var(--build); font-variant-numeric:tabular-nums; }
+  .flight .wt { border:1px dashed var(--line); border-radius:4px;
+    padding:0 5px; font-size:11px; }
+  .bar.inflight { background:repeating-linear-gradient(-45deg,
+    color-mix(in srgb, var(--lc) 35%, transparent) 0 4px, var(--bar) 4px 8px); }
+  .filters { display:flex; gap:10px; align-items:center; }
+  .filters label { display:inline-flex; gap:5px; align-items:center;
+    cursor:pointer; user-select:none; }
+  .filters input[type=checkbox] { accent-color:var(--accent); margin:0; }
+  #laneFilter { background:var(--bar); border:1px solid var(--line);
+    color:var(--fg); border-radius:6px; padding:3px 6px; font:inherit;
+    font-size:12px; }
+  .commits { margin-top:8px; display:flex; flex-direction:column; gap:3px; }
+  .commits h4, .claim h4 { margin:0 0 2px; font-size:12px; color:var(--muted);
+    font-weight:600; }
+  .commit { display:grid; grid-template-columns:auto auto 1fr; gap:10px;
+    font-size:12px; align-items:baseline; }
+  .commit .sha { color:var(--accent); }
+  .commit .age { color:var(--muted); min-width:52px; }
+  .commit .subj { overflow-wrap:anywhere; }
+  .claim { margin-top:8px; font-size:12px; }
+  .ob { display:grid; grid-template-columns:1fr auto auto auto; gap:12px;
+    font-size:12px; padding:5px 0; border-top:1px solid var(--line);
+    align-items:baseline; }
+  .ob .bname { overflow-wrap:anywhere; }
+  .ob .muted { color:var(--muted); }
+  .ob .ahead { color:var(--build); }
+  @media (max-width:640px) {
+    header, main { padding-left:16px; padding-right:16px; }
+    .ctrls { margin-left:0; flex-wrap:wrap; }
+    .bar { width:60px; }
+    .ob { grid-template-columns:1fr auto; }
+  }
 </style>
 </head>
 <body>
@@ -130,7 +183,11 @@
     <div class="tabs" id="tabs"></div>
     <div class="counts" id="rmctrls">
       <div class="ctrls">
-        <input id="search" type="search" placeholder="filter items or #id…">
+        <input id="search" type="search" placeholder="filter items, #id or branch…">
+        <span class="filters">
+          <label title="hide done items"><input type="checkbox" id="openOnly"> open only</label>
+          <select id="laneFilter" title="show one lane"></select>
+        </span>
         <span class="lnk" id="expandAll">expand all</span>
         <span class="lnk" id="collapseAll">collapse all</span>
       </div>
@@ -143,41 +200,93 @@
   <div id="changelog" hidden></div>
 </main>
 <script>
-// All text goes in via textContent — no innerHTML, no injection surface.
-const DOT = s => ({done:"done",active:"active",blocked:"blocked"}[s]||"todo");
+// All text goes in via textContent (attributes via properties) — never parsed
+// as HTML, so branch names and commit subjects (untrusted) cannot inject.
 const el = (tag,cls) => { const e=document.createElement(tag);
   if(cls) e.className=cls; return e; };
 const txt = (tag,cls,s) => { const e=el(tag,cls); e.textContent=s; return e; };
+// localStorage can be missing or throw (private window, blocked site data):
+// every read/write goes through these and the page works without them.
+const store = {
+  get(k, fb){ try { const v = localStorage.getItem(k);
+    return v == null ? fb : JSON.parse(v); } catch(_){ return fb; } },
+  set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(_){} },
+};
+// Lanes (plan 30): derived per item by the CLI; the dashboard only colours
+// and filters them. Group -> one colour family.
+const LANES = ["building","review","fixing","gate-ready","gating","blocked",
+  "stale","active","planned","done"];
+const LANE_GROUP = {done:"done", gating:"gate", "gate-ready":"gate",
+  review:"review", fixing:"review", blocked:"hold", stale:"hold",
+  building:"build", active:"build", planned:"plan"};
+const laneOf = it => it.lane || (it.status === "done" || it.pct === 100
+  ? "done" : (it.status || "planned"));
+const lg = it => "lg-" + (LANE_GROUP[laneOf(it)] || "plan");
+// Same predicate as the CLI's is_in_flight: not done, and a branch or claim.
+const inFlight = it => laneOf(it) !== "done" && !!(it.branch || it.claim);
 // Default: the current version is expanded, all others collapsed. `prefs` holds
 // only the versions the user explicitly toggled, so it overrides the default and
 // auto-advance still opens whatever the new current version is.
-const prefs = JSON.parse(localStorage.getItem("rm-prefs")||"{}");
-const savePrefs = () => localStorage.setItem("rm-prefs", JSON.stringify(prefs));
+const prefs = store.get("rm-prefs", {}) || {};
+const savePrefs = () => store.set("rm-prefs", prefs);
 const isOpen = (v,cur) => (v in prefs) ? prefs[v] : (v === cur);
 // Items the user drilled into (checklist expanded). Persisted across reloads.
-const openItems = new Set(JSON.parse(localStorage.getItem("rm-open-items")||"[]"));
-const saveOpenItems = () => localStorage.setItem("rm-open-items",
-  JSON.stringify([...openItems]));
-let LAST = null;   // last status payload, for instant re-render on toggle
+const openItems = new Set(Array.isArray(store.get("rm-open-items", []))
+  ? store.get("rm-open-items", []) : []);
+const saveOpenItems = () => store.set("rm-open-items", [...openItems]);
+// Client-side filters, remembered per browser.
+const FILT = Object.assign({open:false, lane:""}, store.get("rm-filters", {}) || {});
+const saveFilt = () => store.set("rm-filters", FILT);
+let LAST = null;   // last rendered view, for instant re-render on toggle
 let QUERY = "";    // active search filter
 const stale = off => document.getElementById("stale").classList.toggle("off", off);
 const matches = it => {
+  if(FILT.open && laneOf(it) === "done") return false;
+  if(FILT.lane && laneOf(it) !== FILT.lane) return false;
   if(!QUERY) return true;
   const q = QUERY.replace(/^#/,"");
   return (""+it.id).includes(q) || (it.title||"").toLowerCase().includes(q)
-      || (it.displayId||"").toLowerCase().includes(q);
+      || (it.displayId||"").toLowerCase().includes(q)
+      || ((it.branch && it.branch.name) || "").toLowerCase().includes(q);
 };
 
-let ROOT = "all";   // "all" = merged view; otherwise a worktree index
-let LASTP = null;   // last raw payload {_roots, statuses, merged}
+// Relative age of an ISO date: "now", "5m", "3h", "2d", "3w", "4mo", "1y".
+function age(iso){
+  const t = Date.parse(iso||"");
+  if(isNaN(t)) return "";
+  const s = Math.max(0, (Date.now()-t)/1000);
+  if(s < 60) return "now";
+  const steps = [[60,"m",60],[3600,"h",24],[86400,"d",7],[604800,"w",4.35],
+    [2629800,"mo",12],[31557600,"y",Infinity]];
+  for(const [unit,suf,max] of steps){
+    const n = Math.floor(s/unit);
+    if(n < max) return n+suf+" ago";
+  }
+  return "";
+}
+const base = p => String(p||"").split(/[\\/]/).filter(Boolean).pop() || String(p||"");
+
+// VIEW: "trunk" (default — trunk checkout with the git branch overlay),
+// "all" (legacy merged worktree checkboxes), or a worktree index.
+let VIEW = "trunk";
+let LASTP = null;   // last raw payload {_roots, statuses, merged, trunkRoot}
+const trunkIdx = P => (P && Number.isInteger(P.trunkRoot)
+  && P.trunkRoot < (P.statuses||[]).length) ? P.trunkRoot : 0;
 
 // Pick the selected view out of the payload; a removed/out-of-range worktree
-// selection falls back to the merged view.
+// selection falls back to the trunk view.
 function view(P){
-  if(ROOT !== "all" && !(P.statuses && ROOT < P.statuses.length)) ROOT = "all";
-  const st = ROOT === "all" ? P.merged : P.statuses[ROOT];
+  if(VIEW !== "trunk" && VIEW !== "all"
+     && !(P.statuses && VIEW < P.statuses.length)) VIEW = "trunk";
+  const st = VIEW === "all" ? (P.merged || {})
+    : (P.statuses || [P.merged || {}])[VIEW === "trunk" ? trunkIdx(P) : VIEW]
+      || P.merged || {};
   return {...st, _roots: P._roots};
 }
+// Checkout index the item/ideas/changelog endpoints should read.
+const viewRoot = it => VIEW === "all"
+  ? (it && it._root !== undefined ? it._root : trunkIdx(LASTP))
+  : VIEW === "trunk" ? trunkIdx(LASTP) : VIEW;
 
 function syncRootSel(d){
   const sel = document.getElementById("rootsel");
@@ -186,13 +295,57 @@ function syncRootSel(d){
   if(roots.length < 2) return;
   const opt = (v,label) => { const o=document.createElement("option");
     o.value=v; o.textContent=label; return o; };
-  sel.replaceChildren(opt("all","all worktrees"),
-    ...roots.map((r,i)=>opt(i, r.branch || r.name)));
-  sel.value = ROOT;
+  sel.replaceChildren(opt("trunk","trunk + branches"),
+    opt("all","all worktrees (merged)"),
+    ...roots.map((r,i)=>opt(i, "worktree: "+(r.branch || r.name))));
+  sel.value = VIEW;
 }
 
-function loadSteps(id, root, panel){
-  fetch("/api/item?id="+id+"&root="+root,{cache:"no-store"}).then(r=>r.json()).then(d=>{
+function syncLaneSel(items){
+  const sel = document.getElementById("laneFilter");
+  const n = {};
+  for(const it of items){ const l = laneOf(it); n[l] = (n[l]||0)+1; }
+  const opt = (v,label) => { const o=document.createElement("option");
+    o.value=v; o.textContent=label; return o; };
+  // Keep a remembered lane selectable even when it is currently empty.
+  const shown = LANES.filter(l => n[l] || l === FILT.lane);
+  sel.replaceChildren(opt("","all lanes"),
+    ...shown.map(l=>opt(l, l+" ("+(n[l]||0)+")")));
+  sel.value = FILT.lane;
+}
+
+function laneBadge(it){
+  const b = txt("span","lane "+lg(it), laneOf(it));
+  const c = it.claim;
+  if(c && (c.note || c.updated))
+    b.title = [c.note, c.updated && "claimed "+c.updated].filter(Boolean).join(" · ");
+  return b;
+}
+
+function flightLine(it){
+  const line = el("div","flight");
+  const b = it.branch, c = it.claim || {};
+  if(b){
+    line.appendChild(txt("span","bname", b.name));
+    if(b.ahead) line.appendChild(txt("span","ahead", "+"+b.ahead));
+    if(b.behind) line.appendChild(txt("span",null, "-"+b.behind+" behind"));
+    if(b.taggedCommits) line.appendChild(txt("span",null,
+      b.taggedCommits+" tagged"));
+    const a = age(b.lastDate);
+    if(a){ const s = txt("span",null, "last "+a);
+      if(b.lastSubject) s.title = b.lastSubject; line.appendChild(s); }
+    if(b.worktree){ const w = txt("span","wt", "wt "+base(b.worktree));
+      w.title = b.worktree; line.appendChild(w); }
+  } else if(c.stage) {
+    line.appendChild(txt("span",null, "no branch found"));
+  }
+  if(c.verdict) line.appendChild(txt("span","verdict "+c.verdict, c.verdict));
+  return line;
+}
+
+function loadSteps(it, panel){
+  fetch("/api/item?id="+it.id+"&root="+viewRoot(it),{cache:"no-store"})
+   .then(r=>r.json()).then(d=>{
     panel.replaceChildren();
     if(d.error){ panel.appendChild(txt("div","muted", d.error)); return; }
     if(d.note) panel.appendChild(txt("div","note", d.note));
@@ -204,6 +357,32 @@ function loadSteps(id, root, panel){
       line.appendChild(txt("span","stext"+(s.done?" done":""), s.text));
       panel.appendChild(line);
     }
+    if(d.claim){
+      const c = d.claim, box = el("div","claim");
+      box.appendChild(txt("h4",null,"claim"));
+      box.appendChild(txt("div",null, [c.stage, c.verdict, c.note,
+        c.updated && "updated "+c.updated].filter(Boolean).join(" · ")));
+      panel.appendChild(box);
+    }
+    const b = d.branch;
+    if(b){
+      const box = el("div","commits");
+      box.appendChild(txt("h4",null, "branch "+b.name+(b.ahead?" · +"+b.ahead:"")
+        +(b.behind?" · -"+b.behind+" behind":"")+(b.merged?" · merged":"")));
+      const cs = b.commits || [];
+      if(!cs.length) box.appendChild(txt("div","muted","no commits ahead of trunk"));
+      for(const c of cs){
+        const row = el("div","commit");
+        row.appendChild(txt("span","sha", c.sha||""));
+        const a = txt("span","age", age(c.date)); a.title = c.date||"";
+        row.appendChild(a);
+        row.appendChild(txt("span","subj", c.subject||""));
+        box.appendChild(row);
+      }
+      if(b.ahead > cs.length)
+        box.appendChild(txt("div","muted","…"+(b.ahead-cs.length)+" more"));
+      panel.appendChild(box);
+    }
     if(d.file) panel.appendChild(txt("div","file", ".roadmap/"+d.file));
   }).catch(()=>{ panel.replaceChildren(txt("div","muted","failed to load")); });
 }
@@ -212,23 +391,30 @@ function itemRow(it){
   const wrap = el("div","item-wrap");
   const row = el("div","item");
   const isO = openItems.has(it.id);
-  row.appendChild(el("span","dot "+DOT(it.status)));
+  const fly = inFlight(it);
+  row.appendChild(el("span","dot "+lg(it)));
   const title = el("span","title");
   title.appendChild(txt("span","icaret", isO?"▾":"▸"));
   title.appendChild(txt("span","num", it.displayId || "#"+it.id));
   title.appendChild(txt("span","t", it.title));
   title.appendChild(txt("span","badge", it.type));
-  if(ROOT === "all" && it.branch) title.appendChild(txt("span","badge", it.branch));
+  if(VIEW === "all" && it.checkout) title.appendChild(txt("span","badge", it.checkout));
   if(it.blockedBy && it.blockedBy.length)
     title.appendChild(txt("span","blockedby",
       "blocked by "+it.blockedBy.map(x=>"#"+x).join(",")));
   row.appendChild(title);
   const right = el("span","right");
-  const bar = el("span","bar"); const fill = el("i");
+  if(fly) right.appendChild(laneBadge(it));
+  // Trunk checkboxes tick at the merge gate, so an in-flight item at 0% gets
+  // a striped lane-coloured bar instead of an empty one that reads as idle.
+  const bar = el("span","bar"+(fly && !(it.pct>0) ? " inflight "+lg(it) : ""));
+  if(fly && !(it.pct>0)) bar.title = "in flight on a branch — trunk ticks at merge";
+  const fill = el("i");
   fill.style.width = (it.pct||0)+"%"; bar.appendChild(fill);
   right.appendChild(bar);
   right.appendChild(txt("span","frac", (it.done||0)+"/"+(it.total||0)));
   row.appendChild(right);
+  if(fly) row.appendChild(flightLine(it));
   row.onclick = () => {
     openItems.has(it.id) ? openItems.delete(it.id) : openItems.add(it.id);
     saveOpenItems();
@@ -239,9 +425,7 @@ function itemRow(it){
     const panel = el("div","steps");
     panel.appendChild(txt("div","muted","loading…"));
     wrap.appendChild(panel);
-    // Merged view: fetch steps from the checkout this item's copy came from.
-    loadSteps(it.id, it._root !== undefined ? it._root : (ROOT==="all"?0:ROOT),
-      panel);
+    loadSteps(it, panel);
   }
   return wrap;
 }
@@ -249,15 +433,16 @@ function itemRow(it){
 function verSection(v, items, cur){
   const gd = items.reduce((a,i)=>a+(i.done||0),0);
   const gt = items.reduce((a,i)=>a+(i.total||0),0);
+  const nf = items.filter(inFlight).length;
   const sec = el("section","ver-group");
-  // While searching, force every shown group open so matches are visible.
-  if(!QUERY && !isOpen(v,cur)) sec.classList.add("collapsed");
+  // While searching/filtering, force every shown group open so matches show.
+  if(!QUERY && !FILT.lane && !isOpen(v,cur)) sec.classList.add("collapsed");
   sec.dataset.v = v;
   const head = el("div","ver-head");
   head.appendChild(txt("span","chev","▾"));
   head.appendChild(txt("h2",null,"v"+v+(v===cur?" · current":"")));
   head.appendChild(txt("span","vpct",
-    (gt?Math.round(100*gd/gt):0)+"% · "+gd+"/"+gt));
+    (nf ? nf+" in flight · " : "")+(gt?Math.round(100*gd/gt):0)+"% · "+gd+"/"+gt));
   head.onclick = () => {
     sec.classList.toggle("collapsed");
     prefs[v] = !sec.classList.contains("collapsed");
@@ -270,6 +455,39 @@ function verSection(v, items, cur){
   return sec;
 }
 
+// Unmerged branches not attributed to any item (fix/*, experiments, release
+// branches): listed, never dropped. Collapsed by default.
+function otherSection(list){
+  const KEY = "__otherBranches";
+  const sec = el("section","ver-group");
+  if(!(prefs[KEY])) sec.classList.add("collapsed");
+  const head = el("div","ver-head");
+  head.appendChild(txt("span","chev","▾"));
+  head.appendChild(txt("h2",null,"other branches"));
+  head.appendChild(txt("span","vpct", list.length+" unmerged"));
+  head.onclick = () => {
+    sec.classList.toggle("collapsed");
+    prefs[KEY] = !sec.classList.contains("collapsed");
+    savePrefs();
+  };
+  sec.appendChild(head);
+  const box = el("div","items");
+  for(const b of list){
+    const row = el("div","ob");
+    const n = txt("span","bname", b.name||"");
+    if(b.lastSubject) n.title = b.lastSubject;
+    row.appendChild(n);
+    row.appendChild(txt("span","ahead", b.ahead ? "+"+b.ahead : ""));
+    row.appendChild(txt("span","muted", age(b.lastDate)));
+    const w = txt("span","muted", b.worktree ? "wt "+base(b.worktree) : "");
+    if(b.worktree) w.title = b.worktree;
+    row.appendChild(w);
+    box.appendChild(row);
+  }
+  sec.appendChild(box);
+  return sec;
+}
+
 function render(d){
   LAST = d;
   syncRootSel(d);
@@ -277,6 +495,8 @@ function render(d){
   document.getElementById("cver").textContent =
     d.currentVersion ? "v"+d.currentVersion : "";
   const items = d.items || [];
+  syncLaneSel(items);
+  document.getElementById("openOnly").checked = !!FILT.open;
   const td = items.reduce((a,i)=>a+(i.done||0),0);
   const tt = items.reduce((a,i)=>a+(i.total||0),0);
   document.getElementById("overall").textContent =
@@ -288,14 +508,28 @@ function render(d){
     c.appendChild(txt("span",null, n+" "+label));
     return c;
   };
+  // done / in-flight / active / planned: every item in exactly one bucket
+  // (mirrors the CLI's lane_counts; computed here so every view gets it).
+  const k = {done:0, fly:0, active:0, planned:0};
+  for(const it of items){
+    if(laneOf(it) === "done") k.done++;
+    else if(inFlight(it)) k.fly++;
+    else if(it.status === "active") k.active++;
+    else k.planned++;
+  }
+  const nblocked = items.filter(i=>i.blockedBy&&i.blockedBy.length).length;
   document.getElementById("counts").replaceChildren(
     chip(items.length, "items", null),
-    chip(items.filter(i=>i.pct===100).length, "done", "done"),
-    chip(items.filter(i=>i.status==="active").length, "active", "active"),
-    chip(items.filter(i=>i.blockedBy&&i.blockedBy.length).length, "blocked", "blocked"));
+    chip(k.done, "done", "done"),
+    chip(k.fly, "in flight", "lg-build"),
+    chip(k.active, "active", "active"),
+    chip(k.planned, "planned", null),
+    ...(nblocked ? [chip(nblocked, "blocked", "blocked")] : []));
   const app = document.getElementById("app");
+  const others = Array.isArray(d.otherBranches) ? d.otherBranches : [];
+  const tail = others.length ? [otherSection(others)] : [];
   if(!items.length){
-    app.replaceChildren(txt("div","empty", d.error||"no roadmap items yet"));
+    app.replaceChildren(txt("div","empty", d.error||"no roadmap items yet"), ...tail);
     return;
   }
   const groups = {};
@@ -313,15 +547,25 @@ function render(d){
   const vers = Object.keys(groups).sort((a,b)=>
     a===cur?-1:b===cur?1:vcmp(a,b));
   if(!vers.length){
-    app.replaceChildren(txt("div","empty","no items match “"+QUERY+"”"));
+    const why = QUERY ? "no items match “"+QUERY+"”"
+      : FILT.lane ? "no items in lane “"+FILT.lane+"”" : "no open items";
+    app.replaceChildren(txt("div","empty", why), ...tail);
     return;
   }
-  // One clean column, current version first.
-  app.replaceChildren(...vers.map(v=>verSection(v, groups[v], cur)));
+  // One clean column, current version first; other branches last.
+  app.replaceChildren(...vers.map(v=>verSection(v, groups[v], cur)), ...tail);
 }
 
 document.getElementById("search").addEventListener("input", e => {
   QUERY = e.target.value.trim().toLowerCase();
+  if(LAST) render(LAST);
+});
+document.getElementById("openOnly").addEventListener("change", e => {
+  FILT.open = e.target.checked; saveFilt();
+  if(LAST) render(LAST);
+});
+document.getElementById("laneFilter").addEventListener("change", e => {
+  FILT.lane = e.target.value; saveFilt();
   if(LAST) render(LAST);
 });
 document.getElementById("expandAll").onclick = () => {
@@ -335,8 +579,9 @@ document.getElementById("collapseAll").onclick = () => {
   savePrefs(); render(LAST);
 };
 
-// Server-Sent Events: server pushes a fresh status on every .roadmap change.
-// EventSource auto-reconnects on drop, so a closed terminal just goes stale-grey.
+// Server-Sent Events: server pushes a fresh status on every .roadmap or
+// branch-ref change. EventSource auto-reconnects on drop, so a closed
+// terminal just goes stale-grey.
 let es;
 function connect(){
   es = new EventSource("/events");
@@ -347,16 +592,19 @@ function connect(){
   es.onerror = () => stale(true);
 }
 document.getElementById("rootsel").addEventListener("change", e => {
-  ROOT = e.target.value === "all" ? "all" : (parseInt(e.target.value, 10) || 0);
+  const v = e.target.value;
+  VIEW = (v === "trunk" || v === "all") ? v : (parseInt(v, 10) || 0);
   if(LASTP) render(view(LASTP));   // view switch is local — no reconnect
   if(TAB !== "roadmap") setTab(TAB);   // re-fetch the open pane for this root
 });
+// Relative ages ("3h ago") drift without new data; refresh them each minute.
+setInterval(() => { if(LAST && TAB === "roadmap") render(LAST); }, 60000);
 // ---- tabs -------------------------------------------------------------
 // Three read-only views over the same server. Roadmap is SSE-driven; Ideas and
 // Changelog are fetched on activation and refreshed whenever a new SSE payload
 // lands, so they track edits without their own polling.
 const TABS = [["roadmap","Roadmap"],["ideas","Ideas"],["changelog","Changelog"]];
-let TAB = localStorage.getItem("rm-tab") || "roadmap";
+let TAB = store.get("rm-tab", "roadmap");
 if(!TABS.some(t=>t[0]===TAB)) TAB = "roadmap";
 const paneOf = t => document.getElementById(t==="roadmap" ? "app" : t);
 
@@ -372,7 +620,7 @@ function renderTabs(counts){
 }
 
 function setTab(t){
-  TAB = t; localStorage.setItem("rm-tab", t);
+  TAB = t; store.set("rm-tab", t);
   for(const [id] of TABS) paneOf(id).hidden = id !== t;
   document.getElementById("rmctrls").hidden = t !== "roadmap";
   renderTabs(TABCOUNTS);
@@ -381,7 +629,7 @@ function setTab(t){
 }
 
 const TABCOUNTS = {};
-const rootParam = () => "?root=" + (ROOT === "all" ? 0 : ROOT);
+const rootParam = () => "?root=" + viewRoot(null);
 
 function loadIdeas(){
   const pane = document.getElementById("ideas");

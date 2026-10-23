@@ -109,24 +109,30 @@ __all__ = [  # public facade: names re-exported for callers/tests/hooks (roadmap
 ]
 
 
+def _dashboard_api():
+    """The small read-only interface the dashboard reads all data through —
+    passed explicitly so it never has to import (or find in sys.modules) this
+    module."""
+    import types
+    from rmlib import branches as rmbranches
+    return types.SimpleNamespace(
+        status=status, read_config=read_config, roadmap_dir=roadmap_dir,
+        parse_plan=parse_plan, changelog_json=changelog_json,
+        incubator_file=incubator_file,
+        list_incubator_bullets=list_incubator_bullets,
+        discover_branches=rmbranches.discover)
+
+
 def serve(root: Path, port: int | None = None, open_browser: bool = True) -> int:
     """Delegate to the dashboard module (loaded from the sibling dashboard.py).
     Loaded lazily and by file path so it works both when roadmap.py is run as a
     script and when it is imported under a different module name (tests)."""
     import importlib.util
-    import types
     path = Path(__file__).resolve().parent / "rmlib" / "dashboard.py"
     spec = importlib.util.spec_from_file_location("roadmap_dashboard", path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    # The dashboard reads all data through this small interface — passed
-    # explicitly so it never has to import (or find in sys.modules) this module.
-    rm = types.SimpleNamespace(
-        status=status, read_config=read_config, roadmap_dir=roadmap_dir,
-        parse_plan=parse_plan, changelog_json=changelog_json,
-        incubator_file=incubator_file,
-        list_incubator_bullets=list_incubator_bullets)
-    return mod.serve(rm, root, port=port, open_browser=open_browser)
+    return mod.serve(_dashboard_api(), root, port=port, open_browser=open_browser)
 
 
 def main(argv: list[str]) -> int:

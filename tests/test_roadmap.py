@@ -2348,9 +2348,11 @@ def test_merge_status_most_progressed_wins(dashboard):
     assert m["currentVersion"] == "1.0.0"
     by_id = {i["id"]: i for i in m["items"]}
     assert set(by_id) == {1, 2, 3}
-    assert by_id[1]["done"] == 4 and by_id[1]["branch"] == "roadmap/v1"
+    assert by_id[1]["done"] == 4 and by_id[1]["checkout"] == "roadmap/v1"
     assert by_id[1]["_root"] == 1
-    assert by_id[2]["branch"] == "main"          # only copy, from main
+    assert by_id[2]["checkout"] == "main"        # only copy, from main
+    # `checkout` tags the source worktree; `branch` stays the git overlay
+    assert "branch" not in by_id[2]
 
 
 def test_broadcaster_payload_shape(roadmap, dashboard, repo):
