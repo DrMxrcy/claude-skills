@@ -70,7 +70,9 @@ When an item was built in its own worktree (`roadmap/<id>`, see `build.md`), its
 5. **Green:** record the result with `check --evidence` against the item's last step, then remove the item worktree (`git worktree remove <path>`) and delete the branch. Removal happens only after a green gate.
 6. **Red:** reset the trunk to its pre-merge commit (`git -C <trunk-worktree> reset --hard <pre-merge-sha>`, a commit this gate created, never a commit someone else made), keep the item worktree, and report the failing command. The item is not checked off.
 
-Roadmap state is written only at step 5, from the parent, never from the item worktree.
+7. **Record the run** (green or red), from the parent on the trunk checkout: `python3 "$RM" run --kind gate --label "merge <ids>" --result pass|fail --items <ids> --branches <branches> --duration <12m> [--log <https URL>] [--failing "<test ids>"]`. It appends one line to `.roadmap/runs.jsonl`, shown by `status --runs` and the dashboard's gate timeline. A full trunk suite run outside a gate (nightly, post-merge) is `run --kind suite --label <name> --result … [--shards "unit=pass,e2e=fail"] [--failing "…"]` and feeds the trunk health tile. Commit `runs.jsonl` with the step's roadmap state.
+
+Roadmap state is written only at steps 5 and 7, from the parent, never from the item worktree.
 
 **With an integration branch** (`settings.integrationBranch`), steps 1–4 merge into the integration branch instead, and step 5 becomes `claim --landed <integration-branch>` for the batch (no ticks yet). When the integration branch itself passes the gate into trunk, `check --landed` lists what trunk now contains and `check --landed --yes --evidence "<gate result>"` ticks those items in one step.
 

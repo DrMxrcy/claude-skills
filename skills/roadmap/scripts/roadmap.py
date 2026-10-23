@@ -72,6 +72,7 @@ from rmlib.project import (  # noqa: E402
     init_project, upgrade)
 
 from rmlib import slots as rmslots  # noqa: E402  (plan 33: numbered slots)
+from rmlib import runs as rmruns  # noqa: E402  (plan 38: run log)
 
 
 __all__ = [  # public facade: names re-exported for callers/tests/hooks (roadmap.X)
@@ -212,6 +213,23 @@ def _slot_cmd(root: Path, args, p_slot, rid) -> int:
     return 0
 
 
+def _run_cmd(root: Path, args, rids) -> int:
+    """`run --kind gate|suite --label L --result pass|fail [...]` (plan 38)."""
+    rec = rmruns.make_record(
+        args.kind, args.label, args.result,
+        items=rids(args.items or ""),
+        branches=rmruns.split_list(args.branches),
+        duration=rmruns.parse_duration(args.duration), log=args.log,
+        failing=rmruns.split_list(args.failing),
+        shards=rmruns.parse_shards(args.shards))
+    rmruns.append_run(root, rec, keep=rmruns.runs_keep(read_config(root)))
+    if args.as_json:
+        print(json.dumps(rec))
+    else:
+        print("recorded:" + rmruns.format_run(rec)[1:])
+    return 0
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(prog="roadmap")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -334,6 +352,20 @@ def main(argv: list[str]) -> int:
                         help="exit 1 when any reservation (or the item's) clashes or is taken")
     p_slot.add_argument("--json", action="store_true", dest="as_json")
 
+    p_run = sub.add_parser(
+        "run", help="record a merge-gate or suite run in .roadmap/runs.jsonl "
+                    "(shown by status --runs and the dashboard)")
+    p_run.add_argument("--kind", required=True, choices=list(rmruns.KINDS))
+    p_run.add_argument("--label", required=True, help="what ran, e.g. 'merge 38+39'")
+    p_run.add_argument("--result", required=True, choices=list(rmruns.RESULTS))
+    p_run.add_argument("--items", help=IDS_HELP + " — items the run gated")
+    p_run.add_argument("--branches", help="comma-separated branches the run covered")
+    p_run.add_argument("--duration", help="how long it took: 90s, 12m, 1h30m")
+    p_run.add_argument("--log", help="http(s) URL of the run's log")
+    p_run.add_argument("--failing", help="failing test names, comma- or newline-separated")
+    p_run.add_argument("--shards", help="per-shard results: unit=pass,e2e=fail")
+    p_run.add_argument("--json", action="store_true", dest="as_json")
+
     p_rel = sub.add_parser("release")
     p_rel.add_argument("--version", required=True)
     p_rel.add_argument("--tag", action="store_true")
@@ -351,6 +383,8 @@ def main(argv: list[str]) -> int:
     p_st.add_argument("--slots", action="store_true",
                       help="numbered slot reservations per kind: trunk highest, "
                            "each reservation's plan, lane and match state")
+    p_st.add_argument("--runs", action="store_true",
+                      help="recorded gate/suite runs, newest first, and trunk health")
     p_st.add_argument("--in-flight", action="store_true", dest="in_flight",
                       help="only unfinished items with a branch or a claim")
 
@@ -546,6 +580,8 @@ def main(argv: list[str]) -> int:
             return 0
         if args.command == "slot":
             return _slot_cmd(root, args, p_slot, rid)
+        if args.command == "run":
+            return _run_cmd(root, args, rids)
         if args.command == "release":
             release(root, args.version, tag=args.tag, force=args.force)
             return 0
@@ -703,6 +739,17 @@ def main(argv: list[str]) -> int:
                     print(json.dumps({"slots": st.get("slots")}, indent=2))
                 else:
                     print(rmslots.format_slots(st.get("slots")))
+                return 0
+            if not args.as_json:
+                for w in st.get("runWarnings") or []:
+                    print(f"warning: {w}", file=sys.stderr)
+            if args.runs:
+                if args.as_json:
+                    print(json.dumps({k: st.get(k) for k in
+                                      ("runs", "trunkHealth", "runWarnings")
+                                      if k in st}, indent=2))
+                else:
+                    print(rmruns.format_runs(st.get("runs") or [], st.get("trunkHealth")))
                 return 0
             # Filters only narrow the item list (AND); the header stays global.
             ver = _norm_version(args.version) if args.version else None

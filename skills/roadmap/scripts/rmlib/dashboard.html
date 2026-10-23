@@ -245,6 +245,28 @@
   .ruling .rctx { color:var(--muted); }
   .appr { color:var(--done); border-color:var(--done); font-weight:600; }
   .needs-appr { color:var(--blocked); border-color:var(--blocked); font-weight:600; }
+  /* ---- run log (plan 38): trunk health tile + gate timeline ------------ */
+  .runs { display:flex; flex-direction:column; gap:8px; font-size:12px; }
+  .health { border:1px solid var(--line); border-radius:6px; padding:8px 10px;
+    display:flex; flex-direction:column; gap:6px; }
+  .health.red { border-color:var(--blocked); }
+  .health .hh { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .health .htitle, .gates .htitle { font-weight:600; }
+  .runs .muted { color:var(--muted); }
+  .shard { border:1px solid var(--line); border-radius:4px; padding:1px 6px;
+    white-space:nowrap; color:var(--fg); text-decoration:none; }
+  .shard.pass, .gres.pass { color:var(--done); border-color:var(--done); }
+  .shard.fail, .gres.fail { color:var(--blocked); border-color:var(--blocked);
+    font-weight:600; }
+  .failing { margin:0; padding-left:18px; color:var(--blocked);
+    overflow-wrap:anywhere; }
+  .gates { display:flex; flex-direction:column; gap:4px; }
+  .grow { display:flex; gap:8px; flex-wrap:wrap; align-items:center;
+    border-top:1px solid var(--line); padding-top:4px; min-width:0; }
+  .gres { border:1px solid var(--line); border-radius:4px; padding:0 6px;
+    text-transform:uppercase; font-size:11px; }
+  .grow .glabel { font-weight:600; overflow-wrap:anywhere; }
+  .grow a { text-decoration:none; } .grow a:hover { text-decoration:underline; }
   @media (max-width:640px) {
     header, main { padding-left:16px; padding-right:16px; }
     .facts { grid-template-columns:1fr; }
@@ -602,6 +624,72 @@ function slotStrip(s){
   return [box];
 }
 
+// Run log (plan 38): trunk health tile (latest suite result per shard,
+// failing names, integration commits ahead of trunk) and the gate timeline.
+// Log URLs go through link(), so only http(s) ever becomes an href.
+const GATES_SHOWN = 10;
+function fmtDur(sec){
+  if(sec == null) return "";
+  const h = Math.floor(sec/3600), m = Math.floor(sec%3600/60), s = sec%60;
+  return h ? h+"h"+(m ? String(m).padStart(2,"0")+"m" : "")
+    : m ? m+"m"+(s ? String(s).padStart(2,"0")+"s" : "") : s+"s";
+}
+function fmtWhen(iso){
+  const t = new Date(iso||"");
+  return isNaN(t) ? "" : t.toLocaleString([], {month:"short", day:"numeric",
+    hour:"2-digit", minute:"2-digit"});
+}
+function healthTile(h){
+  const shards = (h && h.shards) || [], ahead = (h && h.ahead) || [];
+  if(!shards.length && !ahead.length) return null;
+  const box = el("section", "health"+(h.green === false ? " red" : ""));
+  const head = el("div","hh");
+  head.appendChild(txt("span","htitle","trunk health"));
+  if(!shards.length) head.appendChild(txt("span","muted","no suite runs recorded"));
+  for(const s of shards){
+    const chip = link(s.log || "", s.shard+" "+s.result, "shard "+s.result);
+    chip.title = [s.label, fmtWhen(s.at), age(s.at)].filter(Boolean).join(" · ");
+    head.appendChild(chip);
+  }
+  box.appendChild(head);
+  const failing = [...new Set(shards.flatMap(s => s.failing || []))];
+  if(failing.length){
+    const ul = el("ul","failing");
+    for(const f of failing) ul.appendChild(txt("li", null, f));
+    box.appendChild(ul);
+  }
+  for(const a of ahead) box.appendChild(txt("div","muted",
+    a.branch+" is "+a.commits+" commit"+(a.commits === 1 ? "" : "s")+" ahead of trunk"));
+  return box;
+}
+function gateTimeline(runs){
+  const gates = (runs||[]).filter(r => r.kind === "gate").slice(0, GATES_SHOWN);
+  if(!gates.length) return null;
+  const box = el("section","gates");
+  box.appendChild(txt("div","htitle","merge gates"));
+  for(const g of gates){
+    const row = el("div","grow");
+    row.appendChild(txt("span","gres "+g.result, g.result));
+    row.appendChild(txt("span","glabel", g.label));
+    for(const id of (g.items||[])) row.appendChild(link("#/plan/"+id, "#"+id));
+    if((g.branches||[]).length) row.appendChild(txt("span","muted", g.branches.join(", ")));
+    const when = txt("span","muted", fmtWhen(g.startedAt || g.at));
+    when.title = "started "+(g.startedAt || g.at)+" · recorded "+g.at;
+    row.appendChild(when);
+    if(g.durationSec != null) row.appendChild(txt("span","muted", fmtDur(g.durationSec)));
+    if(g.log) row.appendChild(link(g.log, "log"));
+    box.appendChild(row);
+  }
+  return box;
+}
+function runPanel(d){
+  const parts = [healthTile(d.trunkHealth), gateTimeline(d.runs)].filter(Boolean);
+  if(!parts.length) return [];
+  const box = el("section","runs");
+  box.append(...parts);
+  return [box];
+}
+
 function render(d){
   LAST = d;
   syncRootSel(d);
@@ -642,7 +730,7 @@ function render(d){
   const app = document.getElementById("app");
   const others = Array.isArray(d.otherBranches) ? d.otherBranches : [];
   const tail = others.length ? [otherSection(others)] : [];
-  const head = slotStrip(d.slots);
+  const head = [...slotStrip(d.slots), ...runPanel(d)];
   if(!items.length){
     app.replaceChildren(...head, txt("div","empty", d.error||"no roadmap items yet"), ...tail);
     return;

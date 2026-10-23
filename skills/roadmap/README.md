@@ -196,9 +196,10 @@ python3 $roadmap audience --plan ID --to public|internal [--force]  # route the 
 python3 $roadmap check --plan ID --step N [--undo] [--all-done] [--evidence "..."]
 python3 $roadmap next [--version V] [--force] [--json]      # next unblocked unfinished item
 python3 $roadmap deps-check --plan ID [--force]             # warn if dependsOn targets incomplete
-python3 $roadmap status [--slots] [--json]
+python3 $roadmap status [--slots] [--runs] [--json]
 python3 $roadmap slot ID --kind migration [--name N] [--add]   # reserve the next numbered slot (settings.slots); --release frees it
 python3 $roadmap slot [ID] --check                          # exit 1 if a reserved number clashes or is already taken (merge gate)
+python3 $roadmap run --kind gate|suite --label L --result pass|fail [--items IDS] [--log URL] [--shards "unit=pass,e2e=fail"]   # record a gate/suite run (.roadmap/runs.jsonl)
 python3 $roadmap orient [--json] [--hook]                   # session briefing (hooks use --hook)
 python3 $roadmap drift-check                                # nudge if commits without check-off
 python3 $roadmap sync
