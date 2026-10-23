@@ -687,3 +687,14 @@ def test_api_item_returns_rulings(served):
     assert d["needsApproval"] is False
     # The streamed status (built by status()) carries the same list.
     assert roadmap.status(repo)["items"][0]["rulings"] == d["rulings"]
+
+
+def test_dashboard_html_has_rulings_display(dashboard):
+    """Plan 34: the item card and plan page render rulings (approvals flagged,
+    'needs approval' marker) from status/api fields, DOM-only."""
+    body = dashboard._dashboard_html()
+    for hook in ("function rulingBadges", "function rulingsBlock", "it.rulings",
+                 "it.needsApproval", "needs approval", "r.approval",
+                 "rulingsBlock(d.rulings)", "rulingBadges(d)", "rulingBadges(it)"):
+        assert hook in body, hook
+    assert ".innerHTML" not in body and "insertAdjacentHTML" not in body
