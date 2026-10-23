@@ -1,7 +1,7 @@
 {
   "project": "claude-skills",
   "currentVersion": "0.19.0",
-  "nextId": 32,
+  "nextId": 40,
   "items": [
     {
       "id": 1,
@@ -277,6 +277,101 @@
       "version": "0.19.0",
       "file": "plans/031-dashboard-trunk-plus-branches-always-the-default-view-url-in-every-refresh-log-line-and-full-pages-for-each-plan-and-idea.md",
       "note": "The live roadmap page opens on everything, and every plan and idea gets its own page.",
+      "audience": "public"
+    },
+    {
+      "id": 32,
+      "slug": "batch-claims-a-landed-stage-and-bulk-check-off-from-claims",
+      "title": "Batch claims, a landed stage, and bulk check-off from claims",
+      "type": "feature",
+      "version": "0.21.0",
+      "file": "plans/032-batch-claims-a-landed-stage-and-bulk-check-off-from-claims.md",
+      "note": "Move many items through review and merge in one command, and tick them off together once they reach main.",
+      "audience": "public"
+    },
+    {
+      "id": 33,
+      "slug": "numbered-slot-reservations-reserve-the-next-migration-or-any-numbered-sequence-per-plan-with-clash-detection",
+      "title": "Numbered slot reservations: reserve the next migration (or any numbered sequence) per plan, with clash detection",
+      "type": "feature",
+      "version": "0.21.0",
+      "file": "plans/033-numbered-slot-reservations-reserve-the-next-migration-or-any-numbered-sequence-per-plan-with-clash-detection.md",
+      "note": "Plans can reserve the next migration number, so two branches never pick the same one.",
+      "audience": "public",
+      "dependsOn": [
+        31
+      ]
+    },
+    {
+      "id": 34,
+      "slug": "rulings-record-dated-decisions-on-a-plan-from-the-cli-and-show-them-on-the-dashboard",
+      "title": "Rulings: record dated decisions on a plan from the CLI and show them on the dashboard",
+      "type": "feature",
+      "version": "0.21.0",
+      "file": "plans/034-rulings-record-dated-decisions-on-a-plan-from-the-cli-and-show-them-on-the-dashboard.md",
+      "note": "Decisions and owner approvals get recorded on the plan and shown on its page.",
+      "audience": "public",
+      "dependsOn": [
+        31
+      ]
+    },
+    {
+      "id": 35,
+      "slug": "check-refuses-steps-on-bug-plans-whose-observed-root-cause-are-still-the-template",
+      "title": "check refuses steps on bug plans whose Observed/Root cause are still the template",
+      "type": "feature",
+      "version": "0.21.0",
+      "file": "plans/035-check-refuses-steps-on-bug-plans-whose-observed-root-cause-are-still-the-template.md",
+      "note": "Steps can no longer be checked off on a plan that is still the empty template.",
+      "audience": "public"
+    },
+    {
+      "id": 36,
+      "slug": "worktree-map-status-worktrees-and-a-dashboard-worktree-panel-with-safe-to-remove-marks",
+      "title": "Worktree map: status --worktrees and a dashboard worktree panel with safe-to-remove marks",
+      "type": "feature",
+      "version": "0.21.0",
+      "file": "plans/036-worktree-map-status-worktrees-and-a-dashboard-worktree-panel-with-safe-to-remove-marks.md",
+      "note": "See every worktree at a glance, which branch it holds, and which ones are safe to clean up.",
+      "audience": "public",
+      "dependsOn": [
+        31
+      ]
+    },
+    {
+      "id": 37,
+      "slug": "dashboard-lane-board-columns-per-lane-with-cards-for-branch-sha-verdict-and-last-note-plus-verdict-and-branch-filter-chips",
+      "title": "Dashboard lane board: columns per lane with cards for branch, sha, verdict and last note, plus verdict and branch filter chips",
+      "type": "feature",
+      "version": "0.21.0",
+      "file": "plans/037-dashboard-lane-board-columns-per-lane-with-cards-for-branch-sha-verdict-and-last-note-plus-verdict-and-branch-filter-chips.md",
+      "note": "A board view on the dashboard shows every item in its column, from planned to done.",
+      "audience": "public",
+      "dependsOn": [
+        32
+      ]
+    },
+    {
+      "id": 38,
+      "slug": "run-log-record-merge-gate-and-trunk-suite-runs-from-the-cli-shown-as-a-gate-timeline-and-trunk-health-tile",
+      "title": "Run log: record merge-gate and trunk suite runs from the CLI, shown as a gate timeline and trunk health tile",
+      "type": "feature",
+      "version": "0.21.0",
+      "file": "plans/038-run-log-record-merge-gate-and-trunk-suite-runs-from-the-cli-shown-as-a-gate-timeline-and-trunk-health-tile.md",
+      "note": "Merge gates and test runs are recorded, so everyone can see what ran, what passed, and how far the trunk is ahead.",
+      "audience": "public",
+      "dependsOn": [
+        31
+      ]
+    },
+    {
+      "id": 39,
+      "slug": "auto-collapse-shipped-versions-in-roadmap-md-instead-of-a-length-warning-on-every-call",
+      "title": "Auto-collapse shipped versions in ROADMAP.md instead of a length warning on every call",
+      "type": "chore",
+      "version": "0.21.0",
+      "file": "plans/039-auto-collapse-shipped-versions-in-roadmap-md-instead-of-a-length-warning-on-every-call.md",
+      "note": "The roadmap stops warning about file length once shipped versions fold away on their own.",
       "audience": "public"
     }
   ],

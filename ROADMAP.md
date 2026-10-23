@@ -1,8 +1,6 @@
 # 🗺️ Roadmap: claude-skills
 
 ## 💡 Idea Incubator
-- Auto-collapse shipped versions in ROADMAP.md instead of a length warning on every call
-- check refuses steps on bug plans whose Observed/Root cause are still the template
 - Upgrade must not write into a gitignored scripts dir without git add -f or a refusal
 <!-- Free-form; sync never rewrites this region. ONE bullet per idea (`roadmap.py idea`).
      Long write-ups (brainstorms, review findings) go to .roadmap/notes/ files and get linked. -->
@@ -23,7 +21,7 @@
 
 ### [x] v0.18.0 — 100% · 6 items · shipped 2026-10-21 ([history](CHANGELOG.internal.md))
 
-### [ ] v0.19.0 — 33%
+### [ ] v0.19.0 — 29%
 - [ ] **#28 Council review: plan review and merge gate by multiple agent CLIs** `feature` — 0% ([plan](.roadmap/plans/028-council-review-plan-review-and-merge-gate-by-multiple-agent-clis.md))
 - [ ] **#29 Adversarial review skill: multi-CLI review with triage from Claude Code** `feature` — 0% ([plan](.roadmap/plans/029-adversarial-review-skill-multi-cli-review-with-triage-from-claude-code.md))
 - [x] **#30 Honest in-flight tracking: claim branch/stage/verdict per item, branch progress and stage filters in status and dashboard** `feature` — 100% ([plan](.roadmap/plans/030-honest-in-flight-tracking-claim-branch-stage-verdict-per-item-branch-progress-and-stage-filters-in-status-and-dashboard.md))
@@ -31,4 +29,14 @@
 
 ### [x] v0.20.0 — 100%
 - [x] **#27 Parallel-safe roadmap builds: per-item worktrees, fresh-session orchestration, pending-decision handoff and per-item token spend** `feature` — 100% ([plan](.roadmap/plans/027-parallel-safe-roadmap-builds-per-item-worktrees-fresh-session-orchestration-pending-decision-handoff-and-per-item-token-spend.md))
+
+### [ ] v0.21.0 — 0%
+- [ ] **#32 Batch claims, a landed stage, and bulk check-off from claims** `feature` — 0% ([plan](.roadmap/plans/032-batch-claims-a-landed-stage-and-bulk-check-off-from-claims.md))
+- [ ] **#33 Numbered slot reservations: reserve the next migration (or any numbered sequence) per plan, with clash detection** `feature` — 0% ([plan](.roadmap/plans/033-numbered-slot-reservations-reserve-the-next-migration-or-any-numbered-sequence-per-plan-with-clash-detection.md))
+- [ ] **#34 Rulings: record dated decisions on a plan from the CLI and show them on the dashboard** `feature` — 0% ([plan](.roadmap/plans/034-rulings-record-dated-decisions-on-a-plan-from-the-cli-and-show-them-on-the-dashboard.md))
+- [ ] **#35 check refuses steps on bug plans whose Observed/Root cause are still the template** `feature` — 0% ([plan](.roadmap/plans/035-check-refuses-steps-on-bug-plans-whose-observed-root-cause-are-still-the-template.md))
+- [ ] **#36 Worktree map: status --worktrees and a dashboard worktree panel with safe-to-remove marks** `feature` — 0% ([plan](.roadmap/plans/036-worktree-map-status-worktrees-and-a-dashboard-worktree-panel-with-safe-to-remove-marks.md))
+- [ ] **#37 Dashboard lane board: columns per lane with cards for branch, sha, verdict and last note, plus verdict and branch filter chips** `feature` — 0% ([plan](.roadmap/plans/037-dashboard-lane-board-columns-per-lane-with-cards-for-branch-sha-verdict-and-last-note-plus-verdict-and-branch-filter-chips.md))
+- [ ] **#38 Run log: record merge-gate and trunk suite runs from the CLI, shown as a gate timeline and trunk health tile** `feature` — 0% ([plan](.roadmap/plans/038-run-log-record-merge-gate-and-trunk-suite-runs-from-the-cli-shown-as-a-gate-timeline-and-trunk-health-tile.md))
+- [ ] **#39 Auto-collapse shipped versions in ROADMAP.md instead of a length warning on every call** `chore` — 0% ([plan](.roadmap/plans/039-auto-collapse-shipped-versions-in-roadmap-md-instead-of-a-length-warning-on-every-call.md))
 <!-- roadmap:auto:end -->

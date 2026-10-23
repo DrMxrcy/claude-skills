@@ -2,6 +2,20 @@
 
 _Full work log — every item, including internal/dev work. The curated public changelog is CHANGELOG.md._
 
+## v0.21.0 — (in progress)
+
+### ✨ New
+- (pending) Move many items through review and merge in one command, and tick them off together once they reach main.
+- (pending) Plans can reserve the next migration number, so two branches never pick the same one.
+- (pending) Decisions and owner approvals get recorded on the plan and shown on its page.
+- (pending) Steps can no longer be checked off on a plan that is still the empty template.
+- (pending) See every worktree at a glance, which branch it holds, and which ones are safe to clean up.
+- (pending) A board view on the dashboard shows every item in its column, from planned to done.
+- (pending) Merge gates and test runs are recorded, so everyone can see what ran, what passed, and how far the trunk is ahead.
+
+### ⚡ Improved
+- (pending) The roadmap stops warning about file length once shipped versions fold away on their own.
+
 ## v0.20.0 — 2026-10-23
 
 ### ✨ New
