@@ -344,7 +344,9 @@ def _discover(root: Path, cfg: dict) -> dict:
         return {"trunk": None, "items": {}, "other": []}
 
 
-def status(root: Path) -> dict:
+def status(root: Path, worktrees: bool = False) -> dict:
+    """Status payload. `worktrees=True` adds the worktree map (plan 36) —
+    opt-in because it costs one `git status` per linked worktree."""
     cfg = read_config(root)
     by_id = {i["id"]: i for i in cfg["items"]}
     # Full progress map first — blockedBy for early ids must see later deps' progress.
@@ -388,10 +390,123 @@ def status(root: Path) -> dict:
     # so projects without it see an unchanged payload.
     extra = ({"slots": rmslots.slots_status(root, cfg, items, found)}
              if (cfg.get("settings") or {}).get("slots") else {})
-    return {"project": cfg["project"], "currentVersion": cfg["currentVersion"],
-            "versionComplete": _version_complete(cur_items, progress),
-            "counts": counts, "items": items,
-            "trunk": found["trunk"], "otherBranches": other, **extra}
+    out = {"project": cfg["project"], "currentVersion": cfg["currentVersion"],
+           "versionComplete": _version_complete(cur_items, progress),
+           "counts": counts, "items": items,
+           "trunk": found["trunk"], "otherBranches": other, **extra}
+    if worktrees:
+        out["worktrees"] = worktree_payload(root, out, cfg)
+    return out
+
+
+# --- worktree map (plan 36) ------------------------------------------------
+DEFAULT_WORKTREE_WARN = 20
+
+
+def _worktree_warn(settings: dict) -> int:
+    try:
+        n = int(settings.get("worktreeWarn", DEFAULT_WORKTREE_WARN))
+    except (TypeError, ValueError):
+        return DEFAULT_WORKTREE_WARN
+    return n if n >= 0 else DEFAULT_WORKTREE_WARN
+
+
+def worktree_payload(root: Path, st: dict, cfg: dict | None = None,
+                     max_age: float | None = None) -> dict:
+    """The worktree map for a status payload `st` already in hand: every linked
+    worktree (rmbranches.worktrees) tagged with the item its branch belongs to
+    (the item's discovered or claimed branch, else settings.branchPattern), that
+    item's lane and claim stage. {"trunk", "count", "safe", "warnAt", "over",
+    "rows"}; `over` = count > settings.worktreeWarn (default 20). Never raises
+    and never removes anything: `removeCmd` is text for the caller to print."""
+    try:
+        cfg = cfg if cfg is not None else read_config(root)
+    except (ValueError, FileNotFoundError, OSError):
+        cfg = {}
+    settings = cfg.get("settings") or {}
+    warn = _worktree_warn(settings)
+    kw = {} if max_age is None else {"max_age": max_age}
+    try:
+        res = rmbranches.worktrees(
+            root, integration=settings.get("integrationBranch") or None, **kw)
+    except Exception:  # noqa: BLE001 — status must survive any git surprise
+        res = {"trunk": None, "rows": []}
+    items = st.get("items") or []
+    by_branch: dict[str, dict] = {}
+    for it in items:
+        for name in ((it.get("claim") or {}).get("branch"),
+                     (it.get("branch") or {}).get("name")):
+            if name:
+                by_branch.setdefault(name, it)
+    by_id = {it["id"]: it for it in items}
+    pattern = settings.get("branchPattern")
+    name_re = rmbranches._pattern_re(pattern if isinstance(pattern, str) and pattern
+                                     else rmbranches.DEFAULT_PATTERN)
+    rows = []
+    for r in res["rows"]:
+        it = by_branch.get(r["branch"] or "")
+        if it is None and r["branch"] and name_re:
+            m = name_re.match(r["branch"])
+            it = by_id.get(int(m.group(1))) if m else None
+        rows.append({**r, "item": it["id"] if it else None,
+                     "displayId": it.get("displayId") if it else None,
+                     "title": it.get("title") if it else None,
+                     "lane": it.get("lane") if it else None,
+                     "stage": ((it.get("claim") or {}).get("stage") if it else None)})
+    n = len(rows)
+    return {"trunk": res["trunk"], "count": n,
+            "safe": sum(1 for r in rows if r["safe"]),
+            "warnAt": warn, "over": n > warn, "rows": rows}
+
+
+def _ago(iso: str | None, now: datetime.datetime | None = None) -> str:
+    """`5m` / `3h` / `2d` / `6w` since an ISO date; empty when unparsable."""
+    if not iso:
+        return ""
+    try:
+        when = datetime.datetime.fromisoformat(iso)
+    except ValueError:
+        return ""
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=datetime.timezone.utc)
+    now = now or datetime.datetime.now(datetime.timezone.utc)
+    secs = max(0, int((now - when).total_seconds()))
+    for unit, size in (("w", 604800), ("d", 86400), ("h", 3600), ("m", 60)):
+        if secs >= size:
+            return f"{secs // size}{unit}"
+    return "now"
+
+
+def format_worktrees(payload: dict | None) -> str:
+    """Terminal table for `status --worktrees`, then the removal command for
+    every safe worktree — printed for the user to run, never run here."""
+    payload = payload or {"count": 0, "safe": 0, "warnAt": DEFAULT_WORKTREE_WARN,
+                          "over": False, "rows": []}
+    n, safe = payload["count"], payload["safe"]
+    head = (f"worktrees: {n} linked · {safe} safe to remove"
+            + (f" · over worktreeWarn ({payload['warnAt']})" if payload["over"] else ""))
+    if not n:
+        return head
+    table = [("BRANCH", "ITEM", "LANE", "DIRTY", "UNMERGED", "STAGE", "AGE",
+              "SAFE", "PATH")]
+    for r in payload["rows"]:
+        num = lambda v: "?" if v is None else str(v)
+        table.append((
+            r["branch"] or f"(detached {r['head'] or '?'})",
+            r["displayId"] or (f"#{r['item']}" if r["item"] else "-"),
+            r["lane"] or "-", num(r["dirty"]), num(r["ahead"]),
+            r["stage"] or "-", _ago(r["lastDate"]) or "-",
+            "yes" if r["safe"] else f"no ({r['reason']})", r["path"]))
+    widths = [max(len(row[i]) for row in table) for i in range(len(table[0]) - 1)]
+    lines = [head]
+    for row in table:
+        lines.append("  " + "  ".join(c.ljust(w) for c, w in zip(row, widths))
+                     + "  " + row[-1])
+    cmds = [r["removeCmd"] for r in payload["rows"] if r["safe"] and r["removeCmd"]]
+    if cmds:
+        lines.append("safe to remove (run yourself; nothing was removed):")
+        lines.extend(f"  {c}" for c in cmds)
+    return "\n".join(lines)
 
 
 def _item_done(progress: dict[int, tuple[int, int]], plan_id: int) -> bool:

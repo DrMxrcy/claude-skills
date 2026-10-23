@@ -2875,6 +2875,89 @@ def test_worktree_dirty_counts_are_time_budgeted(branches, wt_repo, monkeypatch)
     assert rows[paths["merged"]]["dirty"] == 1 and rows[paths["merged"]]["safe"] is False
 
 
+def _wt_project(roadmap, repo, monkeypatch, tmp_path_factory):
+    """Items 1-3. Worktrees: roadmap/1 dirty (2 commits trunk lacks),
+    roadmap/2 merged into main and clean, roadmap/3 unmerged (1 commit) and
+    clean. Item 3 carries a claim stage."""
+    monkeypatch.chdir(repo)
+    _git(repo, "symbolic-ref", "HEAD", "refs/heads/main")
+    roadmap.init_project(repo, "P", claude_md=False)
+    for title in "ABC":
+        roadmap.new_item(repo, "feature", title)
+    _git(repo, "add", "-A")
+    _commit(repo, "init")
+    for item, n in ((1, 2), (2, 1), (3, 1)):
+        _git(repo, "branch", f"roadmap/{item}", "main")
+    base = tmp_path_factory.mktemp("wtp")
+    paths = {n: base / f"wt{n}" for n in (1, 2, 3)}
+    for n, path in paths.items():
+        _git(repo, "worktree", "add", "-q", str(path), f"roadmap/{n}")
+        for k in range({1: 2, 2: 1, 3: 1}[n]):
+            _commit(path, f"work {k} (plan {n})")
+    _git(repo, "merge", "-q", "--no-ff", "-m", "merge 2", "roadmap/2")
+    (paths[1] / "a.txt").write_text("a")
+    (paths[1] / "b.txt").write_text("b")
+    roadmap.set_claim(repo, 3, stage="review")
+    return {n: str(p.resolve()) for n, p in paths.items()}
+
+
+def test_status_worktrees_payload_and_marks(roadmap, branches, repo, monkeypatch,
+                                            tmp_path_factory):
+    paths = _wt_project(roadmap, repo, monkeypatch, tmp_path_factory)
+    assert "worktrees" not in roadmap.status(repo)        # opt-in only
+    wt = roadmap.status(repo, worktrees=True)["worktrees"]
+    assert (wt["count"], wt["safe"], wt["warnAt"], wt["over"]) == (3, 1, 20, False)
+    rows = {r["item"]: r for r in wt["rows"]}
+    assert {n: (rows[n]["dirty"], rows[n]["ahead"], rows[n]["safe"]) for n in rows} \
+        == {1: (2, 2, False), 2: (0, 0, True), 3: (0, 1, False)}
+    assert (rows[1]["lane"], rows[3]["lane"], rows[3]["stage"]) == \
+        ("building", "review", "review")
+    assert rows[2]["displayId"] == "FEAT-2" and rows[2]["lane"] == "planned"
+    assert rows[2]["removeCmd"] == f"git worktree remove {rows[2]['path']}"
+    assert {str(Path(r["path"]).resolve()) for r in wt["rows"]} == set(paths.values())
+    # threshold from settings.worktreeWarn
+    _set_settings(roadmap, repo, worktreeWarn=2)
+    wt = roadmap.status(repo, worktrees=True)["worktrees"]
+    assert (wt["warnAt"], wt["over"]) == (2, True)
+
+
+def test_status_worktrees_cli_never_removes(roadmap, branches, repo, monkeypatch,
+                                            capsys, tmp_path_factory):
+    paths = _wt_project(roadmap, repo, monkeypatch, tmp_path_factory)
+    before = subprocess.run(["git", "worktree", "list"], cwd=repo, check=True,
+                            capture_output=True, text=True).stdout
+    refs = subprocess.run(["git", "for-each-ref", "refs/heads"], cwd=repo,
+                          check=True, capture_output=True, text=True).stdout
+    assert roadmap.main(["status", "--worktrees"]) == 0
+    out = capsys.readouterr().out
+    lines = out.splitlines()
+    assert lines[0] == "worktrees: 3 linked · 1 safe to remove"
+    row = {n: next(l for l in lines if l.rstrip().endswith(p))
+           for n, p in paths.items()}
+    assert "FEAT-1" in row[1] and "no (2 dirty; 2 unmerged)" in row[1]
+    assert "  yes  " in row[2]
+    assert "review" in row[3] and "no (1 unmerged)" in row[3]
+    assert lines[-2].startswith("safe to remove")
+    assert lines[-1].strip() == f"git worktree remove {paths[2]}"
+    assert roadmap.main(["status", "--worktrees", "--json"]) == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["worktrees"]["safe"] == 1
+    assert subprocess.run(["git", "worktree", "list"], cwd=repo, check=True,
+                          capture_output=True, text=True).stdout == before
+    assert subprocess.run(["git", "for-each-ref", "refs/heads"], cwd=repo,
+                          check=True, capture_output=True,
+                          text=True).stdout == refs
+    assert all(Path(p).is_dir() for p in paths.values())
+
+
+def test_status_worktrees_without_linked_worktrees(roadmap, branches, repo,
+                                                   monkeypatch, capsys):
+    monkeypatch.chdir(repo)
+    roadmap.init_project(repo, "P", claude_md=False)
+    assert roadmap.main(["status", "--worktrees"]) == 0
+    assert capsys.readouterr().out.strip() == "worktrees: 0 linked · 0 safe to remove"
+
+
 def test_branches_cache_hit_runs_one_git_call(branches, branch_repo, monkeypatch):
     first = branches.discover(branch_repo, [3, 7, 9])
     calls = []
