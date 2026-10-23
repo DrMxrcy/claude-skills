@@ -8,7 +8,8 @@ Claude does the final judgement on that summary; this script only collects and r
 
 Usage:
   run_review.py [TARGET] [--base REF] [--members a,b] [--exclude a,b] [--refute]
-                [--timeout 300] [--repo PATH] [--out-dir DIR] [--list]
+                [--security] [--decided TEXT|@FILE] [--timeout 300] [--repo PATH]
+                [--out-dir DIR] [--list]
 
 TARGET (default: diff):
   diff                working tree vs HEAD (or <base>...HEAD with --base)
@@ -25,7 +26,9 @@ violated (a member changed the working tree) — the run is marked failed.
 Stdlib only.
 """
 import argparse
+import bisect
 import datetime as _dt
+import fnmatch
 import hashlib
 import json
 import os
@@ -36,6 +39,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import unicodedata
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -43,6 +47,7 @@ from pathlib import Path
 SKILL_DIR = Path(__file__).resolve().parent.parent
 PROMPT_FILE = SKILL_DIR / "prompts" / "adversarial.md"
 REFUTE_PROMPT_FILE = SKILL_DIR / "prompts" / "refute.md"
+SECURITY_SYNC_SCRIPT = SKILL_DIR / "scripts" / "sync-security-refs.py"
 
 DEFAULT_TIMEOUT = 300          # per-member wall-time cap, seconds
 VERSION_PROBE_TIMEOUT = 15     # `<cli> --version` cap, seconds
@@ -58,12 +63,62 @@ OPENCODE_FALLBACK_LABEL = "free"
 # ran python and wrote a .pyc). Append rules for the plan agent: deny every action,
 # then allow read/glob/grep (last matching rule wins). Needs --standalone so a private
 # server reads this env instead of the shared background service.
-OPENCODE_READONLY_CONFIG = json.dumps({"agents": {"plan": {"permissions": [
-    {"action": "*", "resource": "*", "effect": "deny"},
-    {"action": "read", "resource": "*", "effect": "allow"},
-    {"action": "glob", "resource": "*", "effect": "allow"},
-    {"action": "grep", "resource": "*", "effect": "allow"},
-]}}}, separators=(",", ":"))
+SECURITY_DIR = SKILL_DIR / "references" / "security"
+
+
+def opencode_readonly_config():
+    """Deny every action, then allow read/glob/grep. No external_directory rule: the
+    security checklists are copied into the review snapshot, so nothing outside the
+    member's working directory is ever needed."""
+    return json.dumps({"agents": {"plan": {"permissions": [
+        {"action": "*", "resource": "*", "effect": "deny"},
+        {"action": "read", "resource": "*", "effect": "allow"},
+        {"action": "glob", "resource": "*", "effect": "allow"},
+        {"action": "grep", "resource": "*", "effect": "allow"},
+    ]}}}, separators=(",", ":"))
+
+
+OPENCODE_READONLY_CONFIG = opencode_readonly_config()
+
+# (3) Environment allowlist. A member process gets only these variables, any LC_*, and
+# its own CLI's auth variables (MEMBER_AUTH_ENV); nothing else from the caller's env.
+# HOME/USER/LOGNAME/SHELL and XDG_* are needed for the CLIs to find their own login and
+# config; proxy and CA variables are needed to reach the model APIs on some networks.
+BASE_ENV_ALLOW = frozenset({
+    "PATH", "LANG", "TERM", "TMPDIR", "HOME", "USER", "LOGNAME", "SHELL",
+    "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME", "XDG_RUNTIME_DIR",
+    "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy",
+    "SSL_CERT_FILE", "SSL_CERT_DIR", "NODE_EXTRA_CA_CERTS"})
+BASE_ENV_PREFIXES = ("LC_",)
+MEMBER_AUTH_ENV = {
+    "codex": ("OPENAI_API_KEY", "OPENAI_BASE_URL", "CODEX_HOME"),
+    "cursor-agent": ("CURSOR_API_KEY", "CURSOR_API_ENDPOINT"),
+    "agy": ("GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_CLOUD_PROJECT"),
+    "claude": ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL",
+               "CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CONFIG_DIR"),
+    "opencode": ("OPENCODE_API_KEY",),
+}
+
+
+def member_env(member, environ=None):
+    """The complete environment for one member process (allowlist only)."""
+    environ = os.environ if environ is None else environ
+    auth = set(MEMBER_AUTH_ENV.get(member.name, ()))
+    env = {k: v for k, v in environ.items()
+           if k in BASE_ENV_ALLOW or k in auth or k.startswith(BASE_ENV_PREFIXES)}
+    env["NO_COLOR"] = "1"
+    env.update(member.env)          # set by this script (e.g. opencode's read-only config)
+    return env
+
+
+# (1) Sanitized snapshot: members never run in the live tree.
+DEFAULT_DENY = (".env*", "*.pem", "*.key", "id_*", ".npmrc", ".netrc", ".git",
+                "node_modules", "*.p12", "*.pfx", ".pypirc", ".ssh", ".aws")
+SNAPSHOT_SECURITY = ".adversarial-review/security"
+MAX_SNAPSHOT_FILE = 5_000_000
+MAX_SCAN_FILE = 2_000_000
+QUOTE_WINDOW = 3               # a quote must appear within this many lines of path:line
+REFUTE_QUORUM = 2              # distinct members whose verified refutations drop a finding
 
 # Every member call is a fresh process and a fresh session. Any argv token equal to one
 # of these, or starting with one plus "=" or "-" (e.g. --session-id, --fork=x), is
@@ -80,6 +135,19 @@ USAGE_LIMIT_RE = re.compile(
     re.IGNORECASE,
 )
 MIN_EVIDENCE_CHARS = 10        # non-space characters a finding's evidence must carry
+LABELS = {"confirmed": "Confirmed", "needs verification": "Needs verification"}
+LENSES = ("production breakage", "security", "maintainability")
+LENS_TEXT = {
+    "production breakage": "**Production breakage.** What fails, crashes, corrupts data, "
+                           "or regresses for users or callers once this ships?",
+    "security": "**Security.** What can an attacker or an untrusted input reach? Use the "
+                "security checklists listed below.",
+    "maintainability": "**Maintainability.** What will the next change break? Look for "
+                       "hidden coupling, contracts that drift from their docs, untested "
+                       "behaviour, and duplicated logic that will diverge.",
+}
+PROJECT_DOCS = ("RULES.md", "DESIGN.md", "ARCHITECTURE.md")
+NOT_CHECKED_RE = re.compile(r"^\s*[`>*-]*\s*NOT_CHECKED\|(.*)$", re.MULTILINE)
 FINDING_RE = re.compile(r"^\s*[`>*-]*\s*FINDING\|", re.MULTILINE)
 REFUTE_RE = re.compile(r"^\s*[`>*-]*\s*REFUTE\|", re.MULTILINE)
 ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
@@ -183,6 +251,9 @@ class MemberResult:
     reason: str
     version: str = ""
     attempts: list = field(default_factory=list)
+    lens: str = ""
+    dropped: list = field(default_factory=list)       # [(title, reason)] — evidence rule
+    not_checked: list = field(default_factory=list)   # NOT_CHECKED| lines
 
     @property
     def output(self):
@@ -195,7 +266,7 @@ class MemberResult:
 
 # --- subprocess helpers -------------------------------------------------------------
 
-def _run_capped(argv, cwd, timeout, stdin_text=None, extra_env=None):
+def _run_capped(argv, cwd, timeout, stdin_text=None, env=None):
     """Run argv in its own process group; kill the whole group on timeout.
 
     Returns (returncode or None on timeout, stdout, stderr, seconds).
@@ -206,7 +277,7 @@ def _run_capped(argv, cwd, timeout, stdin_text=None, extra_env=None):
         stdin=subprocess.PIPE if stdin_text is not None else subprocess.DEVNULL,
         stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         start_new_session=True,
-        env={**os.environ, "NO_COLOR": "1", **(extra_env or {})},
+        env=env if env is not None else {**os.environ, "NO_COLOR": "1"},
     )
     try:
         out, err = proc.communicate(input=stdin_text, timeout=timeout)
@@ -271,7 +342,7 @@ def _attempt(member, binary_path, prompt, repo, timeout, model=None, cap_label=N
         try:
             rc, out, err, secs = _run_capped(
                 argv, repo, timeout, stdin_text=prompt if member.prompt_on_stdin else None,
-                extra_env=member.env)
+                env=member_env(member))
         except OSError as exc:
             return Attempt(f"failed: {type(exc).__name__}", str(exc), "", None, 0.0,
                            shown, model or "")
@@ -287,9 +358,9 @@ def _attempt(member, binary_path, prompt, repo, timeout, model=None, cap_label=N
         shutil.rmtree(tmpdir, ignore_errors=True)
 
 
-def probe_version(binary_path, repo, cap=VERSION_PROBE_TIMEOUT):
+def probe_version(binary_path, repo, cap=VERSION_PROBE_TIMEOUT, env=None):
     try:
-        rc, out, err, _ = _run_capped([binary_path, "--version"], repo, cap)
+        rc, out, err, _ = _run_capped([binary_path, "--version"], repo, cap, env=env)
     except OSError as exc:
         return False, str(exc)
     text = (out or err).strip().splitlines()
@@ -313,7 +384,8 @@ def run_member(member, prompt, repo, timeout, probe=True):
                             f"`{member.binary}` not on PATH")
     version = ""
     if probe:
-        ok, version = probe_version(path, repo, min(VERSION_PROBE_TIMEOUT, timeout))
+        ok, version = probe_version(path, repo, min(VERSION_PROBE_TIMEOUT, timeout),
+                                    env=member_env(member))
         if not ok:
             return MemberResult(member.name, "failed: version probe", version)
 
@@ -412,6 +484,15 @@ def guard_diff(before, after):
 
 # --- targets ---------------------------------------------------------------------------
 
+@dataclass
+class Target:
+    description: str
+    slug: str
+    context: str
+    kind: str              # diff | branch | version | plan | repo
+    files: list            # files under review (changed files, or plan files)
+
+
 def _cap(text):
     data = text.encode("utf-8", errors="replace")
     if len(data) <= MAX_CONTEXT_BYTES:
@@ -432,22 +513,27 @@ def _frontmatter_value(text, key):
     return m.group(1).strip().strip("'\"") if m else ""
 
 
+def _lines(raw):
+    return [ln for ln in raw.decode(errors="replace").splitlines() if ln.strip()]
+
+
 def build_target(repo, target, base=None):
-    """Return (description, slug, context) for a target spec. Raises ValueError."""
+    """Return a Target for a target spec. Raises ValueError."""
     repo = Path(repo)
     kind, _, arg = target.partition(":")
     if kind == "diff":
         if base or arg:
             return build_target(repo, f"branch:{base or arg}")
         diff = _git(repo, "diff", "HEAD").decode(errors="replace")
-        untracked = _git(repo, "ls-files", "--others", "--exclude-standard").decode(errors="replace")
-        if not diff.strip() and not untracked.strip():
+        untracked = _lines(_git(repo, "ls-files", "--others", "--exclude-standard"))
+        if not diff.strip() and not untracked:
             raise ValueError("working tree is clean vs HEAD — nothing to review "
                              "(use branch:<base>, version:<v>, plan:<id> or repo)")
+        files = _lines(_git(repo, "diff", "--name-only", "HEAD")) + untracked
         ctx = f"## git diff HEAD\n```diff\n{diff}```\n"
-        if untracked.strip():
-            ctx += f"\n## Untracked files (read them directly)\n{untracked}"
-        return "working tree diff vs HEAD", "diff", _cap(ctx)
+        if untracked:
+            ctx += "\n## Untracked files (read them directly)\n" + "\n".join(untracked) + "\n"
+        return Target("working tree diff vs HEAD", "diff", _cap(ctx), "diff", files)
     if kind == "branch":
         if not arg:
             raise ValueError("branch target needs a base: branch:<base>")
@@ -455,36 +541,39 @@ def build_target(repo, target, base=None):
         diff = _git(repo, "diff", f"{arg}...HEAD").decode(errors="replace")
         if not diff.strip():
             raise ValueError(f"no changes between {arg} and HEAD")
+        files = _lines(_git(repo, "diff", "--name-only", f"{arg}...HEAD"))
         ctx = f"## Commits {arg}..HEAD\n{log}\n## git diff {arg}...HEAD\n```diff\n{diff}```\n"
-        return f"branch diff {arg}...HEAD", f"branch-{arg}", _cap(ctx)
+        return Target(f"branch diff {arg}...HEAD", f"branch-{arg}", _cap(ctx), "branch", files)
     if kind == "version":
         if not arg:
             raise ValueError("version target needs a version: version:<v>")
         want = arg.lstrip("v")
-        files = [p for p in _plan_files(repo)
+        plans = [p for p in _plan_files(repo)
                  if _frontmatter_value(p.read_text(errors="replace"), "version").lstrip("v") == want]
-        if not files:
+        if not plans:
             raise ValueError(f"no plan files in .roadmap/plans/ target version {arg}")
-        ctx = "".join(f"## {p.relative_to(repo)}\n{p.read_text(errors='replace')}\n" for p in files)
+        ctx = "".join(f"## {p.relative_to(repo)}\n{p.read_text(errors='replace')}\n" for p in plans)
         ctx += "\nVerify every checklist step and ✅ Acceptance line above against the code.\n"
-        return f"roadmap version {want} ({len(files)} plan(s))", f"version-{want}", _cap(ctx)
+        return Target(f"roadmap version {want} ({len(plans)} plan(s))", f"version-{want}",
+                      _cap(ctx), "version", [p.relative_to(repo).as_posix() for p in plans])
     if kind == "plan":
         if not arg.isdigit():
             raise ValueError("plan target needs a numeric id: plan:<id>")
-        files = [p for p in _plan_files(repo) if p.name.startswith(f"{int(arg):03d}-")]
-        if not files:
+        plans = [p for p in _plan_files(repo) if p.name.startswith(f"{int(arg):03d}-")]
+        if not plans:
             raise ValueError(f"no plan file for id {arg} in .roadmap/plans/")
-        p = files[0]
+        p = plans[0]
         ctx = f"## {p.relative_to(repo)}\n{p.read_text(errors='replace')}\n" \
               "\nVerify every checklist step and ✅ Acceptance line above against the code.\n"
-        return f"plan {int(arg)} ({p.name})", f"plan-{int(arg)}", _cap(ctx)
+        return Target(f"plan {int(arg)} ({p.name})", f"plan-{int(arg)}", _cap(ctx), "plan",
+                      [p.relative_to(repo).as_posix()])
     if kind == "repo":
-        files = _git(repo, "ls-files").decode(errors="replace")
-        ctx = "## Tracked files\n" + files
+        tracked = _git(repo, "ls-files").decode(errors="replace")
+        ctx = "## Tracked files\n" + tracked
         roadmap = repo / "ROADMAP.md"
         if roadmap.is_file():
             ctx += f"\n## ROADMAP.md\n{roadmap.read_text(errors='replace')}\n"
-        versions = [repo / f for f in files.splitlines()
+        versions = [repo / f for f in tracked.splitlines()
                     if f == "VERSION" or f.endswith("/VERSION")][:20]
         if versions:
             ctx += "\n## VERSION files\n" + "".join(
@@ -493,7 +582,7 @@ def build_target(repo, target, base=None):
         plans = _plan_files(repo)
         if plans:
             ctx += "\n## Plan files (.roadmap/plans/)\n" + "".join(f"- {p.name}\n" for p in plans)
-        return "whole repo incl. roadmap state", "repo", _cap(ctx)
+        return Target("whole repo incl. roadmap state", "repo", _cap(ctx), "repo", [])
     raise ValueError(f"unknown target {target!r} (diff, branch:<base>, version:<v>, plan:<id>, repo)")
 
 
@@ -501,9 +590,247 @@ def slugify(text):
     return re.sub(r"[^a-z0-9.]+", "-", text.lower()).strip("-.")[:60] or "target"
 
 
-def render_prompt(description, context):
+# --- sanitized snapshot -----------------------------------------------------------------
+
+@dataclass
+class Snapshot:
+    root: Path
+    copied: list            # repo-relative files copied
+    excluded: list          # [(rel, pattern)] removed by the deny list
+    skipped: list           # [(rel, reason)] symlinks, oversized, unreadable
+    deny: tuple
+
+    def cleanup(self):
+        shutil.rmtree(self.root, ignore_errors=True)
+
+
+def is_denied(rel, deny):
+    """Pattern that excludes `rel`, or None. A pattern with `/` matches the whole path
+    (or a directory prefix of it); others match any single path component."""
+    low = rel.lower()
+    parts = low.split("/")
+    for pat in deny:
+        p = pat.lower().strip("/")
+        if "/" in p:
+            if fnmatch.fnmatchcase(low, p) or low.startswith(p + "/"):
+                return pat
+        elif any(fnmatch.fnmatchcase(part, p) for part in parts):
+            return pat
+    return None
+
+
+def _universe(repo):
+    """Tracked + untracked-but-not-ignored files: gitignored files never enter."""
+    raw = _git(repo, "ls-files", "-z", "--cached", "--others", "--exclude-standard")
+    return sorted({f for f in raw.decode("utf-8", errors="surrogateescape").split("\0") if f})
+
+
+def snapshot_files(repo, target, out_rel=None):
+    """Files a snapshot should hold. diff/branch: the changed files, every file in the
+    same directories (non-recursive), project/instruction docs, ROADMAP.md and plan
+    files. repo/plan/version: the whole tree."""
+    universe = _universe(repo)
+    skip_prefixes = [p for p in ((out_rel or "").rstrip("/") + "/", ".roadmap/notes/review-",
+                                 ".adversarial-review/") if p and p != "/"]
+    universe = [f for f in universe if not any(f.startswith(p) for p in skip_prefixes)]
+    if target.kind not in ("diff", "branch"):
+        return universe
+    have = set(universe)
+    dirs = {os.path.dirname(f) for f in target.files}
+    wanted = {f for f in target.files if f in have}
+    wanted |= {f for f in universe if os.path.dirname(f) in dirs}
+    docs = set(PROJECT_DOCS) | {"ROADMAP.md", "README.md"} | set(INSTRUCTION_FILES)
+    wanted |= {f for f in universe if f in docs or
+               (f.startswith(".roadmap/plans/") and f.endswith(".md"))}
+    return sorted(wanted)
+
+
+def build_snapshot(repo, target, deny=DEFAULT_DENY, out_rel=None,
+                   security_dir=SECURITY_DIR):
+    root = Path(tempfile.mkdtemp(prefix="advrev-snap-"))
+    copied, excluded, skipped = [], [], []
+    for rel in snapshot_files(repo, target, out_rel):
+        pat = is_denied(rel, deny)
+        if pat:
+            excluded.append((rel, pat))
+            continue
+        src = Path(repo) / rel
+        if src.is_symlink():
+            skipped.append((rel, "symlink"))
+            continue
+        if not src.is_file():
+            continue                      # deleted in the working tree
+        try:
+            if src.stat().st_size > MAX_SNAPSHOT_FILE:
+                skipped.append((rel, f"over {MAX_SNAPSHOT_FILE // 1_000_000} MB"))
+                continue
+            dst = root / rel
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(src, dst)
+        except OSError as exc:
+            skipped.append((rel, f"unreadable: {exc.strerror or exc}"))
+            continue
+        copied.append(rel)
+    sec = root / SNAPSHOT_SECURITY
+    sec.mkdir(parents=True, exist_ok=True)
+    for item in Path(security_dir).glob("*"):
+        if item.is_file() and not item.is_symlink():
+            shutil.copyfile(item, sec / item.name)
+    return Snapshot(root, copied, excluded, skipped, tuple(deny))
+
+
+def tree_hashes(root):
+    """{rel: sha1} of every file under root (to notice member writes in the snapshot)."""
+    out = {}
+    for dirpath, _, filenames in os.walk(root):
+        for name in filenames:
+            full = Path(dirpath) / name
+            out[full.relative_to(root).as_posix()] = _sha1(full)
+    return out
+
+
+# --- prompt blocks ----------------------------------------------------------------------
+
+def project_docs_block(repo):
+    """(e) Name the project docs that exist; members read them (never pasted)."""
+    present = [d for d in PROJECT_DOCS if (Path(repo) / d).is_file()]
+    if not present:
+        return "None of RULES.md, DESIGN.md or ARCHITECTURE.md exists in this repo."
+    return "Read these before judging anything:\n" + "".join(f"- `{d}`\n" for d in present)
+
+
+def decided_block(decided):
+    """(f) Items decided on purpose, from --decided (text, or @file for one per line)."""
+    items = []
+    for entry in decided or []:
+        if entry.startswith("@"):
+            path = Path(entry[1:]).expanduser()
+            items += [ln.strip(" -*\t") for ln in path.read_text().splitlines() if ln.strip()]
+        elif entry.strip():
+            items.append(entry.strip())
+    return "".join(f"- {i}\n" for i in items) if items else "- (none recorded for this run)\n"
+
+
+def omissions_block(kind):
+    """(i) Diff targets are judged by what the change omits, too."""
+    if kind not in ("diff", "branch"):
+        return ""
+    return ("## Omissions count\n\n"
+            "Judge the change by the guards that should surround it, not only the added "
+            "lines. Read the changed files plus their immediate context: the enclosing "
+            "handler, the imports, and the called functions. A missing guard that the "
+            "change should have added (an auth check, input validation, an error path, a "
+            "test) is a finding because the diff omits it. When the verdict truly needs "
+            "whole-app context that the diff cannot provide, label it **Needs "
+            "verification**, and say what would confirm it.\n")
+
+
+# (h) changed file -> secaudit domain checklists. First match per rule; several rules
+# may match one file. Domains missing from the vendored set are skipped.
+SECURITY_ROUTES = [
+    (r"(^|/)(package\.json|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb?|"
+     r"requirements[^/]*\.txt|pyproject\.toml|poetry\.lock|Pipfile(\.lock)?|uv\.lock|"
+     r"go\.(mod|sum)|Cargo\.(toml|lock)|Gemfile(\.lock)?|composer\.(json|lock))$",
+     ("supply-chain", "framework-versions")),
+    (r"(^|/)\.github/workflows/|(^|/)\.gitlab-ci\.yml$|(^|/)\.circleci/", ("ci-cd-security",)),
+    (r"(^|/)(Dockerfile[^/]*|docker-compose[^/]*\.ya?ml|compose\.ya?ml)$", ("docker-security",)),
+    (r"(^|/)(k8s|kubernetes|helm|charts)/", ("kubernetes-security",)),
+    (r"(^|/)wrangler\.(toml|jsonc?)$", ("cloudflare-workers-security",)),
+    (r"(^|/)(routes?|api|server|handlers?|controllers?|endpoints?|middleware)(/|\.)|"
+     r"(^|/)pages/api/|(^|/)app/.*/route\.[jt]sx?$",
+     ("auth", "privilege-escalation", "web-vulns", "api-surface", "data-access")),
+    (r"auth|login|session|signin|signup|password|jwt|clerk", ("auth",)),
+    (r"oauth|oidc|openid", ("oauth-oidc-security",)),
+    (r"admin|role|permission|rbac|acl", ("privilege-escalation",)),
+    (r"(^|/)\.env|secret|credential|config\.|settings\.", ("secrets",)),
+    (r"migration|schema\.prisma|\.sql$|(^|/)db/|database|drizzle|supabase", ("data-access",
+                                                                            "database")),
+    (r"prisma", ("prisma-security",)),
+    (r"postgres|(^|/)rls", ("postgres-security",)),
+    (r"webhook", ("webhook-security",)),
+    (r"stripe|payment|billing|checkout|subscription", ("payments",)),
+    (r"revenuecat", ("revenuecat-security",)),
+    (r"upload|storage|bucket|(^|/)s3|(^|/)r2", ("object-storage-security",)),
+    (r"crypto|hash|encrypt|token", ("cryptography",)),
+    (r"rate.?limit|throttle", ("rate-limiting",)),
+    (r"log(ger|ging)?\.|monitor|sentry", ("logging-monitoring",)),
+    (r"(^|/)mcp|agent|llm|openai|anthropic|prompt", ("ai-integration", "mcp-agent-security")),
+    (r"tenant|(^|/)orgs?/|organization", ("multi-tenant-isolation",)),
+    (r"proxy|forwarded", ("proxy-trust",)),
+    (r"websocket|socket|realtime|(^|/)ws/", ("realtime-security",)),
+    (r"markdown|sanitiz|richtext|rich-text|editor|wysiwyg", ("rich-text-security",)),
+    (r"next\.config|vercel\.json|netlify\.toml|headers|cors", ("deployment",)),
+    (r"(^|/)convex/", ("convex-security",)),
+    (r"better-auth", ("better-auth-security",)),
+    (r"(^|/)app\.json$|expo", ("expo-security",)),
+    (r"react-native|(^|/)(ios|android)/", ("react-native-security",)),
+    (r"discord", ("discord-bot-security",)),
+    (r"fxmanifest\.lua$|\.lua$", ("fivem-security",)),
+    (r"\.py$", ("python-web-security",)),
+]
+
+
+def vendored_domains(security_dir=SECURITY_DIR):
+    return {p.stem for p in Path(security_dir).glob("*.md") if p.name != "README.md"}
+
+
+def route_security(files, security_dir=SECURITY_DIR):
+    """{file: [domain, ...]} for each changed file that matches a route."""
+    have = vendored_domains(security_dir)
+    out = {}
+    for f in files:
+        low = f.lower()
+        domains = []
+        for pattern, doms in SECURITY_ROUTES:
+            if re.search(pattern, low):
+                domains += [d for d in doms if d in have and d not in domains]
+        if domains:
+            out[f] = domains
+    return out
+
+
+def security_block(lens, kind, files, security_dir=SECURITY_DIR):
+    """(h) Security lens: route each changed file to its vendored checklist(s)."""
+    if lens != "security":
+        return ""
+    sdir = Path(security_dir).resolve()
+    have = sorted(vendored_domains(sdir))
+    if not have:
+        return "## Security checklists\n\nNo vendored checklists found; use your own.\n"
+    lines = ["## Security checklists (vendored secaudit, read by path)", "",
+             f"Directory: `{sdir}`. Each checklist is `{sdir}/<domain>.md`."]
+    routed = route_security(files, sdir) if kind in ("diff", "branch") else {}
+    if routed:
+        lines += ["", "Read the checklist(s) routed to each changed file, then judge that "
+                      "file against them:", ""]
+        for f, doms in routed.items():
+            lines.append(f"- `{f}` → " + ", ".join(f"`{sdir}/{d}.md`" for d in doms))
+    unrouted = [f for f in files if f not in routed] if kind in ("diff", "branch") else []
+    if unrouted:
+        lines += ["", "No route matched these files. Pick a checklist yourself if they touch "
+                      "security: " + ", ".join(f"`{f}`" for f in unrouted[:30])]
+    lines += ["", "Available domains: " + ", ".join(have) + "."]
+    return "\n".join(lines) + "\n"
+
+
+def lens_for(index, security_only=False):
+    return "security" if security_only else LENSES[index % len(LENSES)]
+
+
+def render_prompt(target, repo, lens="production breakage", decided=None,
+                  security_dir=SECURITY_DIR):
     template = PROMPT_FILE.read_text()
-    return template.replace("{{TARGET}}", description).replace("{{CONTEXT}}", context)
+    blocks = {
+        "{{TARGET}}": target.description,
+        "{{LENS}}": LENS_TEXT[lens],
+        "{{PROJECT_DOCS}}": project_docs_block(repo),
+        "{{DECIDED}}": decided_block(decided),
+        "{{OMISSIONS}}": omissions_block(target.kind),
+        "{{SECURITY}}": security_block(lens, target.kind, target.files, security_dir),
+    }
+    for key, value in blocks.items():
+        template = template.replace(key, value)
+    return template.replace("{{CONTEXT}}", target.context)   # last: repo data, unexpanded
 
 
 # --- triage ---------------------------------------------------------------------------
@@ -519,6 +846,8 @@ class Finding:
     note: str = ""
     id: str = ""
     refutations: list = field(default_factory=list)   # [(member, path:line, evidence)]
+    label: str = "Needs verification"                 # Confirmed | Needs verification
+    impact: list = field(default_factory=list)        # [(member, impact path)]
 
 
 STOPWORDS = frozenset("a an the in on of to is are by for and or with at from as it this "
@@ -589,6 +918,8 @@ def check_location(loc, repo):
     rel = m.group("path")
     if Path(rel).is_absolute() or rel.startswith("~"):
         return loc, False, "absolute path rejected"
+    if rel.startswith(".adversarial-review/"):
+        return loc, False, "cites the review's own checklist copy, not the repo"
     root = Path(repo).resolve()
     full = (root / rel).resolve()
     try:
@@ -607,43 +938,146 @@ def check_location(loc, repo):
     return loc, True, ""
 
 
+def _norm_ws(text):
+    return " ".join(text.split())
+
+
+def quote_near(root, loc, quote, window=QUOTE_WINDOW):
+    """True when `quote` (whitespace-normalised, at least MIN_EVIDENCE_CHARS non-space
+    characters, surrounding backticks/quotes stripped) appears in the cited file within
+    `window` lines of the cited line or range."""
+    q = quote.strip()
+    while len(q) > 1 and q[0] == q[-1] and q[0] in "`'\"":
+        q = q[1:-1].strip()
+    if not evidence_ok(q):
+        return False
+    m = LOCATION_RE.match(loc)
+    if not m:
+        return False
+    start = int(m.group("line"))
+    end_m = re.search(r"-(\d+)$", loc)
+    end = int(end_m.group(1)) if end_m else start
+    try:
+        lines = (Path(root) / m.group("path")).read_text(errors="replace").splitlines()
+    except OSError:
+        return False
+    chunk = lines[max(0, start - 1 - window):end + window]
+    return _norm_ws(q) in _norm_ws(" ".join(chunk))
+
+
 def evidence_ok(evidence):
     return len(re.sub(r"\s", "", evidence)) >= MIN_EVIDENCE_CHARS
 
 
 def parse_findings(member, text, repo=None):
-    """Parse FINDING|sev|path:line|title|evidence lines from one member's reply."""
-    out = []
+    """Parse one member's reply. Returns (kept, dropped).
+
+    Line format: FINDING|severity|label|path:line|title|evidence|impact path
+    Evidence rule (j): a finding is kept only with a valid in-repo path:line whose line
+    exists, evidence and an impact path of at least MIN_EVIDENCE_CHARS each, and a
+    Confirmed / Needs verification label. Anything else is dropped (title, reason) —
+    never kept at a lower rank.
+    """
+    kept, dropped = [], []
     for line in text.splitlines():
         if not FINDING_RE.match(line):
             continue
         body = line[line.index("FINDING|") + len("FINDING|"):].rstrip().rstrip("`")
-        sev, loc, title, evidence = _fields(body, 4)
+        sev, label, loc, title, evidence, impact = _fields(body, 6)
         sev, loc = _clean(sev, True).lower(), _clean(loc, True)
-        title, evidence = _clean(title, True), _clean(evidence)
+        label = LABELS.get(_clean(label, True).lower().strip("[]"))
+        title, evidence, impact = _clean(title, True), _clean(evidence), _clean(impact)
+        shown = title or "(untitled)"
+        if not title:
+            dropped.append((shown, "no title"))
+            continue
+        if label is None:
+            dropped.append((" ".join(line.split())[:100], "malformed: expected FINDING|severity|label|path:line|"
+                                   "title|evidence|impact"))
+            continue
         note = ""
         if sev not in SEVERITY_RANK:
-            note = f"unknown severity {sev!r} treated as low"
-            sev = "low"
-        if not title or normalize_title(title) == "no findings":
-            continue
+            note, sev = f"unknown severity {sev!r} treated as low", "low"
         if loc.upper() in ("NONE", "N/A", "-"):
             loc = ""
-        if evidence.upper() in ("NONE", "N/A", "-"):
-            evidence = ""
         loc, loc_ok, loc_note = check_location(loc, repo)
-        ev_ok = evidence_ok(evidence)
-        if loc_note:
-            note = loc_note
-        elif loc and evidence and not ev_ok:
-            note = f"evidence under {MIN_EVIDENCE_CHARS} characters"
-        out.append(Finding(sev, loc, title, [(member, evidence)] if evidence else [],
-                           {member}, bool(loc_ok and ev_ok), note))
+        if not loc:
+            dropped.append((shown, "no path:line"))
+            continue
+        if not loc_ok:
+            dropped.append((shown, f"{loc}: {loc_note}"))
+            continue
+        if not evidence_ok(evidence):
+            dropped.append((shown, f"evidence under {MIN_EVIDENCE_CHARS} characters"))
+            continue
+        if not evidence_ok(impact):
+            dropped.append((shown, f"no impact path (under {MIN_EVIDENCE_CHARS} characters)"))
+            continue
+        kept.append(Finding(sev, loc, title, [(member, evidence)], {member}, True, note,
+                            label=label, impact=[(member, impact)]))
+    return kept, dropped
+
+
+def parse_not_checked(text):
+    return [m.group(1).strip() for m in NOT_CHECKED_RE.finditer(text) if m.group(1).strip()]
+
+
+# (k) Repo text that tries to steer a reviewer. Deterministic, case-insensitive; matched
+# lines become findings from the pseudo-member "injection-scan".
+INJECTION_SCAN = "injection-scan"
+INJECTION_RE = re.compile(
+    r"(ignore|disregard|forget)\s+(all\s+|any\s+)?(previous|prior|above|earlier)\s+"
+    r"(instructions|prompts?|rules)"
+    r"|(do\s+not|don'?t|never)\s+(report|flag|mention|list|raise)\s+(this|these|any|the)?\s*"
+    r"(findings?|issues?|vulnerabilit\w*|bugs?|problems?)"
+    r"|(reviewers?|auditors?|ai|llms?|agents?|models?)\b[^\n]{0,40}\b(should|must|are to)\s+"
+    r"(skip|ignore|not\s+(review|report|flag|check))"
+    r"|(mark|treat|report|consider)\s+(this|the)\s+(code|file|change|diff|pr)\s+as\s+"
+    r"(safe|clean|secure|approved)"
+    r"|verdict\s*(is|=|:|should\s+be|must\s+be)\s*\**\s*(clean|approve)",
+    re.IGNORECASE)
+INSTRUCTION_FILES = ("CLAUDE.md", "AGENTS.md", "AGENTS.override.md", "GEMINI.md",
+                     ".cursorrules", ".github/copilot-instructions.md")
+INSTRUCTION_GLOBS = (".claude/agents/*.md", ".agents/agents/*.md", ".cursor/rules/*")
+
+
+def injection_candidates(repo, target_files):
+    repo = Path(repo)
+    names = list(dict.fromkeys(
+        list(target_files) + [f for f in INSTRUCTION_FILES if (repo / f).is_file()]
+        + sorted(p.relative_to(repo).as_posix() for g in INSTRUCTION_GLOBS
+                 for p in repo.glob(g) if p.is_file())))
+    return [n for n in names if (repo / n).is_file()]
+
+
+def scan_injection(repo, files):
+    """Findings for repo lines that try to steer reviewers (k). Labelled Needs
+    verification: the line is real, but intent needs a human look."""
+    out = []
+    for rel in files:
+        path = Path(repo) / rel
+        try:
+            if path.stat().st_size > 2_000_000:
+                continue
+            text = path.read_text(errors="replace")
+        except OSError:
+            continue
+        for n, line in enumerate(text.splitlines(), 1):
+            m = INJECTION_RE.search(line)
+            if m:
+                snippet = " ".join(line.strip().split())[:160]
+                out.append(Finding(
+                    "high", f"{rel}:{n}", "Repo text tries to steer reviewers",
+                    [(INJECTION_SCAN, f"line matches {m.group(0)!r}: {snippet}")],
+                    {INJECTION_SCAN}, True, label="Needs verification",
+                    impact=[(INJECTION_SCAN, "an AI reviewer that obeys repo text could "
+                                             "skip or suppress real findings")]))
     return out
 
 
 def _rank_key(f):
-    return (not f.evidenced, SEVERITY_RANK[f.severity], -len(f.members), f.location, f.title)
+    return (SEVERITY_RANK[f.severity], -len(f.members), f.label != "Confirmed",
+            f.location, f.title)
 
 
 def _merge_target(merged, f):
@@ -656,30 +1090,63 @@ def _merge_target(merged, f):
     return None
 
 
-def triage(results, repo=None):
+def triage(results, repo=None, extra=()):
     """Dedupe by exact (location, normalized title), then merge same-location findings
-    whose titles share most words. Rank evidenced first, then severity, then number of
-    agreeing members. Findings without a valid path:line + evidence are kept but never
-    ranked above an evidenced one. Evidenced findings get ids F1..Fn."""
+    whose titles share most words. Rank by severity, then members agreeing, then
+    Confirmed before Needs verification. Only findings that passed the evidence rule
+    exist here (the rest are recorded per member in res.dropped). `extra` adds
+    deterministic findings (the injection scan). Findings get ids F1..Fn."""
     merged = {}
+
+    def add(f):
+        cur = _merge_target(merged, f)
+        if cur is None:
+            merged[(f.location, normalize_title(f.title))] = f
+            return
+        cur.members |= f.members
+        cur.evidence += [e for e in f.evidence if e not in cur.evidence]
+        cur.impact += [i for i in f.impact if i not in cur.impact]
+        if SEVERITY_RANK[f.severity] < SEVERITY_RANK[cur.severity]:
+            cur.severity = f.severity
+        if f.label == "Confirmed":
+            cur.label = "Confirmed"
+
     for res in results:
         if not res.ran:
             continue
-        for f in parse_findings(res.name, res.output, repo):
-            cur = _merge_target(merged, f)
-            if cur is None:
-                merged[(f.location, normalize_title(f.title))] = f
-                continue
-            cur.members |= f.members
-            cur.evidence += [e for e in f.evidence if e not in cur.evidence]
-            if SEVERITY_RANK[f.severity] < SEVERITY_RANK[cur.severity]:
-                cur.severity = f.severity
-            if f.evidenced and not cur.evidenced:
-                cur.evidenced, cur.note = True, ""
+        kept, res.dropped = parse_findings(res.name, res.output, repo)
+        res.not_checked = parse_not_checked(res.output)
+        for f in kept:
+            add(f)
+    for f in extra:
+        add(f)
     ranked = sorted(merged.values(), key=_rank_key)
-    for i, f in enumerate(x for x in ranked if x.evidenced):
+    for i, f in enumerate(ranked):
         f.id = f"F{i + 1}"
     return ranked
+
+
+VERDICT_RULES = ("BLOCK: the read-only guard failed, or a surviving finding is critical, "
+                 "or high and Confirmed. CONCERNS: any other surviving finding, or no "
+                 "member completed the review. CLEAN: at least one member ran, the guard "
+                 "passed, and no finding survived.")
+
+
+def verdict(findings, results, guard_changed):
+    """(g) Deterministic BLOCK / CONCERNS / CLEAN over surviving (unrefuted) findings."""
+    live = [f for f in findings if not f.refutations]
+    if guard_changed:
+        return "BLOCK", "read-only guard failed; results untrusted"
+    blockers = [f for f in live if f.severity == "critical"
+                or (f.severity == "high" and f.label == "Confirmed")]
+    if blockers:
+        return "BLOCK", (f"{len(blockers)} blocking finding(s): "
+                         + ", ".join(f.id for f in blockers))
+    if live:
+        return "CONCERNS", f"{len(live)} finding(s), none blocking"
+    if not any(r.ran for r in results):
+        return "CONCERNS", "no member completed the review"
+    return "CLEAN", "no surviving findings"
 
 
 # --- refutation round -----------------------------------------------------------------
@@ -782,6 +1249,13 @@ def write_member_file(out_dir, res, refute=None):
         lines.append(f"- reason: {res.reason}")
     if res.version:
         lines.append(f"- version: {res.version}")
+    if res.lens:
+        lines.append(f"- lens: {res.lens}")
+    if res.not_checked:
+        lines.append("- not checked: " + "; ".join(res.not_checked))
+    if res.dropped:
+        lines += ["", "## Dropped by the evidence rule", ""]
+        lines += [f"- {title} — {why}" for title, why in res.dropped]
     lines += _attempt_lines("Attempt", res.attempts)
     if refute is not None:
         lines += ["", f"# Refutation round: {refute.status}"]
@@ -793,46 +1267,55 @@ def write_member_file(out_dir, res, refute=None):
 
 def write_summary(out_dir, meta, results, findings, guard, refute_results=None):
     changed, roadmap_changed = guard
-    lines = [f"# Adversarial review: {meta['description']}", ""]
+    verdict_word, verdict_why = meta.get("verdict", ("CONCERNS", ""))
+    lines = [f"# Adversarial review: {meta['description']}", "",
+             f"**Verdict: {verdict_word}** — {verdict_why}", ""]
     if changed:
         lines += ["**RUN FAILED: read-only guard.** The working tree changed during the "
                   "review; treat every member result as untrusted.", ""]
     lines += [f"- date: {meta['date']}", f"- repo: {meta['repo']}",
               f"- target: `{meta['target']}`", f"- timeout per member: {meta['timeout']}s",
               f"- refutation round: {'on' if refute_results is not None else 'off'}",
+              f"- injection scan: {meta.get('injection_scanned', 0)} file(s) scanned, "
+              f"{meta.get('injection_hits', 0)} hit(s)",
+              *([f"- security refs: STALE — {meta['security_refs']}"]
+                if meta.get("security_refs") else []),
               "- read-only guard (repo): " + (
                   "FAIL — changed: " + ", ".join(f"`{p}`" for p in changed) if changed
                   else "PASS (git status unchanged)"),
               "- read-only guard (.roadmap/): " + (
                   "FAIL — changed: " + ", ".join(f"`{p}`" for p in roadmap_changed)
                   if roadmap_changed else "PASS (unchanged)"),
-              "", "## Members", "", "| member | status | reason |", "|---|---|---|"]
+              f"- verdict rule: {VERDICT_RULES}",
+              "", "## Members", "", "| member | status | reason | lens |", "|---|---|---|---|"]
     for res in results:
-        lines.append(f"| {_cell(res.name)} | {_cell(res.status)} | {_cell(res.reason)} |")
+        lines.append(f"| {_cell(res.name)} | {_cell(res.status)} | {_cell(res.reason)} | "
+                     f"{_cell(res.lens or '-')} |")
     if refute_results is not None:
         lines += ["", "## Refutation round", "", "| member | status | reason |", "|---|---|---|"]
         for name in sorted(refute_results):
             r = refute_results[name]
             lines.append(f"| {_cell(name)} | {_cell(r.status)} | {_cell(r.reason)} |")
 
-    ranked = [f for f in findings if f.evidenced and not f.refutations]
-    refuted = [f for f in findings if f.evidenced and f.refutations]
-    unconfirmed = [f for f in findings if not f.evidenced]
-    lines += ["", "## Findings (ranked: severity, then members agreeing)", ""]
+    ranked = [f for f in findings if not f.refutations]
+    refuted = [f for f in findings if f.refutations]
+    lines += ["", "## Findings (ranked: severity, then members agreeing, then Confirmed)", ""]
     if not ranked:
-        lines.append("_No evidenced findings._")
+        lines.append("_No findings survived._")
     else:
-        lines += ["| # | id | severity | agree | location | title | members |",
-                  "|---|---|---|---|---|---|---|"]
+        lines += ["| # | id | severity | label | agree | location | title | members |",
+                  "|---|---|---|---|---|---|---|---|"]
         for i, f in enumerate(ranked, 1):
-            lines.append(f"| {i} | {f.id} | {f.severity} | {len(f.members)} | "
+            lines.append(f"| {i} | {f.id} | {f.severity} | {f.label} | {len(f.members)} | "
                          f"`{_cell(f.location)}` | {_cell(f.title)} | "
                          f"{_cell(', '.join(sorted(f.members)))} |")
         lines.append("")
         for i, f in enumerate(ranked, 1):
-            lines.append(f"{i}. **{f.title}** (`{f.location}`, {f.id})")
+            lines.append(f"{i}. **[{f.label}] {f.title}** (`{f.location}`, {f.id})")
             for member, ev in f.evidence:
                 lines.append(f"   - {member}: {ev}")
+            for member, imp in f.impact:
+                lines.append(f"   - impact ({member}): {imp}")
     if refute_results is not None:
         lines += ["", "## Refuted (disproved with cited evidence in the refutation round)", ""]
         if not refuted:
@@ -844,17 +1327,44 @@ def write_summary(out_dir, meta, results, findings, guard, refute_results=None):
                 lines.append(f"  - claimed by {member}: {ev}")
             for member, loc, ev in f.refutations:
                 lines.append(f"  - refuted by {member} at `{loc}`: {ev}")
-    lines += ["", "## Unconfirmed (no path:line or no evidence — not ranked as confirmed)", ""]
-    if not unconfirmed:
+    dropped = [(r.name, t, why) for r in results for t, why in r.dropped]
+    lines += ["", "## Dropped by the evidence rule (not findings)", ""]
+    if not dropped:
         lines.append("_None._")
-    for f in unconfirmed:
-        why = f.note or ("no path:line" if not f.location else "no evidence")
-        lines.append(f"- [{f.severity}] {f.title} — {f.location or 'NONE'} "
-                     f"({', '.join(sorted(f.members))}; {why})")
+    else:
+        counts = {}
+        for name, _, _ in dropped:
+            counts[name] = counts.get(name, 0) + 1
+        lines.append("Dropped: no in-repo `path:line` whose line exists, no evidence or "
+                     "impact path, or a malformed line. Per member: "
+                     + ", ".join(f"{n} {c}" for n, c in sorted(counts.items()))
+                     + ". Details are in each `<member>.md`.")
+    lines += ["", "## Not checked (per member)", ""]
+    ran = [r for r in results if r.ran]
+    if not ran:
+        lines.append("_No member ran._")
+    for r in ran:
+        lines.append(f"- {r.name}: " + ("; ".join(r.not_checked) if r.not_checked
+                                         else "(member did not say)"))
     lines += ["", "## Next", "",
               "Claude triages: open each `path:line`, mark every finding confirmed / refuted / "
               "needs-info, and report. This script never fixes anything."]
     (out_dir / "summary.md").write_text("\n".join(lines) + "\n")
+
+
+def security_refs_warning():
+    """One-line staleness warning when `sync-security-refs.py --check` would fail, else
+    None. Never raises: the review runs with or without the secaudit plugin."""
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("sync_security_refs",
+                                                      SECURITY_SYNC_SCRIPT)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        code, msg = mod.check()
+        return msg if code else None
+    except Exception:  # noqa: BLE001 — advisory only
+        return None
 
 
 def pick_out_dir(repo, explicit, slug, date):
@@ -916,6 +1426,10 @@ def main(argv=None):
                          "(e.g. --exclude claude for a cross-vendor review of a Claude diff)")
     ap.add_argument("--refute", action="store_true",
                     help="second round: members try to disprove each other's findings")
+    ap.add_argument("--security", action="store_true",
+                    help="security-focused run: every member gets the security lens")
+    ap.add_argument("--decided", action="append", default=[],
+                    help="decided item not to re-flag (repeatable; @FILE = one per line)")
     ap.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT)
     ap.add_argument("--repo", default=None, help="repo root (default: git toplevel of CWD)")
     ap.add_argument("--out-dir", default=None)
@@ -933,27 +1447,35 @@ def main(argv=None):
         return 1
     try:
         members, not_run = select_members(args.members, ",".join(args.exclude))
-        description, slug, context = build_target(repo, args.target, args.base)
-    except (ValueError, RuntimeError) as exc:
+        target = build_target(repo, args.target, args.base)
+        decided_block(args.decided)          # validate @files before anything runs
+    except (ValueError, RuntimeError, OSError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
     date = _dt.date.today().isoformat()
-    out_dir = pick_out_dir(repo, args.out_dir, slugify(slug), date)
+    out_dir = pick_out_dir(repo, args.out_dir, slugify(target.slug), date)
     try:
         out_rel = str(out_dir.resolve().relative_to(repo.resolve()))
     except ValueError:
         out_rel = None
-    prompt = render_prompt(description, context)
+    lenses = {m.name: lens_for(i, args.security) for i, m in enumerate(members)}
+    prompts = {m.name: render_prompt(target, repo, lenses[m.name], args.decided)
+               for m in members}
 
     before = snapshot(repo, out_rel)
     with ThreadPoolExecutor(max_workers=max(1, len(members))) as pool:
-        futures = [pool.submit(run_member, m, prompt, str(repo), args.timeout) for m in members]
+        futures = [pool.submit(run_member, m, prompts[m.name], str(repo), args.timeout)
+                   for m in members]
         results = [f.result() for f in futures]
-    findings = triage(results, repo)
+    for res in results:
+        res.lens = lenses[res.name]
+    scanned = injection_candidates(repo, target.files)
+    injected = scan_injection(repo, scanned)
+    findings = triage(results, repo, injected)
     refute_results = None
     if args.refute:
-        refute_results = run_refute_round(members, results, findings, description,
+        refute_results = run_refute_round(members, results, findings, target.description,
                                           str(repo), args.timeout)
     after = snapshot(repo, out_rel)
     changed, roadmap_changed = guard_diff(before, after)
@@ -961,17 +1483,20 @@ def main(argv=None):
     results += [MemberResult(name, status, reason) for name, status, reason in not_run]
     for res in results:
         write_member_file(out_dir, res, (refute_results or {}).get(res.name))
-    meta = {"description": description, "date": date, "repo": str(repo),
+    meta = {"description": target.description, "date": date, "repo": str(repo),
+            "verdict": verdict(findings, results, changed),
+            "injection_scanned": len(scanned), "injection_hits": len(injected),
             "target": args.target if not args.base else f"{args.target} --base {args.base}",
-            "timeout": args.timeout}
+            "timeout": args.timeout, "security_refs": security_refs_warning()}
     write_summary(out_dir, meta, results, findings, (changed, roadmap_changed), refute_results)
 
     print(f"summary: {out_dir / 'summary.md'}")
     for res in results:
         print(f"  {res.name:13} {res.status}" + (f" — {res.reason}" if res.reason else ""))
     n_ref = sum(1 for f in findings if f.refutations)
-    print(f"findings: {sum(f.evidenced and not f.refutations for f in findings)} ranked, "
-          f"{n_ref} refuted, {sum(not f.evidenced for f in findings)} unconfirmed")
+    print(f"findings: {len(findings) - n_ref} ranked, {n_ref} refuted, "
+          f"{sum(len(r.dropped) for r in results)} dropped by the evidence rule")
+    print(f"verdict: {meta['verdict'][0]} — {meta['verdict'][1]}")
     if changed:
         print("RUN FAILED: read-only guard — changed: " + ", ".join(changed), file=sys.stderr)
         return 2

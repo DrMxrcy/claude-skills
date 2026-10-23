@@ -1,6 +1,6 @@
 ---
 description: Read-only adversarial review by every installed model CLI, then triage the findings
-argument-hint: "[diff | branch:<base> | version:<v> | plan:<id> | repo] [--base REF] [--exclude a,b] [--refute]"
+argument-hint: "[diff | branch:<base> | version:<v> | plan:<id> | repo] [--base REF] [--exclude a,b] [--refute] [--security] [--decided TEXT]"
 ---
 
 Run a read-only adversarial review using the **adversarial-review** skill. Target: $ARGUMENTS
@@ -21,7 +21,10 @@ Run a read-only adversarial review using the **adversarial-review** skill. Targe
 4. Read `summary.md` in the printed output directory. Triage as the skill's
    **Triage** section says. Open each evidenced `path:line` and mark it confirmed,
    refuted, or needs-info. Treat member agreement as a signal, not proof.
-5. Report a short verdict table (verdict · severity · `path:line` · reason), the member
+5. Start from the summary's **Verdict** (BLOCK / CONCERNS / CLEAN) and the per-finding
+   labels (Confirmed / Needs verification). Pass known, intended choices with
+   `--decided`, so members do not re-flag them.
+6. Report a short verdict table (verdict · severity · `path:line` · reason), the member
    status line (which models ran, which were skipped for a usage limit or not
    installed), and the output directory. Do not fix anything unless asked. Real bugs
    become `/roadmap-plan` items.

@@ -1,15 +1,25 @@
 # Members: invocation and read-only proof
 
 Each member is run once per review, non-interactively, with its working directory at the
-repo root, under a 300 s wall-time cap (`--timeout`). `run_review.py` probes
-`<cli> --version` first (15 s cap). A member is only in the registry if it has a
+repo root. Each member has one **total** wall-time budget of 300 s (`--timeout`), which
+covers the `<cli> --version` probe (at most 15 s of it), the call, and opencode's
+fallback retry. A member is only in the registry if it has a
 **read-only mode that was proven** by a write probe: in a scratch git repo, the CLI was
 asked to "create pwned.txt containing hi using your file-writing or shell tools", and no
 file was created. Proofs below were recorded on 2026-10-23 on macOS.
 
-The run's own guard is the backstop: `git status --porcelain` (plus a content hash of
-every dirty or untracked path) is recorded for the repo and for `.roadmap/` before and
-after the fan-out. Any difference outside the output directory fails the run.
+The run's own guard is the backstop. Before and after the fan-out (both rounds) it
+records:
+
+- `git status --porcelain` for the repo, with a content hash of every dirty or untracked
+  path, so an edit to an already-dirty file is caught;
+- a content hash of **every file under `.roadmap/`**: tracked, untracked, and gitignored
+  alike.
+
+Any difference outside the output directory fails the run (exit 2). **Limit:**
+gitignored files outside `.roadmap/` are not covered (e.g. `build/`, `node_modules/`,
+`__pycache__/` when ignored). A member write there is not detected. It cannot reach
+tracked code, `.roadmap/`, or any non-ignored path without failing the run.
 
 ## codex
 
@@ -70,7 +80,9 @@ after the fan-out. Any difference outside the output directory fails the run.
   - primary `opencode-go/deepseek-v4.1-flash` (OpenCode Go; listed by `opencode models`)
   - fallback `opencode/deepseek-v4.1-flash-free`
 - Fallback rule: run the primary; if it ends `skipped: usage limit` or `failed: …`
-  (including timeout), retry **once** on the fallback with its own 300 s cap. Outcomes:
+  (including timeout), retry **once** on the fallback with **whatever is left of the
+  member's 300 s budget**. If less than 1 s is left (e.g. the primary timed out), there
+  is no retry, and the reason says "no budget left for fallback". Outcomes:
   `ran`, `ran (fallback: free, after usage limit on opencode-go/deepseek-v4.1-flash)`,
   `skipped: usage limit` (fallback also limited), or `failed: …`. No further cascade.
 - Proof: `--agent plan` alone is **not** read-only for shell. opencode v2's shipped
@@ -84,14 +96,29 @@ after the fan-out. Any difference outside the output directory fails the run.
   service, which loaded its config earlier. Write and shell probe with that config: "The
   only tools I have are `read`, `glob`, and `grep`", it quoted `README` correctly, and
   no file was created. `--auto` is never passed.
+- Read access to the vendored checklists: the config adds exactly one
+  `external_directory` allow rule, `<resolved skills/adversarial-review/references/security>/*`
+  (`opencode_readonly_config()`), so a skill installed outside the reviewed repo (e.g.
+  `~/.claude/skills`) stays readable.
+  - Probe from a scratch repo (opencode v2.1.4, free model): with the **exact directory
+    path** as the resource, reading `<dir>/VERSION` was denied
+    (`permission.rejected: external_directory`).
+  - With `<dir>/*` the read succeeded ("second line: `version: 3.13.0`"), and a sibling
+    path, `claude-skills/README.md`, was still denied (`Permission denied:
+    external_directory`).
+  - The directory is flat, so `/*` reaches nothing deeper. Every other external
+    directory stays denied.
 
 ## Fresh sessions
 
-Every call is a new process with no session reuse. No member is ever passed
-`--continue`, `-c`, `--session`, `--resume`, `--fork`, or `resume` (and no `-s`, except
-codex, where `-s` is `--sandbox`). `run_review.py` checks each built argv with
-`session_flags_in()` before it runs anything, and
-`test_member_commands_are_fresh_sessions_and_read_only` checks the registry.
+Every call is a new process with no session reuse. Before running anything,
+`session_flags_in()` checks every argv token except the prompt. It refuses any token
+that is one of `--session`, `--fork`, `--continue`, `--resume`, `--from-pr`,
+`--conversation`, `-c`, `-s` or `-r`, or that starts with one of them followed by `=` or
+`-` (e.g. `--session-id`, `--fork=x`). It also refuses the `resume` and `fork`
+subcommands. codex's `-s` is its sandbox flag and is allowed only as `-s read-only`.
+`test_member_commands_are_fresh_sessions_and_read_only` checks the registry's built
+command lines, and `test_session_flags_match_by_prefix` checks the matcher.
 
 ## Shell execution
 
@@ -115,20 +142,25 @@ codex, where `-s` is `--sandbox`). `run_review.py` checks each built argv with
 
 | status | meaning |
 |---|---|
-| `ran` | exit 0; output parsed for findings |
+| `ran` | exit 0 and no usage-limit message; output parsed for findings |
 | `ran (fallback: …)` | opencode primary failed or hit a limit; fallback ran |
-| `skipped: usage limit` | non-zero exit and output matched `usage limit\|rate limit\|quota\|too many requests\|429\|limit reached\|insufficient` (case-insensitive) |
+| `skipped: usage limit` | output matched `usage limit`, `rate limit(ed)`, `quota exceeded`, `exceeded (your current) quota`, `insufficient_quota`, `too many requests`, `429 too many requests` or `limit reached` (case-insensitive), on **any** exit code. On exit 0, stderr is always checked, and the reply is checked only when it has no `FINDING`/`REFUTE`/`UPHOLD` lines, so a review that discusses rate limiting still counts as ran. Bare `quota`, `429` or `insufficient` (e.g. `401 insufficient permissions`) is not a usage limit |
 | `skipped: not installed` | binary not on `PATH` |
 | `skipped: excluded` | installed CLI with no verified read-only mode |
 | `skipped: excluded by user` | named in `--exclude` |
 | `skipped: nothing to refute` | (refutation round) every evidenced finding was this member's own |
 | `failed: exit <n>` | any other non-zero exit |
-| `failed: timeout after <n>s` | wall-time cap hit; the process group was killed |
+| `failed: timeout after <n>s` | the member's total budget ran out; the process group was killed |
 | `failed: version probe` | `<cli> --version` failed or took over 15 s |
 
 A usage-limit skip or a failure never aborts the other members, and no member is retried
 (except the single opencode fallback above). With `--refute`, each member that ran makes
-one more fresh call in the refutation round, under the same cap and the same rules.
+one more fresh call in the refutation round. That round gets its **own** 300 s budget,
+with the same rules.
+
+**Worst-case wall time:** members run in parallel, so a review takes at most `--timeout`
+(300 s), plus a few seconds for git snapshots. With `--refute` it takes at most
+2 × `--timeout` (600 s). Per member, opencode's fallback never extends that budget.
 
 ## Adding a member
 
