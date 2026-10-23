@@ -2,6 +2,11 @@
 
 _Full work log — every item, including internal/dev work. The curated public changelog is CHANGELOG.md._
 
+## v0.20.0 — (in progress)
+
+### ✨ New
+- (pending) Parallel-safe roadmap builds: per-item worktrees, fresh-session orchestration, pending-decision handoff and per-item token spend
+
 ## v0.18.0 — 2026-10-21
 
 ### ✨ New
