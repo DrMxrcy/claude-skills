@@ -7,7 +7,8 @@ Layer: rmcore only (read-only, never writes, never raises on git trouble).
 
 Git cost is bounded regardless of branch count: one `for-each-ref` call is the
 cache key, and only when refs changed do we spend two more (ahead/behind for
-every branch at once, one `log` across all unmerged tips).
+every branch at once, one `log` across all unmerged tips), plus one when
+settings.integrationBranch is set (which branch tips it contains — `landed`).
 """
 from __future__ import annotations
 import datetime
@@ -28,11 +29,13 @@ _REF_FIELDS = ["%(refname:short)", "%(objectname)", "%(objectname:short)",
                "%(committerdate:iso-strict)", "%(HEAD)", "%(worktreepath)",
                "%(subject)"]
 
-# (root, requested trunk) -> (for-each-ref stdout, git-derived branch data).
-# Only git facts are cached; item mapping and staleness are recomputed per call
-# so a changed item list or a passing day never needs another git call.
-_CACHE: dict[tuple[str, str | None], tuple[str, dict]] = {}
+# (root, requested trunk, integration branch) -> (for-each-ref stdout,
+# git-derived branch data). Only git facts are cached; item mapping and
+# staleness are recomputed per call so a changed item list or a passing day
+# never needs another git call.
+_CACHE: dict[tuple[str, str | None, str | None], tuple[str, dict]] = {}
 _LOCK = threading.Lock()
+_FROM_SETTINGS = object()   # discover(integration=...) default: read the config
 
 
 def _empty(trunk: str | None = None) -> dict:
@@ -161,22 +164,40 @@ def _branch_commits(root: Path, trunk: str, tips: dict[str, str]) -> dict[str, l
     return result
 
 
-def _scan(root: Path, trunk: str, refs: list[dict]) -> dict:
+def _contained_in(root: Path, target: str) -> set[str]:
+    """Names of every local branch whose tip `target` already contains — one
+    for-each-ref call for all branches at once. Empty on any git trouble."""
+    raw = _git(root, "for-each-ref", "refs/heads", f"--merged={target}",
+               "--format=%(refname:short)")
+    return set(raw.split()) if raw else set()
+
+
+def _scan(root: Path, trunk: str, refs: list[dict],
+          integration: str | None = None) -> dict:
     """The git-derived (cacheable) part: every non-trunk branch with its
-    ahead/behind counts and its unmerged commits."""
+    ahead/behind counts and its unmerged commits. With an `integration` branch,
+    a branch not yet merged to trunk whose tip the integration branch contains
+    is `landed` there (landedSha = the integration tip that contains it)."""
     counts = _ahead_behind(root, trunk, refs)
+    tips = {r["name"]: r["sha"] for r in refs}
+    landed_in = (_contained_in(root, f"refs/heads/{integration}")
+                 if integration else set())
     branches = []
     for r in refs:
         if r["name"] == trunk:
             continue
         ahead, behind = counts.get(r["name"], (0, 0))
+        merged = r["name"] in counts and ahead == 0
+        landed = not merged and r["name"] in landed_in
         branches.append({**r, "ahead": ahead, "behind": behind,
-                         "merged": r["name"] in counts and ahead == 0})
+                         "merged": merged, "landed": landed,
+                         "landedIn": integration if landed else None,
+                         "landedSha": tips[integration] if landed else None})
     tips = {b["name"]: b["sha"] for b in branches if not b["merged"]}
     per_branch = _branch_commits(root, trunk, tips)
     for b in branches:
         b["commits"] = per_branch.get(b["name"], [])
-    return {"trunk": trunk, "branches": branches}
+    return {"trunk": trunk, "integration": integration, "branches": branches}
 
 
 _EPOCH = datetime.datetime.min.replace(tzinfo=datetime.timezone.utc)
@@ -199,12 +220,15 @@ def _is_stale(date: str, stale_days: int, now: datetime.datetime) -> bool:
 def _info(b: dict, item: int | None, stale_days: int,
           now: datetime.datetime) -> dict:
     """Public per-branch record. taggedCommits counts commits tagged for
-    `item` (0 for unattributed branches)."""
+    `item` (0 for unattributed branches). `sha` is the full tip; `landed`
+    (plan 32) marks a branch the integration branch contains but trunk does not."""
     tagged = sum(1 for c in b["commits"] if item is not None and item in c["tags"])
     return {"name": b["name"], "item": item, "ahead": b["ahead"],
             "behind": b["behind"], "lastCommit": b["short"],
             "lastSubject": b["subject"], "lastDate": b["date"],
             "merged": b["merged"], "worktree": b["worktree"],
+            "sha": b["sha"], "landed": b.get("landed", False),
+            "landedIn": b.get("landedIn"), "landedSha": b.get("landedSha"),
             "taggedCommits": tagged,
             "stale": _is_stale(b["date"], stale_days, now),
             "commits": [{k: c[k] for k in ("sha", "date", "subject")}
@@ -212,7 +236,8 @@ def _info(b: dict, item: int | None, stale_days: int,
 
 
 def discover(root: Path, item_ids=None, trunk: str | None = None,
-             pattern: str | None = None, stale_days: int | None = None) -> dict:
+             pattern: str | None = None, stale_days: int | None = None,
+             integration=_FROM_SETTINGS) -> dict:
     """Map git branches and tagged commits to roadmap items.
 
     Returns {"trunk": name|None, "items": {id: branchinfo}, "other": [branchinfo]}.
@@ -222,11 +247,16 @@ def discover(root: Path, item_ids=None, trunk: str | None = None,
     `other` holds every unmerged non-trunk branch not chosen for an item.
     `item_ids` limits which ids may be attributed (None = any). Outside git,
     with no commits, or with no resolvable trunk, the result is empty.
+    `integration` (default: settings.integrationBranch; None = off) names the
+    branch work merges into before trunk; branches it contains read `landed`.
+    It is ignored when it is the trunk or does not exist locally.
     """
     root = Path(root)
     settings = None
-    if pattern is None or stale_days is None:
+    if pattern is None or stale_days is None or integration is _FROM_SETTINGS:
         settings = _settings(root)
+    if integration is _FROM_SETTINGS:
+        integration = settings.get("integrationBranch")
     if pattern is None:
         pattern = settings.get("branchPattern")
         if not isinstance(pattern, str) or not pattern:
@@ -244,13 +274,17 @@ def discover(root: Path, item_ids=None, trunk: str | None = None,
     resolved = _pick_trunk(refs, trunk)
     if resolved is None:
         return _empty()
-    key = (str(root.resolve()), trunk)
+    names = {r["name"] for r in refs}
+    if not isinstance(integration, str) or integration == resolved \
+            or integration not in names:
+        integration = None
+    key = (str(root.resolve()), trunk, integration)
     with _LOCK:
         hit = _CACHE.get(key)
     if hit is not None and hit[0] == sig:
         data = hit[1]
     else:
-        data = _scan(root, resolved, refs)
+        data = _scan(root, resolved, refs, integration)
         with _LOCK:
             _CACHE[key] = (sig, data)
 

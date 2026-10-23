@@ -2821,7 +2821,7 @@ def test_claim_set_writes_flat_frontmatter_keys(roadmap, repo, monkeypatch):
     today = datetime.date.today().isoformat()
     assert roadmap.read_claim(plan) == {
         "stage": "gate-ready", "verdict": "CONFIRMED", "note": "spec + quality passed",
-        "branch": "roadmap/1", "updated": today}
+        "branch": "roadmap/1", "landed_sha": None, "updated": today}
     meta = roadmap.parse_plan(plan)["meta"]
     assert meta["id"] == "1" and meta["claim_stage"] == "gate-ready"
     assert "stage" not in meta and "claim" not in meta     # flat, no nesting
@@ -3167,3 +3167,124 @@ def test_status_lanes_without_git(roadmap, branches, tmp_path, monkeypatch, caps
     st = roadmap.status(tmp_path)
     assert st["items"][0]["lane"] == "planned" and st["items"][0]["branch"] is None
 
+
+# --- landed: integration branch containment (plan 32) ----------------------
+
+def _set_settings(roadmap, repo, **kv):
+    cfg = roadmap.read_config(repo)
+    cfg.setdefault("settings", {}).update(kv)
+    roadmap.write_config(repo, cfg)
+
+
+def _landed_repo(roadmap, repo, monkeypatch, integration="integration"):
+    """Items 1-3 on main. roadmap/1 (2 commits) and roadmap/2 (1 commit) are
+    merged (--no-ff) into `integration`, which is not merged into main;
+    roadmap/3 is still open. settings.integrationBranch names `integration`."""
+    monkeypatch.chdir(repo)
+    _git(repo, "symbolic-ref", "HEAD", "refs/heads/main")
+    roadmap.init_project(repo, "P", claude_md=False)
+    for title in "ABC":
+        roadmap.new_item(repo, "feature", title)
+    if integration:
+        _set_settings(roadmap, repo, integrationBranch=integration)
+    _git(repo, "add", "-A")
+    _commit(repo, "init")
+    _git(repo, "branch", "integration")
+    for item, n in ((1, 2), (2, 1), (3, 1)):
+        _git(repo, "checkout", "-qb", f"roadmap/{item}", "main")
+        for k in range(n):
+            _commit(repo, f"work {k} (plan {item})")
+    _git(repo, "checkout", "-q", "integration")
+    for item in (1, 2):
+        _git(repo, "merge", "--no-ff", "-q", "-m", f"merge roadmap/{item}",
+             f"roadmap/{item}")
+    _git(repo, "checkout", "-q", "main")
+    return repo
+
+
+def _tip(repo, ref):
+    return subprocess.run(["git", "rev-parse", ref], cwd=repo, check=True,
+                          capture_output=True, text=True).stdout.strip()
+
+
+def test_status_landed_without_a_claim(roadmap, branches, repo, monkeypatch):
+    _landed_repo(roadmap, repo, monkeypatch)
+    st = roadmap.status(repo)
+    items = _by_id(st)
+    assert {n: i["lane"] for n, i in items.items()} == \
+        {1: "landed", 2: "landed", 3: "building"}
+    assert all(items[n]["claim"] is None for n in (1, 2))
+    integ = _tip(repo, "integration")
+    for n in (1, 2):
+        b = items[n]["branch"]
+        assert (b["landed"], b["landedIn"], b["landedSha"]) == \
+            (True, "integration", integ)
+        assert b["sha"] == _tip(repo, f"roadmap/{n}")
+    b3 = items[3]["branch"]
+    assert (b3["landed"], b3["landedIn"], b3["landedSha"]) == (False, None, None)
+    assert st["counts"]["byLane"] == {"landed": 2, "building": 1}
+    assert st["counts"]["lanes"]["inFlight"] == 3        # landed is still in flight
+    assert all(i["status"] == "planned" for i in st["items"])   # display only
+    assert roadmap.lane_label(items[1]) == f"landed · roadmap/1 · @{integ[:7]} · +2"
+
+
+def test_status_landed_text_line(roadmap, branches, repo, monkeypatch, capsys):
+    _landed_repo(roadmap, repo, monkeypatch)
+    assert roadmap.main(["status", "--in-flight"]) == 0
+    out = capsys.readouterr().out
+    assert "— landed · roadmap/2 · @" in out and "— building · roadmap/3" in out
+
+
+def test_landed_needs_an_integration_branch(roadmap, branches, repo, monkeypatch):
+    _landed_repo(roadmap, repo, monkeypatch, integration=None)
+    lanes = {i["id"]: i["lane"] for i in roadmap.status(repo)["items"]}
+    assert lanes == {1: "building", 2: "building", 3: "building"}
+    # naming the trunk, or a branch that does not exist, is the same as unset
+    for name in ("main", "nope"):
+        _set_settings(roadmap, repo, integrationBranch=name)
+        lanes = {i["id"]: i["lane"] for i in roadmap.status(repo)["items"]}
+        assert set(lanes.values()) == {"building"}
+    # the cache keys on the integration branch, not just the ref list
+    _set_settings(roadmap, repo, integrationBranch="integration")
+    assert _by_id(roadmap.status(repo))[1]["lane"] == "landed"
+    assert branches.discover(repo, [1], integration=None)["items"][1]["landed"] is False
+    assert branches.discover(repo, [1])["items"][1]["landed"] is True
+
+
+def test_landed_lane_precedence(roadmap, branches, repo, monkeypatch):
+    _landed_repo(roadmap, repo, monkeypatch)
+    roadmap.set_claim(repo, 1, stage="fixing")            # a claim outranks landed
+    roadmap.check_step(repo, 2, None, all_done=True)      # done outranks everything
+    lanes = {i["id"]: i["lane"] for i in roadmap.status(repo)["items"]}
+    assert lanes == {1: "fixing", 2: "done", 3: "building"}
+    landed = {"name": "x", "merged": False, "ahead": 1, "taggedCommits": 0,
+              "stale": True, "landed": True}
+    assert roadmap.derive_lane("active", None, landed) == "landed"   # beats stale
+    assert roadmap.derive_lane("active", {"stage": "landed"}, None) == "landed"
+    assert roadmap.derive_lane("planned", None, {**landed, "merged": True,
+                                                 "ahead": 0}) == "planned"
+
+
+def test_landed_when_the_item_branch_was_deleted(roadmap, branches, repo,
+                                                 monkeypatch):
+    """After merging into integration the feature branch is often deleted; its
+    (plan N) commits then attribute the integration branch itself, which is
+    contained in itself — so the item still reads landed."""
+    _landed_repo(roadmap, repo, monkeypatch)
+    _git(repo, "branch", "-D", "roadmap/2")
+    b2 = _by_id(roadmap.status(repo))[2]
+    assert (b2["lane"], b2["branch"]["name"]) == ("landed", "integration")
+
+
+def test_claim_stage_landed_and_landed_sha_field(roadmap, repo, monkeypatch):
+    plan = _claim_repo(roadmap, repo, monkeypatch)
+    assert roadmap.main(["claim", "1", "--stage", "landed"]) == 0
+    assert roadmap.read_claim(plan)["stage"] == "landed"
+    plan.write_text(plan.read_text().replace(
+        "claim_stage: landed", "claim_stage: landed\nclaim_landed_sha: abc123"))
+    assert roadmap.read_claim(plan)["landed_sha"] == "abc123"
+    roadmap.set_claim(repo, 1, verdict="CONFIRMED")       # still landed: sha kept
+    assert roadmap.read_claim(plan)["landed_sha"] == "abc123"
+    roadmap.set_claim(repo, 1, stage="fixing")            # leaving landed drops it
+    assert roadmap.read_claim(plan)["landed_sha"] is None
+    assert "claim_landed_sha" not in plan.read_text()

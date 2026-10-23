@@ -125,7 +125,8 @@ def _apply_claim(text: str, claim: dict | None) -> str:
 
 def _prepare_claim(root: Path, plan_id: int, stage: str | None = None,
                    verdict: str | None = None, note: str | None = None,
-                   branch: str | None = None) -> tuple[Path, str, dict]:
+                   branch: str | None = None,
+                   landed_sha: str | None = None) -> tuple[Path, str, dict]:
     """Validate a claim update and return (plan path, new plan text, claim)
     without writing anything — the shared core of set_claim / set_claims, so a
     multi-id claim can validate every item before touching any file."""
@@ -167,6 +168,10 @@ def _prepare_claim(root: Path, plan_id: int, stage: str | None = None,
         claim["note"] = " ".join(note.split()) or None
     if branch is not None:
         claim["branch"] = branch or None
+    if landed_sha is not None:
+        claim["landed_sha"] = landed_sha or None
+    if claim.get("stage") != "landed":
+        claim["landed_sha"] = None      # a landing sha only means something while landed
     claim["updated"] = datetime.date.today().isoformat()
     text = _apply_claim(path.read_text(encoding="utf-8"), claim)
     return path, text, {f: claim.get(f) for f in CLAIM_FIELDS}
