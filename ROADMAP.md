@@ -21,11 +21,11 @@
 
 ### [x] v0.18.0 — 100% · 6 items · shipped 2026-10-21 ([history](CHANGELOG.internal.md))
 
-### [ ] v0.19.0 — 29%
+### [ ] v0.19.0 — 52%
 - [ ] **#28 Council review: plan review and merge gate by multiple agent CLIs** `feature` — 0% ([plan](.roadmap/plans/028-council-review-plan-review-and-merge-gate-by-multiple-agent-clis.md))
 - [ ] **#29 Adversarial review skill: multi-CLI review with triage from Claude Code** `feature` — 0% ([plan](.roadmap/plans/029-adversarial-review-skill-multi-cli-review-with-triage-from-claude-code.md))
 - [x] **#30 Honest in-flight tracking: claim branch/stage/verdict per item, branch progress and stage filters in status and dashboard** `feature` — 100% ([plan](.roadmap/plans/030-honest-in-flight-tracking-claim-branch-stage-verdict-per-item-branch-progress-and-stage-filters-in-status-and-dashboard.md))
-- [ ] **#31 Dashboard: trunk plus branches always the default view, URL in every refresh log line, and full pages for each plan and idea** `feature` — 0% ([plan](.roadmap/plans/031-dashboard-trunk-plus-branches-always-the-default-view-url-in-every-refresh-log-line-and-full-pages-for-each-plan-and-idea.md))
+- [x] **#31 Dashboard: trunk plus branches always the default view, URL in every refresh log line, and full pages for each plan and idea** `feature` — 100% ([plan](.roadmap/plans/031-dashboard-trunk-plus-branches-always-the-default-view-url-in-every-refresh-log-line-and-full-pages-for-each-plan-and-idea.md))
 
 ### [x] v0.20.0 — 100%
 - [x] **#27 Parallel-safe roadmap builds: per-item worktrees, fresh-session orchestration, pending-decision handoff and per-item token spend** `feature` — 100% ([plan](.roadmap/plans/027-parallel-safe-roadmap-builds-per-item-worktrees-fresh-session-orchestration-pending-decision-handoff-and-per-item-token-spend.md))
@@ -46,4 +46,5 @@
 - [ ] **#44 Version forecast: estimate each open version's finish date from recent pace** `feature` — 0% ([plan](.roadmap/plans/044-version-forecast-estimate-each-open-version-s-finish-date-from-recent-pace.md))
 - [ ] **#45 Digest: what landed, moved, stalled and got blocked since a given time** `feature` — 0% ([plan](.roadmap/plans/045-digest-what-landed-moved-stalled-and-got-blocked-since-a-given-time.md))
 - [ ] **#46 Waiting steps and split retarget: time-gated checks no longer hold up a release or drag the whole feature to the next version** `feature` — 0% ([plan](.roadmap/plans/046-waiting-steps-and-split-retarget-time-gated-checks-no-longer-hold-up-a-release-or-drag-the-whole-feature-to-the-next-version.md))
+- [ ] **#47 Bug routing: a bug command that fixes in-flight plans in place or files a linked bug item, and an incubator that refuses bugs** `feature` — 0% ([plan](.roadmap/plans/047-bug-routing-a-bug-command-that-fixes-in-flight-plans-in-place-or-files-a-linked-bug-item-and-an-incubator-that-refuses-bugs.md))
 <!-- roadmap:auto:end -->

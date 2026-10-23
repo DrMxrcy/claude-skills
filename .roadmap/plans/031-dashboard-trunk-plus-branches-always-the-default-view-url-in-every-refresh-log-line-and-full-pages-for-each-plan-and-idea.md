@@ -3,7 +3,7 @@ id: 31
 title: Dashboard: trunk plus branches always the default view, URL in every refresh log line, and full pages for each plan and idea
 type: feature
 version: 0.19.0
-status: planned
+status: done
 created: 2026-10-23
 ---
 
@@ -35,8 +35,13 @@ created: 2026-10-23
 - **Fails if:** any browser action writes to the repo, raw markdown or commit text is injected as HTML, or the trunk view loses branch or lane data.
 
 ## 🚶 Step-by-Step Checklist
-- [ ] Step 1: serve logging — URL on every refresh line, collapsed per-checkout lines, `--verbose`, loud already-running message -> target: rmlib/dashboard.py, roadmap.py, tests/test_roadmap_serve.py
-- [ ] Step 2: default view always trunk + branches on load, ignore stored view -> target: rmlib/dashboard.html, tests/test_roadmap_serve.py
-- [ ] Step 3: `/api/item` plan body + linked notes, `/api/note` with path restrictions -> target: rmlib/dashboard.py, tests/test_roadmap_serve.py
-- [ ] Step 4: hash router plus plan, idea and note pages with a safe markdown renderer; list rows link to them -> target: rmlib/dashboard.html, tests/test_roadmap_serve.py
-- [ ] Step 5: smoke run against statewide-app, then sync the updated skill into the project copies -> target: plan evidence
+- [x] Step 1: serve logging — URL on every refresh line, collapsed per-checkout lines, `--verbose`, loud already-running message -> target: rmlib/dashboard.py, roadmap.py, tests/test_roadmap_serve.py
+  > evidence: 33acf1b; merged ce672e5; roadmap+serve tests 352 passed; Playwright fixture check 0 console errors; reviews skipped at owner request (2026-10-23)
+- [x] Step 2: default view always trunk + branches on load, ignore stored view -> target: rmlib/dashboard.html, tests/test_roadmap_serve.py
+  > evidence: e40d604; merged ce672e5; roadmap+serve tests 352 passed; Playwright fixture check 0 console errors; reviews skipped at owner request (2026-10-23)
+- [x] Step 3: `/api/item` plan body + linked notes, `/api/note` with path restrictions -> target: rmlib/dashboard.py, tests/test_roadmap_serve.py
+  > evidence: f86579e /api/note path rejections tested; merged ce672e5; roadmap+serve tests 352 passed; Playwright fixture check 0 console errors; reviews skipped at owner request (2026-10-23)
+- [x] Step 4: hash router plus plan, idea and note pages with a safe markdown renderer; list rows link to them -> target: rmlib/dashboard.html, tests/test_roadmap_serve.py
+  > evidence: 4515287; merged ce672e5; roadmap+serve tests 352 passed; Playwright fixture check 0 console errors; reviews skipped at owner request (2026-10-23)
+- [x] Step 5: smoke run against statewide-app, then sync the updated skill into the project copies -> target: plan evidence
+  > evidence: statewide-app serve: URL on every line, 1 summary line for 13 checkouts, /api/item?id=401 body+20 commits, /api/note traversal 400; skill synced to 12 projects + ~/.agents (uncommitted there); found 401 misattributed to roadmap/133, routed to plan 32 (2026-10-23)

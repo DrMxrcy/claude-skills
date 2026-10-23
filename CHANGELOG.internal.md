@@ -19,6 +19,7 @@ _Full work log — every item, including internal/dev work. The curated public c
 - (pending) Each open version shows a forecast finish date based on how fast work has been moving.
 - (pending) A short digest tells you what changed on the roadmap since you last looked.
 - (pending) Steps that need time to pass, like a week of monitoring, can wait without holding up a release.
+- (pending) Bugs always land in the right place: fixed inside the plan still being built, or tracked as their own item, never lost among ideas.
 
 ### ⚡ Improved
 - (pending) The roadmap stops warning about file length once shipped versions fold away on their own.
@@ -34,7 +35,7 @@ _Full work log — every item, including internal/dev work. The curated public c
 - (pending) Adds a council of installed agent CLIs that reviews each plan before build and each diff before merge.
 - (pending) Adversarial review skill: multi-CLI review with triage from Claude Code
 - Built-but-unmerged work shows its real state instead of 0%.
-- (pending) The live roadmap page opens on everything, and every plan and idea gets its own page.
+- The live roadmap page opens on everything, and every plan and idea gets its own page.
 
 ## v0.18.0 — 2026-10-21
 
