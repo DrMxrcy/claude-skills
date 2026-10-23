@@ -100,9 +100,10 @@ and SessionStart/PreInvocation (orient) hooks, and add roadmap rules to instruct
   --cli                   install a 'claude-roadmap' command on PATH (default with
                           --global) so you can run 'claude-roadmap serve' anywhere
   --no-cli                do not install the 'claude-roadmap' PATH command
-  --only=<skill[,skill]>  install only these skills (agent, roadmap) and skip the
-                          excluded skills' wiring — e.g. --only=agent when roadmap
-                          is already installed globally
+  --only=<skill[,skill]>  install only these skills (agent, roadmap,
+                          adversarial-review) and skip the excluded skills'
+                          wiring — e.g. --only=agent when roadmap is already
+                          installed globally
   --init                  also run `roadmap init` in the current directory
 
 Remote (no clone):
@@ -603,6 +604,22 @@ if [ "$commands" = "1" ] && _want roadmap && [ "$agent" != "codex" ]; then
       flat_count=$((flat_count + 1))
     done
     echo "Installed $flat_count roadmap commands -> $flat_dir (try /roadmap-init, /roadmap-next, /roadmap-build)"
+  fi
+fi
+
+# /adversarial-review: one flat command beside the skill (Codex invokes skills as
+# $adversarial-review instead, so it gets no command file).
+if [ "$commands" = "1" ] && _want adversarial-review && [ "$agent" != "codex" ] \
+   && [ -d "$skills_dest/adversarial-review" ]; then
+  ar_cmd="$(dirname "$SRC_DIR")/commands/adversarial-review.md"
+  if [ -f "$ar_cmd" ]; then
+    mkdir -p "$base/commands"
+    if [ "$link" = "1" ]; then
+      ln -sfn "$(cd "$(dirname "$ar_cmd")" && pwd)/$(basename "$ar_cmd")" "$base/commands/adversarial-review.md"
+    else
+      cp "$ar_cmd" "$base/commands/adversarial-review.md"
+    fi
+    echo "Installed command: /adversarial-review -> $base/commands/adversarial-review.md"
   fi
 fi
 
