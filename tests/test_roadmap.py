@@ -3289,3 +3289,19 @@ def test_check_force_does_not_satisfy_require_evidence(roadmap, repo, template_g
     _set_require_evidence(roadmap, repo, True)
     with pytest.raises(ValueError, match="requireEvidence"):
         roadmap.check_step(repo, 1, 1, force=True)
+
+
+def test_tidy_reports_stub_plans(roadmap, repo, template_gate):
+    roadmap.init_project(repo, "P")
+    bug = roadmap.new_item(repo, "bug", "B")
+    roadmap.new_item(repo, "feature", "F")
+    roadmap.check_step(repo, 2, None, all_done=True, force=True)  # done → not reported
+    rep = roadmap.tidy_report(repo)
+    assert rep["clean"] is False
+    assert rep["stubPlans"] == [{"id": 1, "file": f".roadmap/plans/{bug.name}",
+                                 "sections": ["Observed", "Root Cause", "Acceptance"]}]
+    text = roadmap.format_tidy(rep)
+    assert "check refuses" in text and bug.name in text
+    assert "Observed, Root Cause, Acceptance" in text
+    _fill_bug(bug)
+    assert roadmap.tidy_report(repo)["stubPlans"] == []
