@@ -151,3 +151,123 @@ def test_concurrent_appends_never_corrupt(runs, proj):
 
 def test_missing_file_is_empty(runs, proj):
     assert runs.read_runs(proj) == ([], [])
+
+
+# ---- step 2: `run`, `status --runs`, payload runs + trunkHealth ------------
+
+def _git(repo, *args):
+    return subprocess.run(["git", *args], cwd=repo, check=True,
+                          capture_output=True, text=True).stdout
+
+
+def test_run_cli_appends_and_status_runs_lists_newest_first(roadmap, runs, proj, capsys):
+    assert roadmap.main(["run", "--kind", "gate", "--label", "merge 1+2", "--result",
+                         "pass", "--items", "1,#2", "--branches", "roadmap/1,roadmap/2",
+                         "--duration", "12m", "--log", "https://ci.example/run/7"]) == 0
+    assert roadmap.main(["run", "--kind", "suite", "--label", "nightly", "--result",
+                         "fail", "--shards", "unit=pass,e2e=fail",
+                         "--failing", "tests/e2e.py::test_a[x,y], tests/e2e.py::test_b"]) == 0
+    lines = runs.runs_path(proj).read_text().splitlines()
+    first = json.loads(lines[0])
+    assert first["items"] == [1, 2] and first["durationSec"] == 720
+    assert first["branches"] == ["roadmap/1", "roadmap/2"]
+    capsys.readouterr()
+    assert roadmap.main(["status", "--runs"]) == 0
+    out = capsys.readouterr().out
+    assert out.index("nightly") < out.index("merge 1+2")
+    assert "https://ci.example/run/7" in out and "tests/e2e.py::test_a[x,y]" in out
+    assert "trunk health: RED" in out and "e2e=fail" in out
+    roadmap.main(["status", "--runs", "--json"])
+    data = json.loads(capsys.readouterr().out)
+    assert [r["label"] for r in data["runs"]] == ["nightly", "merge 1+2"]
+
+
+def test_run_cli_rejects_bad_input(roadmap, runs, proj, capsys):
+    assert roadmap.main(["run", "--kind", "gate", "--label", "x", "--result", "pass",
+                         "--log", "file:///etc/passwd"]) == 1
+    assert roadmap.main(["run", "--kind", "gate", "--label", "x", "--result", "pass",
+                         "--duration", "soon"]) == 1
+    assert not runs.runs_path(proj).exists()
+    with pytest.raises(SystemExit):
+        roadmap.main(["run", "--kind", "deploy", "--label", "x", "--result", "pass"])
+
+
+def test_run_cli_honours_runs_keep(roadmap, runs, proj):
+    cfg = roadmap.read_config(proj)
+    cfg["settings"]["runsKeep"] = 2
+    roadmap.write_config(proj, cfg)
+    for n in range(4):
+        roadmap.main(["run", "--kind", "gate", "--label", f"g{n}", "--result", "pass"])
+    assert len(runs.runs_path(proj).read_text().splitlines()) == 2
+
+
+def test_status_survives_unparseable_line(roadmap, runs, proj, capsys):
+    runs.append_run(proj, _rec(runs, "ok"))
+    with open(runs.runs_path(proj), "a") as f:
+        f.write("garbage\n")
+    st = roadmap.status(proj)
+    assert [r["label"] for r in st["runs"]] == ["ok"]
+    assert st["runWarnings"] and "unparseable" in st["runWarnings"][0]
+    capsys.readouterr()
+    assert roadmap.main(["status"]) == 0
+    assert "warning:" in capsys.readouterr().err
+    assert roadmap.main(["status", "--runs"]) == 0
+
+
+def test_status_payload_runs_capped_and_no_warnings_key_when_clean(roadmap, runs, proj):
+    for n in range(runs.STATUS_RUNS + 5):
+        runs.append_run(proj, _rec(runs, f"r{n}"))
+    st = roadmap.status(proj)
+    assert len(st["runs"]) == runs.STATUS_RUNS and "runWarnings" not in st
+    assert st["trunkHealth"] == {"shards": [], "green": None, "ahead": []}
+
+
+def test_trunk_health_latest_suite_per_shard(runs):
+    rs = [_rec(runs, "nightly", "pass", "suite", 9, shards={"unit": "pass"}),
+          _rec(runs, "nightly", "fail", "suite", 5, shards={"unit": "fail", "e2e": "fail"},
+               failing=["t_e2e"]),
+          _rec(runs, "lint", "pass", "suite", 4),                     # shard = label
+          _rec(runs, "branch", "fail", "suite", 8, branches=["roadmap/9"]),
+          _rec(runs, "merge", "fail", "gate", 10)]
+    rs = [runs._clean(r) for r in sorted(rs, key=lambda r: r["at"], reverse=True)]
+    h = runs.trunk_health(rs, "main")
+    by = {s["shard"]: s for s in h["shards"]}
+    assert set(by) == {"unit", "e2e", "lint"}            # gate + branch-only suite ignored
+    assert by["unit"]["result"] == "pass" and by["unit"]["failing"] == []
+    assert by["e2e"]["result"] == "fail" and by["e2e"]["failing"] == ["t_e2e"]
+    assert h["green"] is False
+    on_main = runs._clean(_rec(runs, "x", "pass", "suite", 11, branches=["main"]))
+    assert runs.trunk_health([on_main], "main")["green"] is True
+
+
+def test_trunk_health_ahead_counts_integration_commits(roadmap, runs, proj):
+    _git(proj, "symbolic-ref", "HEAD", "refs/heads/main")
+    _git(proj, "add", "-A")
+    _git(proj, "commit", "-qm", "init")
+    _git(proj, "branch", "roadmap/v1")
+    _git(proj, "checkout", "-qb", "roadmap/v2")
+    for n in range(3):
+        _git(proj, "commit", "--allow-empty", "-qm", f"w{n}")
+    _git(proj, "checkout", "-q", "main")
+    assert "trunkHealth" not in roadmap.status(proj)                 # unset, no runs
+    for setting, want in (("roadmap/v2", [{"branch": "roadmap/v2", "commits": 3}]),
+                          (["roadmap/v*"], [{"branch": "roadmap/v1", "commits": 0},
+                                            {"branch": "roadmap/v2", "commits": 3}]),
+                          ("main", []), ("nope", [])):
+        cfg = roadmap.read_config(proj)
+        cfg["settings"]["integrationBranch"] = setting
+        roadmap.write_config(proj, cfg)
+        assert roadmap.status(proj)["trunkHealth"]["ahead"] == want, setting
+    assert runs.trunk_ahead(proj, "roadmap/v2", None) == []          # no trunk
+
+
+def test_payload_unchanged_without_runs_or_integration(roadmap, proj, capsys):
+    st = roadmap.status(proj)
+    assert not {"runs", "trunkHealth", "runWarnings"} & set(st)
+    assert roadmap.main(["status", "--runs"]) == 0
+    assert "no runs recorded" in capsys.readouterr().out
+
+
+def test_trunk_ahead_outside_git(runs, tmp_path):
+    assert runs.trunk_ahead(tmp_path, "dev", "main") == []
+

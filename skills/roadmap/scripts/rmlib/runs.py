@@ -282,9 +282,12 @@ def trunk_health(runs: list[dict], trunk: str | None = None,
 
 def runs_status(root: Path, cfg: dict, trunk: str | None) -> dict:
     """The status payload's run-log keys: `runs` (newest STATUS_RUNS),
-    `trunkHealth`, and `runWarnings` only when a line was skipped."""
-    runs, warnings = read_runs(root)
+    `trunkHealth`, and `runWarnings` only when a line was skipped. Empty (the
+    payload stays unchanged) until a run is logged or integrationBranch is set."""
     setting = (cfg.get("settings") or {}).get("integrationBranch")
+    if not setting and not runs_path(root).exists():
+        return {}
+    runs, warnings = read_runs(root)
     out = {"runs": runs[:STATUS_RUNS],
            "trunkHealth": trunk_health(runs, trunk, trunk_ahead(root, setting, trunk))}
     if warnings:

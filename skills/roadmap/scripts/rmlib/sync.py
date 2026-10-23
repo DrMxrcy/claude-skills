@@ -14,6 +14,7 @@ from rmlib.parse import (
     CLAIM_STAGES, count_progress, read_claim)
 from rmlib import branches as rmbranches
 from rmlib import slots as rmslots
+from rmlib import runs as rmruns
 from rmlib.changelog import (
     render_internal_changelog, render_public_changelog)
 
@@ -388,6 +389,8 @@ def status(root: Path) -> dict:
     # so projects without it see an unchanged payload.
     extra = ({"slots": rmslots.slots_status(root, cfg, items, found)}
              if (cfg.get("settings") or {}).get("slots") else {})
+    # Run log (plan 38): last runs, trunk health, and skipped-line warnings.
+    extra.update(rmruns.runs_status(root, cfg, found["trunk"]))
     return {"project": cfg["project"], "currentVersion": cfg["currentVersion"],
             "versionComplete": _version_complete(cur_items, progress),
             "counts": counts, "items": items,
