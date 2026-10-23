@@ -3,7 +3,7 @@ id: 27
 title: Parallel-safe roadmap builds: per-item worktrees, fresh-session orchestration, pending-decision handoff and per-item token spend
 type: feature
 version: 0.20.0
-status: planned
+status: active
 created: 2026-10-23
 ---
 
@@ -37,7 +37,8 @@ created: 2026-10-23
 - **Fails if:** any roadmap state file (`ROADMAP.md`, `.roadmap/config.json`, changelogs) is written from a worktree other than the merge step, or the existing `check` and `status` output format changes for callers that pass no new flags.
 
 ## 🚶 Step-by-Step Checklist
-- [ ] Step 1: Extend `orient` with branch, dirty files and last 5 commits; cover clean and dirty trees in tests -> target: `skills/roadmap/scripts/rmlib/report.py`, `tests/`
+- [x] Step 1: Extend `orient` with branch, dirty files and last 5 commits; cover clean and dirty trees in tests -> target: `skills/roadmap/scripts/rmlib/report.py`, `tests/`
+  > evidence: python3 -m pytest -q: 334 passed; orient tests: 11 passed (branch, dirty files, last 5 commits, clean tree) (2026-10-23)
 - [ ] Step 2: Add `handoff --pending` that writes `.roadmap/notes/<id>-handoff.md` and links it from the plan; refuse when an open decision marker is unresolved -> target: `skills/roadmap/scripts/rmlib/report.py`, `skills/roadmap/scripts/roadmap.py`, `tests/`
 - [ ] Step 3: Record optional `--tokens` on `check --evidence` beside the verifier ledger line -> target: `skills/roadmap/scripts/rmlib/ops.py`, `skills/roadmap/scripts/roadmap.py`, `tests/`
 - [ ] Step 4: Per-item worktree option for `build --worktree` (`roadmap/<id>-<slug>`) -> target: `commands/roadmap/build.md`, `skills/roadmap/references/quality-build.md`

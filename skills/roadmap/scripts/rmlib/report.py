@@ -82,6 +82,25 @@ def _git_dirty(root: Path) -> bool:
         return False
 
 
+def _git_out(root: Path, *args: str) -> str | None:
+    try:
+        out = subprocess.run(["git", *args], cwd=str(root),
+                             capture_output=True, text=True)
+        return out.stdout if out.returncode == 0 else None
+    except FileNotFoundError:
+        return None
+
+
+def _git_state(root: Path) -> dict:
+    """Branch, dirty file list and last 5 commits. Empty values when not a git repo."""
+    # symbolic-ref works on an unborn branch (a fresh repo with no commits yet)
+    branch = (_git_out(root, "symbolic-ref", "--short", "HEAD") or "").strip() or None
+    dirty = [l[3:] for l in (_git_out(root, "status", "--porcelain") or "").splitlines()
+             if l.strip()]
+    log = [l for l in (_git_out(root, "log", "--oneline", "-5") or "").splitlines() if l]
+    return {"branch": branch, "dirtyFiles": dirty, "recentCommits": log}
+
+
 def orient(root: Path) -> dict | None:
     """Session orientation: project, progress, next item, drift, skill versions.
     Returns None when .roadmap/ is absent — safe for hooks."""
@@ -116,6 +135,7 @@ def orient(root: Path) -> dict | None:
         "skillVersionStale": recorded not in ("unknown", installed),
         "gitDirty": _git_dirty(root),
     }
+    payload.update(_git_state(root))
     # settings.buildRoles: free-form per-role model/agent names, surfaced only when set
     # (absent key keeps orient/handoff output identical to a project without it).
     roles = (cfg.get("settings") or {}).get("buildRoles")
@@ -156,9 +176,18 @@ def format_orient(payload: dict, handoff: bool = False) -> str:
         lines.append("Next: (none — current version complete or all remaining items blocked)")
     if payload.get("drift"):
         lines.append(payload["drift"])
+    if payload.get("branch"):
+        lines.append(f"Branch: {payload['branch']}")
     if payload.get("gitDirty"):
         lines.append("⚠ Working tree has uncommitted changes — commit code+roadmap (or "
                      "inspect) before building more so nothing is agent-private.")
+        for f in payload.get("dirtyFiles", [])[:10]:
+            lines.append(f"  - {f}")
+        if len(payload.get("dirtyFiles", [])) > 10:
+            lines.append(f"  … {len(payload['dirtyFiles']) - 10} more")
+    if handoff and payload.get("recentCommits"):
+        lines.append("Recent commits:")
+        lines.extend(f"  {c}" for c in payload["recentCommits"])
     roles = payload.get("buildRoles")
     if roles:
         lines.append("Roles: " + " · ".join(f"{k}={v}" for k, v in roles.items())

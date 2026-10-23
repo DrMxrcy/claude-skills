@@ -2091,6 +2091,38 @@ def test_orient_reports_git_dirty(roadmap, repo):
     assert "uncommitted" in text.lower()
 
 
+def test_orient_reports_branch_dirty_files_and_recent_commits(roadmap, repo):
+    roadmap.init_project(repo, "P", claude_md=False)
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "init roadmap"], cwd=repo, check=True)
+    for n in range(7):
+        (repo / f"c{n}.txt").write_text(str(n))
+        subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+        subprocess.run(["git", "commit", "-qm", f"commit {n}"], cwd=repo, check=True)
+    (repo / "loose.txt").write_text("x")
+    payload = roadmap.orient(repo)
+    assert payload["branch"]
+    assert "loose.txt" in payload["dirtyFiles"]
+    assert len(payload["recentCommits"]) == 5
+    assert payload["recentCommits"][0].endswith("commit 6")
+    text = roadmap.format_orient(payload, handoff=True)
+    assert f"Branch: {payload['branch']}" in text
+    assert "  - loose.txt" in text
+    assert "Recent commits:" in text
+
+
+def test_orient_clean_tree_has_no_dirty_list(roadmap, repo):
+    roadmap.init_project(repo, "P", claude_md=False)
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "init roadmap"], cwd=repo, check=True)
+    payload = roadmap.orient(repo)
+    assert payload["gitDirty"] is False
+    assert payload["dirtyFiles"] == []
+    text = roadmap.format_orient(payload)
+    assert "uncommitted" not in text.lower()
+    assert "  - " not in text
+
+
 def test_cli_handoff_json(roadmap, repo, monkeypatch, capsys):
     monkeypatch.chdir(repo)
     roadmap.init_project(repo, "P", claude_md=False)
