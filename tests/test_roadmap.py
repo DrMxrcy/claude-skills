@@ -175,6 +175,30 @@ def test_check_evidence_written_under_the_step(roadmap, repo):
     assert roadmap.count_progress(repo / ".roadmap/plans/001-a.md") == (1, 2)
 
 
+def test_check_tokens_recorded_beside_evidence(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    roadmap.check_step(repo, 1, 1, evidence="pytest -q: 287 passed", tokens=18432)
+    lines = _plan_lines(repo)
+    i = next(n for n, ln in enumerate(lines) if ln.startswith("- [x] Step 1"))
+    assert lines[i + 1] == (f"  > evidence: pytest -q: 287 passed "
+                            f"({datetime.date.today().isoformat()}) · tokens: 18432")
+    assert roadmap.count_progress(repo / ".roadmap/plans/001-a.md") == (1, 2)
+
+
+def test_check_tokens_optional_and_validated(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    # no --tokens: the existing line format is unchanged
+    roadmap.check_step(repo, 1, 1, evidence="suite green")
+    assert "tokens:" not in "\n".join(_plan_lines(repo))
+    # negative counts are refused and leave the plan untouched
+    before = _plan_lines(repo)
+    with pytest.raises(ValueError, match="non-negative"):
+        roadmap.check_step(repo, 1, 2, evidence="suite green", tokens=-5)
+    assert _plan_lines(repo) == before
+
+
 def test_evidence_line_is_never_counted_as_a_step(roadmap, repo):
     roadmap.init_project(repo, "P")
     roadmap.new_item(repo, "feature", "A")

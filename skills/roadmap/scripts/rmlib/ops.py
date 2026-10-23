@@ -62,19 +62,23 @@ def release_gate(root: Path, target: str | None = None) -> None:
 
 def check_step(root: Path, plan_id: int, step: int | None,
                undo: bool = False, all_done: bool = False,
-               evidence: str | None = None) -> None:
+               evidence: str | None = None, tokens: int | None = None) -> None:
     """Flip checklist boxes. `evidence` (ignored on --undo) is recorded under each
     step being checked as a blockquote sub-line — a form STEP_RE can never read as a
-    step, so counts and generated output are untouched."""
+    step, so counts and generated output are untouched. `tokens` (optional, >= 0) is
+    appended to that same sub-line so spend can be compared per completed step."""
     path = _plan_path(root, plan_id)
     evidence = " ".join(evidence.split()) if evidence else ""
+    if tokens is not None and tokens < 0:
+        raise ValueError("--tokens must be a non-negative integer")
     if not undo and not evidence and (read_config(root).get("settings") or {}).get(
             "requireEvidence"):
         raise ValueError(
             f"check refused — settings.requireEvidence is on: pass --evidence "
             f'"<verify command + result>" (e.g. --evidence "pytest -q: 287 passed") '
             f"so plan {plan_id} records how the step was proven done.")
-    stamp = f"  > evidence: {evidence} ({datetime.date.today().isoformat()})"
+    spend = f" · tokens: {tokens}" if tokens is not None and evidence and not undo else ""
+    stamp = f"  > evidence: {evidence} ({datetime.date.today().isoformat()}){spend}"
     box = "[ ]" if undo else "[x]"
     out, n, in_fence = [], 0, False
     for line in path.read_text(encoding="utf-8").splitlines():

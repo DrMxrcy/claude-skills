@@ -170,6 +170,9 @@ def main(argv: list[str]) -> int:
     p_check.add_argument("--step", type=int)
     p_check.add_argument("--undo", action="store_true")
     p_check.add_argument("--all-done", action="store_true", dest="all_done")
+    p_check.add_argument("--tokens", type=int,
+                         help="optional token spend for this check, recorded beside the "
+                              "evidence line (needs --evidence)")
     p_check.add_argument("--evidence",
                          help="how the step was proven done (verify command + result); "
                               "recorded date-stamped under the step in the plan file. "
@@ -322,7 +325,8 @@ def main(argv: list[str]) -> int:
             return 0
         if args.command == "check":
             check_step(root, rid(args.plan), args.step, undo=args.undo,
-                       all_done=args.all_done, evidence=args.evidence)
+                       all_done=args.all_done, evidence=args.evidence,
+                       tokens=args.tokens)
             return 0
         if args.command == "release":
             release(root, args.version, tag=args.tag, force=args.force)
