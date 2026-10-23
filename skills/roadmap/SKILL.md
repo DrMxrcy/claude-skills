@@ -98,8 +98,8 @@ If there are no args on bare `/roadmap` in Claude/Grok, use **Phase routing** be
   `roadmap.py idea --title "..."`. Long-form content — brainstorm output, deferred review
   findings, phase sketches, option analyses — goes to a linked `.roadmap/notes/` file
   (`idea --body/--body-file`) or a spec under `docs/`, and gets ONE linked bullet; never
-  paste prose walls into ROADMAP.md. `status` warns when the file outgrows these bounds;
-  groom it back with `/roadmap-tidy` · `/roadmap-tidy` (`roadmap.py tidy` prints the
+  paste prose walls into ROADMAP.md. `orient` and `tidy` warn when the free-form region
+  (everything outside the auto block) outgrows these bounds; groom it back with `/roadmap-tidy` · `/roadmap-tidy` (`roadmap.py tidy` prints the
   report — the only sanctioned direct edit of the free-form region, never the auto region).
   The incubator itself may live in an external file (`settings.incubatorFile`, usually
   `.roadmap/IDEAS.md` via `tidy --externalize`) — the CLI resolves the location; groom

@@ -190,10 +190,13 @@ MAX_FREEFORM_CHARS = 4000
 
 
 def roadmap_health(root: Path) -> list[str]:
-    """Size warnings for ROADMAP.md: the dashboard should stay skimmable. The auto
-    region is bounded by collapsing shipped versions; the free-form region only stays
-    short if prose lives in .roadmap/notes/ files instead of inline. Checked by both
-    line count and character volume (prose dumps often sit on few, very long lines)."""
+    """Size warnings for ROADMAP.md: the dashboard should stay skimmable. Only the
+    free-form region is measured — the auto block is sync's job (shipped versions
+    collapse via settings.collapseShipped), so its length never warns on its own.
+    The free-form region only stays short if prose lives in .roadmap/notes/ files
+    instead of inline; it is checked by both line count and character volume (prose
+    dumps often sit on few, very long lines), and the warning names the largest
+    section to trim. Surfaced by `orient` and `tidy` only, never on every command."""
     rm = root / "ROADMAP.md"
     if not rm.exists():
         return []
@@ -201,6 +204,7 @@ def roadmap_health(root: Path) -> list[str]:
     warnings = []
     in_auto = False
     freeform = chars = 0
+    section, per_section = "top of file", Counter()
     for line in lines:
         if AUTO_START in line:
             in_auto = True
@@ -209,19 +213,22 @@ def roadmap_health(root: Path) -> list[str]:
         elif not in_auto and line.strip():
             freeform += 1
             chars += len(line)
+            if line.startswith("## "):
+                section = line[3:].strip()
+            elif not line.startswith("# "):
+                per_section[section] += 1
     if freeform > MAX_FREEFORM_LINES or chars > MAX_FREEFORM_CHARS:
         size = (f"{freeform} lines (> {MAX_FREEFORM_LINES})"
                 if freeform > MAX_FREEFORM_LINES
                 else f"{chars} characters (> {MAX_FREEFORM_CHARS})")
+        where = ""
+        if per_section:
+            name, n = per_section.most_common(1)[0]
+            where = f" — trim “{name}” ({n} lines)"
         warnings.append(
-            f"ROADMAP.md free-form region is {size}. Move long-form notes into linked "
-            "files via `roadmap.py idea --title ... --body-file ...` and keep one "
-            "bullet per idea.")
-    if len(lines) > MAX_ROADMAP_LINES:
-        warnings.append(
-            f"ROADMAP.md is {len(lines)} lines (> {MAX_ROADMAP_LINES}). Shipped versions "
-            "collapse automatically on sync (settings.collapseShipped); trim the "
-            "free-form region into .roadmap/notes/ files.")
+            f"ROADMAP.md free-form region (outside the auto block) is {size}{where}. "
+            "Move long-form notes into linked files via `roadmap.py idea --title ... "
+            "--body-file ...` (or `tidy --externalize`) and keep one bullet per idea.")
     return warnings
 
 

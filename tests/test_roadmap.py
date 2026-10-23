@@ -1443,13 +1443,52 @@ def test_health_warns_on_long_freeform_region(roadmap, repo):
     assert any("free-form" in m for m in msgs)
 
 
-def test_health_warns_on_total_length(roadmap, repo):
+def test_health_ignores_total_length(roadmap, repo):
+    # plan 39: only the free-form region is measured — blank lines / a long auto
+    # block are sync's business, not a warning.
     roadmap.init_project(repo, "P")
     rm = repo / "ROADMAP.md"
-    rm.write_text(rm.read_text() + "\n" * 200)            # blank lines: total, not free-form
-    msgs = roadmap.roadmap_health(repo)
-    assert len(msgs) == 1                                 # only the total-length warning
-    assert "ROADMAP.md is" in msgs[0]
+    rm.write_text(rm.read_text() + "\n" * 200)
+    assert roadmap.roadmap_health(repo) == []
+
+
+def _shipped_versions(roadmap, repo, n):
+    """n fully-done versions plus one open item in the version after them."""
+    roadmap.init_project(repo, "P")
+    for v in range(1, n + 1):
+        roadmap.new_item(repo, "feature", f"Item {v}", version=f"0.{v}.0")
+    roadmap.new_item(repo, "feature", "Open", version=f"0.{n + 1}.0")
+    for v in range(1, n + 1):
+        roadmap.check_step(repo, v, None, all_done=True)
+
+
+def test_status_quiet_with_thirty_collapsed_versions(roadmap, repo, capsys):
+    _shipped_versions(roadmap, repo, 30)
+    capsys.readouterr()
+    assert roadmap.main(["status"]) == 0
+    assert "warning" not in capsys.readouterr().err
+    assert roadmap.roadmap_health(repo) == []
+
+
+def test_long_incubator_warns_in_orient_and_tidy_only(roadmap, repo, capsys, monkeypatch):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    rm = repo / "ROADMAP.md"
+    filler = "\n".join(f"- idea {i}" for i in range(50))
+    rm.write_text(rm.read_text().replace("- (add ideas here)", filler))
+    monkeypatch.chdir(repo)
+    capsys.readouterr()
+    assert roadmap.main(["status"]) == 0
+    out = capsys.readouterr()
+    assert "free-form" not in out.err + out.out                    # not on every call
+    assert roadmap.main(["orient"]) == 0
+    out = capsys.readouterr().out
+    assert "free-form region" in out and "Idea Incubator" in out   # names the region
+    assert roadmap.main(["tidy"]) == 0
+    out = capsys.readouterr().out
+    assert "free-form region" in out and "Idea Incubator" in out
+    assert roadmap.main(["handoff"]) == 0
+    assert "free-form region" not in capsys.readouterr().out
 
 
 def test_shipped_unnoted_public_item_rolls_up_not_vanishes(roadmap, repo):

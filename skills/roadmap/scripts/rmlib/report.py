@@ -7,7 +7,7 @@ from pathlib import Path
 from rmlib.core import (
     display_id, get_version, read_config, roadmap_dir, write_config)
 from rmlib.sync import (
-    next_item, status)
+    next_item, roadmap_health, status)
 from rmlib.incubator import (
     incubator_file, list_incubator_bullets)
 
@@ -136,6 +136,8 @@ def orient(root: Path) -> dict | None:
         "gitDirty": _git_dirty(root),
     }
     payload.update(_git_state(root))
+    # ROADMAP.md size (plan 39): orient is the once-per-session place to say it.
+    payload["health"] = roadmap_health(root)
     # settings.buildRoles: free-form per-role model/agent names, surfaced only when set
     # (absent key keeps orient/handoff output identical to a project without it).
     roles = (cfg.get("settings") or {}).get("buildRoles")
@@ -187,6 +189,8 @@ def format_orient(payload: dict, handoff: bool = False) -> str:
     if handoff and payload.get("recentCommits"):
         lines.append("Recent commits:")
         lines.extend(f"  {c}" for c in payload["recentCommits"])
+    if not handoff:
+        lines.extend(f"⚠ {w}" for w in payload.get("health") or [])
     roles = payload.get("buildRoles")
     if roles:
         lines.append("Roles: " + " · ".join(f"{k}={v}" for k, v in roles.items())

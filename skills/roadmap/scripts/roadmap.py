@@ -559,8 +559,6 @@ def main(argv: list[str]) -> int:
                     lane = f" — {lane_label(it)}" if is_in_flight(it) else ""
                     print(f"  {it['displayId']} {it['title']} [{it['type']}] "
                           f"{it['pct']}% ({it['status']}){lane}{block}")
-            for w in roadmap_health(root):
-                print(f"warning: {w}", file=sys.stderr)
             return 0
         if args.command == "search":
             if not args.text.strip():
