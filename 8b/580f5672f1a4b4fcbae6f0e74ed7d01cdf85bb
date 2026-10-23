@@ -1,0 +1,39 @@
+skills/roadmap/scripts/rmlib/parse.py
+  s_fbae122c7a65de::t_209b8b1e58d91b 24-27
+skills/roadmap/README.md
+  s_fbae122c7a65de::t_209b8b1e58d91b 199-201
+skills/roadmap/references/quality-build.md
+  s_fbae122c7a65de::t_209b8b1e58d91b 58,67
+skills/roadmap/scripts/rmlib/dashboard.html
+  s_fbae122c7a65de::t_209b8b1e58d91b 224-236,530-556,597,599,619,623,843-847
+skills/roadmap/references/state-model.md
+  s_fbae122c7a65de::t_209b8b1e58d91b 29,35-40
+skills/roadmap/scripts/rmlib/slots.py
+  s_fbae122c7a65de::t_209b8b1e58d91b 1-735
+skills/roadmap/scripts/rmlib/sync.py
+  s_fbae122c7a65de::t_209b8b1e58d91b 16,387-390,394
+skills/roadmap/scripts/roadmap.py
+  s_fbae122c7a65de::t_209b8b1e58d91b 73-74,173-213,312-325,340-342,532-533,686-691
+skills/roadmap/SKILL.md
+  s_fbae122c7a65de::t_209b8b1e58d91b 296-297
+tests/test_roadmap_slots.py
+  s_fbae122c7a65de::t_209b8b1e58d91b 1-464
+skills/roadmap/scripts/rmlib/dashboard.py
+  s_fbae122c7a65de::t_209b8b1e58d91b 365-373
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8b580f5672f1a4b4fcbae6f0e74ed7d01cdf85bb",
+  "prompts": {},
+  "sessions": {
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
