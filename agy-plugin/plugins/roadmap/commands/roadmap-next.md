@@ -20,18 +20,21 @@ For a whole version with the same quality gates, use `/roadmap:build <ver> --aut
    Stop.
 3. Build that **single item** with the **same quality-first multi-agent protocol as
    `/roadmap:build` / `/roadmap-build`** (full detail in the skill’s
-   `references/quality-build.md`):
+   `references/quality-build.md`). Use the tiered fleet, not an unlabeled subagent:
 
    | Phase | Who | What |
    |---|---|---|
-   | Research | `explore` (optional, background OK) | Map files; read-only |
-   | Implement | One `general-purpose` subagent | TDD for this step only |
-   | Spec review | Fresh subagent | Diff vs plan/spec → fix until ✅ |
-   | Quality review | Fresh subagent | Maintainability/tests → fix until ✅ |
+   | Research | `scout` (haiku), only if the plan doesn't name the files | Map files; read-only |
+   | Implement | `executor` (opus) | TDD for this step only |
+   | Spec review | `scout` (haiku) | Acceptance list → MET / NOT MET |
+   | Quality review | `verifier` (sonnet, high effort) | Maintainability/tests → fix until ✅ |
    | Verify + check | **Parent only** | Real tests → `check --plan <id> --step <n> --evidence "<command>: <real result>"` → commit code+roadmap |
 
    Prefer superpowers `subagent-driven-development` when installed. **Parent only** runs
    `roadmap.py`. No parallel implementers on the same tree. Never hand-edit `ROADMAP.md`.
+   Work in a branch-per-item worktree when the item should stay isolated (`build <id>
+   --worktree` creates `roadmap/<id>-<slug>`). If the item stops with an open decision, record it
+   with `handoff --plan <id> --pending "<decision>"` before ending the session.
 
 4. When the item is 100%, **stop** and report — run `/roadmap:next` / `/roadmap-next`
    again for the following item (or switch to `/roadmap-build <ver> --auto` to chain).
