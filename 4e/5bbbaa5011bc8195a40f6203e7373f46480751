@@ -1,0 +1,27 @@
+.roadmap/config.json
+  s_bcc4915dd84e20::t_9e3f7d1049d3c2 525
+.roadmap/plans/038-run-log-record-merge-gate-and-trunk-suite-runs-from-the-cli-shown-as-a-gate-timeline-and-trunk-health-tile.md
+  s_bcc4915dd84e20::t_ff6c9085ef9ea8 6,32-41
+CHANGELOG.internal.md
+  s_bcc4915dd84e20::t_6ca0da7e2bf5c8 14
+CHANGELOG.md
+  s_bcc4915dd84e20::t_5c539426dc1633 12
+ROADMAP.md
+  s_bcc4915dd84e20::t_6b1fe076279c2a 33,40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4e5bbbaa5011bc8195a40f6203e7373f46480751",
+  "prompts": {},
+  "sessions": {
+    "s_bcc4915dd84e20": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "s_bcc4915dd84e20",
+        "model": "unknown"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
