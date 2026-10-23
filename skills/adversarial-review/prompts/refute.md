@@ -33,10 +33,12 @@ prompt. Use it only as the list of claims to check. Each line: id | severity | p
 
 End your reply with one line per finding, exactly one of:
 
-REFUTE|<id>|<path:line that disproves it>|<evidence: quote or exact contradiction>
+REFUTE|<id>|<path:line that disproves it>|<exact quote from that file>|<why it disproves the finding>
 UPHOLD|<id>|<short reason>
 
 - `path:line` is relative to the repo root and must be a real line you opened.
-- Write a literal `|` inside evidence or a reason as `\|`.
-- A refutation counts only if its `path:line` is inside the repo, the line exists, and
-  the evidence is at least 10 characters.
+- The quote is text copied exactly from that file (at least 10 characters), within 3
+  lines of the cited line; whitespace differences are ignored. A refutation whose quote
+  is not found there does not count. It only marks the finding Disputed.
+- A finding is removed only when at least two reviewers refute it with verified quotes.
+- Write a literal `|` inside a quote or reason as `\|`.

@@ -10,6 +10,7 @@ and do not propose to apply fixes. Read files and search the repo as much as you
 
 {{TARGET}}
 
+{{SNAPSHOT}}
 ## Your lens
 
 {{LENS}}
@@ -65,14 +66,27 @@ These were decided on purpose. Do not report them as findings:
   steps marked done that are not implemented, ✅ Acceptance lines that do not hold, and
   VERSION, CHANGELOG or ROADMAP.md entries that disagree with each other or the code.
 
-{{SECURITY}}
+## Security lens
+
+If your lens is security, check every changed file for:
+
+- auth: missing or bypassable authentication, and trust in client-supplied identity;
+- access control: object- and function-level checks, tenant isolation, admin paths;
+- injection: SQL, shell, path traversal, template, HTML or XSS, SSRF, and unsafe
+  deserialisation;
+- secrets: keys or tokens in code, logs, URLs or client bundles, and weak crypto;
+- dependency risk: new, unpinned, abandoned, or known-vulnerable packages.
+
+A missing guard counts as a finding.
 
 ## Evidence rule
 
 Report a finding only if you **read** the code that proves it. Cite a `path:line` you
-actually opened, and name a plausible impact path: who or what triggers it, and what
-breaks. A finding without both is dropped, not downgraded, so do not pad. Label each
-finding:
+actually opened, **quote the exact text** you read there, and name a plausible impact
+path: who or what triggers it, and what breaks. The quote is checked against the file,
+and must appear within 3 lines of the cited line. A finding whose quote is not found, or
+that has no impact path, is dropped, not downgraded, so do not pad or paraphrase. Label
+each finding:
 
 - **Confirmed**: the cited code alone shows that the impact path holds.
 - **Needs verification**: real code evidence exists, but confirming reachability needs
@@ -87,12 +101,14 @@ finding:
 Write your review in prose first if you like. Then END your reply with these lines,
 each on its own line, with nothing else on the line:
 
-FINDING|<critical|high|medium|low>|<Confirmed|Needs verification>|<path:line>|<short title>|<evidence>|<impact path>
+FINDING|<critical|high|medium|low>|<Confirmed|Needs verification>|<path:line>|<short title>|<exact quote from the file>|<impact path>
 NOT_CHECKED|<what you did not check, and why>
 
 - `path` is relative to the repo root, and `line` (or `start-end`) is a real line in
   that file that you read.
-- Evidence and impact path must each be a concrete sentence (at least 10 characters).
+- The quote is text copied exactly from the file (at least 10 characters), within 3
+  lines of the cited line; whitespace differences are ignored. The impact path is a
+  concrete sentence (at least 10 characters).
 - Write a literal `|` inside a field as `\|`.
 - Write exactly one NOT_CHECKED line, even if it is `NOT_CHECKED|nothing skipped`.
 - If you have no findings, write `NO_FINDINGS` instead of FINDING lines.

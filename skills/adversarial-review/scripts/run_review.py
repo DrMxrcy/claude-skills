@@ -47,7 +47,6 @@ from pathlib import Path
 SKILL_DIR = Path(__file__).resolve().parent.parent
 PROMPT_FILE = SKILL_DIR / "prompts" / "adversarial.md"
 REFUTE_PROMPT_FILE = SKILL_DIR / "prompts" / "refute.md"
-SECURITY_SYNC_SCRIPT = SKILL_DIR / "scripts" / "sync-security-refs.py"
 
 DEFAULT_TIMEOUT = 300          # per-member wall-time cap, seconds
 VERSION_PROBE_TIMEOUT = 15     # `<cli> --version` cap, seconds
@@ -63,13 +62,9 @@ OPENCODE_FALLBACK_LABEL = "free"
 # ran python and wrote a .pyc). Append rules for the plan agent: deny every action,
 # then allow read/glob/grep (last matching rule wins). Needs --standalone so a private
 # server reads this env instead of the shared background service.
-SECURITY_DIR = SKILL_DIR / "references" / "security"
-
-
 def opencode_readonly_config():
     """Deny every action, then allow read/glob/grep. No external_directory rule: the
-    security checklists are copied into the review snapshot, so nothing outside the
-    member's working directory is ever needed."""
+    member only needs its working directory (the review snapshot)."""
     return json.dumps({"agents": {"plan": {"permissions": [
         {"action": "*", "resource": "*", "effect": "deny"},
         {"action": "read", "resource": "*", "effect": "allow"},
@@ -114,7 +109,6 @@ def member_env(member, environ=None):
 # (1) Sanitized snapshot: members never run in the live tree.
 DEFAULT_DENY = (".env*", "*.pem", "*.key", "id_*", ".npmrc", ".netrc", ".git",
                 "node_modules", "*.p12", "*.pfx", ".pypirc", ".ssh", ".aws")
-SNAPSHOT_SECURITY = ".adversarial-review/security"
 MAX_SNAPSHOT_FILE = 5_000_000
 MAX_SCAN_FILE = 2_000_000
 QUOTE_WINDOW = 3               # a quote must appear within this many lines of path:line
@@ -140,8 +134,8 @@ LENSES = ("production breakage", "security", "maintainability")
 LENS_TEXT = {
     "production breakage": "**Production breakage.** What fails, crashes, corrupts data, "
                            "or regresses for users or callers once this ships?",
-    "security": "**Security.** What can an attacker or an untrusted input reach? Use the "
-                "security checklists listed below.",
+    "security": "**Security.** What can an attacker or an untrusted input reach? Apply "
+                "the Security lens section below to every changed file.",
     "maintainability": "**Maintainability.** What will the next change break? Look for "
                        "hidden coupling, contracts that drift from their docs, untested "
                        "behaviour, and duplicated logic that will diverge.",
@@ -162,7 +156,7 @@ SEVERITY_RANK = {s: i for i, s in enumerate(SEVERITIES)}
 class Member:
     name: str
     binary: str
-    proof: str                     # one-line read-only proof (full detail: references/members.md)
+    proof: str                     # one-line read-only proof (detail: SKILL.md, Members)
     prompt_on_stdin: bool = False
     output_file: bool = False      # codex: final message comes from -o <file>
     models: tuple = ()             # opencode: (primary, fallback)
@@ -419,6 +413,109 @@ def run_member(member, prompt, repo, timeout, probe=True):
                         f"fallback {fallback} {note}: {second.reason}", version, attempts)
 
 
+# --- (m) usage pre-flight (openusage) ----------------------------------------------------
+
+OPENUSAGE_TIMEOUT = 10
+_EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
+# member -> (openusage provider id, groups of alternative windows). A group is exhausted
+# when every window in it reads remaining <= 0; any exhausted group skips the member.
+USAGE_WINDOWS = {
+    "codex": ("codex", [("session",), ("weekly",)]),
+    "cursor-agent": ("cursor", [("totalUsage",)]),
+    "agy": ("antigravity", [("geminiSession", "nonGeminiSession"),
+                            ("geminiWeekly", "nonGeminiWeekly")]),
+}
+
+
+@dataclass
+class Preflight:
+    state: str           # exhausted | ok | unknown
+    detail: str          # provider ids, window names, percents, resetsAt only
+    resets: str = ""
+
+
+def _safe(text):
+    """Provider ids and timestamps only, never an email address."""
+    return _EMAIL_RE.sub("<redacted>", str(text))
+
+
+def read_openusage(timeout=OPENUSAGE_TIMEOUT):
+    """(data or None, note). Never raises; the note never contains openusage output."""
+    path = shutil.which("openusage")
+    if not path:
+        return None, "openusage not installed: pre-flight skipped, reactive detection only"
+    try:
+        rc, out, _, _ = _run_capped([path], os.getcwd(), timeout)
+    except OSError as exc:
+        return None, f"openusage failed to start ({type(exc).__name__}): pre-flight skipped"
+    if rc is None:
+        return None, f"openusage timed out after {timeout}s: pre-flight skipped"
+    if rc != 0:
+        return None, f"openusage failed (exit {rc}): pre-flight skipped"
+    try:
+        data = json.loads(out)
+    except ValueError:
+        return None, "openusage output is not JSON: pre-flight skipped"
+    if not isinstance(data, dict) or not isinstance(data.get("providers"), dict):
+        return None, "openusage output has no providers: pre-flight skipped"
+    return data, "openusage read"
+
+
+def _window(provider, name):
+    res = (provider.get("resources") or {}).get(name)
+    if not isinstance(res, dict) or not isinstance(res.get("remaining"), (int, float)):
+        return None
+    return float(res["remaining"]), _safe(res.get("resetsAt") or "unknown")
+
+
+def preflight(member_name, data):
+    """Usage state for one member from openusage data. Stale entries, missing providers
+    or resources are 'unknown' (never 'exhausted'); the reactive check still applies."""
+    providers = data.get("providers") or {}
+    if member_name == "claude":
+        accounts = {k: v for k, v in providers.items()
+                    if isinstance(k, str) and k.startswith("claude") and isinstance(v, dict)}
+        if not accounts:
+            return Preflight("unknown", "no claude* entry in openusage")
+        parts, resets, all_out = [], [], True
+        for key in sorted(accounts):
+            prov = accounts[key]
+            if prov.get("stale"):
+                return Preflight("unknown", f"{_safe(key)} is stale")
+            w = _window(prov, "weekly")
+            if w is None:
+                return Preflight("unknown", f"{_safe(key)}.weekly missing")
+            parts.append(f"{_safe(key)}.weekly {w[0]:g}% (resets {w[1]})")
+            if w[0] > 0:
+                all_out = False
+            else:
+                resets.append(w[1])
+        if all_out:
+            return Preflight("exhausted", "; ".join(parts), min(resets))
+        return Preflight("ok", "; ".join(parts))
+    spec = USAGE_WINDOWS.get(member_name)
+    if spec is None:
+        return Preflight("unknown", "no openusage data for this CLI; reactive detection only")
+    pid, groups = spec
+    prov = providers.get(pid)
+    if not isinstance(prov, dict):
+        return Preflight("unknown", f"no `{pid}` entry in openusage")
+    if prov.get("stale"):
+        return Preflight("unknown", f"{pid} is stale")
+    parts = []
+    for group in groups:
+        vals = []
+        for name in group:
+            w = _window(prov, name)
+            if w is None:
+                return Preflight("unknown", f"{pid}.{name} missing")
+            parts.append(f"{pid}.{name} {w[0]:g}% (resets {w[1]})")
+            vals.append(w)
+        if all(v[0] <= 0 for v in vals):
+            return Preflight("exhausted", "; ".join(parts), min(v[1] for v in vals))
+    return Preflight("ok", "; ".join(parts))
+
+
 # --- read-only guard ------------------------------------------------------------------
 
 def _git(repo, *args, check=True):
@@ -441,7 +538,7 @@ def snapshot(repo, exclude_rel):
 
     Hashing content catches a member editing a file that was already dirty, which
     plain `git status --porcelain` would not show. Gitignored files outside .roadmap/
-    are not covered (see references/members.md).
+    are not covered (see SKILL.md, Read-only guard).
     """
     raw = _git(repo, "status", "--porcelain=v1", "-z", "--untracked-files=all")
     tokens = raw.decode("utf-8", errors="surrogateescape").split("\0")
@@ -491,6 +588,7 @@ class Target:
     context: str
     kind: str              # diff | branch | version | plan | repo
     files: list            # files under review (changed files, or plan files)
+    withheld: list = field(default_factory=list)   # diff sections dropped by the deny list
 
 
 def _cap(text):
@@ -517,33 +615,75 @@ def _lines(raw):
     return [ln for ln in raw.decode(errors="replace").splitlines() if ln.strip()]
 
 
-def build_target(repo, target, base=None):
-    """Return a Target for a target spec. Raises ValueError."""
+_DIFF_HEAD_RE = re.compile(r'^diff --git "?a/(.*?)"? "?b/(.*?)"?$')
+
+
+def filter_diff(diff, deny):
+    """(diff text without denied files' sections, [withheld paths]). A section whose
+    header names a denied path (old or new name), or whose header cannot be parsed, is
+    dropped whole — its hunks never reach a prompt."""
+    kept, withheld, section, drop = [], [], [], False
+
+    def flush():
+        if section and not drop:
+            kept.extend(section)
+
+    for line in diff.splitlines(keepends=True):
+        if line.startswith("diff --git "):
+            flush()
+            section = [line]
+            m = _DIFF_HEAD_RE.match(line.rstrip("\n"))
+            paths = [m.group(1), m.group(2)] if m else []
+            denied = [p for p in paths if is_denied(p, deny)]
+            drop = bool(denied) or not m
+            if drop:
+                withheld.append((denied or paths or [line.strip()[11:80]])[-1])
+            continue
+        section.append(line)
+    flush()
+    return "".join(kept), sorted(set(withheld))
+
+
+def _git_diff(repo, *args):
+    return _git(repo, "-c", "core.quotePath=false", "diff", *args).decode(errors="replace")
+
+
+def build_target(repo, target, base=None, deny=None):
+    """Return a Target for a target spec. Raises ValueError. Diff text is filtered by
+    the deny list (`deny`, default DEFAULT_DENY) before it can reach any prompt."""
     repo = Path(repo)
+    deny = DEFAULT_DENY if deny is None else tuple(deny)
     kind, _, arg = target.partition(":")
     if kind == "diff":
         if base or arg:
-            return build_target(repo, f"branch:{base or arg}")
-        diff = _git(repo, "diff", "HEAD").decode(errors="replace")
+            return build_target(repo, f"branch:{base or arg}", deny=deny)
+        raw = _git_diff(repo, "HEAD")
         untracked = _lines(_git(repo, "ls-files", "--others", "--exclude-standard"))
-        if not diff.strip() and not untracked:
+        if not raw.strip() and not untracked:
             raise ValueError("working tree is clean vs HEAD — nothing to review "
                              "(use branch:<base>, version:<v>, plan:<id> or repo)")
-        files = _lines(_git(repo, "diff", "--name-only", "HEAD")) + untracked
+        diff, withheld = filter_diff(raw, deny)
+        files = _lines(_git(repo, "-c", "core.quotePath=false", "diff", "--name-only",
+                            "HEAD")) + untracked
+        shown = [u for u in untracked if not is_denied(u, deny)]
         ctx = f"## git diff HEAD\n```diff\n{diff}```\n"
-        if untracked:
-            ctx += "\n## Untracked files (read them directly)\n" + "\n".join(untracked) + "\n"
-        return Target("working tree diff vs HEAD", "diff", _cap(ctx), "diff", files)
+        if shown:
+            ctx += "\n## Untracked files (read them directly)\n" + "\n".join(shown) + "\n"
+        return Target("working tree diff vs HEAD", "diff", _cap(ctx), "diff", files,
+                      withheld)
     if kind == "branch":
         if not arg:
             raise ValueError("branch target needs a base: branch:<base>")
         log = _git(repo, "log", "--oneline", f"{arg}..HEAD").decode(errors="replace")
-        diff = _git(repo, "diff", f"{arg}...HEAD").decode(errors="replace")
-        if not diff.strip():
+        raw = _git_diff(repo, f"{arg}...HEAD")
+        if not raw.strip():
             raise ValueError(f"no changes between {arg} and HEAD")
-        files = _lines(_git(repo, "diff", "--name-only", f"{arg}...HEAD"))
+        diff, withheld = filter_diff(raw, deny)
+        files = _lines(_git(repo, "-c", "core.quotePath=false", "diff", "--name-only",
+                            f"{arg}...HEAD"))
         ctx = f"## Commits {arg}..HEAD\n{log}\n## git diff {arg}...HEAD\n```diff\n{diff}```\n"
-        return Target(f"branch diff {arg}...HEAD", f"branch-{arg}", _cap(ctx), "branch", files)
+        return Target(f"branch diff {arg}...HEAD", f"branch-{arg}", _cap(ctx), "branch",
+                      files, withheld)
     if kind == "version":
         if not arg:
             raise ValueError("version target needs a version: version:<v>")
@@ -630,8 +770,8 @@ def snapshot_files(repo, target, out_rel=None):
     same directories (non-recursive), project/instruction docs, ROADMAP.md and plan
     files. repo/plan/version: the whole tree."""
     universe = _universe(repo)
-    skip_prefixes = [p for p in ((out_rel or "").rstrip("/") + "/", ".roadmap/notes/review-",
-                                 ".adversarial-review/") if p and p != "/"]
+    skip_prefixes = [p for p in ((out_rel or "").rstrip("/") + "/", ".roadmap/notes/review-")
+                     if p and p != "/"]
     universe = [f for f in universe if not any(f.startswith(p) for p in skip_prefixes)]
     if target.kind not in ("diff", "branch"):
         return universe
@@ -641,12 +781,12 @@ def snapshot_files(repo, target, out_rel=None):
     wanted |= {f for f in universe if os.path.dirname(f) in dirs}
     docs = set(PROJECT_DOCS) | {"ROADMAP.md", "README.md"} | set(INSTRUCTION_FILES)
     wanted |= {f for f in universe if f in docs or
-               (f.startswith(".roadmap/plans/") and f.endswith(".md"))}
+               (f.startswith(".roadmap/plans/") and f.endswith(".md")) or
+               any(fnmatch.fnmatchcase(f, g) for g in INSTRUCTION_GLOBS)}
     return sorted(wanted)
 
 
-def build_snapshot(repo, target, deny=DEFAULT_DENY, out_rel=None,
-                   security_dir=SECURITY_DIR):
+def build_snapshot(repo, target, deny=DEFAULT_DENY, out_rel=None):
     root = Path(tempfile.mkdtemp(prefix="advrev-snap-"))
     copied, excluded, skipped = [], [], []
     for rel in snapshot_files(repo, target, out_rel):
@@ -661,7 +801,11 @@ def build_snapshot(repo, target, deny=DEFAULT_DENY, out_rel=None,
         if not src.is_file():
             continue                      # deleted in the working tree
         try:
-            if src.stat().st_size > MAX_SNAPSHOT_FILE:
+            st = os.lstat(src)
+            if st.st_nlink > 1:           # a hard link can carry a secret under any name
+                excluded.append((rel, "hard link (st_nlink > 1)"))
+                continue
+            if st.st_size > MAX_SNAPSHOT_FILE:
                 skipped.append((rel, f"over {MAX_SNAPSHOT_FILE // 1_000_000} MB"))
                 continue
             dst = root / rel
@@ -671,11 +815,6 @@ def build_snapshot(repo, target, deny=DEFAULT_DENY, out_rel=None,
             skipped.append((rel, f"unreadable: {exc.strerror or exc}"))
             continue
         copied.append(rel)
-    sec = root / SNAPSHOT_SECURITY
-    sec.mkdir(parents=True, exist_ok=True)
-    for item in Path(security_dir).glob("*"):
-        if item.is_file() and not item.is_symlink():
-            shutil.copyfile(item, sec / item.name)
     return Snapshot(root, copied, excluded, skipped, tuple(deny))
 
 
@@ -725,91 +864,21 @@ def omissions_block(kind):
             "verification**, and say what would confirm it.\n")
 
 
-# (h) changed file -> secaudit domain checklists. First match per rule; several rules
-# may match one file. Domains missing from the vendored set are skipped.
-SECURITY_ROUTES = [
-    (r"(^|/)(package\.json|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb?|"
-     r"requirements[^/]*\.txt|pyproject\.toml|poetry\.lock|Pipfile(\.lock)?|uv\.lock|"
-     r"go\.(mod|sum)|Cargo\.(toml|lock)|Gemfile(\.lock)?|composer\.(json|lock))$",
-     ("supply-chain", "framework-versions")),
-    (r"(^|/)\.github/workflows/|(^|/)\.gitlab-ci\.yml$|(^|/)\.circleci/", ("ci-cd-security",)),
-    (r"(^|/)(Dockerfile[^/]*|docker-compose[^/]*\.ya?ml|compose\.ya?ml)$", ("docker-security",)),
-    (r"(^|/)(k8s|kubernetes|helm|charts)/", ("kubernetes-security",)),
-    (r"(^|/)wrangler\.(toml|jsonc?)$", ("cloudflare-workers-security",)),
-    (r"(^|/)(routes?|api|server|handlers?|controllers?|endpoints?|middleware)(/|\.)|"
-     r"(^|/)pages/api/|(^|/)app/.*/route\.[jt]sx?$",
-     ("auth", "privilege-escalation", "web-vulns", "api-surface", "data-access")),
-    (r"auth|login|session|signin|signup|password|jwt|clerk", ("auth",)),
-    (r"oauth|oidc|openid", ("oauth-oidc-security",)),
-    (r"admin|role|permission|rbac|acl", ("privilege-escalation",)),
-    (r"(^|/)\.env|secret|credential|config\.|settings\.", ("secrets",)),
-    (r"migration|schema\.prisma|\.sql$|(^|/)db/|database|drizzle|supabase", ("data-access",
-                                                                            "database")),
-    (r"prisma", ("prisma-security",)),
-    (r"postgres|(^|/)rls", ("postgres-security",)),
-    (r"webhook", ("webhook-security",)),
-    (r"stripe|payment|billing|checkout|subscription", ("payments",)),
-    (r"revenuecat", ("revenuecat-security",)),
-    (r"upload|storage|bucket|(^|/)s3|(^|/)r2", ("object-storage-security",)),
-    (r"crypto|hash|encrypt|token", ("cryptography",)),
-    (r"rate.?limit|throttle", ("rate-limiting",)),
-    (r"log(ger|ging)?\.|monitor|sentry", ("logging-monitoring",)),
-    (r"(^|/)mcp|agent|llm|openai|anthropic|prompt", ("ai-integration", "mcp-agent-security")),
-    (r"tenant|(^|/)orgs?/|organization", ("multi-tenant-isolation",)),
-    (r"proxy|forwarded", ("proxy-trust",)),
-    (r"websocket|socket|realtime|(^|/)ws/", ("realtime-security",)),
-    (r"markdown|sanitiz|richtext|rich-text|editor|wysiwyg", ("rich-text-security",)),
-    (r"next\.config|vercel\.json|netlify\.toml|headers|cors", ("deployment",)),
-    (r"(^|/)convex/", ("convex-security",)),
-    (r"better-auth", ("better-auth-security",)),
-    (r"(^|/)app\.json$|expo", ("expo-security",)),
-    (r"react-native|(^|/)(ios|android)/", ("react-native-security",)),
-    (r"discord", ("discord-bot-security",)),
-    (r"fxmanifest\.lua$|\.lua$", ("fivem-security",)),
-    (r"\.py$", ("python-web-security",)),
-]
-
-
-def vendored_domains(security_dir=SECURITY_DIR):
-    return {p.stem for p in Path(security_dir).glob("*.md") if p.name != "README.md"}
-
-
-def route_security(files, security_dir=SECURITY_DIR):
-    """{file: [domain, ...]} for each changed file that matches a route."""
-    have = vendored_domains(security_dir)
-    out = {}
-    for f in files:
-        low = f.lower()
-        domains = []
-        for pattern, doms in SECURITY_ROUTES:
-            if re.search(pattern, low):
-                domains += [d for d in doms if d in have and d not in domains]
-        if domains:
-            out[f] = domains
-    return out
-
-
-def security_block(lens, kind, files, security_dir=SECURITY_DIR):
-    """(h) Security lens: route each changed file to its vendored checklist(s)."""
-    if lens != "security":
+def snapshot_block(snapshot):
+    """(1) Tell members they are in a sanitized copy and what was left out on purpose."""
+    if snapshot is None:
         return ""
-    sdir = Path(security_dir).resolve()
-    have = sorted(vendored_domains(sdir))
-    if not have:
-        return "## Security checklists\n\nNo vendored checklists found; use your own.\n"
-    lines = ["## Security checklists (vendored secaudit, read by path)", "",
-             f"Directory: `{sdir}`. Each checklist is `{sdir}/<domain>.md`."]
-    routed = route_security(files, sdir) if kind in ("diff", "branch") else {}
-    if routed:
-        lines += ["", "Read the checklist(s) routed to each changed file, then judge that "
-                      "file against them:", ""]
-        for f, doms in routed.items():
-            lines.append(f"- `{f}` → " + ", ".join(f"`{sdir}/{d}.md`" for d in doms))
-    unrouted = [f for f in files if f not in routed] if kind in ("diff", "branch") else []
-    if unrouted:
-        lines += ["", "No route matched these files. Pick a checklist yourself if they touch "
-                      "security: " + ", ".join(f"`{f}`" for f in unrouted[:30])]
-    lines += ["", "Available domains: " + ", ".join(have) + "."]
+    pats = ", ".join(f"`{p}`" for p in snapshot.deny)
+    lines = ["## Your working directory is a sanitized snapshot", "",
+             "You are in a temporary copy of the repo, not the live tree. Paths are the "
+             "same as in the repo. Files matching the deny list are excluded on purpose, and "
+             "so are `.git/` and gitignored files. Do not report that they are absent. "
+             f"Deny list: {pats}."]
+    if snapshot.excluded:
+        lines.append("Excluded from this target: "
+                     + ", ".join(f"`{rel}`" for rel, _ in snapshot.excluded[:40]) + ".")
+    lines.append("If you need a file that is not in the snapshot, name it in your "
+                 "NOT_CHECKED line instead of guessing.")
     return "\n".join(lines) + "\n"
 
 
@@ -817,16 +886,16 @@ def lens_for(index, security_only=False):
     return "security" if security_only else LENSES[index % len(LENSES)]
 
 
-def render_prompt(target, repo, lens="production breakage", decided=None,
-                  security_dir=SECURITY_DIR):
+def render_prompt(target, repo, lens="production breakage", decided=None, snapshot=None):
+    """`repo` is where members look (the snapshot root in a real run)."""
     template = PROMPT_FILE.read_text()
     blocks = {
         "{{TARGET}}": target.description,
+        "{{SNAPSHOT}}": snapshot_block(snapshot),
         "{{LENS}}": LENS_TEXT[lens],
         "{{PROJECT_DOCS}}": project_docs_block(repo),
         "{{DECIDED}}": decided_block(decided),
         "{{OMISSIONS}}": omissions_block(target.kind),
-        "{{SECURITY}}": security_block(lens, target.kind, target.files, security_dir),
     }
     for key, value in blocks.items():
         template = template.replace(key, value)
@@ -845,9 +914,20 @@ class Finding:
     evidenced: bool
     note: str = ""
     id: str = ""
-    refutations: list = field(default_factory=list)   # [(member, path:line, evidence)]
+    # [(member, path:line, quote, reason, verified)] — verified: quote found in the file
+    refutations: list = field(default_factory=list)
     label: str = "Needs verification"                 # Confirmed | Needs verification
     impact: list = field(default_factory=list)        # [(member, impact path)]
+
+    @property
+    def refuted(self):
+        """(4) Dropped only when REFUTE_QUORUM distinct members refute it, each with a
+        quote verified in the cited file."""
+        return len({r[0] for r in self.refutations if r[4]}) >= REFUTE_QUORUM
+
+    @property
+    def disputed(self):
+        return bool(self.refutations) and not self.refuted
 
 
 STOPWORDS = frozenset("a an the in on of to is are by for and or with at from as it this "
@@ -881,6 +961,11 @@ def _fields(body, count):
     parts = PIPE_SPLIT_RE.split(body, maxsplit=count - 1)
     parts += [""] * (count - len(parts))
     return [p.replace("\\|", "|") for p in parts]
+
+
+def _plain(text):
+    """Field text without markdown emphasis or code marks (`**critical**` -> critical)."""
+    return re.sub(r"[*_`~]", "", text).strip()
 
 
 def _clean(field_text, unwrap=False):
@@ -918,8 +1003,6 @@ def check_location(loc, repo):
     rel = m.group("path")
     if Path(rel).is_absolute() or rel.startswith("~"):
         return loc, False, "absolute path rejected"
-    if rel.startswith(".adversarial-review/"):
-        return loc, False, "cites the review's own checklist copy, not the repo"
     root = Path(repo).resolve()
     full = (root / rel).resolve()
     try:
@@ -942,10 +1025,14 @@ def _norm_ws(text):
     return " ".join(text.split())
 
 
+MAX_RANGE_LINES = 10
+
+
 def quote_near(root, loc, quote, window=QUOTE_WINDOW):
     """True when `quote` (whitespace-normalised, at least MIN_EVIDENCE_CHARS non-space
     characters, surrounding backticks/quotes stripped) appears in the cited file within
-    `window` lines of the cited line or range."""
+    `window` lines of a cited line. A range of up to MAX_RANGE_LINES lines counts as
+    cited throughout; a longer range only counts at its start and end lines."""
     q = quote.strip()
     while len(q) > 1 and q[0] == q[-1] and q[0] in "`'\"":
         q = q[1:-1].strip()
@@ -961,8 +1048,13 @@ def quote_near(root, loc, quote, window=QUOTE_WINDOW):
         lines = (Path(root) / m.group("path")).read_text(errors="replace").splitlines()
     except OSError:
         return False
-    chunk = lines[max(0, start - 1 - window):end + window]
-    return _norm_ws(q) in _norm_ws(" ".join(chunk))
+    if end - start + 1 <= MAX_RANGE_LINES:
+        spans = [(start, end)]
+    else:
+        spans = [(start, start), (end, end)]
+    target = _norm_ws(q)
+    return any(target in _norm_ws(" ".join(lines[max(0, a - 1 - window):b + window]))
+               for a, b in spans)
 
 
 def evidence_ok(evidence):
@@ -972,11 +1064,12 @@ def evidence_ok(evidence):
 def parse_findings(member, text, repo=None):
     """Parse one member's reply. Returns (kept, dropped).
 
-    Line format: FINDING|severity|label|path:line|title|evidence|impact path
-    Evidence rule (j): a finding is kept only with a valid in-repo path:line whose line
-    exists, evidence and an impact path of at least MIN_EVIDENCE_CHARS each, and a
-    Confirmed / Needs verification label. Anything else is dropped (title, reason) —
-    never kept at a lower rank.
+    Line format: FINDING|severity|label|path:line|title|quote|impact path
+    Evidence rule (j)+(5): a finding is kept only with a valid in-repo path:line whose
+    line exists, a quote (at least MIN_EVIDENCE_CHARS non-space characters) that really
+    appears in that file within QUOTE_WINDOW lines of the cited line, an impact path of
+    at least MIN_EVIDENCE_CHARS, and a Confirmed / Needs verification label. Anything
+    else is dropped (title, reason) — never kept at a lower rank.
     """
     kept, dropped = [], []
     for line in text.splitlines():
@@ -984,8 +1077,8 @@ def parse_findings(member, text, repo=None):
             continue
         body = line[line.index("FINDING|") + len("FINDING|"):].rstrip().rstrip("`")
         sev, label, loc, title, evidence, impact = _fields(body, 6)
-        sev, loc = _clean(sev, True).lower(), _clean(loc, True)
-        label = LABELS.get(_clean(label, True).lower().strip("[]"))
+        sev, loc = _plain(sev).lower(), _clean(loc, True)
+        label = LABELS.get(_plain(label).lower().strip("[]"))
         title, evidence, impact = _clean(title, True), _clean(evidence), _clean(impact)
         shown = title or "(untitled)"
         if not title:
@@ -1008,7 +1101,10 @@ def parse_findings(member, text, repo=None):
             dropped.append((shown, f"{loc}: {loc_note}"))
             continue
         if not evidence_ok(evidence):
-            dropped.append((shown, f"evidence under {MIN_EVIDENCE_CHARS} characters"))
+            dropped.append((shown, f"quote under {MIN_EVIDENCE_CHARS} characters"))
+            continue
+        if repo is not None and not quote_near(repo, loc, evidence):
+            dropped.append((shown, f"quote not found within {QUOTE_WINDOW} lines of {loc}"))
             continue
         if not evidence_ok(impact):
             dropped.append((shown, f"no impact path (under {MIN_EVIDENCE_CHARS} characters)"))
@@ -1041,38 +1137,105 @@ INSTRUCTION_FILES = ("CLAUDE.md", "AGENTS.md", "AGENTS.override.md", "GEMINI.md"
 INSTRUCTION_GLOBS = (".claude/agents/*.md", ".agents/agents/*.md", ".cursor/rules/*")
 
 
-def injection_candidates(repo, target_files):
-    repo = Path(repo)
-    names = list(dict.fromkeys(
-        list(target_files) + [f for f in INSTRUCTION_FILES if (repo / f).is_file()]
-        + sorted(p.relative_to(repo).as_posix() for g in INSTRUCTION_GLOBS
-                 for p in repo.glob(g) if p.is_file())))
-    return [n for n in names if (repo / n).is_file()]
+# Invisible characters an attacker can hide inside a phrase: zero-width, soft hyphen,
+# word joiner, BOM, and bidi controls (embeddings, overrides, isolates, marks).
+_INVISIBLE_CHARS = ("\u200b\u200c\u200d\u2060\ufeff\u00ad\u180e"
+                    "\u200e\u200f\u061c\u202a\u202b\u202c\u202d\u202e"
+                    "\u2066\u2067\u2068\u2069")
+# Scanned twice: invisible characters as a space ("ignore<ZWSP>all" -> "ignore all")
+# and as nothing ("ig<ZWSP>nore" -> "ignore").
+_INVISIBLE_AS_SPACE = dict.fromkeys(map(ord, _INVISIBLE_CHARS), " ")
+_INVISIBLE_AS_NOTHING = dict.fromkeys(map(ord, _INVISIBLE_CHARS))
+_EMPHASIS_RE = re.compile(r"\*+|`+|~~|__")
+# Common Cyrillic/Greek look-alikes that NFKC leaves alone (best-effort, not exhaustive).
+_CONFUSABLES = str.maketrans({
+    "а": "a", "е": "e", "о": "o", "р": "p", "с": "c", "у": "y", "х": "x", "і": "i",
+    "ѕ": "s", "ј": "j", "ԁ": "d", "ӏ": "l", "ɡ": "g", "һ": "h", "ԛ": "q", "ԝ": "w",
+    "А": "a", "Е": "e", "О": "o", "Р": "p", "С": "c", "Т": "t", "Х": "x", "І": "i",
+    "К": "k", "М": "m", "Н": "h", "В": "b",
+    "ο": "o", "α": "a", "ε": "e", "ι": "i", "ν": "v", "κ": "k", "τ": "t", "ρ": "p",
+    "Ο": "o", "Α": "a", "Ε": "e", "Ι": "i", "Κ": "k", "Τ": "t", "Ρ": "p", "Ν": "n",
+})
 
 
-def scan_injection(repo, files):
-    """Findings for repo lines that try to steer reviewers (k). Labelled Needs
-    verification: the line is real, but intent needs a human look."""
-    out = []
+def normalize_for_scan(text, invisible_as_space=True):
+    """NFKC; zero-width, word-joiner, soft-hyphen and bidi characters to a space (or to
+    nothing); markdown emphasis (`**`, `*`, `__`, `~~`, backticks) removed; look-alikes
+    mapped; casefold."""
+    table = _INVISIBLE_AS_SPACE if invisible_as_space else _INVISIBLE_AS_NOTHING
+    text = unicodedata.normalize("NFKC", text).translate(table)
+    text = _EMPHASIS_RE.sub("", text)
+    return text.translate(_CONFUSABLES).casefold()
+
+
+# Leading comment / quote markers removed per line before joining, so a phrase split
+# across comment lines (`# do not` / `# report` / `# these findings`) still matches.
+_COMMENT_LEAD_RE = re.compile(r"^\s*(?:#+|//+|--+|;+|/\*+|\*+|<!--|>+|%+|rem\s)\s*")
+
+
+def injection_candidates(snapshot):
+    """(6) Every file in the review snapshot (the target), not just known names."""
+    return list(snapshot.copied)
+
+
+def _is_text(data):
+    return b"\0" not in data[:8192]
+
+
+def scan_injection_report(root, files, max_hits_per_file=5):
+    """(k)+(6) Best-effort scan for repo text that tries to steer reviewers.
+
+    Returns (findings, partial). Each text file is read up to MAX_SCAN_FILE bytes; a
+    larger file is scanned for its first MAX_SCAN_FILE bytes and listed in `partial`.
+    Lines are normalised (normalize_for_scan, twice: invisible characters as a space and
+    as nothing), leading comment markers are removed, whitespace is collapsed, and the
+    lines are joined, so a phrase split across lines still matches. A match is reported
+    at the line where it starts, as a high, Needs verification finding. Encodings,
+    images and unlisted homoglyphs can still evade it."""
+    out, partial = [], []
     for rel in files:
-        path = Path(repo) / rel
+        path = Path(root) / rel
         try:
-            if path.stat().st_size > 2_000_000:
+            if path.is_symlink():
                 continue
-            text = path.read_text(errors="replace")
+            size = path.stat().st_size
+            with open(path, "rb") as fh:
+                data = fh.read(MAX_SCAN_FILE)
         except OSError:
             continue
-        for n, line in enumerate(text.splitlines(), 1):
-            m = INJECTION_RE.search(line)
-            if m:
-                snippet = " ".join(line.strip().split())[:160]
+        if not _is_text(data):
+            continue
+        if size > MAX_SCAN_FILE:
+            partial.append(rel)
+        raw_lines = data.decode("utf-8", errors="replace").splitlines()
+        seen = set()
+        for as_space in (True, False):
+            norm = [" ".join(_COMMENT_LEAD_RE.sub(
+                        "", normalize_for_scan(line, as_space)).split())
+                    for line in raw_lines]
+            offsets, pos = [], 0
+            for line in norm:
+                offsets.append(pos)
+                pos += len(line) + 1
+            for m in INJECTION_RE.finditer(" ".join(norm)):
+                n = bisect.bisect_right(offsets, m.start())      # 1-based line number
+                if n in seen or len(seen) >= max_hits_per_file:
+                    continue
+                seen.add(n)
+                original = raw_lines[n - 1].strip()[:160]
                 out.append(Finding(
                     "high", f"{rel}:{n}", "Repo text tries to steer reviewers",
-                    [(INJECTION_SCAN, f"line matches {m.group(0)!r}: {snippet}")],
+                    [(INJECTION_SCAN, f"normalised text matches {m.group(0)!r}; line as "
+                                      f"written: {original!r}")],
                     {INJECTION_SCAN}, True, label="Needs verification",
                     impact=[(INJECTION_SCAN, "an AI reviewer that obeys repo text could "
                                              "skip or suppress real findings")]))
-    return out
+    out.sort(key=lambda f: f.location)
+    return out, partial
+
+
+def scan_injection(root, files, max_hits_per_file=5):
+    return scan_injection_report(root, files, max_hits_per_file)[0]
 
 
 def _rank_key(f):
@@ -1134,7 +1297,7 @@ VERDICT_RULES = ("BLOCK: the read-only guard failed, or a surviving finding is c
 
 def verdict(findings, results, guard_changed):
     """(g) Deterministic BLOCK / CONCERNS / CLEAN over surviving (unrefuted) findings."""
-    live = [f for f in findings if not f.refutations]
+    live = [f for f in findings if not f.refuted]
     if guard_changed:
         return "BLOCK", "read-only guard failed; results untrusted"
     blockers = [f for f in live if f.severity == "critical"
@@ -1178,19 +1341,28 @@ def render_refute_prompt(description, findings):
 
 
 def parse_refutations(member, text, by_id, repo=None):
-    """REFUTE|<id>|<path:line>|<evidence> lines. A refutation counts only when it passes
-    the same evidence check as a finding: a path:line inside the repo whose line exists,
-    and at least MIN_EVIDENCE_CHARS characters of evidence."""
+    """REFUTE|<id>|<path:line>|<quote>|<reason> lines for known finding ids.
+
+    Every such line is returned as (id, path:line, quote, reason, verified). It is
+    verified only when the quote appears within QUOTE_WINDOW lines of the FINDING's own
+    cited location — not wherever the refuter points — so an unrelated real quote from
+    elsewhere cannot remove a finding. The refuter's path:line is kept for the reader.
+    Unverified refutations still mark a finding Disputed; only verified ones count
+    toward the quorum."""
     out = []
     for line in text.splitlines():
         if not REFUTE_RE.match(line):
             continue
         body = line[line.index("REFUTE|") + len("REFUTE|"):].rstrip().rstrip("`")
-        fid, loc, evidence = _fields(body, 3)
-        fid, loc, evidence = _clean(fid, True).upper(), _clean(loc, True), _clean(evidence)
-        loc, loc_ok, _ = check_location(loc, repo)
-        if fid in by_id and loc_ok and evidence_ok(evidence):
-            out.append((fid, loc, evidence))
+        fid, loc, quote, reason = _fields(body, 4)
+        fid, loc = _clean(fid, True).upper(), _clean(loc, True)
+        quote, reason = _clean(quote), _clean(reason)
+        if fid not in by_id:
+            continue
+        loc, _, _ = check_location(loc, repo)       # refuter's pointer, shown only
+        target_loc = by_id[fid].location
+        verified = repo is None or quote_near(repo, target_loc, quote)
+        out.append((fid, loc, quote, reason, verified))
     return out
 
 
@@ -1219,10 +1391,11 @@ def run_refute_round(members, round1, findings, description, repo, timeout):
     for name, res in results.items():
         if not res.ran:
             continue
-        for fid, loc, evidence in parse_refutations(name, res.output, by_id, repo):
+        for fid, loc, quote, reason, verified in parse_refutations(
+                name, res.output, by_id, repo):
             f = by_id[fid]
             if name not in f.members and all(r[0] != name for r in f.refutations):
-                f.refutations.append((name, loc, evidence))
+                f.refutations.append((name, loc, quote, reason, verified))
     return results
 
 
@@ -1265,6 +1438,21 @@ def write_member_file(out_dir, res, refute=None):
     (out_dir / f"{res.name}.md").write_text("\n".join(lines) + "\n")
 
 
+def _snapshot_lines(info):
+    if not info:
+        return []
+    n, excluded, skipped, writes = info
+    out = [f"- snapshot: {n} file(s) copied; members ran in a temporary copy, not the "
+           "live tree"]
+    out.append("- snapshot excluded by deny list: " + (
+        ", ".join(f"`{rel}` ({pat})" for rel, pat in excluded) if excluded else "none"))
+    if skipped:
+        out.append("- snapshot skipped: " + ", ".join(f"`{r}` ({why})" for r, why in skipped))
+    out.append("- snapshot writes by members: " + (
+        ", ".join(f"`{w}`" for w in writes) if writes else "none"))
+    return out
+
+
 def write_summary(out_dir, meta, results, findings, guard, refute_results=None):
     changed, roadmap_changed = guard
     verdict_word, verdict_why = meta.get("verdict", ("CONCERNS", ""))
@@ -1276,10 +1464,16 @@ def write_summary(out_dir, meta, results, findings, guard, refute_results=None):
     lines += [f"- date: {meta['date']}", f"- repo: {meta['repo']}",
               f"- target: `{meta['target']}`", f"- timeout per member: {meta['timeout']}s",
               f"- refutation round: {'on' if refute_results is not None else 'off'}",
-              f"- injection scan: {meta.get('injection_scanned', 0)} file(s) scanned, "
-              f"{meta.get('injection_hits', 0)} hit(s)",
-              *([f"- security refs: STALE — {meta['security_refs']}"]
-                if meta.get("security_refs") else []),
+              f"- injection scan (best-effort): {meta.get('injection_scanned', 0)} file(s) "
+              f"scanned, {meta.get('injection_hits', 0)} hit(s)",
+              *([f"- injection scan: only the first {MAX_SCAN_FILE // 1_000_000} MB of "
+                 + ", ".join(f"`{f}`" for f in meta["injection_partial"])
+                 + " scanned; the rest was not scanned"] if meta.get("injection_partial")
+                else []),
+              "- diff sections withheld by the deny list: " + (
+                  ", ".join(f"`{f}`" for f in meta["diff_withheld"])
+                  if meta.get("diff_withheld") else "none"),
+              *_snapshot_lines(meta.get("snapshot")),
               "- read-only guard (repo): " + (
                   "FAIL — changed: " + ", ".join(f"`{p}`" for p in changed) if changed
                   else "PASS (git status unchanged)"),
@@ -1297,8 +1491,8 @@ def write_summary(out_dir, meta, results, findings, guard, refute_results=None):
             r = refute_results[name]
             lines.append(f"| {_cell(name)} | {_cell(r.status)} | {_cell(r.reason)} |")
 
-    ranked = [f for f in findings if not f.refutations]
-    refuted = [f for f in findings if f.refutations]
+    ranked = [f for f in findings if not f.refuted]
+    refuted = [f for f in findings if f.refuted]
     lines += ["", "## Findings (ranked: severity, then members agreeing, then Confirmed)", ""]
     if not ranked:
         lines.append("_No findings survived._")
@@ -1306,7 +1500,8 @@ def write_summary(out_dir, meta, results, findings, guard, refute_results=None):
         lines += ["| # | id | severity | label | agree | location | title | members |",
                   "|---|---|---|---|---|---|---|---|"]
         for i, f in enumerate(ranked, 1):
-            lines.append(f"| {i} | {f.id} | {f.severity} | {f.label} | {len(f.members)} | "
+            tag = f"{f.label} (Disputed)" if f.disputed else f.label
+            lines.append(f"| {i} | {f.id} | {f.severity} | {tag} | {len(f.members)} | "
                          f"`{_cell(f.location)}` | {_cell(f.title)} | "
                          f"{_cell(', '.join(sorted(f.members)))} |")
         lines.append("")
@@ -1316,8 +1511,13 @@ def write_summary(out_dir, meta, results, findings, guard, refute_results=None):
                 lines.append(f"   - {member}: {ev}")
             for member, imp in f.impact:
                 lines.append(f"   - impact ({member}): {imp}")
+            for member, loc, quote, reason, ok in f.refutations:
+                lines.append(f"   - disputed by {member} at `{loc}` "
+                             f"({'quote verified' if ok else 'quote NOT found in file'}): "
+                             f"{reason} — quote: {quote}")
     if refute_results is not None:
-        lines += ["", "## Refuted (disproved with cited evidence in the refutation round)", ""]
+        lines += ["", f"## Refuted (at least {REFUTE_QUORUM} members, each quote verified in "
+                      "the cited file)", ""]
         if not refuted:
             lines.append("_None._")
         for f in refuted:
@@ -1325,8 +1525,10 @@ def write_summary(out_dir, meta, results, findings, guard, refute_results=None):
                          f"{', '.join(sorted(f.members))})")
             for member, ev in f.evidence:
                 lines.append(f"  - claimed by {member}: {ev}")
-            for member, loc, ev in f.refutations:
-                lines.append(f"  - refuted by {member} at `{loc}`: {ev}")
+            for member, loc, quote, reason, ok in f.refutations:
+                lines.append(f"  - refuted by {member} at `{loc}` "
+                             f"({'quote verified' if ok else 'quote NOT found in file'}): "
+                             f"{reason} — quote: {quote}")
     dropped = [(r.name, t, why) for r in results for t, why in r.dropped]
     lines += ["", "## Dropped by the evidence rule (not findings)", ""]
     if not dropped:
@@ -1339,6 +1541,12 @@ def write_summary(out_dir, meta, results, findings, guard, refute_results=None):
                      "impact path, or a malformed line. Per member: "
                      + ", ".join(f"{n} {c}" for n, c in sorted(counts.items()))
                      + ". Details are in each `<member>.md`.")
+    usage = meta.get("usage")
+    if usage:
+        note, per_member = usage
+        lines += ["", "## Usage pre-flight (openusage)", "", f"- {_safe(note)}"]
+        for name, (state, detail) in sorted(per_member.items()):
+            lines.append(f"- {name}: {state} — {detail}")   # built from _safe() parts
     lines += ["", "## Not checked (per member)", ""]
     ran = [r for r in results if r.ran]
     if not ran:
@@ -1350,21 +1558,6 @@ def write_summary(out_dir, meta, results, findings, guard, refute_results=None):
               "Claude triages: open each `path:line`, mark every finding confirmed / refuted / "
               "needs-info, and report. This script never fixes anything."]
     (out_dir / "summary.md").write_text("\n".join(lines) + "\n")
-
-
-def security_refs_warning():
-    """One-line staleness warning when `sync-security-refs.py --check` would fail, else
-    None. Never raises: the review runs with or without the secaudit plugin."""
-    try:
-        import importlib.util
-        spec = importlib.util.spec_from_file_location("sync_security_refs",
-                                                      SECURITY_SYNC_SCRIPT)
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        code, msg = mod.check()
-        return msg if code else None
-    except Exception:  # noqa: BLE001 — advisory only
-        return None
 
 
 def pick_out_dir(repo, explicit, slug, date):
@@ -1430,6 +1623,11 @@ def main(argv=None):
                     help="security-focused run: every member gets the security lens")
     ap.add_argument("--decided", action="append", default=[],
                     help="decided item not to re-flag (repeatable; @FILE = one per line)")
+    ap.add_argument("--no-preflight", action="store_true",
+                    help="skip the openusage usage pre-flight")
+    ap.add_argument("--deny", action="append", default=[],
+                    help="extra glob(s) kept out of the member snapshot (repeatable); "
+                         f"always denied: {' '.join(DEFAULT_DENY)}")
     ap.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT)
     ap.add_argument("--repo", default=None, help="repo root (default: git toplevel of CWD)")
     ap.add_argument("--out-dir", default=None)
@@ -1447,7 +1645,8 @@ def main(argv=None):
         return 1
     try:
         members, not_run = select_members(args.members, ",".join(args.exclude))
-        target = build_target(repo, args.target, args.base)
+        deny = tuple(DEFAULT_DENY) + tuple(d for entry in args.deny for d in _names(entry))
+        target = build_target(repo, args.target, args.base, deny)
         decided_block(args.decided)          # validate @files before anything runs
     except (ValueError, RuntimeError, OSError) as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -1459,24 +1658,48 @@ def main(argv=None):
         out_rel = str(out_dir.resolve().relative_to(repo.resolve()))
     except ValueError:
         out_rel = None
-    lenses = {m.name: lens_for(i, args.security) for i, m in enumerate(members)}
-    prompts = {m.name: render_prompt(target, repo, lenses[m.name], args.decided)
-               for m in members}
-
-    before = snapshot(repo, out_rel)
-    with ThreadPoolExecutor(max_workers=max(1, len(members))) as pool:
-        futures = [pool.submit(run_member, m, prompts[m.name], str(repo), args.timeout)
-                   for m in members]
-        results = [f.result() for f in futures]
-    for res in results:
-        res.lens = lenses[res.name]
-    scanned = injection_candidates(repo, target.files)
-    injected = scan_injection(repo, scanned)
-    findings = triage(results, repo, injected)
-    refute_results = None
-    if args.refute:
-        refute_results = run_refute_round(members, results, findings, target.description,
-                                          str(repo), args.timeout)
+    before = snapshot(repo, out_rel)          # live-tree guard: unchanged, on the live repo
+    snap = build_snapshot(repo, target, deny, out_rel)
+    try:
+        lenses = {m.name: lens_for(i, args.security) for i, m in enumerate(members)}
+        prompts = {m.name: render_prompt(target, snap.root, lenses[m.name], args.decided,
+                                         snapshot=snap)
+                   for m in members}
+        if args.no_preflight:
+            usage_note, pre = "disabled (--no-preflight)", {}
+        else:
+            data, usage_note = read_openusage()
+            pre = {m.name: (preflight(m.name, data) if data is not None
+                            else Preflight("unknown", usage_note)) for m in members}
+        runnable = [m for m in members if pre.get(m.name, Preflight("ok", "")).state
+                    != "exhausted"]
+        snap_before = tree_hashes(snap.root)
+        with ThreadPoolExecutor(max_workers=max(1, len(runnable))) as pool:
+            futures = {m.name: pool.submit(run_member, m, prompts[m.name], str(snap.root),
+                                           args.timeout) for m in runnable}
+            results = []
+            for m in members:
+                if m.name in futures:
+                    results.append(futures[m.name].result())
+                else:
+                    p_ = pre[m.name]
+                    results.append(MemberResult(
+                        m.name, f"skipped: usage limit (resets {p_.resets})",
+                        f"openusage pre-flight: {p_.detail}"))
+        for res in results:
+            res.lens = lenses[res.name]
+        scanned = injection_candidates(snap)
+        injected, scan_partial = scan_injection_report(snap.root, scanned)
+        findings = triage(results, snap.root, injected)
+        refute_results = None
+        if args.refute:
+            refute_results = run_refute_round(runnable, results, findings,
+                                              target.description, str(snap.root), args.timeout)
+        snap_after = tree_hashes(snap.root)
+    finally:
+        snap.cleanup()
+    snapshot_writes = sorted(k for k in set(snap_before) | set(snap_after)
+                             if snap_before.get(k) != snap_after.get(k))
     after = snapshot(repo, out_rel)
     changed, roadmap_changed = guard_diff(before, after)
 
@@ -1486,14 +1709,17 @@ def main(argv=None):
     meta = {"description": target.description, "date": date, "repo": str(repo),
             "verdict": verdict(findings, results, changed),
             "injection_scanned": len(scanned), "injection_hits": len(injected),
+            "injection_partial": scan_partial, "diff_withheld": target.withheld,
+            "usage": (usage_note, {k: (v.state, v.detail) for k, v in pre.items()}),
+            "snapshot": (len(snap.copied), snap.excluded, snap.skipped, snapshot_writes),
             "target": args.target if not args.base else f"{args.target} --base {args.base}",
-            "timeout": args.timeout, "security_refs": security_refs_warning()}
+            "timeout": args.timeout}
     write_summary(out_dir, meta, results, findings, (changed, roadmap_changed), refute_results)
 
     print(f"summary: {out_dir / 'summary.md'}")
     for res in results:
         print(f"  {res.name:13} {res.status}" + (f" — {res.reason}" if res.reason else ""))
-    n_ref = sum(1 for f in findings if f.refutations)
+    n_ref = sum(1 for f in findings if f.refuted)
     print(f"findings: {len(findings) - n_ref} ranked, {n_ref} refuted, "
           f"{sum(len(r.dropped) for r in results)} dropped by the evidence rule")
     print(f"verdict: {meta['verdict'][0]} — {meta['verdict'][1]}")
