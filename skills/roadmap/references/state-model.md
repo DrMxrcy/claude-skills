@@ -71,6 +71,15 @@
 - Dashboard: a collapsible **worktrees** panel under the item list with the same rows, the same in every view; the header (`N linked · K safe to remove`) is red past `settings.worktreeWarn`. Safe rows show the removal command as text to copy.
 - Cost: `git worktree list` once plus one `git status` per worktree, cached with a 10 s budget, so the 1 s dashboard tick runs no per-worktree git call more often than every 10 s (a quiet tick stays one `for-each-ref`). Unmerged counts come from the ref scan already cached on the ref list; detached heads add one batched `git log`, cached by sha.
 
+## Branch conflict risk
+- `status --conflicts [--json]` checks every open item branch (not done, carrying unmerged work) for files it changes vs trunk (`git diff --name-only trunk...branch`, renames counted as both paths). Two branches sharing changed files form an overlapping pair: the two items, the shared files (first 10, plus `fileCount`) and a risk.
+- Risk: `high` = `git merge-tree --write-tree` (git >= 2.38) reports a conflict between the two tips (`conflictFiles`); `low` = shared files but the tips merge cleanly; `medium` = file overlap only (older git, or merge-tree could not decide). Pairs sort high first, then most shared files. Two branches landed in the same integration branch are skipped (already merged together there).
+- Suggested merge order: items with no overlaps first, then fewest overlaps, then fewest high-risk ones, then id.
+- Read-only: merge-tree runs in memory and writes only loose objects — no branch, index, worktree or HEAD changes.
+- JSON: `status(root, conflicts=True)` adds top-level `conflicts` = `{mergeTree, checked, unknown, pairs, counts, order}`; each pair is `{a, b, risk, files, fileCount, conflictFiles}` with `a`/`b` = `{id, displayId, title, branch}`. Plain `status` / `status --json` leave `conflicts` out.
+- Dashboard: a collapsible **conflicts** panel (pairs by risk plus the merge order), and each plan page lists the items it overlaps with.
+- Cost: changed files are cached on (trunk tip, branch tip) and merge results on the two tips, so unchanged refs run no git call and a moved tip recomputes only that branch and its pairs. `rmlib.conflicts.changed_files(root, branch)` exposes the cached per-branch list.
+
 ## Invariants
 - Never hand-edit the managed region of ROADMAP.md; run `sync`.
 - All mutations go through `roadmap.py` (atomic writes; safe on partial failure).

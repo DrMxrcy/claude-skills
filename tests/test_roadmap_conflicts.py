@@ -172,3 +172,96 @@ def test_never_modifies_branches_or_index(cf, repo, abc):
 def test_no_trunk_sha_is_empty_report(cf, repo, abc):
     rep = cf.overlaps(repo, None, _cands(abc, "A", "B"))
     assert rep["pairs"] == [] and rep["order"] == [] and rep["checked"] == 0
+
+
+# --- status --conflicts, payload, merge order (step 2) ----------------------
+
+@pytest.fixture
+def items3(roadmap, cf, repo, monkeypatch):
+    """Items 1-3 with branches roadmap/1 and roadmap/2 rewriting x.py line 1
+    and roadmap/3 editing y.py alone. Roadmap files stay untracked."""
+    monkeypatch.chdir(repo)
+    _git(repo, "symbolic-ref", "HEAD", "refs/heads/main")
+    _write(repo, "x.py", BASE_X)
+    _write(repo, "y.py", "y\n")
+    _git(repo, "add", "x.py", "y.py")
+    _git(repo, "commit", "-qm", "init")
+    roadmap.main(["init", "--name", "Demo"])
+    for t in ("Alpha", "Beta", "Gamma"):
+        roadmap.main(["new", "--type", "feature", "--title", t])
+    rest = BASE_X.split("\n", 1)[1]
+    for n, (path, text) in {1: ("x.py", "one\n" + rest), 2: ("x.py", "two\n" + rest),
+                            3: ("y.py", "three\n")}.items():
+        _git(repo, "checkout", "-qb", f"roadmap/{n}", "main")
+        _write(repo, path, text)
+        _git(repo, "add", path)
+        _git(repo, "commit", "-qm", f"work (plan {n})")
+        _git(repo, "checkout", "-q", "main")
+    return repo
+
+
+def test_status_conflicts_text_high_pair_and_order(roadmap, items3, capsys):
+    before = _repo_state(items3)
+    assert roadmap.main(["status", "--conflicts"]) == 0
+    out = capsys.readouterr().out
+    assert "1 high" in out
+    high = next(l for l in out.splitlines() if l.strip().startswith("HIGH"))
+    assert "roadmap/1" in high and "roadmap/2" in high and "x.py" in high
+    order = out.split("suggested merge order", 1)[1].splitlines()[1:]
+    assert "Gamma" in order[0] and "no overlaps" in order[0]
+    assert _repo_state(items3) == before
+
+
+def test_status_conflicts_json_and_payload(roadmap, items3, capsys):
+    assert roadmap.main(["status", "--conflicts", "--json"]) == 0
+    rep = json.loads(capsys.readouterr().out)["conflicts"]
+    assert rep["checked"] == 3 and rep["counts"]["high"] == 1
+    pair = rep["pairs"][0]
+    assert {pair["a"]["id"], pair["b"]["id"]} == {1, 2}
+    assert [o["id"] for o in rep["order"]] == [3, 1, 2]
+    st = roadmap.status(items3)
+    assert "conflicts" not in st and "trunkSha" not in st
+    assert roadmap.status(items3, conflicts=True)["conflicts"] == rep
+
+
+def test_status_conflicts_medium_without_merge_tree(roadmap, cf, items3,
+                                                    monkeypatch, capsys):
+    monkeypatch.setattr(cf, "merge_tree_supported", lambda: False)
+    roadmap.main(["status", "--conflicts", "--json"])
+    rep = json.loads(capsys.readouterr().out)["conflicts"]
+    assert [p["risk"] for p in rep["pairs"]] == ["medium"]
+    assert rep["pairs"][0]["files"] == ["x.py"]
+
+
+def test_conflicts_skip_done_and_merged(roadmap, items3, capsys):
+    _git(items3, "merge", "-q", "--no-edit", "roadmap/3")
+    rep = roadmap.status(items3, conflicts=True)["conflicts"]
+    assert rep["checked"] == 2 and {o["id"] for o in rep["order"]} == {1, 2}
+
+
+def test_conflicts_payload_unchanged_refs_one_ref_scan(roadmap, items3, monkeypatch):
+    st = roadmap.status(items3)
+    first = roadmap.conflicts_payload(items3, st)
+    calls = []
+    real = subprocess.run
+
+    def counting(cmd, *a, **k):
+        if cmd and cmd[0] == "git" and threading.current_thread() is threading.main_thread():
+            calls.append(cmd)
+        return real(cmd, *a, **k)
+
+    monkeypatch.setattr(subprocess, "run", counting)
+    assert roadmap.conflicts_payload(items3, st) == first
+    # Only the cached ref scan's signature call; no diff, no merge-tree.
+    assert len(calls) == 1 and "for-each-ref" in calls[0]
+    calls.clear()
+    assert roadmap.conflicts_payload(items3, st, trunk_sha=None) == first
+    assert len(calls) == 1
+
+
+def test_status_conflicts_outside_git(roadmap, tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    roadmap.main(["init", "--name", "Demo"])
+    capsys.readouterr()
+    assert roadmap.main(["status", "--conflicts"]) == 0
+    assert "0 open branches" in capsys.readouterr().out
