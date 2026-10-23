@@ -336,6 +336,26 @@ def test_renumbered_file_counts_only_final_name(roadmap, proj, slots):
     assert _res(_slot_status(roadmap, proj), 1)["state"] == "ok"
 
 
+def test_renumber_inside_a_merge_follows_the_tree(roadmap, proj, slots):
+    """Presence comes from the tree diff, so a renumber done while resolving a
+    merge (no commit of its own adds the new name) still reads correctly."""
+    slots.reserve(proj, 1, "migration")       # 0269
+    _commit_all(proj, "reserve")
+    _git(proj, "checkout", "-qb", "roadmap/1")
+    _write(proj, "db/0271_x.sql")
+    _commit_all(proj, "x (plan 1)")
+    _git(proj, "checkout", "-q", "main")
+    _write(proj, "src/other.py")
+    _commit_all(proj, "trunk moves on")
+    _git(proj, "checkout", "-q", "roadmap/1")
+    _git(proj, "merge", "-q", "--no-ff", "--no-commit", "main")
+    _git(proj, "mv", "db/0271_x.sql", "db/0269_x.sql")
+    _git(proj, "commit", "-qm", "merge main")
+    _git(proj, "checkout", "-q", "main")
+    r = _res(_slot_status(roadmap, proj), 1)
+    assert (r["state"], r["detail"]) == ("ok", "branch adds 0269")
+
+
 def test_claimed_branch_wins_for_match(roadmap, proj, slots):
     slots.reserve(proj, 1, "migration")
     _commit_all(proj, "reserve")
@@ -410,7 +430,7 @@ def test_slot_scan_git_calls_are_cached(roadmap, proj, slots, monkeypatch):
     real = slots._git
     monkeypatch.setattr(slots, "_git", lambda root, *a, **k: calls.append(a[0]) or real(root, *a, **k))
     roadmap.status(proj)
-    assert calls == ["rev-parse"]          # tree/log results come from the cache
+    assert calls == ["rev-parse"]          # tree/diff/log results come from the cache
 
 
 # ---- step 4: dashboard slot strip -----------------------------------------

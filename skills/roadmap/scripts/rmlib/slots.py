@@ -287,7 +287,7 @@ def _all_branch_added(root: Path, trunk: str, tips: list[tuple[str, str]],
         return []
 
     def run():
-        args = ["log", "--no-renames", "--relative", "--diff-filter=A",
+        args = ["log", "--full-history", "--no-renames", "--relative", "--diff-filter=A",
                 "--name-only", "--format=", *sorted({f"refs/heads/{n}" for n, _ in tips}),
                 "--not", f"refs/heads/{trunk}"]
         if all(prefixes):
@@ -300,31 +300,32 @@ def _all_branch_added(root: Path, trunk: str, tips: list[tuple[str, str]],
 
 def _branch_added(root: Path, trunk: str, name: str, tip: str,
                   prefixes: list[str]) -> dict[str, list[int]]:
-    """{path: plan tags of the commit that added it} for files present at the
-    branch tip and added by commits trunk lacks. One `git log` per branch,
-    cached on its tip. Walked newest-first: a path's newest change decides
-    whether it is present; its newest add decides who added it."""
+    """{path: plan tags of the commit that added it} for this kind's files the
+    branch adds. Presence is the tree diff `trunk...branch` (authoritative,
+    whatever merges and renumbers happened); attribution is the newest commit
+    in `trunk..branch` that added the path. A path added only inside a merge
+    resolution has no such commit and reads as untagged. Two git calls per
+    branch, cached on its tip."""
+    spec = ["--", *sorted(set(prefixes))] if all(prefixes) else []
+
     def run():
-        args = ["log", "--no-renames", "--relative", "--name-status",
-                f"--format={_REC}%s", f"refs/heads/{trunk}..refs/heads/{name}"]
-        if all(prefixes):
-            args += ["--", *sorted(set(prefixes))]
-        out = _git(root, *args, timeout=30)
-        present: dict[str, bool] = {}
-        added: dict[str, list[int]] = {}
-        for rec in (out or "").split(_REC)[1:]:
+        diff = _git(root, "diff", "--name-only", "--no-renames", "--relative",
+                    "--diff-filter=A", f"refs/heads/{trunk}...refs/heads/{name}",
+                    *spec, timeout=30)
+        present = [ln for ln in (diff or "").splitlines() if ln.strip()]
+        if not present:
+            return {}
+        log = _git(root, "log", "--full-history", "--no-renames", "--relative",
+                   "--diff-filter=A", "--name-only", f"--format={_REC}%s",
+                   f"refs/heads/{trunk}..refs/heads/{name}", *spec, timeout=30)
+        tags_of: dict[str, list[int]] = {}
+        for rec in (log or "").split(_REC)[1:]:
             lines = rec.splitlines()
             tags = sorted({int(n) for n in rmbranches.TAG_RE.findall(lines[0] if lines else "")})
-            for ln in lines[1:]:
-                status, _, path = ln.partition("\t")
-                if not path:
-                    continue
-                st = status[:1]
-                if path not in present:
-                    present[path] = st != "D"
-                if st == "A" and present[path] and path not in added:
-                    added[path] = tags
-        return added
+            for path in lines[1:]:
+                if path.strip():
+                    tags_of.setdefault(path, tags)       # newest add wins
+        return {p: tags_of.get(p, []) for p in present}
     return _cached(("br", str(root), trunk, name, tip, tuple(sorted(set(prefixes)))), run)
 
 
