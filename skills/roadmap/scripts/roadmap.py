@@ -123,7 +123,8 @@ def _dashboard_api():
         discover_branches=rmbranches.discover)
 
 
-def serve(root: Path, port: int | None = None, open_browser: bool = True) -> int:
+def serve(root: Path, port: int | None = None, open_browser: bool = True,
+          verbose: bool = False) -> int:
     """Delegate to the dashboard module (loaded from the sibling dashboard.py).
     Loaded lazily and by file path so it works both when roadmap.py is run as a
     script and when it is imported under a different module name (tests)."""
@@ -132,7 +133,8 @@ def serve(root: Path, port: int | None = None, open_browser: bool = True) -> int
     spec = importlib.util.spec_from_file_location("roadmap_dashboard", path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    return mod.serve(_dashboard_api(), root, port=port, open_browser=open_browser)
+    return mod.serve(_dashboard_api(), root, port=port, open_browser=open_browser,
+                     verbose=verbose)
 
 
 def main(argv: list[str]) -> int:
@@ -245,6 +247,9 @@ def main(argv: list[str]) -> int:
                        help="fixed port; default auto-scans from 4700")
     p_srv.add_argument("--no-open", action="store_false", dest="open_browser",
                        help="do not open a browser window")
+    p_srv.add_argument("--verbose", action="store_true",
+                       help="print one line per checkout on every refresh "
+                            "(default: one summary line with the URL)")
 
     p_next = sub.add_parser("next", help="print the next unblocked unfinished item")
     p_next.add_argument("--version", help="target version (default: current)")
@@ -569,7 +574,8 @@ def main(argv: list[str]) -> int:
                 print(format_search(hits, args.text.strip()))
             return 0
         if args.command == "serve":
-            return serve(root, port=args.port, open_browser=args.open_browser)
+            return serve(root, port=args.port, open_browser=args.open_browser,
+                         verbose=args.verbose)
     except (ValueError, FileNotFoundError) as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1

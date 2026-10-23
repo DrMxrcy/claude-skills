@@ -380,3 +380,294 @@ def test_dashboard_html_has_inflight_hooks(served):
     # untrusted branch names / commit subjects only ever go in as text
     assert ".innerHTML" not in body and "insertAdjacentHTML" not in body
     assert "outerHTML" not in body
+
+
+# --- terminal logging (plan 31) -------------------------------------------
+
+def _fake_roots(repo, n):
+    """n checkouts that all point at `repo`: enough to exercise the per-
+    checkout collapse without creating real worktrees."""
+    return [(repo.resolve(), "main")] + [
+        (repo.resolve(), f"roadmap/{i}") for i in range(1, n)]
+
+
+def _many_checkouts(roadmap, dashboard, repo, monkeypatch, n=22, verbose=False):
+    monkeypatch.chdir(repo)
+    roadmap.main(["init", "--name", "Demo"])
+    roadmap.main(["new", "--type", "feature", "--title", "First thing"])
+    monkeypatch.setattr(dashboard, "_discover_roots",
+                        lambda rm, root: _fake_roots(repo, n))
+    bc = dashboard._Broadcaster(roadmap._dashboard_api(), repo, verbose=verbose)
+    bc.url = "http://127.0.0.1:4711"
+    return bc
+
+
+def test_refresh_log_is_one_line_with_url(roadmap, dashboard, repo,
+                                          monkeypatch, capsys):
+    bc = _many_checkouts(roadmap, dashboard, repo, monkeypatch)
+    capsys.readouterr()
+    roadmap.main(["check", "--plan", "1", "--all-done"])
+    capsys.readouterr()
+    bc._tick()
+    lines = [l for l in capsys.readouterr().out.splitlines() if l.strip()]
+    assert len(lines) == 1, lines
+    assert "http://127.0.0.1:4711" in lines[0]
+    assert "22 checkouts" in lines[0] and "[main]" in lines[0]
+
+
+def test_refresh_log_verbose_adds_per_checkout_lines(roadmap, dashboard, repo,
+                                                     monkeypatch, capsys):
+    bc = _many_checkouts(roadmap, dashboard, repo, monkeypatch, verbose=True)
+    roadmap.main(["check", "--plan", "1", "--all-done"])
+    capsys.readouterr()
+    bc._tick()
+    lines = [l for l in capsys.readouterr().out.splitlines() if l.strip()]
+    assert len(lines) == 1 + 22
+    assert "http://127.0.0.1:4711" in lines[0]
+    assert any("[roadmap/21]" in l for l in lines[1:])
+
+
+def test_worktree_change_log_is_one_line_with_url(roadmap, dashboard, repo,
+                                                  monkeypatch, capsys):
+    bc = _many_checkouts(roadmap, dashboard, repo, monkeypatch, n=3)
+    other = repo.parent / "elsewhere"
+    monkeypatch.setattr(dashboard, "_discover_roots", lambda rm, root:
+                        _fake_roots(repo, 3) + [(other, "roadmap/9")])
+    capsys.readouterr()
+    bc._tick(rescan=True)
+    out = capsys.readouterr().out
+    wt = [l for l in out.splitlines() if "worktrees now" in l]
+    assert len(wt) == 1 and "4 checkouts" in wt[0] and "(+1 -0)" in wt[0]
+    assert "http://127.0.0.1:4711" in wt[0]
+    assert "roadmap/9" not in out    # names only under --verbose
+
+
+def test_summary_lines_single_checkout_has_url(dashboard):
+    data = {"_roots": [{"branch": None, "name": "p"}], "trunkRoot": 0,
+            "statuses": [{"currentVersion": "0.1.0", "items": []}]}
+    lines = dashboard._summary_lines(data, "http://127.0.0.1:4700", True)
+    assert lines == ["current v0.1.0 · 0% (0/0) · 0 active · 0 versions"
+                     "  → http://127.0.0.1:4700"]
+
+
+def test_startup_prints_url_and_collapsed_status(roadmap, dashboard, repo,
+                                                 monkeypatch, capsys):
+    monkeypatch.chdir(repo)
+    roadmap.main(["init", "--name", "Demo"])
+    monkeypatch.setattr(dashboard, "_discover_roots",
+                        lambda rm, root: _fake_roots(repo, 21))
+    import http.server
+    holder = {}
+    orig = http.server.ThreadingHTTPServer
+
+    class Capturing(orig):
+        def __init__(self, *a, **k):
+            super().__init__(*a, **k)
+            holder["srv"] = self
+
+        def serve_forever(self, *a, **k):   # return right after startup output
+            return None
+
+    monkeypatch.setattr(http.server, "ThreadingHTTPServer", Capturing)
+    capsys.readouterr()
+    assert dashboard.serve(roadmap._dashboard_api(), repo, port=0,
+                           open_browser=False) == 0
+    port = holder["srv"].server_address[1]
+    lines = [l for l in capsys.readouterr().out.splitlines() if l.strip()]
+    url = f"http://127.0.0.1:{port}"
+    assert url in lines[0]
+    status = [l for l in lines if "current v" in l]
+    assert len(status) == 1 and url in status[0] and "21 checkouts" in status[0]
+    assert any("--verbose" in l for l in lines)
+
+
+def test_serve_cli_accepts_verbose(roadmap, monkeypatch, repo):
+    seen = {}
+    monkeypatch.chdir(repo)
+    roadmap.main(["init", "--name", "Demo"])
+    monkeypatch.setattr(roadmap, "serve", lambda root, **k: seen.update(k) or 0)
+    assert roadmap.main(["serve", "--no-open", "--verbose"]) == 0
+    assert seen["verbose"] is True and seen["open_browser"] is False
+
+
+def test_second_serve_prints_running_url_loudly(served, capsys):
+    base, roadmap, repo = served
+    capsys.readouterr()
+    assert roadmap.serve(repo, port=None, open_browser=False) == 0
+    out = capsys.readouterr().out
+    first = out.splitlines()[0]
+    assert first.startswith("roadmap dashboard already running") and base in first
+
+
+# --- default view (plan 31) -----------------------------------------------
+
+def test_dashboard_view_always_starts_on_trunk(served):
+    """The view is never restored: no stored view key is read, the select
+    opts out of browser form restore, and legacy keys/params are cleared."""
+    base, _, _ = served
+    body = _get(base + "/")[2].decode()
+    assert 'const DEFAULT_VIEW = "trunk";' in body
+    assert "let VIEW = DEFAULT_VIEW;" in body
+    assert 'id="rootsel" autocomplete="off"' in body
+    assert 'id="search" type="search" autocomplete="off"' in body
+    # nothing ever stores or reads the view
+    for bad in ('store.get("rm-view"', 'store.set("rm-view"',
+                'store.get("rm-root"', 'store.set("rm-root"',
+                'getItem("rm-view"', 'setItem("rm-view"'):
+        assert bad not in body, bad
+    assert 'removeItem(k)' in body and '"rm-view","rm-root"' in body
+    # filters still persist
+    assert 'store.get("rm-filters"' in body
+
+
+# --- item body + note endpoint (plan 31) ----------------------------------
+
+def _get_json(url):
+    """(status, json) — HTTP errors are returned, not raised."""
+    try:
+        with urllib.request.urlopen(url, timeout=3) as r:
+            return r.status, json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        return e.code, json.loads(e.read() or b"{}")
+
+
+def _plan_file(repo):
+    return next((repo / ".roadmap" / "plans").glob("001-*.md"))
+
+
+def test_api_item_returns_body_and_linked_notes(served):
+    base, roadmap, repo = served
+    notes = repo / ".roadmap" / "notes"
+    notes.mkdir(exist_ok=True)
+    (notes / "design.md").write_text("# Design\n\nhello\n")
+    (notes / "1-handoff.md").write_text("# Handoff\n")
+    pf = _plan_file(repo)
+    pf.write_text(pf.read_text() + "\nSee [design](../notes/design.md) and "
+                  "`.roadmap/notes/design.md`, plus notes/missing.md.\n")
+    code, d = _get_json(base + "/api/item?id=1")
+    assert code == 200
+    assert d["planPath"] == ".roadmap/" + d["file"]
+    assert d["body"].lstrip().startswith("# Plan 1")      # frontmatter stripped
+    assert "id: 1" not in d["body"].split("\n", 3)[0]
+    assert "[design](../notes/design.md)" in d["body"]   # raw markdown
+    assert d["notes"] == [".roadmap/notes/design.md", ".roadmap/notes/1-handoff.md"]
+    assert d["dependsOn"] == [] and d["blockedBy"] == []
+    assert d["displayId"] == "FEAT-1"
+
+
+def test_api_item_reports_dependencies(served):
+    base, roadmap, repo = served
+    roadmap.main(["new", "--type", "feature", "--title", "Second"])
+    roadmap.main(["depends", "--plan", "2", "--on", "1"])
+    code, d = _get_json(base + "/api/item?id=2")
+    assert code == 200 and d["dependsOn"] == [1] and d["blockedBy"] == [1]
+
+
+def test_api_note_serves_notes_and_plans(served):
+    base, _, repo = served
+    notes = repo / ".roadmap" / "notes"
+    notes.mkdir(exist_ok=True)
+    (notes / "x.md").write_text("# X\n<script>alert(1)</script>\n")
+    code, d = _get_json(base + "/api/note?path=.roadmap/notes/x.md")
+    assert code == 200 and d["path"] == ".roadmap/notes/x.md"
+    assert d["body"] == "# X\n<script>alert(1)</script>\n"   # raw text, JSON
+    rel = ".roadmap/plans/" + _plan_file(repo).name
+    code, d = _get_json(base + "/api/note?path=" + urllib.parse.quote(rel))
+    assert code == 200 and "# Plan 1" in d["body"]
+
+
+@pytest.mark.parametrize("bad", [
+    "", "../secret.md", ".roadmap/notes/../../secret.md",
+    ".roadmap/notes/%2e%2e/%2e%2e/secret.md", ".roadmap/notes/./x.md",
+    "/etc/passwd", "%2Fetc%2Fhosts.md", "C:/x.md", ".roadmap\\notes\\x.md",
+    ".roadmap/notes/x.txt", ".roadmap/notes/x", ".roadmap/config.json",
+    "ROADMAP.md", ".roadmap/x.md", "notes/x.md", ".roadmap/other/x.md",
+    ".roadmap/notes/sub/x.md", ".roadmap/notes/.md",
+])
+def test_api_note_rejects_disallowed_paths(served, bad):
+    base, _, repo = served
+    notes = repo / ".roadmap" / "notes"
+    notes.mkdir(exist_ok=True)
+    (notes / "x.md").write_text("ok\n")
+    (repo / "secret.md").write_text("secret\n")
+    code, d = _get_json(base + "/api/note?path=" + bad)
+    assert code == 400, (bad, code, d)
+    assert "body" not in d
+
+
+def test_api_note_missing_is_404(served):
+    base, _, _ = served
+    code, d = _get_json(base + "/api/note?path=.roadmap/notes/nope.md")
+    assert code == 404 and "body" not in d
+
+
+def test_api_note_rejects_symlink_escape(served, tmp_path_factory):
+    base, _, repo = served
+    outside = tmp_path_factory.mktemp("outside") / "leak.md"
+    outside.write_text("leaked\n")
+    notes = repo / ".roadmap" / "notes"
+    notes.mkdir(exist_ok=True)
+    (notes / "leak.md").symlink_to(outside)
+    (repo / "secret.md").write_text("secret\n")
+    (notes / "up.md").symlink_to(repo / "secret.md")
+    for name in ("leak.md", "up.md"):
+        code, d = _get_json(base + "/api/note?path=.roadmap/notes/" + name)
+        assert code == 400 and "body" not in d, name
+
+
+def test_api_note_rejects_symlinked_dir_escape(served, tmp_path_factory):
+    base, _, repo = served
+    outside = tmp_path_factory.mktemp("outdir")
+    (outside / "x.md").write_text("leaked\n")
+    notes = repo / ".roadmap" / "notes"
+    if notes.exists():
+        notes.rmdir()
+    notes.symlink_to(outside, target_is_directory=True)
+    code, d = _get_json(base + "/api/note?path=.roadmap/notes/x.md")
+    assert code == 400 and "body" not in d
+
+
+def test_api_ideas_carry_index_and_note(served):
+    base, roadmap, repo = served
+    roadmap.main(["idea", "--title", "Plain idea"])
+    roadmap.main(["idea", "--title", "Idea with notes", "--body", "Long *form*."])
+    d = json.loads(_get(base + "/api/ideas")[2])
+    by = {b["title"]: b for b in d["bullets"]}
+    plain, noted = by["Plain idea"], by["Idea with notes"]
+    assert plain["note"] is None
+    assert sorted([plain["index"], noted["index"]]) == [1, 2]   # promote --index
+    assert noted["note"].startswith(".roadmap/notes/") and noted["note"].endswith(".md")
+    code, n = _get_json(base + "/api/note?path=" + noted["note"])
+    assert code == 200 and "Long *form*." in n["body"]
+
+
+# --- pages (plan 31) ------------------------------------------------------
+
+def test_dashboard_html_has_router_and_pages(served):
+    base, _, _ = served
+    body = _get(base + "/")[2].decode()
+    for hook in ('"hashchange"', "parseRoute", '"#/plan/"', '"#/idea/"',
+                 '"#/notes/"', "/api/note?path=", "planPage", "ideaPage",
+                 "notePage", 'id="page"', "promote --index", "function md(",
+                 "SCROLL[", "scrollRestoration"):
+        assert hook in body, hook
+    # inline dropdown expansion is gone
+    assert "loadSteps" not in body and "openItems" not in body
+    # the tab is a route now, never stored
+    assert 'store.set("rm-tab"' not in body and 'store.get("rm-tab"' not in body
+
+
+def test_dashboard_html_markdown_renderer_is_dom_only(served):
+    """Plan/note markdown is untrusted: no HTML parsing sinks anywhere, and
+    hrefs are gated to http(s) and in-app #/ routes."""
+    base, _, _ = served
+    body = _get(base + "/")[2].decode()
+    for sink in (".innerHTML", "outerHTML", "insertAdjacentHTML",
+                 "document.write", "DOMParser", "createContextualFragment",
+                 "srcdoc", "eval(", "new Function"):
+        assert sink not in body, sink
+    assert r"const SAFE_HREF = /^(https?:\/\/[^\s]+|#\/[^\s]*)$/i;" in body
+    # every href assignment goes through link() (or a fixed tab route)
+    import re
+    assigns = re.findall(r"\.href\s*=\s*([^;]+);", body)
+    assert sorted(assigns) == sorted(['href', 'id === "roadmap" ? "#/" : "#/"+id']), assigns

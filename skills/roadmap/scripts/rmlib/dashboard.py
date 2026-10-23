@@ -9,17 +9,26 @@ from __future__ import annotations
 import hashlib
 import http.server
 import json
+import re
 import subprocess
 import sys
 import threading
 import time
+import urllib.parse
 import urllib.request
 import webbrowser
 from pathlib import Path
 
 DEFAULT_PORT = 4700
 PORT_SPAN = 40
-MAX_COMMITS = 20   # branch commits shown when an item row is expanded
+MAX_COMMITS = 20   # branch commits shown on an item page
+MAX_DOC_BYTES = 2 * 1024 * 1024   # /api/note refuses anything bigger
+DOC_DIRS = ("notes", "plans")     # the only .roadmap/ subdirs /api/note reads
+FRONTMATTER_RE = re.compile(r"\A---\r?\n.*?\r?\n---\r?\n?", re.S)
+# Root-relative note/plan references inside markdown: `.roadmap/notes/x.md`,
+# `notes/x.md`, `(plans/007-x.md)` — candidates only; _doc_path validates.
+DOC_REF_RE = re.compile(r"(?<![\w./-])((?:\.roadmap/)?(?:notes|plans)/[\w.-]+\.md)\b")
+MD_LINK_RE = re.compile(r"\[[^\]]*\]\(([^)\s]+\.md)\)")
 
 
 def _dashboard_html() -> str:
@@ -39,6 +48,34 @@ def _status_line(st: dict) -> str:
     return (f"current v{ver} · {pct}% ({td}/{tt}) · {active} active"
             + (f" · {flying} in flight" if flying else "")
             + f" · {nvers} version{'s' if nvers != 1 else ''}")
+
+
+def _checkout_label(m: dict) -> str:
+    return m.get("branch") or m.get("name") or "?"
+
+
+def _summary_lines(data: dict, url: str | None, verbose: bool = False,
+                   prefix: str = "") -> list[str]:
+    """Terminal lines for one payload: ONE summary line (the trunk view, the
+    checkout count and the URL, so the dashboard is findable from any line in
+    the scrollback), plus one line per checkout only when `verbose`.
+    A repo with 27 worktrees refreshes as one line, not 27."""
+    roots, stats = data.get("_roots") or [], data.get("statuses") or []
+    if not stats:
+        return []
+    ti = data.get("trunkRoot", 0)
+    ti = ti if isinstance(ti, int) and 0 <= ti < len(stats) else 0
+    n = len(stats)
+    label = (f"[{(roots[ti].get('branch') if ti < len(roots) else None) or 'trunk'}] "
+             if n > 1 else "")
+    line = (f"{prefix}{label}{_status_line(stats[ti])}"
+            + (f" · {n} checkouts" if n > 1 else "")
+            + (f"  → {url}" if url else ""))
+    out = [line]
+    if verbose and n > 1:
+        for m, st in zip(roots, stats):
+            out.append(f"      [{_checkout_label(m)}] {_status_line(st)}")
+    return out
 
 
 def _roadmap_signature(rm, root: Path):
@@ -80,6 +117,91 @@ def _safe_status(rm, root: Path) -> dict:
                 "error": str(e)}
 
 
+def _doc_path(rm, root: Path, rel: str):
+    """Resolve a root-relative markdown path for /api/note. Returns (code,
+    Path|message): 200 with the file, 400 when the path is not allowed (empty,
+    absolute, `..`/`.` parts, backslashes, not `.md`, not directly inside
+    .roadmap/notes/ or .roadmap/plans/, or a symlink that resolves outside that
+    directory), 404 when it is allowed but missing. Read-only, never creates."""
+    if (not isinstance(rel, str) or not rel or "\0" in rel or "\\" in rel
+            or rel.startswith("/") or re.match(r"^[A-Za-z]:", rel)):
+        return 400, "path not allowed"
+    parts = rel.split("/")
+    if any(p in ("", ".", "..") for p in parts):
+        return 400, "path not allowed"
+    if not parts[-1].lower().endswith(".md") or len(parts[-1]) <= 3:
+        return 400, "only .md files"
+    rd = rm.roadmap_dir(root)
+    try:
+        rd_rel = rd.relative_to(root).parts
+    except ValueError:
+        return 400, "path not allowed"
+    if (len(parts) != len(rd_rel) + 2 or tuple(parts[:len(rd_rel)]) != rd_rel
+            or parts[len(rd_rel)] not in DOC_DIRS):
+        return 400, "only .roadmap/notes/*.md and .roadmap/plans/*.md"
+    allowed = rd / parts[len(rd_rel)]
+    try:
+        root_real = root.resolve(strict=True)
+        allowed_real = allowed.resolve(strict=True)
+        if not allowed_real.is_relative_to(root_real):
+            return 400, "path not allowed"
+        real = (allowed / parts[-1]).resolve(strict=True)
+    except (OSError, RuntimeError):
+        return 404, "not found"
+    if real.parent != allowed_real:
+        return 400, "path not allowed"   # symlink escaping the directory
+    if not real.is_file():
+        return 404, "not found"
+    return 200, real
+
+
+def _read_doc(rm, root: Path, rel: str) -> tuple[int, dict]:
+    code, res = _doc_path(rm, root, rel)
+    if code != 200:
+        return code, {"error": res, "path": rel}
+    try:
+        if res.stat().st_size > MAX_DOC_BYTES:
+            return 400, {"error": "file too large", "path": rel}
+        body = res.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return 404, {"error": "not found", "path": rel}
+    return 200, {"path": rel, "body": body}
+
+
+def _norm_ref(rm, root: Path, ref: str, base: Path | None = None) -> str | None:
+    """A markdown reference as a root-relative posix path IF it names an
+    existing note/plan /api/note would serve, else None. Relative refs are
+    tried against `base` (the referring file's directory), the .roadmap/ dir
+    and the root, in that order."""
+    ref = ref.strip().split("#", 1)[0]
+    if not ref or "://" in ref:
+        return None
+    rd = rm.roadmap_dir(root)
+    for b in [x for x in (base, rd, root) if x is not None]:
+        try:
+            cand = Path(b, ref).resolve()   # lexical + symlink normalisation
+            rel = cand.relative_to(root.resolve()).as_posix()
+        except (ValueError, OSError, RuntimeError):
+            continue
+        if _doc_path(rm, root, rel)[0] == 200:
+            return rel
+    return None
+
+
+def _linked_docs(rm, root: Path, text: str, base: Path | None = None,
+                 exclude: str | None = None) -> list[str]:
+    """Root-relative paths of the existing notes/plans a markdown text links
+    to or mentions, in order of first appearance, de-duplicated."""
+    out: list[str] = []
+    refs = [m.group(1) for m in MD_LINK_RE.finditer(text)]
+    refs += [m.group(1) for m in DOC_REF_RE.finditer(text)]
+    for ref in refs:
+        rel = _norm_ref(rm, root, ref, base)
+        if rel and rel != exclude and rel not in out:
+            out.append(rel)
+    return out
+
+
 def _item_detail(rm, root: Path, item_id: int) -> dict:
     """Full detail for one item: its plan checklist steps + note. Fetched lazily
     by the dashboard when a row is expanded, so status payloads stay small."""
@@ -88,11 +210,34 @@ def _item_detail(rm, root: Path, item_id: int) -> dict:
         item = next((i for i in cfg["items"] if i["id"] == item_id), None)
         if item is None:
             return {"error": f"no item #{item_id}"}
-        pp = rm.roadmap_dir(root) / item["file"]
+        rd = rm.roadmap_dir(root)
+        pp = rd / item["file"]
         plan = rm.parse_plan(pp) if pp.exists() else {"steps": [], "meta": {}}
+        try:
+            text = pp.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            text = ""
+        plan_rel = None
+        try:
+            plan_rel = pp.relative_to(root).as_posix()
+        except ValueError:
+            pass
+        # Notes the plan links to or mentions, plus its handoff note if any.
+        notes = _linked_docs(rm, root, text, base=pp.parent, exclude=plan_rel)
+        handoff = _norm_ref(rm, root, f"notes/{item_id}-handoff.md")
+        if handoff and handoff not in notes:
+            notes.append(handoff)
         detail = {"id": item_id, "title": item["title"], "type": item["type"],
                   "version": item["version"], "note": item.get("note"),
-                  "file": item["file"],
+                  "file": item["file"], "planPath": plan_rel,
+                  "status": item.get("status"),
+                  # raw markdown, frontmatter stripped — the page renders it
+                  # as text nodes only (never HTML)
+                  "body": FRONTMATTER_RE.sub("", text, count=1),
+                  "meta": plan.get("meta") or {},
+                  "notes": notes,
+                  "dependsOn": list(item.get("dependsOn") or []),
+                  "blockedBy": [],
                   "steps": [{"done": d, "text": t} for d, t in plan["steps"]],
                   "lane": None, "claim": None, "branch": None}
         # Lane/claim/branch come from status() so the expanded row agrees with
@@ -102,6 +247,9 @@ def _item_detail(rm, root: Path, item_id: int) -> dict:
                     if i.get("id") == item_id), None)
         if row is not None:
             detail["lane"], detail["claim"] = row.get("lane"), row.get("claim")
+            detail["blockedBy"] = list(row.get("blockedBy") or [])
+            for k in ("displayId", "pct", "done", "total"):
+                detail[k] = row.get(k)
             if row.get("branch"):
                 detail["branch"] = {
                     **row["branch"],
@@ -136,11 +284,17 @@ def _ideas(rm, root: Path) -> dict:
     (ROADMAP.md or settings.incubatorFile — the CLI resolves it)."""
     try:
         f = rm.incubator_file(root)
+        bullets = []
+        for i, b in enumerate(rm.list_incubator_bullets(root), 1):
+            if b["body"] == "(add ideas here)":
+                continue   # the init placeholder bullet is chrome, not an idea
+            # `index` is the 1-based position `roadmap promote --index` takes;
+            # `note` the linked .roadmap/notes file, when it exists.
+            links = _linked_docs(rm, root, b["body"], base=f.parent)
+            bullets.append({**b, "index": i,
+                            "note": links[0] if links else None})
         return {"file": str(f.relative_to(root)) if f.is_relative_to(root)
-                else str(f),
-                # the init placeholder bullet is chrome, not an idea
-                "bullets": [b for b in rm.list_incubator_bullets(root)
-                            if b["body"] != "(add ideas here)"]}
+                else str(f), "bullets": bullets}
     except (ValueError, FileNotFoundError, OSError) as e:
         return {"error": str(e), "bullets": []}
 
@@ -250,8 +404,10 @@ class _Broadcaster:
     """
     RESCAN_TICKS = 5
 
-    def __init__(self, rm, origin: Path):
+    def __init__(self, rm, origin: Path, verbose: bool = False):
         self.rm, self.origin = rm, origin
+        self.verbose = verbose
+        self.url: str | None = None   # set by serve() once the port is bound
         self.cond = threading.Condition()
         self.version = 0
         self.roots = _discover_roots(rm, origin)
@@ -285,10 +441,19 @@ class _Broadcaster:
         if rescan:
             new = _discover_roots(self.rm, self.origin)
             if [p for p, _ in new] != [p for p, _ in self.roots]:
+                old = {p for p, _ in self.roots}
                 self.roots = new
                 self._sigs = []   # force a payload rebuild below
-                print("  ↻ worktrees now: "
-                      + ", ".join(b or p.name for p, b in new), flush=True)
+                cur = {p for p, _ in new}
+                added = sum(1 for p in cur if p not in old)
+                removed = sum(1 for p in old if p not in cur)
+                print(f"  ↻ {time.strftime('%H:%M:%S')} worktrees now: "
+                      f"{len(new)} checkout{'s' if len(new) != 1 else ''}"
+                      f" (+{added} -{removed})"
+                      + (f"  → {self.url}" if self.url else ""), flush=True)
+                if self.verbose:
+                    print("      " + ", ".join(b or p.name for p, b in new),
+                          flush=True)
         sigs = self._signature()
         if sigs == self._sigs:
             return
@@ -302,11 +467,9 @@ class _Broadcaster:
             self.json = snap
             self.version += 1
             self.cond.notify_all()
-        data = json.loads(snap)
-        trunk = data["statuses"][data["trunkRoot"]]
-        label = (f"[{data['_roots'][data['trunkRoot']]['branch'] or 'trunk'}] "
-                 if len(self.roots) > 1 else "")
-        print(f"  ↻ {label}{_status_line(trunk)}", flush=True)
+        for line in _summary_lines(json.loads(snap), self.url, self.verbose,
+                                   prefix=f"  ↻ {time.strftime('%H:%M:%S')} "):
+            print(line, flush=True)
 
     def snapshot(self):
         with self.cond:
@@ -320,13 +483,15 @@ class _Broadcaster:
 
 
 def serve(rm, root: Path, port: int | None = None,
-          open_browser: bool = True) -> int:
+          open_browser: bool = True, verbose: bool = False) -> int:
     """Run a local, read-only web dashboard that pushes live updates via SSE.
 
     One dashboard per project: port=None derives a stable port from the project
     path. If this project is already being served (in another terminal), point
     at that instance instead of starting a duplicate. Different projects get
     different ports and run side by side. An explicit port is honored strictly.
+    Every refresh line in the terminal carries the URL; `verbose` adds one
+    line per checkout under each summary.
     """
     if not rm.roadmap_dir(root).exists():
         print("No .roadmap/ here — run `roadmap init` first, then `roadmap serve`.")
@@ -336,7 +501,7 @@ def serve(rm, root: Path, port: int | None = None,
     # has a .roadmap/ (re-discovered live by the broadcaster). Port + dedupe
     # key on the primary (main-checkout) root, so `roadmap serve` from any
     # checkout converges on the same dashboard.
-    bcast = _Broadcaster(rm, root)
+    bcast = _Broadcaster(rm, root, verbose=verbose)
     primary = bcast.roots[0][0]
     root_id = str(primary)
     dashboard_html = _dashboard_html()
@@ -404,6 +569,11 @@ def serve(rm, root: Path, port: int | None = None,
                            else _item_detail(rm, rroot, iid))
                 self._send(200, json.dumps(payload).encode("utf-8"),
                            "application/json")
+            elif path == "/api/note":
+                rel = (urllib.parse.parse_qs(query).get("path") or [""])[0]
+                code, payload = _read_doc(rm, rroot, rel)
+                self._send(code, json.dumps(payload).encode("utf-8"),
+                           "application/json")
             elif path == "/api/ideas":
                 self._send(200, json.dumps(_ideas(rm, rroot)).encode("utf-8"),
                            "application/json")
@@ -439,8 +609,10 @@ def serve(rm, root: Path, port: int | None = None,
         for candidate in range(preferred, preferred + PORT_SPAN):
             existing = _running_dashboard(primary, candidate)
             if existing:
-                print(f"This project is already being served → {existing}"
-                      "  (one dashboard per project)")
+                print(f"roadmap dashboard already running → {existing}\n"
+                      "  This project is already being served (one dashboard "
+                      "per project) — open the URL above; nothing new started.",
+                      flush=True)
                 if open_browser:
                     try:
                         webbrowser.open(existing)
@@ -467,15 +639,17 @@ def serve(rm, root: Path, port: int | None = None,
             return 1
     port = httpd.server_address[1]
 
+    url = f"http://127.0.0.1:{port}"
+    bcast.url = url
     bcast.start()
 
-    url = f"http://127.0.0.1:{port}"
     print(f"roadmap dashboard → {url}  (Ctrl-C to stop)")
     data = json.loads(bcast.json)
-    for m, st in zip(data["_roots"], data["statuses"]):
-        label = (f"[{m['branch'] or m['name']}] "
-                 if len(data["statuses"]) > 1 else "")
-        print(f"  {label}{_status_line(st)}", flush=True)
+    for line in _summary_lines(data, url, verbose, prefix="  "):
+        print(line, flush=True)
+    if len(data.get("statuses") or []) > 1 and not verbose:
+        print("  (one line per refresh; `serve --verbose` adds per-checkout detail)",
+              flush=True)
     if open_browser:
         try:
             webbrowser.open(url)
