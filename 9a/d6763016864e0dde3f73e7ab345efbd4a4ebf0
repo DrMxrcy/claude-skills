@@ -1,0 +1,21 @@
+skills/roadmap/scripts/rmlib/branches.py
+  s_0d994e3368ddf8::t_d3ff0879012c67 610-613
+tests/test_roadmap.py
+  s_0d994e3368ddf8::t_50a9448c69d54e 2846-2854
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9ad6763016864e0dde3f73e7ab345efbd4a4ebf0",
+  "prompts": {},
+  "sessions": {
+    "s_0d994e3368ddf8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1e59e42f-734a-4197-96a1-8f7a72731de8",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
