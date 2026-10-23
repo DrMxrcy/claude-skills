@@ -411,3 +411,34 @@ def test_slot_scan_git_calls_are_cached(roadmap, proj, slots, monkeypatch):
     monkeypatch.setattr(slots, "_git", lambda root, *a, **k: calls.append(a[0]) or real(root, *a, **k))
     roadmap.status(proj)
     assert calls == ["rev-parse"]          # tree/log results come from the cache
+
+
+# ---- step 4: dashboard slot strip -----------------------------------------
+
+def test_dashboard_payload_carries_slots_only_when_configured(roadmap, dashboard, proj, slots):
+    slots.reserve(proj, 1, "migration")
+    data = json.loads(dashboard._Broadcaster(roadmap, proj)._dump())
+    assert data["statuses"][0]["slots"]["kinds"][0]["reservations"][0]["plan"] == 1
+    cfg = roadmap.read_config(proj)
+    del cfg["settings"]["slots"]
+    roadmap.write_config(proj, cfg)
+    data = json.loads(dashboard._Broadcaster(roadmap, proj)._dump())
+    assert "slots" not in data["statuses"][0] and "slots" not in data["merged"]
+
+
+def test_merged_view_takes_trunk_checkout_slots(dashboard):
+    trunk_slots = {"kinds": [{"kind": "migration"}], "clashes": 0}
+    st = [{"trunk": "main", "items": [], "slots": {"kinds": [], "clashes": 0}},
+          {"trunk": "main", "items": [], "slots": trunk_slots}]
+    meta = [{"branch": "roadmap/1", "name": "a"}, {"branch": "main", "name": "b"}]
+    assert dashboard._merge_status(st, meta)["slots"] == trunk_slots
+    plain = [{"trunk": "main", "items": []}, {"trunk": "main", "items": []}]
+    assert "slots" not in dashboard._merge_status(plain, meta)
+
+
+def test_dashboard_html_has_slot_strip(dashboard):
+    body = dashboard._dashboard_html()
+    for hook in ("function slotStrip", "d.slots", ".slot.st-clash", ".slot.st-taken",
+                 '"slot "+k.kind', '"#/plan/"+r.plan'):
+        assert hook in body, hook
+    assert ".innerHTML" not in body and "insertAdjacentHTML" not in body

@@ -362,10 +362,15 @@ def _merge_status(statuses: list[dict], roots_meta: list[dict]) -> dict:
     def vkey(v):
         return [int(x) if x.isdigit() else 0 for x in str(v).split(".")]
     vers = [st["currentVersion"] for st in statuses if st.get("currentVersion")]
-    return {"project": next((st.get("project") for st in statuses
-                             if st.get("project")), None),
-            "currentVersion": max(vers, key=vkey) if vers else None,
-            "items": sorted(items.values(), key=lambda x: x["id"])}
+    out = {"project": next((st.get("project") for st in statuses
+                            if st.get("project")), None),
+           "currentVersion": max(vers, key=vkey) if vers else None,
+           "items": sorted(items.values(), key=lambda x: x["id"])}
+    # Slot reservations (plan 33) are trunk truth: the merged view shows the
+    # trunk checkout's. Absent unless settings.slots is configured.
+    if statuses and "slots" in statuses[_trunk_root(statuses, roots_meta)]:
+        out["slots"] = statuses[_trunk_root(statuses, roots_meta)]["slots"]
+    return out
 
 
 def _project_port(root: Path) -> int:
