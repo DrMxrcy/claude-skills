@@ -1,0 +1,25 @@
+skills/roadmap/README.md
+  s_fbae122c7a65de::t_4294db262321ff 199-201
+skills/roadmap/SKILL.md
+  s_fbae122c7a65de::t_c6281c45c1bd45 292-293
+skills/roadmap/references/quality-build.md
+  s_fbae122c7a65de::t_f4b43fd75301c2 55,63
+skills/roadmap/references/state-model.md
+  s_fbae122c7a65de::t_f2442cb077804e 27,33-38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dca63e1662904e49d57298bbbc5166722e270cbf",
+  "prompts": {},
+  "sessions": {
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
