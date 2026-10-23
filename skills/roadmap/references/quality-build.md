@@ -55,6 +55,7 @@ Steps tick on trunk only after the merge gate, so a long review or gate would ot
 
 - Claims live in plan frontmatter (`claim_*` keys, see `state-model.md`). `claim <id> --clear` drops one.
 - Ticking the final step on trunk (step 5 below) removes the claim automatically.
+- Numbered sequences (`settings.slots`): before a builder generates a migration (or any numbered file), the parent runs `slot <id> --kind <kind> --name <slug>` and passes the printed number into the brief, so parallel items never pick the same "next" number. Commit the reservation with the plan.
 - `status --in-flight` lists claimed or branch-backed items. The dashboard shows each lane, branch, and commit count.
 - **Integration branch** (`settings.integrationBranch`): when item branches merge into an integration branch before trunk, a branch it contains reads `landed` with no claim. That derived lane vanishes once trunk contains the branch, so run `claim --landed <integration-branch>` right after each merge into integration; it records the landing sha that `check --landed` later proves is in trunk. `check --landed` never ticks an item whose landing sha or current branch tip trunk lacks.
 
@@ -63,7 +64,7 @@ Steps tick on trunk only after the merge gate, so a long review or gate would ot
 When an item was built in its own worktree (`roadmap/<id>`, see `build.md`), its branch lands in the version trunk `roadmap/v<version>` through one gate. Only the parent runs this, one item at a time.
 
 1. **Clean trunk first.** `git -C <trunk-worktree> status` must be clean. A dirty trunk stops the merge; report it, do not stash.
-2. **Merge the item branch into the trunk** with `--no-ff`. Do not rebase the item branch and do not force-push.
+2. **Merge the item branch into the trunk** with `--no-ff`. When the project configures `settings.slots` (numbered migrations and the like), run `slot <id> --check` first: a `clash` or `taken` reservation stops the gate like a conflict (renumber on the item branch, then retry). Do not rebase the item branch and do not force-push.
 3. **Conflicts stop the gate.** If the merge conflicts, abort it (`git merge --abort`), list the conflicting paths, and report them as BLOCKED with a `handoff --pending` note. Never auto-resolve a conflict.
 4. **Run the full gate on the trunk**, not in the item branch: the project's lint, typecheck, unit tests, integration tests, and build. Builders ran only targeted tests, so the full suite runs here once per merged batch.
 5. **Green:** record the result with `check --evidence` against the item's last step, then remove the item worktree (`git worktree remove <path>`) and delete the branch. Removal happens only after a green gate.

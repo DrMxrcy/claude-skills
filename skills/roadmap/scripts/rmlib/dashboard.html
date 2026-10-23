@@ -221,6 +221,19 @@
   .md th, .md td { border:1px solid var(--line); padding:4px 8px;
     text-align:left; vertical-align:top; }
   .md th { color:var(--muted); font-weight:600; }
+  /* ---- numbered slots (plan 33): trunk highest + reservations per kind -- */
+  .slots { display:flex; flex-direction:column; gap:6px; font-size:12px; }
+  .srow { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .srow .skind { font-weight:600; }
+  .srow .muted { color:var(--muted); }
+  .slot { border:1px solid var(--line); border-radius:4px; padding:1px 6px;
+    color:var(--fg); text-decoration:none; white-space:nowrap; }
+  a.slot:hover { text-decoration:underline; }
+  .slot.st-ok { color:var(--done); border-color:var(--done); }
+  .slot.st-missing { color:var(--muted); }
+  .slot.st-clash, .slot.st-taken { color:var(--blocked); border-color:var(--blocked);
+    font-weight:600; background:color-mix(in srgb, var(--blocked) 14%, transparent); }
+  .slots .serr { color:var(--blocked); }
   @media (max-width:640px) {
     header, main { padding-left:16px; padding-right:16px; }
     .facts { grid-template-columns:1fr; }
@@ -514,6 +527,33 @@ function otherSection(list){
   return sec;
 }
 
+// Numbered slots (plan 33): one row per kind — trunk highest, branches
+// highest, then each reservation (number, plan, state), clash/taken in red.
+// Absent when settings.slots is not configured, so nothing renders.
+function slotStrip(s){
+  if(!s || !(s.error || (s.kinds||[]).length)) return [];
+  const box = el("section","slots");
+  if(s.error){ box.appendChild(txt("div","serr","slots: "+s.error)); return [box]; }
+  for(const k of s.kinds){
+    const row = el("div","srow");
+    row.appendChild(txt("span","skind", k.kind));
+    row.appendChild(txt("span","muted", "trunk "+(k.trunkHighest||"—")));
+    if(k.branchHighest) row.appendChild(txt("span","muted", "branches "+k.branchHighest));
+    const rs = k.reservations || [];
+    for(const r of rs){
+      const a = link("#/plan/"+r.plan, (r.numbers||[]).join(",")+" #"+r.plan,
+        "slot st-"+r.state);
+      a.title = [r.displayId, r.title, r.state+": "+r.detail].filter(Boolean).join(" — ");
+      row.appendChild(a);
+    }
+    if(!rs.length) row.appendChild(txt("span","muted","no reservations"));
+    if(k.clashes) row.appendChild(txt("span","slot st-clash",
+      k.clashes+(k.clashes > 1 ? " clashes" : " clash")));
+    box.appendChild(row);
+  }
+  return [box];
+}
+
 function render(d){
   LAST = d;
   syncRootSel(d);
@@ -554,8 +594,9 @@ function render(d){
   const app = document.getElementById("app");
   const others = Array.isArray(d.otherBranches) ? d.otherBranches : [];
   const tail = others.length ? [otherSection(others)] : [];
+  const head = slotStrip(d.slots);
   if(!items.length){
-    app.replaceChildren(txt("div","empty", d.error||"no roadmap items yet"), ...tail);
+    app.replaceChildren(...head, txt("div","empty", d.error||"no roadmap items yet"), ...tail);
     return;
   }
   const groups = {};
@@ -575,11 +616,11 @@ function render(d){
   if(!vers.length){
     const why = QUERY ? "no items match “"+QUERY+"”"
       : FILT.lane ? "no items in lane “"+FILT.lane+"”" : "no open items";
-    app.replaceChildren(txt("div","empty", why), ...tail);
+    app.replaceChildren(...head, txt("div","empty", why), ...tail);
     return;
   }
   // One clean column, current version first; other branches last.
-  app.replaceChildren(...vers.map(v=>verSection(v, groups[v], cur)), ...tail);
+  app.replaceChildren(...head, ...vers.map(v=>verSection(v, groups[v], cur)), ...tail);
 }
 
 document.getElementById("search").addEventListener("input", e => {
@@ -798,6 +839,11 @@ function planPage(r){
       if(c.updated) v.push("updated "+c.updated);
       if(c.branch) v.push("branch "+c.branch);
       fact(facts, "claim", ...v);
+    }
+    for(const k of ((LAST && LAST.slots && LAST.slots.kinds) || [])){
+      const r = (k.reservations||[]).find(x => x.plan === d.id);
+      if(r) fact(facts, "slot "+k.kind, txt("span","slot st-"+r.state, r.value),
+        r.state+" — "+r.detail);
     }
     const planLinks = ids => (ids||[]).map(x => link("#/plan/"+x, "#"+x));
     fact(facts, "depends on", ...planLinks(d.dependsOn));

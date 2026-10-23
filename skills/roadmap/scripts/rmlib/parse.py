@@ -21,6 +21,10 @@ CLAIM_VERDICTS = ("CONFIRMED", "PARTIAL", "REFUTED")
 CLAIM_FIELDS = ("stage", "verdict", "note", "branch", "landed_sha", "updated")
 CLAIM_PREFIX = "claim_"
 
+# Numbered slot reservations (plan 33): `slot_<kind>: 0269_name[, 0270_name2]`,
+# flat for the same reason as claims. Logic lives in rmlib/slots.py.
+SLOT_PREFIX = "slot_"
+
 # Parse results are cached by (path, mtime, size). A short CLI run barely touches
 # it, but a long-lived `serve` process re-parses only the plan that actually
 # changed on each push instead of every plan on every status() call.
