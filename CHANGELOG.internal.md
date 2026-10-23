@@ -7,7 +7,7 @@ _Full work log — every item, including internal/dev work. The curated public c
 ### ✨ New
 - Move many items through review and merge in one command, and tick them off together once they reach main.
 - Plans can reserve the next migration number, so two branches never pick the same one.
-- (pending) Decisions and owner approvals get recorded on the plan and shown on its page.
+- Decisions and owner approvals get recorded on the plan and shown on its page.
 - Steps can no longer be checked off on a plan that is still the empty template.
 - (pending) See every worktree at a glance, which branch it holds, and which ones are safe to clean up.
 - (pending) A board view on the dashboard shows every item in its column, from planned to done.

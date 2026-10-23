@@ -3,7 +3,7 @@ id: 34
 title: Rulings: record dated decisions on a plan from the CLI and show them on the dashboard
 type: feature
 version: 0.21.0
-status: planned
+status: done
 created: 2026-10-23
 ---
 
@@ -27,7 +27,11 @@ created: 2026-10-23
 - **Fails if:** `ruling` writes to the changelog or to ROADMAP.md.
 
 ## 🚶 Step-by-Step Checklist
-- [ ] Step 1: `ruling` command and section writer -> target: roadmap.py, rmlib/ops.py, tests
-- [ ] Step 2: parser for command-written and hand-written rulings, payload fields -> target: rmlib/parse.py, rmlib/sync.py, tests
-- [ ] Step 3: dashboard display and approval markers -> target: rmlib/dashboard.html, tests
-- [ ] Step 4: docs -> target: references/state-model.md, SKILL.md
+- [x] Step 1: `ruling` command and section writer -> target: roadmap.py, rmlib/ops.py, tests
+  > evidence: 0cff1c3 40d9356 fc11562 08c9936; merged dcbd5c0; 444 passed; statewide read-only 65 rulings parsed from 46 plans; reviews skipped at owner request (2026-10-23)
+- [x] Step 2: parser for command-written and hand-written rulings, payload fields -> target: rmlib/parse.py, rmlib/sync.py, tests
+  > evidence: 0cff1c3 40d9356 fc11562 08c9936; merged dcbd5c0; 444 passed; statewide read-only 65 rulings parsed from 46 plans; reviews skipped at owner request (2026-10-23)
+- [x] Step 3: dashboard display and approval markers -> target: rmlib/dashboard.html, tests
+  > evidence: 0cff1c3 40d9356 fc11562 08c9936; merged dcbd5c0; 444 passed; statewide read-only 65 rulings parsed from 46 plans; reviews skipped at owner request (2026-10-23)
+- [x] Step 4: docs -> target: references/state-model.md, SKILL.md
+  > evidence: 0cff1c3 40d9356 fc11562 08c9936; merged dcbd5c0; 444 passed; statewide read-only 65 rulings parsed from 46 plans; reviews skipped at owner request (2026-10-23)
