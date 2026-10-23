@@ -2613,3 +2613,190 @@ def test_audit_flags_noted_but_unclassified_item(roadmap, repo):
     roadmap.new_item(repo, "bug", "Old leak", note="A user-facing fix", force=True)
     msgs = roadmap.audit_public_notes(repo)
     assert any("#1" in m and "no explicit audience" in m for m in msgs)
+
+
+# --- branch discovery (rmlib/branches.py) ---------------------------------
+
+@pytest.fixture
+def branches(roadmap):
+    """rmlib.branches, importable once the roadmap fixture has put scripts/ on
+    sys.path. The ref cache is module-global, so start each test clean."""
+    import importlib
+    mod = importlib.import_module("rmlib.branches")
+    mod._CACHE.clear()
+    return mod
+
+
+def _git(repo, *args, env=None):
+    import os
+    full = {**os.environ, **(env or {})}
+    subprocess.run(["git", *args], cwd=repo, check=True, env=full,
+                   capture_output=True)
+
+
+def _commit(repo, msg, date=None):
+    env = {"GIT_COMMITTER_DATE": date, "GIT_AUTHOR_DATE": date} if date else None
+    _git(repo, "commit", "--allow-empty", "-qm", msg, env=env)
+
+
+@pytest.fixture
+def branch_repo(repo):
+    """main with one commit; roadmap/7 four commits ahead; fix/side carries one
+    commit tagged (plan 9); roadmap/3 merged back into main."""
+    _git(repo, "symbolic-ref", "HEAD", "refs/heads/main")
+    _commit(repo, "init")
+    _git(repo, "checkout", "-qb", "roadmap/7")
+    for n in range(4):
+        _commit(repo, f"step {n} (plan 7)" if n % 2 == 0 else f"step {n}")
+    _git(repo, "checkout", "-q", "main")
+    _git(repo, "checkout", "-qb", "fix/side")
+    _commit(repo, "side quest (plan 9)")
+    _git(repo, "checkout", "-q", "main")
+    _git(repo, "checkout", "-qb", "roadmap/3")
+    _commit(repo, "done work (plan 3)")
+    _git(repo, "checkout", "-q", "main")
+    _git(repo, "merge", "-q", "--ff-only", "roadmap/3")
+    _git(repo, "checkout", "-qb", "experiment")
+    _commit(repo, "unrelated")
+    _git(repo, "checkout", "-q", "main")
+    return repo
+
+
+def test_branches_named_branch_ahead_count(branches, branch_repo):
+    res = branches.discover(branch_repo, [3, 7, 9])
+    assert res["trunk"] == "main"
+    b7 = res["items"][7]
+    assert b7["name"] == "roadmap/7"
+    assert (b7["ahead"], b7["behind"], b7["merged"]) == (4, 1, False)
+    assert b7["taggedCommits"] == 2       # only the (plan 7) subjects count
+    assert b7["lastSubject"] == "step 3" and len(b7["lastCommit"]) >= 7
+    assert b7["worktree"] is None and b7["stale"] is False
+    assert [c["subject"] for c in b7["commits"]][0] == "step 3"
+    assert len(b7["commits"]) == 4
+
+
+def test_branches_tagged_commit_attaches_to_item(branches, branch_repo):
+    res = branches.discover(branch_repo, [3, 7, 9])
+    b9 = res["items"][9]
+    assert b9["name"] == "fix/side" and b9["taggedCommits"] == 1
+    # attached branches leave "other"; the untagged unmerged one stays there
+    assert [b["name"] for b in res["other"]] == ["experiment"]
+
+
+def test_branches_merged_branch_flagged(branches, branch_repo):
+    res = branches.discover(branch_repo, [3, 7, 9])
+    b3 = res["items"][3]
+    assert b3["merged"] is True and b3["ahead"] == 0
+    assert b3["taggedCommits"] == 0       # its commits already live on trunk
+    assert all(b["name"] != "roadmap/3" for b in res["other"])
+
+
+def test_branches_item_ids_limit_attribution(branches, branch_repo):
+    res = branches.discover(branch_repo, [7])
+    assert set(res["items"]) == {7}
+    assert {b["name"] for b in res["other"]} == {"fix/side", "experiment"}
+
+
+def test_branches_custom_pattern_and_suffix(branches, branch_repo):
+    _git(branch_repo, "branch", "feat-12-login", "roadmap/7")
+    res = branches.discover(branch_repo, [12], pattern="feat-{id}")
+    assert res["items"][12]["name"] == "feat-12-login"
+    res = branches.discover(branch_repo, [7], pattern="roadmap/{id}")
+    assert res["items"][7]["name"] == "roadmap/7"
+
+
+def test_branches_stale_detection(branches, repo):
+    _git(repo, "symbolic-ref", "HEAD", "refs/heads/main")
+    _commit(repo, "init")
+    _git(repo, "checkout", "-qb", "roadmap/5")
+    _commit(repo, "old work (plan 5)", date="2020-01-01T00:00:00+00:00")
+    _git(repo, "checkout", "-q", "main")
+    res = branches.discover(repo, [5])
+    assert res["items"][5]["stale"] is True
+    assert res["items"][5]["lastDate"].startswith("2020-01-01")
+    assert branches.discover(repo, [5], stale_days=10000)["items"][5]["stale"] is False
+
+
+def test_branches_stale_days_from_config(branches, roadmap, repo):
+    _git(repo, "symbolic-ref", "HEAD", "refs/heads/main")
+    roadmap.init_project(repo, "P")
+    cfg = roadmap.read_config(repo)
+    cfg["settings"]["staleDays"] = 100000
+    roadmap.write_config(repo, cfg)
+    _commit(repo, "init")
+    _git(repo, "checkout", "-qb", "roadmap/5")
+    _commit(repo, "old work", date="2020-01-01T00:00:00+00:00")
+    _git(repo, "checkout", "-q", "main")
+    assert branches.discover(repo, [5])["items"][5]["stale"] is False
+
+
+def test_branches_worktree_path(branches, branch_repo, tmp_path_factory):
+    wt = tmp_path_factory.mktemp("wt") / "seven"
+    _git(branch_repo, "worktree", "add", "-q", str(wt), "roadmap/7")
+    res = branches.discover(branch_repo, [7])
+    assert Path(res["items"][7]["worktree"]).resolve() == wt.resolve()
+
+
+def test_branches_cache_hit_runs_one_git_call(branches, branch_repo, monkeypatch):
+    first = branches.discover(branch_repo, [3, 7, 9])
+    calls = []
+    real = subprocess.run
+
+    def spy(cmd, *a, **kw):
+        calls.append(cmd)
+        return real(cmd, *a, **kw)
+
+    monkeypatch.setattr(branches.subprocess, "run", spy)
+    again = branches.discover(branch_repo, [3, 7, 9])
+    assert again == first
+    assert len(calls) == 1 and "for-each-ref" in calls[0]
+    # a new commit changes the ref signature -> full rescan, fresh numbers
+    monkeypatch.setattr(branches.subprocess, "run", real)
+    _git(branch_repo, "checkout", "-q", "roadmap/7")
+    _commit(branch_repo, "step 4 (plan 7)")
+    _git(branch_repo, "checkout", "-q", "main")
+    monkeypatch.setattr(branches.subprocess, "run", spy)
+    calls.clear()
+    assert branches.discover(branch_repo, [3, 7, 9])["items"][7]["ahead"] == 5
+    assert 1 < len(calls) <= 3
+
+
+def test_branches_git_calls_bounded_with_many_branches(branches, repo, monkeypatch):
+    _git(repo, "symbolic-ref", "HEAD", "refs/heads/main")
+    _commit(repo, "init")
+    for n in range(1, 36):
+        _git(repo, "checkout", "-qb", f"roadmap/{n}", "main")
+        _commit(repo, f"work (plan {n})")
+    _git(repo, "checkout", "-q", "main")
+    calls = []
+    real = subprocess.run
+    monkeypatch.setattr(branches.subprocess, "run",
+                        lambda cmd, *a, **kw: calls.append(cmd) or real(cmd, *a, **kw))
+    res = branches.discover(repo, range(1, 36))
+    assert len(res["items"]) == 35
+    assert all(b["ahead"] == 1 and b["taggedCommits"] == 1
+               for b in res["items"].values())
+    assert len(calls) <= 3
+
+
+def test_branches_non_git_dir_returns_empty(branches, tmp_path):
+    assert branches.discover(tmp_path, [1]) == {"trunk": None, "items": {},
+                                                "other": []}
+
+
+def test_branches_unborn_repo_and_missing_git(branches, repo, monkeypatch):
+    assert branches.discover(repo, [1])["items"] == {}
+
+    def boom(*a, **kw):
+        raise FileNotFoundError("git")
+
+    monkeypatch.setattr(branches.subprocess, "run", boom)
+    assert branches.discover(repo, [1]) == {"trunk": None, "items": {},
+                                            "other": []}
+
+
+def test_branches_trunk_override(branches, branch_repo):
+    _git(branch_repo, "branch", "-m", "main", "trunk")
+    res = branches.discover(branch_repo, [7], trunk="trunk")
+    assert res["trunk"] == "trunk" and res["items"][7]["ahead"] == 4
+    assert branches.discover(branch_repo, [7], trunk="nope")["items"] == {}
