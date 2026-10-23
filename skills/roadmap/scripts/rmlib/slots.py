@@ -542,9 +542,24 @@ def release(root: Path, plan_id: int, kind: str) -> str | None:
 
 # ---- status -------------------------------------------------------------
 
+def _own_files(kind: dict, pid: int, added: dict[str, list[int]] | None
+               ) -> dict[int, list[str]]:
+    """{number: paths} this plan's branch adds. Files from inherited commits
+    tagged only for OTHER plans (stacked branches) are not its work."""
+    mine: dict[int, list[str]] = {}
+    for path, tags in (added or {}).items():
+        if tags and pid not in tags:
+            continue
+        hit = _number(kind, path)
+        if hit:
+            mine.setdefault(hit[0], []).append(path)
+    return mine
+
+
 def _evaluate(kind: dict, entry: dict, holders: dict[int, set], trunk_nums: dict,
-              added: dict[str, list[int]] | None) -> tuple[str, str]:
-    """(state, detail) for one plan's reservation of one kind."""
+              foreign: dict[int, list[tuple[int, str]]]) -> tuple[str, str]:
+    """(state, detail) for one plan's reservation of one kind. `foreign` maps
+    a number to the (plan, branch) pairs whose branch adds it unreserved."""
     pid = entry["plan"]
     tokens = entry["tokens"]
     nums = {n for n, _, _ in tokens}
@@ -554,15 +569,10 @@ def _evaluate(kind: dict, entry: dict, holders: dict[int, set], trunk_nums: dict
         others = sorted({p for n in dup for p in holders[n]} - {pid})
         return "clash", (", ".join(label[n] for n in dup) + " also reserved by "
                          + ", ".join(f"#{p}" for p in others))
-    # This plan's own files on its branch: inherited commits tagged for OTHER
-    # plans (stacked branches) are not its work.
-    mine: dict[int, list[str]] = {}
-    for path, tags in (added or {}).items():
-        if tags and pid not in tags:
-            continue
-        hit = _number(kind, path)
-        if hit:
-            mine.setdefault(hit[0], []).append(path)
+    used = [(n, p, b) for n in sorted(nums) for p, b in foreign.get(n, []) if p != pid]
+    if used:
+        return "clash", "; ".join(f"{label[n]} added on {b} (#{p})" for n, p, b in used)
+    mine = entry["mine"]
     branch = entry.get("branch") or {}
     taken, landed = [], set()
     for n in sorted(nums & set(trunk_nums)):
@@ -581,8 +591,12 @@ def _evaluate(kind: dict, entry: dict, holders: dict[int, set], trunk_nums: dict
                          + ", ".join(PurePosixPath(p).name for p in trunk_nums[n]) + ")")
     strays = sorted(set(mine) - nums)
     if strays:
-        return "clash", ("branch adds " + ", ".join(
-            PurePosixPath(mine[n][0]).name for n in strays) + " (not reserved)")
+        def whose(n):
+            held = sorted(holders.get(n, ()))
+            return ("reserved by " + ", ".join(f"#{p}" for p in held)) if held \
+                else "not reserved"
+        return "clash", "branch adds " + ", ".join(
+            f"{PurePosixPath(mine[n][0]).name} ({whose(n)})" for n in strays)
     present = (nums & set(mine)) | landed
     if nums and present == nums:
         if landed == nums:
@@ -652,18 +666,26 @@ def _slots_status(root: Path, kinds: dict, rows: list[dict], found: dict) -> dic
         for e in ents:
             for n, _, _ in e["tokens"]:
                 holders.setdefault(n, set()).add(e["plan"])
-        res = []
-        for e in sorted(ents, key=lambda x: (min([n for n, _, _ in x["tokens"]] or [0]),
-                                             x["plan"])):
+        foreign: dict[int, list[tuple[int, str]]] = {}
+        for e in ents:
             b = e["branch"]
             added = None
             if b and ctx["sha"] and not b.get("merged"):
                 added = _branch_added(root, ctx["trunk"], b["name"],
                                       b.get("lastCommit") or "", [kind["prefix"]])
+            e["mine"] = _own_files(kind, e["plan"], added)
+            reserved = {n for n, _, _ in e["tokens"]}
+            for n in e["mine"]:
+                if n not in reserved:
+                    foreign.setdefault(n, []).append((e["plan"], b["name"]))
+        res = []
+        for e in sorted(ents, key=lambda x: (min([n for n, _, _ in x["tokens"]] or [0]),
+                                             x["plan"])):
+            b = e["branch"]
             if not e["tokens"]:
                 state, detail = "clash", f"unreadable value {e['value']!r}"
             else:
-                state, detail = _evaluate(kind, e, holders, trunk_nums, added)
+                state, detail = _evaluate(kind, e, holders, trunk_nums, foreign)
             res.append({"plan": e["plan"], "displayId": e["displayId"],
                         "title": e["title"], "lane": e["lane"],
                         "branch": b["name"] if b else None, "source": e["source"],

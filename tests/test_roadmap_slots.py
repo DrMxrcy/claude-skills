@@ -235,16 +235,27 @@ def test_states_ok_missing_and_stray_clash(roadmap, proj, slots, capsys):
     assert p["kinds"][0]["trunkHighest"] == "0268"
     assert p["kinds"][0]["branchHighest"] == "0271"
     r1, r2, r3 = _res(p, 1), _res(p, 2), _res(p, 3)
-    assert (r1["state"], r1["detail"]) == ("clash", "branch adds 0271_x.sql (not reserved)")
+    assert (r1["state"], r1["detail"]) == ("clash", "branch adds 0271_x.sql (reserved by #3)")
     assert r1["branch"] == "roadmap/1" and r1["lane"] == "building"
     assert (r2["state"], r2["detail"]) == ("ok", "branch adds 0270")
-    assert (r3["state"], r3["detail"]) == ("missing", "no branch yet")
+    # plan 3 has no branch, but roadmap/1 is using its number
+    assert (r3["state"], r3["detail"]) == ("clash", "0271 added on roadmap/1 (#1)")
     capsys.readouterr()
     assert roadmap.main(["slot", "--check"]) == 1
     out = capsys.readouterr().out
-    assert "slot check: 1 clash(es)" in out and "#1 migration clash" in out
+    assert "slot check: 2 clash(es)" in out and "#1 migration clash" in out
     assert roadmap.main(["slot", "2", "--check"]) == 0          # plan-scoped gate
     assert "slot check: no clashes" in capsys.readouterr().out
+
+
+def test_unreserved_stray_and_no_branch_missing(roadmap, proj, slots):
+    slots.reserve(proj, 1, "migration")              # 0269
+    slots.reserve(proj, 2, "migration")              # 0270 — no branch
+    _commit_all(proj, "reserve")
+    _branch_with(proj, "roadmap/1", ["db/0269_a.sql", "db/0275_b.sql"], "ab (plan 1)")
+    p = _slot_status(roadmap, proj)
+    assert _res(p, 1)["detail"] == "branch adds 0275_b.sql (not reserved)"
+    assert (_res(p, 2)["state"], _res(p, 2)["detail"]) == ("missing", "no branch yet")
 
 
 def test_branch_without_slot_file_is_missing(roadmap, proj, slots):
