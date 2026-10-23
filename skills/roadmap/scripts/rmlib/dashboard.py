@@ -9,17 +9,26 @@ from __future__ import annotations
 import hashlib
 import http.server
 import json
+import re
 import subprocess
 import sys
 import threading
 import time
+import urllib.parse
 import urllib.request
 import webbrowser
 from pathlib import Path
 
 DEFAULT_PORT = 4700
 PORT_SPAN = 40
-MAX_COMMITS = 20   # branch commits shown when an item row is expanded
+MAX_COMMITS = 20   # branch commits shown on an item page
+MAX_DOC_BYTES = 2 * 1024 * 1024   # /api/note refuses anything bigger
+DOC_DIRS = ("notes", "plans")     # the only .roadmap/ subdirs /api/note reads
+FRONTMATTER_RE = re.compile(r"\A---\r?\n.*?\r?\n---\r?\n?", re.S)
+# Root-relative note/plan references inside markdown: `.roadmap/notes/x.md`,
+# `notes/x.md`, `(plans/007-x.md)` — candidates only; _doc_path validates.
+DOC_REF_RE = re.compile(r"(?<![\w./-])((?:\.roadmap/)?(?:notes|plans)/[\w.-]+\.md)\b")
+MD_LINK_RE = re.compile(r"\[[^\]]*\]\(([^)\s]+\.md)\)")
 
 
 def _dashboard_html() -> str:
@@ -108,6 +117,91 @@ def _safe_status(rm, root: Path) -> dict:
                 "error": str(e)}
 
 
+def _doc_path(rm, root: Path, rel: str):
+    """Resolve a root-relative markdown path for /api/note. Returns (code,
+    Path|message): 200 with the file, 400 when the path is not allowed (empty,
+    absolute, `..`/`.` parts, backslashes, not `.md`, not directly inside
+    .roadmap/notes/ or .roadmap/plans/, or a symlink that resolves outside that
+    directory), 404 when it is allowed but missing. Read-only, never creates."""
+    if (not isinstance(rel, str) or not rel or "\0" in rel or "\\" in rel
+            or rel.startswith("/") or re.match(r"^[A-Za-z]:", rel)):
+        return 400, "path not allowed"
+    parts = rel.split("/")
+    if any(p in ("", ".", "..") for p in parts):
+        return 400, "path not allowed"
+    if not parts[-1].lower().endswith(".md") or len(parts[-1]) <= 3:
+        return 400, "only .md files"
+    rd = rm.roadmap_dir(root)
+    try:
+        rd_rel = rd.relative_to(root).parts
+    except ValueError:
+        return 400, "path not allowed"
+    if (len(parts) != len(rd_rel) + 2 or tuple(parts[:len(rd_rel)]) != rd_rel
+            or parts[len(rd_rel)] not in DOC_DIRS):
+        return 400, "only .roadmap/notes/*.md and .roadmap/plans/*.md"
+    allowed = rd / parts[len(rd_rel)]
+    try:
+        root_real = root.resolve(strict=True)
+        allowed_real = allowed.resolve(strict=True)
+        if not allowed_real.is_relative_to(root_real):
+            return 400, "path not allowed"
+        real = (allowed / parts[-1]).resolve(strict=True)
+    except (OSError, RuntimeError):
+        return 404, "not found"
+    if real.parent != allowed_real:
+        return 400, "path not allowed"   # symlink escaping the directory
+    if not real.is_file():
+        return 404, "not found"
+    return 200, real
+
+
+def _read_doc(rm, root: Path, rel: str) -> tuple[int, dict]:
+    code, res = _doc_path(rm, root, rel)
+    if code != 200:
+        return code, {"error": res, "path": rel}
+    try:
+        if res.stat().st_size > MAX_DOC_BYTES:
+            return 400, {"error": "file too large", "path": rel}
+        body = res.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return 404, {"error": "not found", "path": rel}
+    return 200, {"path": rel, "body": body}
+
+
+def _norm_ref(rm, root: Path, ref: str, base: Path | None = None) -> str | None:
+    """A markdown reference as a root-relative posix path IF it names an
+    existing note/plan /api/note would serve, else None. Relative refs are
+    tried against `base` (the referring file's directory), the .roadmap/ dir
+    and the root, in that order."""
+    ref = ref.strip().split("#", 1)[0]
+    if not ref or "://" in ref:
+        return None
+    rd = rm.roadmap_dir(root)
+    for b in [x for x in (base, rd, root) if x is not None]:
+        try:
+            cand = Path(b, ref).resolve()   # lexical + symlink normalisation
+            rel = cand.relative_to(root.resolve()).as_posix()
+        except (ValueError, OSError, RuntimeError):
+            continue
+        if _doc_path(rm, root, rel)[0] == 200:
+            return rel
+    return None
+
+
+def _linked_docs(rm, root: Path, text: str, base: Path | None = None,
+                 exclude: str | None = None) -> list[str]:
+    """Root-relative paths of the existing notes/plans a markdown text links
+    to or mentions, in order of first appearance, de-duplicated."""
+    out: list[str] = []
+    refs = [m.group(1) for m in MD_LINK_RE.finditer(text)]
+    refs += [m.group(1) for m in DOC_REF_RE.finditer(text)]
+    for ref in refs:
+        rel = _norm_ref(rm, root, ref, base)
+        if rel and rel != exclude and rel not in out:
+            out.append(rel)
+    return out
+
+
 def _item_detail(rm, root: Path, item_id: int) -> dict:
     """Full detail for one item: its plan checklist steps + note. Fetched lazily
     by the dashboard when a row is expanded, so status payloads stay small."""
@@ -116,11 +210,34 @@ def _item_detail(rm, root: Path, item_id: int) -> dict:
         item = next((i for i in cfg["items"] if i["id"] == item_id), None)
         if item is None:
             return {"error": f"no item #{item_id}"}
-        pp = rm.roadmap_dir(root) / item["file"]
+        rd = rm.roadmap_dir(root)
+        pp = rd / item["file"]
         plan = rm.parse_plan(pp) if pp.exists() else {"steps": [], "meta": {}}
+        try:
+            text = pp.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            text = ""
+        plan_rel = None
+        try:
+            plan_rel = pp.relative_to(root).as_posix()
+        except ValueError:
+            pass
+        # Notes the plan links to or mentions, plus its handoff note if any.
+        notes = _linked_docs(rm, root, text, base=pp.parent, exclude=plan_rel)
+        handoff = _norm_ref(rm, root, f"notes/{item_id}-handoff.md")
+        if handoff and handoff not in notes:
+            notes.append(handoff)
         detail = {"id": item_id, "title": item["title"], "type": item["type"],
                   "version": item["version"], "note": item.get("note"),
-                  "file": item["file"],
+                  "file": item["file"], "planPath": plan_rel,
+                  "status": item.get("status"),
+                  # raw markdown, frontmatter stripped — the page renders it
+                  # as text nodes only (never HTML)
+                  "body": FRONTMATTER_RE.sub("", text, count=1),
+                  "meta": plan.get("meta") or {},
+                  "notes": notes,
+                  "dependsOn": list(item.get("dependsOn") or []),
+                  "blockedBy": [],
                   "steps": [{"done": d, "text": t} for d, t in plan["steps"]],
                   "lane": None, "claim": None, "branch": None}
         # Lane/claim/branch come from status() so the expanded row agrees with
@@ -130,6 +247,9 @@ def _item_detail(rm, root: Path, item_id: int) -> dict:
                     if i.get("id") == item_id), None)
         if row is not None:
             detail["lane"], detail["claim"] = row.get("lane"), row.get("claim")
+            detail["blockedBy"] = list(row.get("blockedBy") or [])
+            for k in ("displayId", "pct", "done", "total"):
+                detail[k] = row.get(k)
             if row.get("branch"):
                 detail["branch"] = {
                     **row["branch"],
@@ -164,11 +284,17 @@ def _ideas(rm, root: Path) -> dict:
     (ROADMAP.md or settings.incubatorFile — the CLI resolves it)."""
     try:
         f = rm.incubator_file(root)
+        bullets = []
+        for i, b in enumerate(rm.list_incubator_bullets(root), 1):
+            if b["body"] == "(add ideas here)":
+                continue   # the init placeholder bullet is chrome, not an idea
+            # `index` is the 1-based position `roadmap promote --index` takes;
+            # `note` the linked .roadmap/notes file, when it exists.
+            links = _linked_docs(rm, root, b["body"], base=f.parent)
+            bullets.append({**b, "index": i,
+                            "note": links[0] if links else None})
         return {"file": str(f.relative_to(root)) if f.is_relative_to(root)
-                else str(f),
-                # the init placeholder bullet is chrome, not an idea
-                "bullets": [b for b in rm.list_incubator_bullets(root)
-                            if b["body"] != "(add ideas here)"]}
+                else str(f), "bullets": bullets}
     except (ValueError, FileNotFoundError, OSError) as e:
         return {"error": str(e), "bullets": []}
 
@@ -442,6 +568,11 @@ def serve(rm, root: Path, port: int | None = None,
                 payload = ({"error": "missing id"} if iid is None
                            else _item_detail(rm, rroot, iid))
                 self._send(200, json.dumps(payload).encode("utf-8"),
+                           "application/json")
+            elif path == "/api/note":
+                rel = (urllib.parse.parse_qs(query).get("path") or [""])[0]
+                code, payload = _read_doc(rm, rroot, rel)
+                self._send(code, json.dumps(payload).encode("utf-8"),
                            "application/json")
             elif path == "/api/ideas":
                 self._send(200, json.dumps(_ideas(rm, rroot)).encode("utf-8"),

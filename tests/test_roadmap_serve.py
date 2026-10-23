@@ -518,3 +518,124 @@ def test_dashboard_view_always_starts_on_trunk(served):
     assert 'removeItem(k)' in body and '"rm-view","rm-root"' in body
     # filters still persist
     assert 'store.get("rm-filters"' in body
+
+
+# --- item body + note endpoint (plan 31) ----------------------------------
+
+def _get_json(url):
+    """(status, json) — HTTP errors are returned, not raised."""
+    try:
+        with urllib.request.urlopen(url, timeout=3) as r:
+            return r.status, json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        return e.code, json.loads(e.read() or b"{}")
+
+
+def _plan_file(repo):
+    return next((repo / ".roadmap" / "plans").glob("001-*.md"))
+
+
+def test_api_item_returns_body_and_linked_notes(served):
+    base, roadmap, repo = served
+    notes = repo / ".roadmap" / "notes"
+    notes.mkdir(exist_ok=True)
+    (notes / "design.md").write_text("# Design\n\nhello\n")
+    (notes / "1-handoff.md").write_text("# Handoff\n")
+    pf = _plan_file(repo)
+    pf.write_text(pf.read_text() + "\nSee [design](../notes/design.md) and "
+                  "`.roadmap/notes/design.md`, plus notes/missing.md.\n")
+    code, d = _get_json(base + "/api/item?id=1")
+    assert code == 200
+    assert d["planPath"] == ".roadmap/" + d["file"]
+    assert d["body"].lstrip().startswith("# Plan 1")      # frontmatter stripped
+    assert "id: 1" not in d["body"].split("\n", 3)[0]
+    assert "[design](../notes/design.md)" in d["body"]   # raw markdown
+    assert d["notes"] == [".roadmap/notes/design.md", ".roadmap/notes/1-handoff.md"]
+    assert d["dependsOn"] == [] and d["blockedBy"] == []
+    assert d["displayId"] == "FEAT-1"
+
+
+def test_api_item_reports_dependencies(served):
+    base, roadmap, repo = served
+    roadmap.main(["new", "--type", "feature", "--title", "Second"])
+    roadmap.main(["depends", "--plan", "2", "--on", "1"])
+    code, d = _get_json(base + "/api/item?id=2")
+    assert code == 200 and d["dependsOn"] == [1] and d["blockedBy"] == [1]
+
+
+def test_api_note_serves_notes_and_plans(served):
+    base, _, repo = served
+    notes = repo / ".roadmap" / "notes"
+    notes.mkdir(exist_ok=True)
+    (notes / "x.md").write_text("# X\n<script>alert(1)</script>\n")
+    code, d = _get_json(base + "/api/note?path=.roadmap/notes/x.md")
+    assert code == 200 and d["path"] == ".roadmap/notes/x.md"
+    assert d["body"] == "# X\n<script>alert(1)</script>\n"   # raw text, JSON
+    rel = ".roadmap/plans/" + _plan_file(repo).name
+    code, d = _get_json(base + "/api/note?path=" + urllib.parse.quote(rel))
+    assert code == 200 and "# Plan 1" in d["body"]
+
+
+@pytest.mark.parametrize("bad", [
+    "", "../secret.md", ".roadmap/notes/../../secret.md",
+    ".roadmap/notes/%2e%2e/%2e%2e/secret.md", ".roadmap/notes/./x.md",
+    "/etc/passwd", "%2Fetc%2Fhosts.md", "C:/x.md", ".roadmap\\notes\\x.md",
+    ".roadmap/notes/x.txt", ".roadmap/notes/x", ".roadmap/config.json",
+    "ROADMAP.md", ".roadmap/x.md", "notes/x.md", ".roadmap/other/x.md",
+    ".roadmap/notes/sub/x.md", ".roadmap/notes/.md",
+])
+def test_api_note_rejects_disallowed_paths(served, bad):
+    base, _, repo = served
+    notes = repo / ".roadmap" / "notes"
+    notes.mkdir(exist_ok=True)
+    (notes / "x.md").write_text("ok\n")
+    (repo / "secret.md").write_text("secret\n")
+    code, d = _get_json(base + "/api/note?path=" + bad)
+    assert code == 400, (bad, code, d)
+    assert "body" not in d
+
+
+def test_api_note_missing_is_404(served):
+    base, _, _ = served
+    code, d = _get_json(base + "/api/note?path=.roadmap/notes/nope.md")
+    assert code == 404 and "body" not in d
+
+
+def test_api_note_rejects_symlink_escape(served, tmp_path_factory):
+    base, _, repo = served
+    outside = tmp_path_factory.mktemp("outside") / "leak.md"
+    outside.write_text("leaked\n")
+    notes = repo / ".roadmap" / "notes"
+    notes.mkdir(exist_ok=True)
+    (notes / "leak.md").symlink_to(outside)
+    (repo / "secret.md").write_text("secret\n")
+    (notes / "up.md").symlink_to(repo / "secret.md")
+    for name in ("leak.md", "up.md"):
+        code, d = _get_json(base + "/api/note?path=.roadmap/notes/" + name)
+        assert code == 400 and "body" not in d, name
+
+
+def test_api_note_rejects_symlinked_dir_escape(served, tmp_path_factory):
+    base, _, repo = served
+    outside = tmp_path_factory.mktemp("outdir")
+    (outside / "x.md").write_text("leaked\n")
+    notes = repo / ".roadmap" / "notes"
+    if notes.exists():
+        notes.rmdir()
+    notes.symlink_to(outside, target_is_directory=True)
+    code, d = _get_json(base + "/api/note?path=.roadmap/notes/x.md")
+    assert code == 400 and "body" not in d
+
+
+def test_api_ideas_carry_index_and_note(served):
+    base, roadmap, repo = served
+    roadmap.main(["idea", "--title", "Plain idea"])
+    roadmap.main(["idea", "--title", "Idea with notes", "--body", "Long *form*."])
+    d = json.loads(_get(base + "/api/ideas")[2])
+    by = {b["title"]: b for b in d["bullets"]}
+    plain, noted = by["Plain idea"], by["Idea with notes"]
+    assert plain["note"] is None
+    assert sorted([plain["index"], noted["index"]]) == [1, 2]   # promote --index
+    assert noted["note"].startswith(".roadmap/notes/") and noted["note"].endswith(".md")
+    code, n = _get_json(base + "/api/note?path=" + noted["note"])
+    assert code == 200 and "Long *form*." in n["body"]
