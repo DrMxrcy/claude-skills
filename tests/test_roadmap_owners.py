@@ -170,3 +170,56 @@ def test_owner_round_trips_in_status_json(roadmap, repo, monkeypatch, capsys):
     assert roadmap.main(["status", "--json"]) == 0
     item = json.loads(capsys.readouterr().out)["items"][0]
     assert item["claim"]["owner"] == "alice"
+
+
+# --- step 2: next skips held items, orient lists own holds -----------------
+
+def test_next_skips_item_held_by_another_owner(roadmap, repo, monkeypatch, capsys):
+    _repo(roadmap, repo, monkeypatch, n=2)
+    roadmap.set_claim(repo, 1, stage="review", owner="alice")
+    _as(monkeypatch, "bob")
+    capsys.readouterr()
+    assert roadmap.main(["next"]) == 0
+    out = capsys.readouterr()
+    assert out.out.startswith("FEAT-2 ") and "skipping FEAT-1 (held by alice" in out.err
+    assert roadmap.main(["next", "--force"]) == 0          # --force: deps only
+    assert capsys.readouterr().out.startswith("FEAT-2 ")
+    _as(monkeypatch, "alice")                              # own hold: not skipped
+    assert roadmap.main(["next"]) == 0
+    assert capsys.readouterr().out.startswith("FEAT-1 ")
+    _as(monkeypatch, "bob")
+    _age_claim(repo, 1, 13)                                # expired: free again
+    assert roadmap.main(["next"]) == 0
+    assert capsys.readouterr().out.startswith("FEAT-1 ")
+
+
+def test_next_none_when_only_held_items_remain(roadmap, repo, monkeypatch, capsys):
+    _repo(roadmap, repo, monkeypatch)
+    roadmap.set_claim(repo, 1, owner="alice")
+    assert roadmap.next_item(repo, owner="bob", quiet=True) is None
+    assert roadmap.next_item(repo, owner="alice", quiet=True)["id"] == 1
+
+
+def test_orient_lists_own_held_items(roadmap, repo, monkeypatch, capsys):
+    _repo(roadmap, repo, monkeypatch, n=3)
+    roadmap.set_claim(repo, 1, stage="review", owner="alice")
+    roadmap.set_claim(repo, 2, owner="alice")
+    roadmap.set_claim(repo, 3, stage="fixing", owner="bob")
+    _as(monkeypatch, "alice")
+    payload = roadmap.orient(repo)
+    assert payload["owner"] == "alice"
+    assert [h["id"] for h in payload["held"]] == [1, 2]
+    assert payload["next"]["id"] == 1                      # own hold is not skipped
+    text = roadmap.format_orient(payload)
+    assert "Held by you (alice): FEAT-1 Item 1 (review) · FEAT-2 Item 2 (planned)" in text
+    assert "FEAT-3" not in text.split("Held by you")[1].splitlines()[0]
+    _as(monkeypatch, "bob")
+    payload = roadmap.orient(repo)
+    assert [h["id"] for h in payload["held"]] == [3]
+    assert payload["next"]["id"] == 3                      # 1 and 2 held by alice
+
+
+def test_orient_without_holds_prints_no_line(roadmap, repo, monkeypatch):
+    _repo(roadmap, repo, monkeypatch)
+    payload = roadmap.orient(repo)
+    assert payload["held"] == [] and "Held by you" not in roadmap.format_orient(payload)
