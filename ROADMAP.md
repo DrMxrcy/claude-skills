@@ -21,9 +21,9 @@
 
 ### [x] v0.18.0 — 100% · 6 items · shipped 2026-10-21 ([history](CHANGELOG.internal.md))
 
-### [ ] v0.19.0 — 52%
+### [ ] v0.19.0 — 81%
 - [ ] **#28 Council review: plan review and merge gate by multiple agent CLIs** `feature` — 0% ([plan](.roadmap/plans/028-council-review-plan-review-and-merge-gate-by-multiple-agent-clis.md))
-- [ ] **#29 Adversarial review skill: multi-CLI review with triage from Claude Code** `feature` — 0% ([plan](.roadmap/plans/029-adversarial-review-skill-multi-cli-review-with-triage-from-claude-code.md))
+- [x] **#29 Adversarial review skill: multi-CLI review with triage from Claude Code** `feature` — 100% ([plan](.roadmap/plans/029-adversarial-review-skill-multi-cli-review-with-triage-from-claude-code.md))
 - [x] **#30 Honest in-flight tracking: claim branch/stage/verdict per item, branch progress and stage filters in status and dashboard** `feature` — 100% ([plan](.roadmap/plans/030-honest-in-flight-tracking-claim-branch-stage-verdict-per-item-branch-progress-and-stage-filters-in-status-and-dashboard.md))
 - [x] **#31 Dashboard: trunk plus branches always the default view, URL in every refresh log line, and full pages for each plan and idea** `feature` — 100% ([plan](.roadmap/plans/031-dashboard-trunk-plus-branches-always-the-default-view-url-in-every-refresh-log-line-and-full-pages-for-each-plan-and-idea.md))
 

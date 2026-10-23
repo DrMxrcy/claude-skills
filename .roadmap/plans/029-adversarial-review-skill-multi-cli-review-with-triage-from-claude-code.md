@@ -3,7 +3,7 @@ id: 29
 title: Adversarial review skill: multi-CLI review with triage from Claude Code
 type: feature
 version: 0.19.0
-status: planned
+status: done
 created: 2026-10-23
 ---
 
@@ -37,9 +37,16 @@ created: 2026-10-23
 - **Fails if:** any member can write to the repo or `.roadmap/`; a usage-limit error aborts the whole review; a finding with no evidence is ranked as confirmed; or a member is run with write or exec tools enabled.
 
 ## 🚶 Step-by-Step Checklist
-- [ ] Step 1: Member registry and detection: find installed CLIs, record each non-interactive call and its read-only proof, probe `--version` with a 15s cap -> target: `skills/adversarial-review/scripts/run_review.py`, `skills/adversarial-review/SKILL.md`
-- [ ] Step 2: Runner: parallel fan-out, 300s cap per member, usage-limit and failure detection, per-member files and `summary.md` status table -> target: `skills/adversarial-review/scripts/run_review.py`, `tests/test_adversarial_review.py`
-- [ ] Step 3: Adversarial prompt and targets (diff/branch, version, plan item, whole repo incl. roadmap state) -> target: `skills/adversarial-review/prompts/adversarial.md`, `commands/adversarial-review.md`
-- [ ] Step 4: Triage: parse member findings, dedupe, rank by severity and agreement, reject findings without evidence -> target: `skills/adversarial-review/scripts/run_review.py`, `skills/adversarial-review/SKILL.md`
-- [ ] Step 5a: DROPPED 2026-10-23 by user instruction: no vendored security checklists, sync script, staleness check, or `references/` folder. The security lens is a paragraph in `prompts/adversarial.md` (see Step 3).
-- [ ] Step 5: Install wiring and docs: register in `install.sh`, validate script, SKILL.md -> target: `install.sh`, `scripts/validate_skills.py`, `skills/adversarial-review/SKILL.md`
+- [x] Step 1: Member registry and detection: find installed CLIs, record each non-interactive call and its read-only proof, probe `--version` with a 15s cap -> target: `skills/adversarial-review/scripts/run_review.py`, `skills/adversarial-review/SKILL.md`
+  > evidence: python3.11 -m pytest tests/test_adversarial_review.py -q: 79 passed; python3 scripts/validate_skills.py: skills/ ok; live smoke run opencode-only on scratch repo: secret excluded, guard PASS, BLOCK on seeded shell injection (2026-10-23)
+- [x] Step 2: Runner: parallel fan-out, 300s cap per member, usage-limit and failure detection, per-member files and `summary.md` status table -> target: `skills/adversarial-review/scripts/run_review.py`, `tests/test_adversarial_review.py`
+  > evidence: python3.11 -m pytest tests/test_adversarial_review.py -q: 79 passed; live smoke run (scratch repo, opencode): summary.md has per-member status, usage pre-flight section, verdict BLOCK, findings with path:line (2026-10-23)
+- [x] Step 3: Adversarial prompt and targets (diff/branch, version, plan item, whole repo incl. roadmap state) -> target: `skills/adversarial-review/prompts/adversarial.md`, `commands/adversarial-review.md`
+  > evidence: python3.11 -m pytest tests/test_adversarial_review.py -q: 79 passed; live smoke run (scratch repo, opencode): summary.md has per-member status, usage pre-flight section, verdict BLOCK, findings with path:line (2026-10-23)
+- [x] Step 4: Triage: parse member findings, dedupe, rank by severity and agreement, reject findings without evidence -> target: `skills/adversarial-review/scripts/run_review.py`, `skills/adversarial-review/SKILL.md`
+  > evidence: python3.11 -m pytest tests/test_adversarial_review.py -q: 79 passed; live smoke run (scratch repo, opencode): summary.md has per-member status, usage pre-flight section, verdict BLOCK, findings with path:line (2026-10-23)
+- [x] Step 5a: DROPPED 2026-10-23 by user instruction: no vendored security checklists, sync script, staleness check, or `references/` folder. The security lens is a paragraph in `prompts/adversarial.md` (see Step 3).
+  > evidence: DROPPED by user instruction 2026-10-23: vendored checklists, sync script, staleness check and references/ removed; not built, so not a failed step (2026-10-23)
+  > evidence: install.sh --global --only=adversarial-review ran (installed ~/.claude/skills/adversarial-review and /adversarial-review command); installed copy matches repo; validate_skills.py: skills/ ok (2026-10-23)
+- [x] Step 5: Install wiring and docs: register in `install.sh`, validate script, SKILL.md -> target: `install.sh`, `scripts/validate_skills.py`, `skills/adversarial-review/SKILL.md`
+  > evidence: install.sh --global --only=adversarial-review: installed ~/.claude/skills/adversarial-review and /adversarial-review command; installed copy matches repo; validate_skills.py: skills/ ok (2026-10-23)
