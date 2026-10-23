@@ -1,6 +1,6 @@
 """roadmap sync & status — recompute progress, render ROADMAP.md, derive status,
 auto-advance the current version, health checks, and dependency/next-item logic.
-Layer: rmcore + rmparse + rmchangelog."""
+Layer: rmcore + rmparse + rmchangelog + rmbranches (read-only git discovery)."""
 from __future__ import annotations
 import datetime
 import sys
@@ -11,7 +11,8 @@ from rmlib.core import (
     atomic_write, derive_status, display_id, read_config, roadmap_dir,
     write_config)
 from rmlib.parse import (
-    count_progress)
+    CLAIM_STAGES, count_progress, read_claim)
+from rmlib import branches as rmbranches
 from rmlib.changelog import (
     render_internal_changelog, render_public_changelog)
 
@@ -224,30 +225,136 @@ def roadmap_health(root: Path) -> list[str]:
     return warnings
 
 
+# Lanes (plan 30) are display-only: they never feed done/active/planned, which
+# stay derived from trunk checkboxes alone. Precedence, first match wins:
+#   done (every trunk step ticked) > claim stage (what git cannot know) >
+#   stale / building (a branch carrying unmerged work) > planned / active.
+def _branch_has_work(branch: dict | None) -> bool:
+    """A branch is in-flight work only when it holds commits trunk lacks. A
+    fresh branch cut at the trunk tip (merged, nothing ahead, nothing tagged)
+    is not building anything yet."""
+    if not branch or branch.get("merged"):
+        return False
+    return (branch.get("ahead") or 0) > 0 or (branch.get("taggedCommits") or 0) > 0
+
+
+def derive_lane(status: str, claim: dict | None, branch: dict | None) -> str:
+    if status == "done":
+        return "done"
+    stage = (claim or {}).get("stage")
+    if stage in CLAIM_STAGES:          # a hand-edited unknown stage is ignored
+        return stage
+    if _branch_has_work(branch):
+        # Stale is "idle in-flight work": only a branch that would otherwise
+        # read as building can go stale, so an old empty branch stays quiet.
+        return "stale" if branch.get("stale") else "building"
+    return status
+
+
+def is_in_flight(item: dict) -> bool:
+    """Not done, and git (a branch) or the build loop (a claim) says work is
+    under way. The one predicate behind `status --in-flight` and the counts."""
+    return item.get("lane") != "done" and bool(item.get("branch") or item.get("claim"))
+
+
+def lane_counts(items: list[dict]) -> dict[str, int]:
+    """done / inFlight / active / planned — every item lands in exactly one.
+    `active` holds trunk-active items with no branch and no claim."""
+    out = {"done": 0, "inFlight": 0, "active": 0, "planned": 0}
+    for i in items:
+        if i.get("lane") == "done":
+            out["done"] += 1
+        elif is_in_flight(i):
+            out["inFlight"] += 1
+        elif i.get("status") == "active":
+            out["active"] += 1
+        else:
+            out["planned"] += 1
+    return out
+
+
+def lane_label(item: dict) -> str:
+    """`building · roadmap/7 · +4` / `gate-ready · roadmap/7 · CONFIRMED · +4`."""
+    parts = [item.get("lane") or item.get("status") or "?"]
+    branch, claim = item.get("branch"), item.get("claim") or {}
+    if branch:
+        parts.append(branch["name"])
+    if claim.get("verdict"):
+        parts.append(claim["verdict"])
+    if branch and branch.get("ahead"):
+        parts.append(f"+{branch['ahead']}")
+    return " · ".join(parts)
+
+
+def _public_branch(info: dict, item_id: int) -> dict:
+    """Status payload branch record: discovery info minus the commit list (the
+    item detail view fetches commits on demand, so status stays small)."""
+    return {**{k: v for k, v in info.items() if k != "commits"}, "item": item_id}
+
+
+def _discover(root: Path, cfg: dict) -> dict:
+    """One discovery per status() call, settings taken from the config already
+    in hand (no second read). Never raises: outside git, without git, or on any
+    git trouble the result is simply empty."""
+    settings = cfg.get("settings") or {}
+    pattern = settings.get("branchPattern")
+    if not isinstance(pattern, str) or not pattern:
+        pattern = rmbranches.DEFAULT_PATTERN
+    try:
+        stale_days = int(settings.get("staleDays", rmbranches.DEFAULT_STALE_DAYS))
+    except (TypeError, ValueError):
+        stale_days = rmbranches.DEFAULT_STALE_DAYS
+    try:
+        return rmbranches.discover(root, [i["id"] for i in cfg["items"]],
+                                   pattern=pattern, stale_days=stale_days)
+    except Exception:  # noqa: BLE001 — status must survive any git surprise
+        return {"trunk": None, "items": {}, "other": []}
+
+
 def status(root: Path) -> dict:
     cfg = read_config(root)
     by_id = {i["id"]: i for i in cfg["items"]}
     # Full progress map first — blockedBy for early ids must see later deps' progress.
     progress = _progress_map(root, cfg)
+    found = _discover(root, cfg)
+    by_name = {b["name"]: b for b in [*found["items"].values(), *found["other"]]}
+    other_names = {b["name"] for b in found["other"]}
+    claimed_from_other: set[str] = set()
     items = []
     for item in cfg["items"]:
         done, total = progress.get(item["id"], (0, 0))
         pct = round(100 * done / total) if total else 0
         blocked_by = _incomplete_deps(item, progress, by_id)
+        path = roadmap_dir(root) / item["file"]
+        claim = read_claim(path) if path.exists() else None
+        # A claim naming its branch wins over discovery; a named branch that no
+        # longer exists (deleted, or merged and not chosen) falls back to it.
+        info = by_name.get((claim or {}).get("branch") or "") \
+            or found["items"].get(item["id"])
+        if info is not None and info["name"] in other_names:
+            claimed_from_other.add(info["name"])
+        branch = _public_branch(info, item["id"]) if info else None
+        st = derive_status(done, total)
         row = {**item, "displayId": display_id(item),
                "done": done, "total": total, "pct": pct,
-               "status": derive_status(done, total),
+               "status": st,
                "dependsOn": list(item.get("dependsOn") or []),
-               "blockedBy": blocked_by}
+               "blockedBy": blocked_by,
+               "lane": derive_lane(st, claim, branch),
+               "claim": claim, "branch": branch}
         items.append(row)
     cur_items = [i for i in cfg["items"] if i["version"] == cfg["currentVersion"]]
     # Counts cover every item — callers may filter `items`, the summary stays global.
     counts = {key: dict(Counter(i[field] for i in items))
               for key, field in (("byType", "type"), ("byStatus", "status"),
-                                 ("byVersion", "version"))}
+                                 ("byVersion", "version"), ("byLane", "lane"))}
+    counts["lanes"] = lane_counts(items)
+    other = [_public_branch(b, b["item"]) for b in found["other"]
+             if b["name"] not in claimed_from_other]
     return {"project": cfg["project"], "currentVersion": cfg["currentVersion"],
             "versionComplete": _version_complete(cur_items, progress),
-            "counts": counts, "items": items}
+            "counts": counts, "items": items,
+            "trunk": found["trunk"], "otherBranches": other}
 
 
 def _item_done(progress: dict[int, tuple[int, int]], plan_id: int) -> bool:

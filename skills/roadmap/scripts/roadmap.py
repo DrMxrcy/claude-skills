@@ -20,6 +20,7 @@ from rmlib.sync import (  # noqa: E402
     _incomplete_deps, _item_done, _next_current_version, _progress_map,
     _version_complete, incomplete_deps, next_item, render_region,
     roadmap_health, status, sync, uncut_complete_version,
+    derive_lane, is_in_flight, lane_counts, lane_label,
     warn_incomplete_deps, MAX_ROADMAP_LINES,
     MAX_FREEFORM_LINES, MAX_FREEFORM_CHARS)
 
@@ -79,6 +80,7 @@ __all__ = [  # public facade: names re-exported for callers/tests/hooks (roadmap
     '_incomplete_deps', '_item_done', '_next_current_version',
     '_progress_map', '_version_complete', 'incomplete_deps', 'next_item',
     'render_region', 'roadmap_health', 'status', 'sync',
+    'derive_lane', 'is_in_flight', 'lane_counts', 'lane_label',
     'uncut_complete_version', 'warn_incomplete_deps', 'MAX_ROADMAP_LINES', 'MAX_FREEFORM_LINES',
     'MAX_FREEFORM_CHARS', 'STEP_RE', '_is_fence', 'parse_plan',
     'count_progress', '_plan_path', 'CLAIM_STAGES', 'CLAIM_VERDICTS',
@@ -220,6 +222,10 @@ def main(argv: list[str]) -> int:
     p_st.add_argument("--version", help="only items targeting this version")
     p_st.add_argument("--status", choices=["planned", "active", "done"],
                       help="only items with this progress status")
+    p_st.add_argument("--open", action="store_true", dest="open_only",
+                      help="hide done items (and with them every shipped version)")
+    p_st.add_argument("--in-flight", action="store_true", dest="in_flight",
+                      help="only unfinished items with a branch or a claim")
 
     p_search = sub.add_parser(
         "search", help="case-insensitive substring search across item titles/notes, "
@@ -528,16 +534,22 @@ def main(argv: list[str]) -> int:
             st["items"] = [i for i in st["items"]
                            if (args.type is None or i["type"] == args.type)
                            and (ver is None or i["version"] == ver)
-                           and (args.status is None or i["status"] == args.status)]
+                           and (args.status is None or i["status"] == args.status)
+                           and (not args.open_only or i["lane"] != "done")
+                           and (not args.in_flight or is_in_flight(i))]
             if args.as_json:
                 print(json.dumps(st, indent=2))
             else:
-                print(f"{st['project']} — v{st['currentVersion']}")
+                lc = st["counts"]["lanes"]
+                active = f" · {lc['active']} active" if lc["active"] else ""
+                print(f"{st['project']} — v{st['currentVersion']} · {lc['done']} done"
+                      f" · {lc['inFlight']} in-flight{active} · {lc['planned']} planned")
                 for it in st["items"]:
                     block = (f" blocked by {it['blockedBy']}"
                              if it.get("blockedBy") else "")
+                    lane = f" — {lane_label(it)}" if is_in_flight(it) else ""
                     print(f"  {it['displayId']} {it['title']} [{it['type']}] "
-                          f"{it['pct']}% ({it['status']}){block}")
+                          f"{it['pct']}% ({it['status']}){lane}{block}")
             for w in roadmap_health(root):
                 print(f"warning: {w}", file=sys.stderr)
             return 0
