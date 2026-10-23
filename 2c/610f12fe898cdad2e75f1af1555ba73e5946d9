@@ -1,0 +1,55 @@
+CHANGELOG.internal.md
+  s_fbae122c7a65de::t_8118e44a3037c4 5-18
+.roadmap/plans/035-check-refuses-steps-on-bug-plans-whose-observed-root-cause-are-still-the-template.md
+  s_fbae122c7a65de::t_8118e44a3037c4 1-33
+.roadmap/plans/038-run-log-record-merge-gate-and-trunk-suite-runs-from-the-cli-shown-as-a-gate-timeline-and-trunk-health-tile.md
+  s_fbae122c7a65de::t_8118e44a3037c4 1-36
+.roadmap/config.json
+  s_fbae122c7a65de::t_8118e44a3037c4 4,281-360
+  s_fbae122c7a65de::t_3309fe951b3b9d 361-375
+.roadmap/plans/033-numbered-slot-reservations-reserve-the-next-migration-or-any-numbered-sequence-per-plan-with-clash-detection.md
+  s_fbae122c7a65de::t_8118e44a3037c4 1-38
+CHANGELOG.md
+  s_fbae122c7a65de::t_8118e44a3037c4 3-16
+ROADMAP.md
+  s_fbae122c7a65de::t_8118e44a3037c4 24,32-41
+.roadmap/plans/039-auto-collapse-shipped-versions-in-roadmap-md-instead-of-a-length-warning-on-every-call.md
+  s_fbae122c7a65de::t_8118e44a3037c4 1-30
+.roadmap/plans/037-dashboard-lane-board-columns-per-lane-with-cards-for-branch-sha-verdict-and-last-note-plus-verdict-and-branch-filter-chips.md
+  s_fbae122c7a65de::t_8118e44a3037c4 1-33
+.roadmap/plans/036-worktree-map-status-worktrees-and-a-dashboard-worktree-panel-with-safe-to-remove-marks.md
+  s_fbae122c7a65de::t_8118e44a3037c4 1-34
+.roadmap/plans/034-rulings-record-dated-decisions-on-a-plan-from-the-cli-and-show-them-on-the-dashboard.md
+  s_fbae122c7a65de::t_8118e44a3037c4 1-33
+.roadmap/plans/029-adversarial-review-skill-multi-cli-review-with-triage-from-claude-code.md
+  s_46e1afb656488b::t_ec3cbe27388405 14
+  s_46e1afb656488b::t_a4bd3f738aff68 15
+  s_46e1afb656488b::t_2b6b831d3bf1ed 34
+  s_46e1afb656488b::t_b2d29824b23c62 29
+.roadmap/plans/032-batch-claims-a-landed-stage-and-bulk-check-off-from-claims.md
+  s_fbae122c7a65de::t_8118e44a3037c4 1-38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2c610f12fe898cdad2e75f1af1555ba73e5946d9",
+  "prompts": {},
+  "sessions": {
+    "s_46e1afb656488b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "29cbd46b-401e-4ab9-8990-06b287088024",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    },
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
