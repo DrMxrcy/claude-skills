@@ -1,7 +1,7 @@
 {
   "project": "claude-skills",
   "currentVersion": "0.19.0",
-  "nextId": 48,
+  "nextId": 51,
   "items": [
     {
       "id": 1,
@@ -485,6 +485,36 @@
         31,
         32
       ]
+    },
+    {
+      "id": 48,
+      "slug": "all-projects-dashboard-home-every-roadmap-project-on-one-page-registered-automatically",
+      "title": "All-projects dashboard home: every roadmap project on one page, registered automatically",
+      "type": "feature",
+      "version": "0.21.0",
+      "file": "plans/048-all-projects-dashboard-home-every-roadmap-project-on-one-page-registered-automatically.md",
+      "note": "One dashboard page lists every project you use the roadmap in, with no setup.",
+      "audience": "public"
+    },
+    {
+      "id": 49,
+      "slug": "dashboard-navigation-version-pages-dependency-graph-full-text-search-keyboard-shortcuts-and-copy-command-buttons",
+      "title": "Dashboard navigation: version pages, dependency graph, full-text search, keyboard shortcuts and copy-command buttons",
+      "type": "feature",
+      "version": "0.21.0",
+      "file": "plans/049-dashboard-navigation-version-pages-dependency-graph-full-text-search-keyboard-shortcuts-and-copy-command-buttons.md",
+      "note": "Find anything fast: pages per version, a dependency map, search across every plan, and keyboard shortcuts.",
+      "audience": "public"
+    },
+    {
+      "id": 50,
+      "slug": "dashboard-resilience-and-polish-reconnect-banner-tab-title-alerts-light-theme-fast-first-paint",
+      "title": "Dashboard resilience and polish: reconnect banner, tab-title alerts, light theme, fast first paint",
+      "type": "feature",
+      "version": "0.21.0",
+      "file": "plans/050-dashboard-resilience-and-polish-reconnect-banner-tab-title-alerts-light-theme-fast-first-paint.md",
+      "note": "The dashboard reconnects on its own, flags problems in the browser tab, follows your light or dark setting, and opens faster.",
+      "audience": "public"
     }
   ],
   "settings": {
