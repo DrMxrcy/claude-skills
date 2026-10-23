@@ -192,6 +192,17 @@ def test_quality_build_documents_orchestration_rules():
     assert "Merge-only roadmap writes" in text
 
 
+def test_shared_brief_is_cache_prefix_and_respawns_from_brief():
+    root = Path(__file__).resolve().parents[1]
+    common = (root / "skills/agent/references/brief-common.md").read_text()
+    assert "## Respawn" in common
+    assert "Never resume an earlier subagent" in common
+    assert "This file is the cache prefix" in common
+    assert "## Stop" in common
+    qb = (root / "skills/roadmap/references/quality-build.md").read_text()
+    assert "Respawn, never resume" in qb
+
+
 def test_quality_build_documents_merge_gate():
     text = (Path(__file__).resolve().parents[1]
             / "skills/roadmap/references/quality-build.md").read_text()

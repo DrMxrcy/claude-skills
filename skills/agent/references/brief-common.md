@@ -31,6 +31,13 @@ paths, test commands, or IDs. Those go in `brief-task.md`.
 - If you are told to commit, write a plain conventional message with no attribution
   lines, trailers, co-author tags, or tool names.
 
+## Respawn
+
+- A retry is a new subagent started from this brief plus `brief-task.md` and the branch
+  state on disk. Never resume an earlier subagent: resuming re-sends its whole transcript.
+- This file is the cache prefix. Edit it only in a commit of its own, never mid-build,
+  so every spawn in one build shares the same bytes.
+
 ## Stop
 
 Your report is your final action. Do not summarize, clean up, or continue after it.

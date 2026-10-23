@@ -3,7 +3,7 @@ id: 27
 title: Parallel-safe roadmap builds: per-item worktrees, fresh-session orchestration, pending-decision handoff and per-item token spend
 type: feature
 version: 0.20.0
-status: active
+status: done
 created: 2026-10-23
 ---
 
@@ -51,4 +51,5 @@ created: 2026-10-23
   > evidence: python3 -m pytest -q: 342 passed; routing_docs test: 1 passed (SKILL.md names handoff --pending, [--tokens N], parallel auto opt-in; next.md uses labeled scout/executor tiers); validate_skills.py exit 0; token spend not measured (2026-10-23)
 - [x] Step 7: Merge gate for per-item branches into the version trunk: one item at a time, runs the gate on the trunk, reports conflicts without auto-resolving them, and removes the item worktree only after a green merge -> target: `skills/roadmap/scripts/roadmap.py`, `skills/roadmap/references/quality-build.md`
   > evidence: pytest -q: 343 passed; merge_gate doc test: 1 passed (conflict abort, no auto-resolve, trunk gate, red reset, state written only at step 5); validate_skills.py exit 0; token spend not measured (2026-10-23)
-- [ ] Step 8: Shared builder brief read first by every spawned subagent, with stable content before task content so the prompt prefix caches; respawn from brief plus branch state, never resume -> target: `skills/roadmap/references/quality-build.md`, `skills/agent/references/brief-common.md`
+- [x] Step 8: Shared builder brief read first by every spawned subagent, with stable content before task content so the prompt prefix caches; respawn from brief plus branch state, never resume -> target: `skills/roadmap/references/quality-build.md`, `skills/agent/references/brief-common.md`
+  > evidence: pytest -q: 344 passed; shared_brief doc test: 1 passed (Respawn section, cache-prefix rule, never resume); validate_skills.py exit 0; token spend not measured (2026-10-23)

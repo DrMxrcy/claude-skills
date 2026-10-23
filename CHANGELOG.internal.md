@@ -2,10 +2,10 @@
 
 _Full work log — every item, including internal/dev work. The curated public changelog is CHANGELOG.md._
 
-## v0.20.0 — (in progress)
+## v0.20.0 — 2026-10-23
 
 ### ✨ New
-- (pending) Respawn budget set to 4 respawns per step (5 attempts total). After that the step is BLOCKED and written to the handoff note.
+- Respawn budget set to 4 respawns per step (5 attempts total). After that the step is BLOCKED and written to the handoff note.
 
 ## v0.18.0 — 2026-10-21
 
