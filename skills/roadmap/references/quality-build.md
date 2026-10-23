@@ -67,7 +67,7 @@ When an item was built in its own worktree (`roadmap/<id>`, see `build.md`), its
 2. **Merge the item branch into the trunk** with `--no-ff`. When the project configures `settings.slots` (numbered migrations and the like), run `slot <id> --check` first: a `clash` or `taken` reservation stops the gate like a conflict (renumber on the item branch, then retry). Do not rebase the item branch and do not force-push.
 3. **Conflicts stop the gate.** If the merge conflicts, abort it (`git merge --abort`), list the conflicting paths, and report them as BLOCKED with a `handoff --pending` note. Never auto-resolve a conflict.
 4. **Run the full gate on the trunk**, not in the item branch: the project's lint, typecheck, unit tests, integration tests, and build. Builders ran only targeted tests, so the full suite runs here once per merged batch.
-5. **Green:** record the result with `check --evidence` against the item's last step, then remove the item worktree (`git worktree remove <path>`) and delete the branch. Removal happens only after a green gate.
+5. **Green:** record the result with `check --evidence` against the item's last step, then remove the item worktree (`git worktree remove <path>`) and delete the branch. Removal happens only after a green gate. `status --worktrees` shows which leftover worktrees are safe to remove (clean and merged into trunk) and prints their commands; it never removes anything itself.
 6. **Red:** reset the trunk to its pre-merge commit (`git -C <trunk-worktree> reset --hard <pre-merge-sha>`, a commit this gate created, never a commit someone else made), keep the item worktree, and report the failing command. The item is not checked off.
 
 Roadmap state is written only at step 5, from the parent, never from the item worktree.
