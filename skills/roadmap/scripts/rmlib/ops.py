@@ -17,7 +17,8 @@ from rmlib.parse import (
 from rmlib.changelog import (
     demote_tells, item_audience, lint_note, status_tells)
 from rmlib.sync import (
-    sync, uncut_complete_version)
+    _branch_has_work, status, sync, uncut_complete_version)
+from rmlib import branches as rmbranches
 from rmlib.report import (
     _record_last_seen_sha)
 from rmlib.incubator import (
@@ -210,6 +211,65 @@ def set_claims(root: Path, plan_ids, stage: str | None = None,
         atomic_write(path, text)
     sync(root)
     return {pid: claim for pid, _, _, claim in prepared}
+
+
+def claim_landed(root: Path, rev: str, plan_ids=None) -> dict:
+    """Move items whose work `rev` (an integration commit or branch) already
+    contains to the `landed` stage, recording the resolved commit as
+    `claim_landed_sha` — what `check --landed` later tests against trunk.
+
+    Without `plan_ids`: every unfinished item (claimed or discovered) whose
+    branch carries unmerged work, at least one `(plan N)` commit for the item,
+    and a tip `rev` contains. The tag rule keeps a branch merely cut from the
+    integration branch (no work of its own yet) from reading as landed; such
+    branches are returned under `untagged` so they can be landed by id.
+    With `plan_ids`: exactly those items, all-or-nothing — each must have a
+    branch with unmerged work whose tip `rev` contains (tags not required).
+
+    Returns {"sha", "landed": [(id, branch)], "untagged": [(id, branch)]}.
+    One status() discovery plus two git calls (resolve, containment)."""
+    rev = (rev or "").strip()
+    sha = rmbranches.resolve_commits(root, [rev]).get(rev) if rev else None
+    if not sha:
+        raise ValueError(f"--landed {rev!r} is not a commit in this repository")
+    st = status(root)
+    rows = {i["id"]: i for i in st["items"]}
+    explicit = plan_ids is not None
+    ids = _unique(plan_ids) if explicit else list(rows)
+    cands: dict[int, dict] = {}
+    for pid in ids:
+        row = rows.get(pid)
+        if row is None:
+            raise ValueError(f"no plan with id {pid}")
+        b = row.get("branch")
+        has_work = row["lane"] != "done" and _branch_has_work(b) and b.get("sha")
+        if has_work:
+            cands[pid] = b
+        elif explicit:
+            why = ("is done" if row["lane"] == "done" else
+                   "has no branch with unmerged work")
+            raise ValueError(f"#{pid} {why} — nothing to land")
+    inside = rmbranches.contained(root, sha, [b["sha"] for b in cands.values()])
+    if inside is None:
+        raise ValueError(f"git could not test which branches {sha[:7]} contains")
+    landed, untagged = [], []
+    for pid, b in cands.items():
+        if b["sha"] not in inside:
+            if explicit:
+                raise ValueError(f"#{pid}: {b['name']} @{b['sha'][:7]} is not "
+                                 f"contained in {sha[:7]} — nothing written")
+            continue
+        if not explicit and not b.get("taggedCommits"):
+            untagged.append((pid, b["name"]))
+            continue
+        landed.append((pid, b["name"]))
+    prepared = [_prepare_claim(root, pid, stage="landed", landed_sha=sha)
+                for pid, _ in landed]
+    for path, text, _ in prepared:
+        atomic_write(path, text)
+    if prepared:
+        sync(root)
+    return {"sha": sha, "landed": landed, "untagged": untagged}
 
 
 def clear_claim(root: Path, plan_id: int) -> bool:

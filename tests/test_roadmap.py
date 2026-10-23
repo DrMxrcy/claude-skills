@@ -3288,3 +3288,86 @@ def test_claim_stage_landed_and_landed_sha_field(roadmap, repo, monkeypatch):
     roadmap.set_claim(repo, 1, stage="fixing")            # leaving landed drops it
     assert roadmap.read_claim(plan)["landed_sha"] is None
     assert "claim_landed_sha" not in plan.read_text()
+
+
+# --- claim --landed <sha> (plan 32) ---------------------------------------
+
+def test_claim_landed_moves_exactly_the_contained_items(roadmap, branches, repo,
+                                                        monkeypatch, capsys):
+    _landed_repo(roadmap, repo, monkeypatch)
+    roadmap.set_claim(repo, 1, stage="gating", verdict="CONFIRMED")
+    plans = {n: repo / f".roadmap/plans/00{n}-{t}.md"
+             for n, t in ((1, "a"), (2, "b"), (3, "c"))}
+    # an older integration commit holds roadmap/1 only
+    assert roadmap.main(["claim", "--landed", "integration~1"]) == 0
+    first = _tip(repo, "integration~1")
+    assert capsys.readouterr().out.strip() == f"#1: landed @{first[:7]} (roadmap/1)"
+    c1 = roadmap.read_claim(plans[1])
+    assert (c1["stage"], c1["landed_sha"], c1["verdict"]) == \
+        ("landed", first, "CONFIRMED")                 # other claim fields kept
+    assert roadmap.read_claim(plans[2]) is None
+    # the integration tip holds both; roadmap/3 is open and stays untouched
+    integ = _tip(repo, "integration")
+    assert roadmap.main(["claim", "--landed", integ[:10]]) == 0
+    assert capsys.readouterr().out.splitlines() == [
+        f"#1: landed @{integ[:7]} (roadmap/1)", f"#2: landed @{integ[:7]} (roadmap/2)"]
+    assert {n: (roadmap.read_claim(p) or {}).get("landed_sha")
+            for n, p in plans.items()} == {1: integ, 2: integ, 3: None}
+    lanes = _by_id(roadmap.status(repo))
+    assert (lanes[2]["lane"], lanes[3]["lane"]) == ("landed", "building")
+    assert f"@{integ[:7]}" in roadmap.lane_label(lanes[2])
+
+
+def test_claim_landed_skips_a_branch_merely_cut_from_integration(
+        roadmap, branches, repo, monkeypatch, capsys):
+    _landed_repo(roadmap, repo, monkeypatch)
+    roadmap.new_item(repo, "feature", "D")
+    _git(repo, "branch", "roadmap/4", "integration")   # no work of its own yet
+    assert roadmap.main(["claim", "--landed", "integration"]) == 0
+    out, err = capsys.readouterr()
+    assert [l.split(":")[0] for l in out.splitlines()] == ["#1", "#2"]
+    assert "#4: skipped" in err and "claim 4 --landed" in err
+    plan4 = repo / ".roadmap/plans/004-d.md"
+    assert roadmap.read_claim(plan4) is None
+    # named explicitly, it lands (the parent vouches for it)
+    assert roadmap.main(["claim", "4", "--landed", "integration"]) == 0
+    assert roadmap.read_claim(plan4)["landed_sha"] == _tip(repo, "integration")
+
+
+def test_claim_landed_by_id_is_all_or_nothing(roadmap, branches, repo,
+                                              monkeypatch, capsys):
+    _landed_repo(roadmap, repo, monkeypatch)
+    plan1 = repo / ".roadmap/plans/001-a.md"
+    before = plan1.read_text()
+    assert roadmap.main(["claim", "1", "3", "--landed", "integration"]) == 1
+    err = capsys.readouterr().err
+    assert "#3: roadmap/3" in err and "not contained" in err
+    assert plan1.read_text() == before
+    assert roadmap.main(["claim", "1", "--landed", "no-such-ref"]) == 1
+    assert "not a commit" in capsys.readouterr().err
+    with pytest.raises(SystemExit):
+        roadmap.main(["claim", "1", "--landed", "integration", "--stage", "review"])
+    with pytest.raises(SystemExit):
+        roadmap.main(["claim", "1", "--clear", "--landed", "integration"])
+    assert plan1.read_text() == before
+
+
+def test_claim_landed_nothing_contained(roadmap, branches, repo, monkeypatch, capsys):
+    _landed_repo(roadmap, repo, monkeypatch)
+    assert roadmap.main(["claim", "--landed", "main"]) == 0
+    assert "no in-flight item branch is contained" in capsys.readouterr().out
+    assert all(i["claim"] is None for i in roadmap.status(repo)["items"])
+
+
+def test_branches_contained_and_resolve(branches, branch_repo):
+    tip7 = _tip(branch_repo, "roadmap/7")
+    main = _tip(branch_repo, "main")
+    res = branches.resolve_commits(branch_repo, ["roadmap/7", main[:8], "nope",
+                                                 "a b", ""])
+    assert res == {"roadmap/7": tip7, main[:8]: main, "nope": None, "a b": None,
+                   "": None}
+    assert branches.contained(branch_repo, "refs/heads/main", [tip7, main]) == {main}
+    base = _tip(branch_repo, "main~1")               # roadmap/7 was cut here
+    assert branches.contained(branch_repo, tip7, [tip7, main, base]) == {tip7, base}
+    assert branches.contained(branch_repo, "main", []) == set()
+    assert branches.contained(branch_repo, "main", ["0" * 40]) is None

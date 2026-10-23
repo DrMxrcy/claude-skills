@@ -42,9 +42,9 @@ def _empty(trunk: str | None = None) -> dict:
     return {"trunk": trunk, "items": {}, "other": []}
 
 
-def _git(root: Path, *args: str) -> str | None:
+def _git(root: Path, *args: str, stdin: str | None = None) -> str | None:
     try:
-        out = subprocess.run(["git", "-C", str(root), *args],
+        out = subprocess.run(["git", "-C", str(root), *args], input=stdin,
                              capture_output=True, text=True, timeout=10)
         return out.stdout if out.returncode == 0 else None
     except (OSError, subprocess.SubprocessError):
@@ -333,3 +333,43 @@ def discover(root: Path, item_ids=None, trunk: str | None = None,
                                          or int(m.group(1)) in allowed) else None
         other.append(_info(b, item, stale_days, now))
     return {"trunk": resolved, "items": items, "other": other}
+
+
+# --- containment checks for landed claims (plan 32) -----------------------
+
+def resolve_commits(root: Path, revs) -> dict[str, str | None]:
+    """{rev: full commit sha, or None when it names no commit}. One
+    `cat-file --batch-check` call for every rev (branch names, short or full
+    shas, tags). A rev containing whitespace never resolves."""
+    revs = list(dict.fromkeys(str(r) for r in revs))
+    out: dict[str, str | None] = {r: None for r in revs}
+    ask = [r for r in revs if r and not any(c.isspace() for c in r)]
+    if not ask:
+        return out
+    raw = _git(Path(root), "cat-file", "--batch-check=%(objectname) %(objecttype)",
+               stdin="".join(f"{r}^{{commit}}\n" for r in ask))
+    if raw is None:
+        return out
+    lines = raw.splitlines()
+    if len(lines) != len(ask):
+        return out
+    for rev, line in zip(ask, lines):
+        sha, _, kind = line.partition(" ")
+        if kind == "commit" and re.fullmatch(r"[0-9a-f]{40,64}", sha):
+            out[rev] = sha
+    return out
+
+
+def contained(root: Path, target: str, shas) -> set[str] | None:
+    """The subset of full commit `shas` that `target` contains (each is target
+    itself or one of its ancestors). One `rev-list` call: a sha is outside
+    target exactly when it is listed among the commits target lacks. None on
+    any git trouble — callers must treat that as "not proven contained"."""
+    shas = sorted({s for s in shas if s})
+    if not shas:
+        return set()
+    raw = _git(Path(root), "rev-list", *shas, "--not", target)
+    if raw is None:
+        return None
+    outside = set(raw.split())
+    return {s for s in shas if s not in outside}

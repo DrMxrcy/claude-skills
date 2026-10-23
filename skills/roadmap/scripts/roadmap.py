@@ -32,8 +32,8 @@ from rmlib.parse import (  # noqa: E402
 
 from rmlib.ops import (  # noqa: E402
     TEMPLATE_BY_TYPE, _incomplete_items, _refuse_status_note,
-    backfill_changelog, check_step, clear_claim, clear_claims, import_file,
-    merge_items, new_item,
+    backfill_changelog, check_step, claim_landed, clear_claim, clear_claims,
+    import_file, merge_items, new_item,
     promote_idea, release, release_gate, remove_item, reorder, retarget,
     set_audience, set_claim, set_claims, set_depends, set_note, set_release_summary)
 
@@ -86,7 +86,7 @@ __all__ = [  # public facade: names re-exported for callers/tests/hooks (roadmap
     'MAX_FREEFORM_CHARS', 'STEP_RE', '_is_fence', 'parse_plan',
     'count_progress', '_plan_path', 'CLAIM_STAGES', 'CLAIM_VERDICTS',
     'CLAIM_FIELDS', 'read_claim', 'set_claim', 'clear_claim', 'set_claims',
-    'clear_claims', 'TEMPLATE_BY_TYPE',
+    'clear_claims', 'claim_landed', 'TEMPLATE_BY_TYPE',
     '_incomplete_items', '_refuse_status_note', 'backfill_changelog',
     'check_step', 'import_file', 'merge_items', 'new_item', 'promote_idea',
     'release', 'release_gate', 'remove_item', 'reorder', 'retarget', 'set_audience',
@@ -207,7 +207,7 @@ def main(argv: list[str]) -> int:
     p_claim = sub.add_parser(
         "claim", help="record in-flight stage/verdict (what git cannot know) in the "
                       "plan frontmatter of one or more items; --clear removes it")
-    p_claim.add_argument("ids", nargs="+", metavar="id",
+    p_claim.add_argument("ids", nargs="*", metavar="id",
                          help=ID_HELP + "; several ids (or 7,8,9) get the same options, "
                               "all-or-nothing")
     p_claim.add_argument("--stage", type=claim_stage, metavar="{" + ",".join(CLAIM_STAGES) + "}",
@@ -219,6 +219,11 @@ def main(argv: list[str]) -> int:
                          help="branch override (default: the discovered branch)")
     p_claim.add_argument("--clear", action="store_true",
                          help="remove the claim (lane reverts to the derived one)")
+    p_claim.add_argument("--landed", metavar="SHA",
+                         help="move items whose branch tip SHA (a commit or branch, "
+                              "e.g. the integration branch) contains to stage "
+                              "'landed', recording the sha; no ids = every tagged "
+                              "in-flight item it contains, ids = exactly those")
 
     p_rel = sub.add_parser("release")
     p_rel.add_argument("--version", required=True)
@@ -374,9 +379,27 @@ def main(argv: list[str]) -> int:
             return 0
         if args.command == "claim":
             if args.clear and any(v is not None for v in
-                                  (args.stage, args.verdict, args.note, args.branch)):
+                                  (args.stage, args.verdict, args.note, args.branch,
+                                   args.landed)):
                 p_claim.error("--clear takes no other options")
+            if args.landed is not None and any(
+                    v is not None for v in (args.stage, args.verdict, args.note,
+                                            args.branch)):
+                p_claim.error("--landed takes no other options (the stage is 'landed')")
             plan_ids = [n for tok in args.ids for n in rids(tok)]
+            if args.landed is not None:
+                res = claim_landed(root, args.landed, plan_ids or None)
+                short = res["sha"][:7]
+                for plan_id, name in res["landed"]:
+                    print(f"#{plan_id}: landed @{short} ({name})")
+                for plan_id, name in res["untagged"]:
+                    print(f"#{plan_id}: skipped — {name} is contained in {short} but "
+                          f"carries no (plan {plan_id}) commit; land it by id: "
+                          f"roadmap.py claim {plan_id} --landed {short}",
+                          file=sys.stderr)
+                if not res["landed"]:
+                    print(f"no in-flight item branch is contained in {short}")
+                return 0
             if not plan_ids:
                 p_claim.error("no item id given")
             if args.clear:
