@@ -25,6 +25,24 @@ CLAIM_PREFIX = "claim_"
 # flat for the same reason as claims. Logic lives in rmlib/slots.py.
 SLOT_PREFIX = "slot_"
 
+# Rulings (plan 34): dated decisions recorded in the plan body as
+# `- **Ruling (2026-10-22, owner[, approval]):** text`. `roadmap.py ruling` appends
+# them under RULINGS_HEADING; hand-written ones anywhere in the body parse too.
+RULINGS_HEADING = "## ⚖️ Rulings"
+RULINGS_SECTION_KEY = "rulings"          # _norm_name of the heading text
+RULING_APPROVAL_TAG = "approval"         # the tag `ruling --approval` writes
+# Tags (normalized) that mark a ruling as a sign-off, hand-written or not.
+RULING_APPROVAL_TAGS = {"approval", "approved", "sign off", "signoff"}
+# `**Ruling (date, who[, tags]):** text`, `**Ruling date (who):** text`,
+# `**Owner ruling (date):** text` (the one-word prefix is the author), and the
+# `**...**:` colon-outside variant; optionally a list bullet. The plural
+# (`**Owner rulings (date):**` over a nested list) is one record too.
+RULING_RE = re.compile(
+    r"^(\s*)(?:[-*+]\s+)?\*\*(?:([A-Za-z][\w-]*)\s+)?[Rr]ulings?\b([^*]*?)"
+    r"(?::\*\*|\*\*:)\s*(.*)$")
+_DATE_RE = re.compile(r"\b(\d{4}-\d{2}-\d{2})\b")
+_LIST_MARKER_RE = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s")
+
 # Parse results are cached by (path, mtime, size). A short CLI run barely touches
 # it, but a long-lived `serve` process re-parses only the plan that actually
 # changed on each push instead of every plan on every status() call.
@@ -63,10 +81,73 @@ def parse_plan(path: Path) -> dict:
         sm = STEP_RE.match(line)
         if sm:
             steps.append((sm.group(2).lower() == "x", sm.group(3).strip()))
-    result = {"meta": meta, "steps": steps}
+    result = {"meta": meta, "steps": steps,
+              "rulings": parse_rulings(text[m.end():] if m else text)}
     if key is not None:
         _CACHE[str(path)] = (key, result)
     return result
+
+
+def _ruling(match: re.Match, segments: list[str]) -> dict:
+    """One ruling dict from a RULING_RE match and its text segments (the first
+    line's text, then one per nested list item)."""
+    prefix, inner = match.group(2), match.group(3)
+    dm = _DATE_RE.search(inner)
+    parts = [p.strip() for p in re.sub(r"[()]", " ", _DATE_RE.sub(" ", inner, 1))
+             .split(",")]
+    parts = [p for p in parts if p]
+    if prefix:                       # "Owner ruling (...)": the prefix is the author
+        by, tags = prefix.lower(), parts
+    else:
+        by, tags = (parts[0] if parts else None), parts[1:]
+    approval = any(_norm_name(t) in RULING_APPROVAL_TAGS for t in tags)
+    context = [t for t in tags if _norm_name(t) not in RULING_APPROVAL_TAGS]
+    return {"date": dm.group(1) if dm else None, "by": by,
+            "text": " · ".join(x for x in segments if x),
+            "approval": approval, "context": ", ".join(context) or None}
+
+
+def parse_rulings(body: str) -> list[dict]:
+    """Every ruling in a plan body, in file order, as {date, by, text, approval,
+    context}: the bullets `roadmap.py ruling` writes and hand-written ones
+    anywhere in the body (see RULING_RE). `context` holds any extra tags
+    ("correction", "rank structure"). Fenced code and HTML comments are skipped;
+    lines indented under a ruling continue it (wrapped text joins with a space,
+    each nested list item becomes a " · "-separated segment)."""
+    lines = _strip_comments(body.splitlines())
+    out, in_fence, i = [], False, 0
+    while i < len(lines):
+        line = lines[i]
+        i += 1
+        if _is_fence(line):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        rm = RULING_RE.match(line)
+        if not rm:
+            continue
+        indent, segments = len(rm.group(1)), [rm.group(4).strip()]
+        while i < len(lines):
+            nxt = lines[i]
+            if not nxt.strip() or _is_fence(nxt) or RULING_RE.match(nxt) \
+                    or len(nxt) - len(nxt.lstrip()) <= indent:
+                break
+            if _LIST_MARKER_RE.match(nxt):
+                segments.append(_LIST_MARKER_RE.sub("", nxt, 1).strip())
+            else:
+                segments[-1] = (segments[-1] + " " + nxt.strip()).strip()
+            i += 1
+        out.append(_ruling(rm, segments))
+    return out
+
+
+def needs_approval(plan: dict) -> bool:
+    """A plan declaring `approval: required` in frontmatter with no approval
+    ruling yet. `plan` is a parse_plan() result."""
+    required = (plan.get("meta") or {}).get("approval", "").strip().lower()
+    return required == "required" and not any(
+        r.get("approval") for r in plan.get("rulings") or [])
 
 
 def count_progress(path: Path) -> tuple[int, int]:

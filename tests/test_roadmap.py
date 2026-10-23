@@ -3762,3 +3762,137 @@ def test_inherited_tags_from_a_base_branch_without_integration(
     res = branches.discover(repo, [1, 2, 3])
     assert res["items"][1]["name"] == "base"
     assert res["items"][1]["taggedCommits"] == 2
+
+
+# --- rulings (roadmap.py ruling, plan 34) ----------------------------------
+
+def _ruling_repo(roadmap, repo, monkeypatch):
+    monkeypatch.chdir(repo)
+    roadmap.init_project(repo, "P", claude_md=False)
+    roadmap.new_item(repo, "feature", "A")
+    return repo / ".roadmap/plans/001-a.md"
+
+
+def _tracked_state(repo):
+    """Bytes of every roadmap file a ruling must NOT touch."""
+    paths = [repo / "ROADMAP.md", repo / ".roadmap/config.json",
+             *sorted(repo.glob("CHANGELOG*.md"))]
+    return {p.name: p.read_bytes() for p in paths if p.exists()}
+
+
+def test_ruling_creates_section_and_appends_bullet(roadmap, repo, monkeypatch, capsys):
+    plan = _ruling_repo(roadmap, repo, monkeypatch)
+    before = _tracked_state(repo)
+    today = datetime.date.today().isoformat()
+    assert roadmap.main(["ruling", "1", "--text", "Use  tabs\nnot spaces",
+                         "--approval"]) == 0
+    line = f"- **Ruling ({today}, owner, approval):** Use tabs not spaces"
+    assert capsys.readouterr().out.strip() == line
+    text = plan.read_text()
+    assert text.endswith("\n## ⚖️ Rulings\n\n" + line + "\n")
+    assert text.count("## ⚖️ Rulings") == 1
+    # Never the changelog, config, or ROADMAP.md.
+    assert _tracked_state(repo) == before
+
+
+def test_ruling_appends_inside_existing_section(roadmap, repo, monkeypatch):
+    plan = _ruling_repo(roadmap, repo, monkeypatch)
+    plan.write_text(plan.read_text() + "\n## ⚖️ Rulings\n\n- **Ruling (2026-01-02, "
+                    "owner):** first\n\n## Appendix\n\ntrailer\n")
+    roadmap.main(["ruling", "#1", "--text", "second", "--by", "build"])
+    text = plan.read_text()
+    today = datetime.date.today().isoformat()
+    assert (f"- **Ruling (2026-01-02, owner):** first\n"
+            f"- **Ruling ({today}, build):** second\n\n## Appendix\n") in text
+    assert text.count("Rulings") == 1 and text.endswith("trailer\n")
+
+
+def test_ruling_ignores_fenced_heading(roadmap, repo, monkeypatch):
+    plan = _ruling_repo(roadmap, repo, monkeypatch)
+    plan.write_text(plan.read_text() + "\n```\n## Rulings\n```\n")
+    roadmap.add_ruling(repo, 1, "real")
+    text = plan.read_text()
+    assert text.count("## ⚖️ Rulings") == 1
+    assert text.index("## ⚖️ Rulings") > text.index("```\n## Rulings\n```")
+
+
+@pytest.mark.parametrize("args, err", [
+    (["--text", "  "], "ruling text is empty"),
+    (["--text", "x", "--by", "a, b"], "invalid ruling author"),
+    (["--text", "x", "--by", ""], "author (--by) is empty"),
+])
+def test_ruling_refuses_bad_input(roadmap, repo, monkeypatch, capsys, args, err):
+    plan = _ruling_repo(roadmap, repo, monkeypatch)
+    before = plan.read_text()
+    assert roadmap.main(["ruling", "1", *args]) == 1
+    assert err in capsys.readouterr().err
+    assert plan.read_text() == before
+
+
+def test_ruling_allowed_on_done_item(roadmap, repo, monkeypatch):
+    plan = _ruling_repo(roadmap, repo, monkeypatch)
+    roadmap.check_step(repo, 1, None, all_done=True, force=True)
+    roadmap.add_ruling(repo, 1, "post-hoc correction")
+    assert "post-hoc correction" in plan.read_text()
+
+
+def test_parse_rulings_hand_written_forms(roadmap):
+    body = "\n".join([
+        "# Plan",
+        "- **Ruling (2026-10-22, owner):** mockup `x.html` approved; EMS keeps Units.",
+        "- **Ruling (2026-10-22, owner, rank structure):** see the sheet.",
+        "* **Ruling 2026-10-21 (parent, owner delegated):** F9 to F12 stay.",
+        "- **Owner ruling (2026-10-21):** no resizing.",
+        "**Ruling (2026-10-23, build)**: colon outside the bold.",
+        "- **Ruling (2026-10-24, owner, approved):** ship it",
+        "  wrapped onto a second line.",
+        "- **Owner rulings (2026-10-19):**",
+        "  - first decision",
+        "  - second decision",
+        "- **Rulings and prose** without a colon is not a ruling.",
+        "Inline owner ruling 2026-10-17 in prose is not one either.",
+        "```",
+        "- **Ruling (2026-01-01, owner):** fenced example",
+        "```",
+        "<!-- - **Ruling (2026-01-01, owner):** commented out -->",
+    ])
+    got = roadmap.parse_rulings(body)
+    assert [(r["date"], r["by"], r["approval"], r["context"]) for r in got] == [
+        ("2026-10-22", "owner", False, None),
+        ("2026-10-22", "owner", False, "rank structure"),
+        ("2026-10-21", "parent", False, "owner delegated"),
+        ("2026-10-21", "owner", False, None),
+        ("2026-10-23", "build", False, None),
+        ("2026-10-24", "owner", True, None),
+        ("2026-10-19", "owner", False, None),
+    ]
+    assert got[0]["text"] == "mockup `x.html` approved; EMS keeps Units."
+    assert got[5]["text"] == "ship it wrapped onto a second line."
+    assert got[6]["text"] == "first decision · second decision"
+
+
+def test_parse_rulings_reads_command_written_bullet(roadmap, repo, monkeypatch):
+    plan = _ruling_repo(roadmap, repo, monkeypatch)
+    roadmap.add_ruling(repo, 1, "Use tabs", approval=True)
+    roadmap.add_ruling(repo, 1, "Second", by="build")
+    today = datetime.date.today().isoformat()
+    assert roadmap.parse_plan(plan)["rulings"] == [
+        {"date": today, "by": "owner", "text": "Use tabs", "approval": True,
+         "context": None},
+        {"date": today, "by": "build", "text": "Second", "approval": False,
+         "context": None}]
+
+
+def test_status_carries_rulings_and_needs_approval(roadmap, repo, monkeypatch):
+    plan = _ruling_repo(roadmap, repo, monkeypatch)
+    row = roadmap.status(repo)["items"][0]
+    assert row["rulings"] == [] and row["needsApproval"] is False
+    plan.write_text(plan.read_text().replace("type: feature\n",
+                                             "type: feature\napproval: required\n", 1))
+    roadmap.add_ruling(repo, 1, "not a sign-off")
+    row = roadmap.status(repo)["items"][0]
+    assert len(row["rulings"]) == 1 and row["needsApproval"] is True
+    roadmap.add_ruling(repo, 1, "signed off", approval=True)
+    row = roadmap.status(repo)["items"][0]
+    assert [r["approval"] for r in row["rulings"]] == [False, True]
+    assert row["needsApproval"] is False

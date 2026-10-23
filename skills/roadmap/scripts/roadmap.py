@@ -27,11 +27,12 @@ from rmlib.sync import (  # noqa: E402
 
 from rmlib.parse import (  # noqa: E402
     STEP_RE, _is_fence, parse_plan, count_progress, _plan_path,
-    CLAIM_STAGES, CLAIM_VERDICTS, CLAIM_FIELDS, read_claim)
+    CLAIM_STAGES, CLAIM_VERDICTS, CLAIM_FIELDS, read_claim, needs_approval,
+    parse_rulings)
 
 
 from rmlib.ops import (  # noqa: E402
-    TEMPLATE_BY_TYPE, _incomplete_items, _refuse_status_note,
+    TEMPLATE_BY_TYPE, _incomplete_items, _refuse_status_note, add_ruling,
     backfill_changelog, check_landed, check_step, claim_landed, clear_claim,
     clear_claims,
     import_file, merge_items, new_item,
@@ -88,8 +89,8 @@ __all__ = [  # public facade: names re-exported for callers/tests/hooks (roadmap
     'uncut_complete_version', 'warn_incomplete_deps', 'MAX_ROADMAP_LINES', 'MAX_FREEFORM_LINES',
     'MAX_FREEFORM_CHARS', 'STEP_RE', '_is_fence', 'parse_plan',
     'count_progress', '_plan_path', 'CLAIM_STAGES', 'CLAIM_VERDICTS',
-    'CLAIM_FIELDS', 'read_claim', 'set_claim', 'clear_claim', 'set_claims',
-    'clear_claims', 'claim_landed', 'check_landed', 'TEMPLATE_BY_TYPE',
+    'CLAIM_FIELDS', 'read_claim', 'needs_approval', 'parse_rulings', 'set_claim', 'clear_claim', 'set_claims',
+    'clear_claims', 'claim_landed', 'check_landed', 'add_ruling', 'TEMPLATE_BY_TYPE',
     '_incomplete_items', '_refuse_status_note', 'backfill_changelog',
     'check_step', 'import_file', 'merge_items', 'new_item', 'promote_idea',
     'release', 'release_gate', 'remove_item', 'reorder', 'retarget', 'set_audience',
@@ -308,6 +309,16 @@ def main(argv: list[str]) -> int:
                               "e.g. the integration branch) contains to stage "
                               "'landed', recording the sha; no ids = every tagged "
                               "in-flight item it contains, ids = exactly those")
+
+    p_ruling = sub.add_parser(
+        "ruling", help="append a dated decision to a plan's '## ⚖️ Rulings' section "
+                       "(plan file only — never the changelog or ROADMAP.md)")
+    p_ruling.add_argument("id", help=ID_HELP)
+    p_ruling.add_argument("--text", required=True, help="the decision, one line")
+    p_ruling.add_argument("--by", default="owner",
+                          help="who ruled (default: owner)")
+    p_ruling.add_argument("--approval", action="store_true",
+                          help="mark it as a sign-off (satisfies 'approval: required')")
 
     p_slot = sub.add_parser(
         "slot", help="reserve the next number of a numbered sequence (settings.slots, "
@@ -528,6 +539,10 @@ def main(argv: list[str]) -> int:
             for plan_id, c in claims.items():
                 print(f"#{plan_id}: " + " · ".join(f"{f}={c[f]}" for f in CLAIM_FIELDS
                                                     if c.get(f)))
+            return 0
+        if args.command == "ruling":
+            print(add_ruling(root, rid(args.id), args.text, by=args.by,
+                             approval=args.approval))
             return 0
         if args.command == "slot":
             return _slot_cmd(root, args, p_slot, rid)

@@ -11,7 +11,7 @@ from rmlib.core import (
     atomic_write, derive_status, display_id, read_config, roadmap_dir,
     write_config)
 from rmlib.parse import (
-    CLAIM_STAGES, count_progress, read_claim)
+    CLAIM_STAGES, count_progress, needs_approval, parse_plan, read_claim)
 from rmlib import branches as rmbranches
 from rmlib import slots as rmslots
 from rmlib.changelog import (
@@ -360,6 +360,7 @@ def status(root: Path) -> dict:
         blocked_by = _incomplete_deps(item, progress, by_id)
         path = roadmap_dir(root) / item["file"]
         claim = read_claim(path) if path.exists() else None
+        plan = parse_plan(path) if path.exists() else {}   # cached: no re-read
         # A claim naming its branch wins over discovery; a named branch that no
         # longer exists (deleted, or merged and not chosen) falls back to it.
         info = by_name.get((claim or {}).get("branch") or "") \
@@ -374,7 +375,10 @@ def status(root: Path) -> dict:
                "dependsOn": list(item.get("dependsOn") or []),
                "blockedBy": blocked_by,
                "lane": derive_lane(st, claim, branch),
-               "claim": claim, "branch": branch}
+               "claim": claim, "branch": branch,
+               # Rulings (plan 34): dated decisions from the plan body.
+               "rulings": list(plan.get("rulings") or []),
+               "needsApproval": needs_approval(plan) if plan else False}
         items.append(row)
     cur_items = [i for i in cfg["items"] if i["version"] == cfg["currentVersion"]]
     # Counts cover every item — callers may filter `items`, the summary stays global.
