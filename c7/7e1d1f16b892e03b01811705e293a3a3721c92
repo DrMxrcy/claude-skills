@@ -1,0 +1,27 @@
+.roadmap/config.json
+  s_fbae122c7a65de::t_02f2fe075982bc 525
+.roadmap/plans/044-version-forecast-estimate-each-open-version-s-finish-date-from-recent-pace.md
+  s_fbae122c7a65de::t_4ff8d96d5bc2c9 6,33-38
+CHANGELOG.internal.md
+  s_fbae122c7a65de::t_b760dd7d999085 19
+CHANGELOG.md
+  s_fbae122c7a65de::t_462f061ccb5261 17
+ROADMAP.md
+  s_fbae122c7a65de::t_89ed213a2984cd 33,46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c77e1d1f16b892e03b01811705e293a3a3721c92",
+  "prompts": {},
+  "sessions": {
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "unknown"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
