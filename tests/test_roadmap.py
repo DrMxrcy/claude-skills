@@ -1796,7 +1796,7 @@ def test_status_filters_narrow_items_text_and_json(roadmap, repo, monkeypatch, c
     # summary header stays global regardless of filters
     assert payload["currentVersion"] == roadmap.read_config(repo)["currentVersion"]
     assert set(payload) == {"project", "currentVersion", "versionComplete",
-                            "counts", "items", "trunk", "otherBranches"}
+                            "counts", "items", "trunk", "otherBranches", "forecast"}
     # counts stay global even though the item list is filtered down to one row
     assert payload["counts"]["byType"] == {"bug": 2, "feature": 1, "chore": 1}
     assert payload["counts"]["byStatus"] == {"planned": 3, "done": 1}
@@ -3372,7 +3372,9 @@ def test_status_in_flight_filter_and_combinations(roadmap, branches, repo,
         [2, 3, 4, 5]
     assert roadmap.main(["status", "--in-flight", "--version", "0.15.0"]) == 0
     out = capsys.readouterr().out.splitlines()
-    assert len(out) == 2 and out[1].startswith("  FEAT-8 H ")
+    # header, the v0.15.0 version header (forecast, plan 44), the one item
+    assert len(out) == 3 and out[1].startswith("v0.15.0") \
+        and out[2].startswith("  FEAT-8 H ")
 
 
 def test_status_lanes_without_git(roadmap, branches, tmp_path, monkeypatch, capsys):

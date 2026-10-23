@@ -14,6 +14,7 @@ from rmlib.parse import (
     CLAIM_STAGES, count_progress, needs_approval, parse_plan, read_claim)
 from rmlib import branches as rmbranches
 from rmlib import slots as rmslots
+from rmlib import forecast as rmforecast
 from rmlib import runs as rmruns
 from rmlib.changelog import (
     render_internal_changelog, render_public_changelog)
@@ -400,7 +401,9 @@ def status(root: Path, worktrees: bool = False) -> dict:
     out = {"project": cfg["project"], "currentVersion": cfg["currentVersion"],
            "versionComplete": _version_complete(cur_items, progress),
            "counts": counts, "items": items,
-           "trunk": found["trunk"], "otherBranches": other, **extra}
+           "trunk": found["trunk"], "otherBranches": other,
+           # Version forecast from recent pace (plan 44): {version: forecast}.
+           "forecast": rmforecast.forecast(root, cfg, progress), **extra}
     if worktrees:
         out["worktrees"] = worktree_payload(root, out, cfg)
     return out
