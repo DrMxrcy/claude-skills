@@ -192,6 +192,17 @@ def test_quality_build_documents_orchestration_rules():
     assert "Merge-only roadmap writes" in text
 
 
+def test_routing_docs_name_branch_scope_and_pending_handoff():
+    root = Path(__file__).resolve().parents[1]
+    skill = (root / "skills/roadmap/SKILL.md").read_text()
+    nxt = (root / "commands/roadmap/next.md").read_text()
+    assert "handoff --plan ID --pending" in skill
+    assert "[--tokens N]" in skill
+    assert "Parallel `--auto` is **opt-in** and not yet built" in skill
+    assert "`scout` (haiku)" in nxt and "`executor` (opus)" in nxt
+    assert "general-purpose` subagent" not in nxt   # the old unlabeled-subagent table is gone
+
+
 def test_check_tokens_recorded_beside_evidence(roadmap, repo):
     roadmap.init_project(repo, "P")
     roadmap.new_item(repo, "feature", "A")

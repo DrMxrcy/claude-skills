@@ -258,7 +258,7 @@ Anywhere a command takes `--plan ID` (or an id list), the id may be `7`, `#7`, o
 - `note --plan ID --text "..." [--force]` — set an item's user-facing changelog line (lints public notes; refuses status-dump text on public items)
 - `summary --version V --text "..." [--clear] [--force]` — set a version's public release-notes blurb; renders instead of item bullets in CHANGELOG.md (keep it stupid simple)
 - `audience --plan ID --to public|internal [--force]` — route an item to the public or internal changelog. Fail-closed: unset audience renders internal-only for every type, and `note`/`new --note` refuse until the audience is explicit. `--to public` refuses high-confidence internal tells — admin/compliance/security-disclosure/plumbing/dev-surface words and disclosure-shaped phrasing — unless `--force`; the same gate applies to `new --audience public` and to saving a note on a public item.
-- `check --plan ID --step N [--undo] [--all-done] [--evidence "..."]` — flip checkboxes (+ records `last_seen_sha`).
+- `check --plan ID --step N [--undo] [--all-done] [--evidence "..."] [--tokens N]` — flip checkboxes (+ records `last_seen_sha`). `--tokens` writes the token spend beside the evidence line (needs `--evidence`; omit it and the line format is unchanged).
   `--evidence` records how the step was proven done (verify command + result) as a dated
   sub-line under the step — under every step with `--all-done`, ignored with `--undo`.
   `settings.requireEvidence: true` in `.roadmap/config.json` (default `false`) makes a bare
@@ -272,6 +272,9 @@ Anywhere a command takes `--plan ID` (or an id list), the id may be `7`, `#7`, o
 - `retarget --to V (--from VERS | --plan IDS)` — re-stamp items onto another version
 - `orient [--json] [--hook]` — session orientation (project, progress, next item, drift)
 - `handoff [--json]` — multi-coder switch brief (orient + git dirty + checklist)
+- `handoff --plan ID --pending "<decision>"` — record an open decision in `.roadmap/notes/<id>-handoff.md`; a plain `handoff` refuses while it is open
+- `handoff --plan ID --resolve` — close the open decision for that plan
+- `orient` also reports the branch, dirty files and the last 5 commits (in handoff mode)
 - `drift-check` — nudge if commits landed without a check-off
 - `tidy [--json] [--externalize [PATH]]` — report-only free-form/incubator hygiene analysis (long bullets, nested blocks, dupes vs tracked items, stray prose); `--externalize` moves the incubator into a linked external file (default `.roadmap/IDEAS.md`; `idea`/`promote`/`remove` follow via `settings.incubatorFile`); `/roadmap:tidy` applies the grooming + idea curation
 - `sync` — recompute progress + re-render ROADMAP.md **and both changelogs** (safe anytime)
@@ -290,5 +293,10 @@ Anywhere a command takes `--plan ID` (or an id list), the id may be `7`, `#7`, o
 
 ## Optional automation
 - **Stop** (`hooks/roadmap-sync.sh`): `sync` + `drift-check` each turn — safety net + catchup nudge.
+
+## Routing for parallel and isolated builds
+- One item → `build <id> --worktree` (branch `roadmap/<id>-<slug>`); one orchestrator per item. See `references/quality-build.md` → "Orchestration per item".
+- A whole version → `build <version> --worktree` (branch `roadmap/v<version>`, one shared worktree).
+- Parallel `--auto` is **opt-in** and not yet built (plan 27). Serial `build --auto` remains the default.
 - **SessionStart** (`hooks/roadmap-orient.sh`): injects current version + next item into context.
 Both are opt-in via the installer (`--no-hook` / `--no-orient`). CLI mutations already `sync`.
