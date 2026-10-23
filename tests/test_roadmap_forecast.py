@@ -314,3 +314,75 @@ def test_status_text_prints_forecast_on_version_headers(roadmap, repo, fc,
     _set_steps(roadmap, repo, 1, [_ago(0, today)] * 3)
     assert roadmap.main(["status", "--version", ver]) == 0
     assert capsys.readouterr().out.splitlines()[1] == f"v{ver} — done"
+
+
+# ---- step 3: dashboard -------------------------------------------------------
+
+def test_dashboard_html_has_forecast_hooks(dashboard):
+    body = dashboard._dashboard_html()
+    for hook in ("LAST.forecast", "forecastTag(fc)", "burnDown(fc)",
+                 "createElementNS", '"polyline"', "not enough history"):
+        assert hook in body, hook
+    assert ".innerHTML" not in body and "insertAdjacentHTML" not in body
+
+
+def test_merged_view_carries_trunk_forecast(dashboard):
+    fc_main = {"0.1.0": {"state": "forecast", "date": "2026-11-07"}}
+    st = [{"project": "p", "currentVersion": "0.1.0", "trunk": "main",
+           "items": [], "forecast": {"0.1.0": {"state": "insufficient"}}},
+          {"project": "p", "currentVersion": "0.1.0", "trunk": "main",
+           "items": [], "forecast": fc_main}]
+    meta = [{"branch": "roadmap/1", "name": "a"}, {"branch": "main", "name": "b"}]
+    assert dashboard._merge_status(st, meta)["forecast"] == fc_main
+    assert "forecast" not in dashboard._merge_status(
+        [{"items": []}], [{"branch": "main", "name": "a"}])
+
+
+_NODE_HARNESS = r"""
+class Node { constructor(tag){ this.tag=tag; this.kids=[]; this.attrs={};
+  this.className=""; this._t=""; this.title=""; }
+  appendChild(c){ this.kids.push(c); return c; }
+  setAttribute(k,v){ this.attrs[k]=String(v); }
+  set textContent(s){ this._t=String(s); }
+  get textContent(){ return this._t + this.kids.map(k=>k.textContent).join(""); } }
+const document = { createElement: t => new Node(t),
+  createElementNS: (ns,t) => new Node(t),
+  createTextNode: s => { const n = new Node("#text"); n._t = String(s); return n; } };
+const el = (tag,cls) => { const e=document.createElement(tag); if(cls) e.className=cls; return e; };
+const txt = (tag,cls,s) => { const e=el(tag,cls); e.textContent=s; return e; };
+"""
+
+
+def _run_dashboard_js(dashboard, tmp_path, expr):
+    import shutil
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node not installed")
+    body = dashboard._dashboard_html()
+    start = body.index("// Version forecast (plan 44)")
+    end = body.index("\n// Unmerged branches", start)
+    js = tmp_path / "fc.js"
+    js.write_text(_NODE_HARNESS + body[start:end] + "\nconsole.log(JSON.stringify(" +
+                  expr + "));\n")
+    out = subprocess.run([node, str(js)], capture_output=True, text=True, check=True)
+    return json.loads(out.stdout)
+
+
+def test_dashboard_header_shows_forecast_and_target(dashboard, tmp_path):
+    f = {"state": "forecast", "date": "2026-11-07", "range": ["2026-11-02", None],
+         "remaining": 30, "ahead": 0, "pace": 2, "windowDays": 10, "ticks": 20,
+         "target": "2026-11-15", "targetStatus": "at risk",
+         "burndown": [50, 47, 46, 43, 30]}
+    res = _run_dashboard_js(dashboard, tmp_path, """[
+      forecastTag(F).textContent, forecastTag(F).kids[1].className,
+      forecastTag({state:"insufficient", remaining:3, pace:0.2, windowDays:14,
+                   ticks:3}).textContent,
+      forecastTag({state:"done"}).textContent,
+      burnDown(F).textContent, burnDown(F).kids[0].kids[0].attrs.points,
+      burnDown({state:"done", burndown:[1,0]})]""".replace("F", json.dumps(f)))
+    assert res[0] == "forecast Nov 7 (Nov 2–?)at risk · Nov 15"
+    assert res[1] == "tgt atrisk"
+    assert res[2] == "not enough history" and res[3] == "done"
+    assert res[4] == "burn-down, last 10d: 50 → 30 left · 2/day"
+    assert res[5].startswith("0.0,2.0 ") and res[5].endswith("120.0,10.0")
+    assert res[6] is None

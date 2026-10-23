@@ -54,6 +54,15 @@
     padding:6px 0; user-select:none; }
   .ver-head h2 { font-size:13px; margin:0; letter-spacing:.02em; }
   .ver-head .vpct { color:var(--muted); font-size:12px; margin-left:auto; }
+  .ver-head .vfc { color:var(--muted); font-size:12px; }
+  .vfc .tgt { margin-left:6px; border:1px solid var(--line); border-radius:4px;
+    padding:0 5px; }
+  .vfc .tgt.ontrack { color:var(--done); border-color:var(--done); }
+  .vfc .tgt.atrisk { color:var(--active); border-color:var(--active); }
+  .vfc .tgt.late { color:var(--blocked); border-color:var(--blocked); }
+  .burn { display:flex; align-items:center; gap:10px; padding:6px 0 8px;
+    color:var(--muted); font-size:11px; }
+  .burn svg { flex:none; }
   .ver-group.collapsed .items { display:none; }
   .chev { color:var(--muted); transition:transform .15s; }
   .ver-group.collapsed .chev { transform:rotate(-90deg); }
@@ -480,6 +489,8 @@ function verSection(v, items, cur){
   const head = el("div","ver-head");
   head.appendChild(txt("span","chev","▾"));
   head.appendChild(txt("h2",null,"v"+v+(v===cur?" · current":"")));
+  const fc = ((LAST && LAST.forecast) || {})[v];
+  if(fc) head.appendChild(forecastTag(fc));
   head.appendChild(txt("span","vpct",
     (nf ? nf+" in flight · " : "")+(gt?Math.round(100*gd/gt):0)+"% · "+gd+"/"+gt));
   head.onclick = () => {
@@ -489,9 +500,63 @@ function verSection(v, items, cur){
   };
   sec.appendChild(head);
   const box = el("div","items");
+  if(fc) { const b = burnDown(fc); if(b) box.appendChild(b); }
   for(const it of items) box.appendChild(itemRow(it));
   sec.appendChild(box);
   return sec;
+}
+
+// Version forecast (plan 44): finish date at recent pace, its ±1sd range and
+// the target grade on the header; a burn-down sparkline at the top of the
+// expanded version. Text nodes and SVG attributes only.
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function shortDate(iso){
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso||""));
+  return m ? MONTHS[+m[2]-1]+" "+(+m[3]) : "?";
+}
+function forecastTag(f){
+  const t = el("span","vfc");
+  let s;
+  if(f.state === "done") s = "done";
+  else if(f.state === "insufficient") s = "not enough history";
+  else {
+    const r = f.range || [];
+    s = "forecast "+shortDate(f.date)+" ("+shortDate(r[0])+"–"+(r[1] ? shortDate(r[1]) : "?")+")";
+  }
+  t.appendChild(document.createTextNode(s));
+  t.title = f.state === "done" ? "no steps left"
+    : f.remaining+" steps left"+(f.ahead ? " (+"+f.ahead+" in earlier versions)" : "")
+      +" · "+f.pace+"/day over "+f.windowDays+"d ("+f.ticks+" ticks)";
+  if(f.target){
+    const cls = f.targetStatus ? f.targetStatus.replace(/\s+/g,"") : "";
+    const g = txt("span","tgt"+(cls ? " "+cls : ""),
+      (f.targetStatus || "target")+" · "+shortDate(f.target));
+    g.title = "target "+f.target;
+    t.appendChild(g);
+  }
+  return t;
+}
+function burnDown(f){
+  const pts = Array.isArray(f.burndown) ? f.burndown : [];
+  if(f.state === "done" || pts.length < 2) return null;
+  const W = 120, H = 24, max = Math.max(1, ...pts);
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("width", W); svg.setAttribute("height", H);
+  svg.setAttribute("viewBox", "0 0 "+W+" "+H);
+  svg.setAttribute("aria-hidden", "true");
+  const line = document.createElementNS(NS, "polyline");
+  line.setAttribute("points", pts.map((n,i) =>
+    (i*W/(pts.length-1)).toFixed(1)+","+(2+(H-4)*(1-n/max)).toFixed(1)).join(" "));
+  line.setAttribute("fill", "none");
+  line.setAttribute("stroke", "var(--accent)");
+  line.setAttribute("stroke-width", "1.5");
+  svg.appendChild(line);
+  const wrap = el("div","burn");
+  wrap.appendChild(svg);
+  wrap.appendChild(document.createTextNode("burn-down, last "+f.windowDays+"d: "
+    +pts[0]+" → "+pts[pts.length-1]+" left · "+f.pace+"/day"));
+  return wrap;
 }
 
 // Unmerged branches not attributed to any item (fix/*, experiments, release
