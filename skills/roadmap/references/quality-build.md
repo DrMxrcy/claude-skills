@@ -29,6 +29,15 @@ Keep AI coders **on-task** (one plan item, real checklist, no dashboard thrash) 
 | **Subagent depth = 1** (Grok) | Only the parent spawns; children do not spawn kids |
 | **Never skip review on `--auto`** | `--auto` only removes *user* checkpoints between items |
 
+## Orchestration per item
+
+- **One orchestrator per item.** One parent session owns one item from start to check-off. It is the only session that runs `roadmap.py`. A new item gets a new parent, not the old one with a longer context.
+- **Respawn budget: four respawns per step** (five attempts in total). A respawn is a fresh subagent for the same step after a failure, a stall, or a BLOCKED report. Once the budget is spent, mark the step BLOCKED, record the reason in the handoff note (`handoff --plan <id> --pending "<decision>"`), and stop that item. Do not keep retrying.
+- **Respawn, never resume.** A resumed subagent re-sends its whole transcript on every turn. A respawn starts clean from the shared brief (`brief-common.md`, then `brief-task.md`), the plan body, and the branch state on disk.
+- **Merge-only roadmap writes.** Builders never edit `ROADMAP.md`, `.roadmap/`, or the changelogs. Roadmap state changes only in the parent's `check` and in the single merge step for a per-item branch. This keeps parallel items from colliding on shared roadmap files.
+
+The review-loop cap (two fix→review loops, above) is separate from the respawn budget: it limits how many times one step is re-reviewed, while the respawn budget limits how many times a stuck step gets a new subagent.
+
 ## Item selection
 
 1. `status` (or `next --json` for “whatever is next”).

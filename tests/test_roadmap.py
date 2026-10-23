@@ -183,6 +183,15 @@ def test_build_worktree_scopes_branch_per_item_or_version():
     assert "`roadmap/<id>-<slug>` instead" not in text  # the old optional wording is gone
 
 
+def test_quality_build_documents_orchestration_rules():
+    text = (Path(__file__).resolve().parents[1]
+            / "skills/roadmap/references/quality-build.md").read_text()
+    assert "One orchestrator per item" in text
+    assert "Respawn budget: four respawns per step" in text
+    assert "Respawn, never resume" in text
+    assert "Merge-only roadmap writes" in text
+
+
 def test_check_tokens_recorded_beside_evidence(roadmap, repo):
     roadmap.init_project(repo, "P")
     roadmap.new_item(repo, "feature", "A")
