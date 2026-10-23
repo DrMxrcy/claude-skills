@@ -52,6 +52,15 @@ def _no_template_gate(monkeypatch):
     monkeypatch.setattr(_rmparse, "DEFAULT_REQUIRED_SECTIONS", {})
 
 
+@pytest.fixture(autouse=True)
+def _no_owner_env(monkeypatch):
+    """Claim owners (plan 40) default to $ROADMAP_OWNER, then the git user name,
+    then an agent named by the environment — clear the env so the identity a test
+    sees never depends on the shell (or agent) running the suite."""
+    for var in ("ROADMAP_OWNER", "CLAUDECODE", "GEMINI_CLI"):
+        monkeypatch.delenv(var, raising=False)
+
+
 @pytest.fixture
 def template_gate(monkeypatch):
     """Re-enable the shipped required-sections defaults for this test."""

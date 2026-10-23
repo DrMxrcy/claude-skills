@@ -18,7 +18,11 @@ FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---\n", re.DOTALL)
 # `claim_landed_sha` is the commit it landed in (set by `claim --landed <sha>`).
 CLAIM_STAGES = ("review", "fixing", "gate-ready", "gating", "blocked", "landed")
 CLAIM_VERDICTS = ("CONFIRMED", "PARTIAL", "REFUTED")
-CLAIM_FIELDS = ("stage", "verdict", "note", "branch", "landed_sha", "updated")
+# `owner` / `refreshed` (plan 40): who holds the item and when they last
+# refreshed the claim (UTC ISO timestamp) — see rmlib/owners.py. An owner-only
+# claim (no stage) holds the item while it builds in its derived lane.
+CLAIM_FIELDS = ("stage", "verdict", "note", "branch", "landed_sha", "updated",
+                "owner", "refreshed")
 CLAIM_PREFIX = "claim_"
 
 # Numbered slot reservations (plan 33): `slot_<kind>: 0269_name[, 0270_name2]`,
@@ -157,11 +161,11 @@ def count_progress(path: Path) -> tuple[int, int]:
 
 def read_claim(path: Path) -> dict | None:
     """The plan's in-flight claim as {stage, verdict, note, branch, landed_sha,
-    updated} (absent fields are None), or None when the plan carries no claim
-    (no `claim_stage`).
+    updated, owner, refreshed} (absent fields are None), or None when the plan
+    carries no claim (neither `claim_stage` nor `claim_owner`).
     Values are returned as written; lane derivation decides what to trust."""
     meta = parse_plan(path)["meta"]
-    if not meta.get(CLAIM_PREFIX + "stage"):
+    if not (meta.get(CLAIM_PREFIX + "stage") or meta.get(CLAIM_PREFIX + "owner")):
         return None
     return {f: (meta.get(CLAIM_PREFIX + f) or None) for f in CLAIM_FIELDS}
 
