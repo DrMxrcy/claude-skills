@@ -13,7 +13,10 @@ recovery path after rate limits, crashes, or killed sessions.
    - **Drift** (commits since last check-off) → `/roadmap:catchup` / `/roadmap-catchup`
      after verifying tests, then commit.
    - **Stale skill rules** → `python3 <roadmap.py> upgrade`.
-3. Continue from the **plan checklist** (next unfinished step), not from chat memory:
+3. If a decision is still open (`handoff` refuses and names it), settle it with the user, then
+   `handoff --plan <id> --resolve`. A BLOCKED step (respawn budget spent — see
+   `references/quality-build.md`) goes in the handoff note the same way.
+4. Continue from the **plan checklist** (next unfinished step), not from chat memory:
    `/roadmap:next` / `/roadmap-next` or `/roadmap:build` / `/roadmap-build`.
 
 ## Rate limit / no formal handoff
