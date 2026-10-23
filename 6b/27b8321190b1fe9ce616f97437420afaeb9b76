@@ -1,0 +1,14 @@
+agy-plugin/plugins/roadmap/commands/roadmap-handoff.md
+  h_d6b80c4f15405d 16-19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6b27b8321190b1fe9ce616f97437420afaeb9b76",
+  "prompts": {},
+  "humans": {
+    "h_d6b80c4f15405d": {
+      "author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
