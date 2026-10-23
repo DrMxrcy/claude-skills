@@ -32,7 +32,8 @@ from rmlib.parse import (  # noqa: E402
 
 from rmlib.ops import (  # noqa: E402
     TEMPLATE_BY_TYPE, _incomplete_items, _refuse_status_note,
-    backfill_changelog, check_step, claim_landed, clear_claim, clear_claims,
+    backfill_changelog, check_landed, check_step, claim_landed, clear_claim,
+    clear_claims,
     import_file, merge_items, new_item,
     promote_idea, release, release_gate, remove_item, reorder, retarget,
     set_audience, set_claim, set_claims, set_depends, set_note, set_release_summary)
@@ -86,7 +87,7 @@ __all__ = [  # public facade: names re-exported for callers/tests/hooks (roadmap
     'MAX_FREEFORM_CHARS', 'STEP_RE', '_is_fence', 'parse_plan',
     'count_progress', '_plan_path', 'CLAIM_STAGES', 'CLAIM_VERDICTS',
     'CLAIM_FIELDS', 'read_claim', 'set_claim', 'clear_claim', 'set_claims',
-    'clear_claims', 'claim_landed', 'TEMPLATE_BY_TYPE',
+    'clear_claims', 'claim_landed', 'check_landed', 'TEMPLATE_BY_TYPE',
     '_incomplete_items', '_refuse_status_note', 'backfill_changelog',
     'check_step', 'import_file', 'merge_items', 'new_item', 'promote_idea',
     'release', 'release_gate', 'remove_item', 'reorder', 'retarget', 'set_audience',
@@ -137,6 +138,34 @@ def serve(root: Path, port: int | None = None, open_browser: bool = True) -> int
     return mod.serve(_dashboard_api(), root, port=port, open_browser=open_browser)
 
 
+def _print_check_landed(res: dict, applied: bool) -> int:
+    """Render check_landed() for the terminal. Exit 1 when an item was refused."""
+    trunk = res["trunk"]
+    if not res["ready"] and not res["waiting"]:
+        print("no items in the landed lane")
+        return 0
+    print(f"check --landed — trunk {trunk}" + ("" if applied else " (dry run)"))
+    def line(tag, e, tail):
+        n = e["steps"]
+        print(f"  {tag:<10} {e['displayId']} {e['title']} — "
+              f"{n} step{'s' if n != 1 else ''} · {tail}")
+    if applied:
+        for e in res["ticked"]:
+            line("ticked", e, e["reason"])
+        for e in res["refused"]:
+            line("refused", e, e["reason"])
+    else:
+        for e in res["ready"]:
+            line("would tick", e, f"landed @{e['sha'][:7]}, in {trunk}")
+    for e in res["waiting"]:
+        line("waiting", e, e["reason"])
+    if not applied and res["ready"]:
+        n = len(res["ready"])
+        print(f"{n} item{'s' if n != 1 else ''} ready — re-run with --yes to tick "
+              f"{'them' if n != 1 else 'it'} and clear the claim{'s' if n != 1 else ''}")
+    return 1 if res["refused"] else 0
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(prog="roadmap")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -178,7 +207,7 @@ def main(argv: list[str]) -> int:
                        help="save even if the text reads like a status dump")
 
     p_check = sub.add_parser("check")
-    p_check.add_argument("--plan", required=True, help=ID_HELP)
+    p_check.add_argument("--plan", help=ID_HELP + " (required unless --landed)")
     p_check.add_argument("--step", type=int)
     p_check.add_argument("--undo", action="store_true")
     p_check.add_argument("--all-done", action="store_true", dest="all_done")
@@ -191,6 +220,13 @@ def main(argv: list[str]) -> int:
                               "With --all-done the same text is recorded under every "
                               "step; ignored with --undo. Required when "
                               "settings.requireEvidence is true.")
+    p_check.add_argument("--landed", action="store_true",
+                         help="tick every step of each item in the landed lane whose "
+                              "landing sha (and branch tip) trunk now contains, record "
+                              "evidence naming the sha, and clear its claim; dry run "
+                              "unless --yes")
+    p_check.add_argument("--yes", action="store_true",
+                         help="with --landed: apply instead of listing")
 
     def claim_stage(value: str) -> str:
         v = value.strip().lower()
@@ -373,6 +409,18 @@ def main(argv: list[str]) -> int:
                                 clear=args.clear, force=args.force)
             return 0
         if args.command == "check":
+            if args.landed:
+                if (args.plan, args.step, args.tokens) != (None, None, None) \
+                        or args.undo or args.all_done:
+                    p_check.error("--landed takes only --evidence and --yes")
+                return _print_check_landed(
+                    check_landed(root, evidence=args.evidence, apply=args.yes),
+                    args.yes)
+            if args.yes:
+                p_check.error("--yes only applies with --landed")
+            if args.plan is None:
+                p_check.error("the following arguments are required: --plan "
+                              "(or use --landed)")
             check_step(root, rid(args.plan), args.step, undo=args.undo,
                        all_done=args.all_done, evidence=args.evidence,
                        tokens=args.tokens)

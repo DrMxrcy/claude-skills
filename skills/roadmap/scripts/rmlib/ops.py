@@ -272,6 +272,72 @@ def claim_landed(root: Path, rev: str, plan_ids=None) -> dict:
     return {"sha": sha, "landed": landed, "untagged": untagged}
 
 
+def check_landed(root: Path, evidence: str | None = None,
+                 apply: bool = False) -> dict:
+    """Tick off items in the `landed` lane whose work trunk now contains.
+
+    An item is ready only when its landing sha (claim_landed_sha, or the
+    derived integration tip) is an ancestor of trunk AND, if it still has a
+    branch, that branch tip is too — so work added after landing, or a branch
+    never merged, can never be ticked. Containment is one `rev-list` call for
+    every item. Dry run unless `apply`: then every step of each ready item is
+    ticked with evidence naming the sha (check_step, which also clears the
+    claim). Returns {"trunk", "ready", "waiting", "ticked", "refused"}; each
+    entry is {"id", "displayId", "title", "steps", "sha", "reason"}."""
+    st = status(root)
+    trunk = st.get("trunk")
+    if not trunk:
+        raise ValueError("check --landed needs a git repository with a trunk branch")
+    rows = [i for i in st["items"] if i["lane"] == "landed"]
+
+    def landing(row: dict) -> str | None:
+        claim = row.get("claim") or {}
+        if claim.get("stage") == "landed":
+            return claim.get("landed_sha")
+        return (row.get("branch") or {}).get("landedSha")
+
+    full = rmbranches.resolve_commits(root, [s for s in map(landing, rows) if s])
+    tips = [(r.get("branch") or {}).get("sha") for r in rows]
+    inside = rmbranches.contained(root, f"refs/heads/{trunk}",
+                                  [*filter(None, full.values()), *filter(None, tips)])
+    if inside is None:
+        raise ValueError(f"git could not test what {trunk} contains — nothing ticked")
+    out = {"trunk": trunk, "ready": [], "waiting": [], "ticked": [], "refused": []}
+    for row in rows:
+        raw = landing(row)
+        sha = full.get(raw) if raw else None
+        tip = (row.get("branch") or {}).get("sha")
+        entry = {"id": row["id"], "displayId": row["displayId"], "title": row["title"],
+                 "steps": row["total"], "sha": sha, "reason": ""}
+        if not raw:
+            entry["reason"] = (f"no landing sha recorded — record it with: roadmap.py "
+                               f"claim {row['id']} --landed <sha>")
+        elif not sha:
+            entry["reason"] = f"landing sha {raw!r} is not a commit in this repository"
+        elif sha not in inside:
+            entry["reason"] = f"landed @{sha[:7]}, not in {trunk} yet"
+        elif tip and tip not in inside:
+            entry["reason"] = (f"{row['branch']['name']} @{tip[:7]} has work "
+                               f"{trunk} lacks (moved past its landing)")
+        if entry["reason"]:
+            out["waiting"].append(entry)
+            continue
+        out["ready"].append(entry)
+    if not apply:
+        return out
+    note = " ".join(evidence.split()) if evidence else ""
+    for entry in out["ready"]:
+        text = f"landed in {trunk} @{entry['sha'][:7]}"
+        try:
+            check_step(root, entry["id"], None, all_done=True,
+                       evidence=f"{note} · {text}" if note else text)
+        except ValueError as exc:      # another gate (e.g. evidence rules) refused it
+            out["refused"].append({**entry, "reason": str(exc)})
+            continue
+        out["ticked"].append({**entry, "reason": text})
+    return out
+
+
 def clear_claim(root: Path, plan_id: int) -> bool:
     """Remove an item's claim (its lane reverts to the derived one). Allowed on done
     items. Returns False when there was nothing to clear."""

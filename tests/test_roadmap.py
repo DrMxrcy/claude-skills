@@ -3371,3 +3371,92 @@ def test_branches_contained_and_resolve(branches, branch_repo):
     assert branches.contained(branch_repo, tip7, [tip7, main, base]) == {tip7, base}
     assert branches.contained(branch_repo, "main", []) == set()
     assert branches.contained(branch_repo, "main", ["0" * 40]) is None
+
+
+# --- check --landed (plan 32) ---------------------------------------------
+
+def _merge_to_main(repo, ref="integration"):
+    _git(repo, "merge", "--no-ff", "-q", "-m", f"merge {ref}", ref)   # on main
+
+
+def test_check_landed_dry_run_then_yes(roadmap, branches, repo, monkeypatch, capsys):
+    _landed_repo(roadmap, repo, monkeypatch)
+    roadmap.set_claim(repo, 1, stage="gating", verdict="CONFIRMED")
+    roadmap.main(["claim", "--landed", "integration"])
+    integ = _tip(repo, "integration")
+    capsys.readouterr()
+    # still only on integration: listed as waiting, nothing ticked even with --yes
+    assert roadmap.main(["check", "--landed"]) == 0
+    out = capsys.readouterr().out
+    assert "(dry run)" in out and out.count("waiting") == 2
+    assert f"landed @{integ[:7]}, not in main yet" in out
+    assert roadmap.main(["check", "--landed", "--yes"]) == 0
+    capsys.readouterr()
+    assert [i["done"] for i in roadmap.status(repo)["items"]] == [0, 0, 0]
+    # integration merges to trunk: both are ready; the dry run writes nothing
+    _merge_to_main(repo)
+    plans = sorted((repo / ".roadmap/plans").glob("00[12]-*.md"))
+    before = [p.read_text() for p in plans]
+    assert roadmap.main(["check", "--landed"]) == 0
+    out = capsys.readouterr().out
+    assert out.count("would tick") == 2 and "re-run with --yes" in out
+    assert [p.read_text() for p in plans] == before
+    assert roadmap.main(["check", "--landed", "--yes", "--evidence",
+                         "trunk gate: pytest green"]) == 0
+    out = capsys.readouterr().out
+    assert out.count("ticked") == 2 and "(dry run)" not in out
+    items = _by_id(roadmap.status(repo))
+    for n in (1, 2):
+        assert (items[n]["status"], items[n]["claim"]) == ("done", None)
+        text = plans[n - 1].read_text()
+        stamp = f"evidence: trunk gate: pytest green · landed in main @{integ[:7]}"
+        assert text.count(stamp) == items[n]["total"]
+        assert "claim_" not in text
+    assert items[3]["lane"] == "building" and items[3]["done"] == 0
+    assert roadmap.main(["check", "--landed"]) == 0
+    assert "no items in the landed lane" in capsys.readouterr().out
+
+
+def test_check_landed_never_ticks_work_trunk_lacks(roadmap, branches, repo,
+                                                   monkeypatch, capsys):
+    _landed_repo(roadmap, repo, monkeypatch)
+    roadmap.main(["claim", "--landed", "integration"])
+    # roadmap/1 gets more work after landing; roadmap/3 is claimed landed by hand
+    # (no sha); integration then reaches trunk
+    _git(repo, "checkout", "-q", "roadmap/1")
+    _commit(repo, "follow-up (plan 1)")
+    _git(repo, "checkout", "-q", "main")
+    roadmap.set_claim(repo, 3, stage="landed")
+    _merge_to_main(repo)
+    capsys.readouterr()
+    assert roadmap.main(["check", "--landed", "--yes"]) == 0
+    out = capsys.readouterr().out
+    lines = {l.split()[1]: l for l in out.splitlines()[1:]}
+    assert lines["FEAT-2"].lstrip().startswith("ticked")
+    assert lines["FEAT-1"].lstrip().startswith("waiting") and \
+        "moved past its landing" in lines["FEAT-1"]
+    assert lines["FEAT-3"].lstrip().startswith("waiting") and \
+        "claim 3 --landed" in lines["FEAT-3"]
+    done = {i["id"]: i["status"] for i in roadmap.status(repo)["items"]}
+    assert done == {1: "planned", 2: "done", 3: "planned"}
+
+
+def test_check_landed_derived_only_items_wait(roadmap, branches, repo, monkeypatch,
+                                              capsys):
+    _landed_repo(roadmap, repo, monkeypatch)
+    res = roadmap.check_landed(repo)
+    assert [e["id"] for e in res["waiting"]] == [1, 2] and res["ready"] == []
+    assert all("not in main yet" in e["reason"] for e in res["waiting"])
+    res = roadmap.check_landed(repo, apply=True)
+    assert res["ticked"] == [] and res["refused"] == []
+
+
+def test_check_landed_cli_validation(roadmap, branches, repo, monkeypatch, capsys):
+    _landed_repo(roadmap, repo, monkeypatch)
+    for argv in (["check", "--landed", "--plan", "1"],
+                 ["check", "--landed", "--all-done"],
+                 ["check", "--plan", "1", "--yes"],
+                 ["check", "--step", "1"]):
+        with pytest.raises(SystemExit):
+            roadmap.main(argv)
+    assert all(i["done"] == 0 for i in roadmap.status(repo)["items"])
