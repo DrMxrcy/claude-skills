@@ -192,6 +192,17 @@ def test_quality_build_documents_orchestration_rules():
     assert "Merge-only roadmap writes" in text
 
 
+def test_quality_build_documents_merge_gate():
+    text = (Path(__file__).resolve().parents[1]
+            / "skills/roadmap/references/quality-build.md").read_text()
+    assert "## Merge gate (per-item branches)" in text
+    assert "git merge --abort" in text             # conflicts stop the gate
+    assert "Never auto-resolve a conflict" in text
+    assert "Run the full gate on the trunk" in text
+    assert "Red:" in text and "keep the item worktree" in text
+    assert "Roadmap state is written only at step 5" in text
+
+
 def test_routing_docs_name_branch_scope_and_pending_handoff():
     root = Path(__file__).resolve().parents[1]
     skill = (root / "skills/roadmap/SKILL.md").read_text()
