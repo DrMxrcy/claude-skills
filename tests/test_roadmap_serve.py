@@ -497,3 +497,24 @@ def test_second_serve_prints_running_url_loudly(served, capsys):
     out = capsys.readouterr().out
     first = out.splitlines()[0]
     assert first.startswith("roadmap dashboard already running") and base in first
+
+
+# --- default view (plan 31) -----------------------------------------------
+
+def test_dashboard_view_always_starts_on_trunk(served):
+    """The view is never restored: no stored view key is read, the select
+    opts out of browser form restore, and legacy keys/params are cleared."""
+    base, _, _ = served
+    body = _get(base + "/")[2].decode()
+    assert 'const DEFAULT_VIEW = "trunk";' in body
+    assert "let VIEW = DEFAULT_VIEW;" in body
+    assert 'id="rootsel" autocomplete="off"' in body
+    assert 'id="search" type="search" autocomplete="off"' in body
+    # nothing ever stores or reads the view
+    for bad in ('store.get("rm-view"', 'store.set("rm-view"',
+                'store.get("rm-root"', 'store.set("rm-root"',
+                'getItem("rm-view"', 'setItem("rm-view"'):
+        assert bad not in body, bad
+    assert 'removeItem(k)' in body and '"rm-view","rm-root"' in body
+    # filters still persist
+    assert 'store.get("rm-filters"' in body

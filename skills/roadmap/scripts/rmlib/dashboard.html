@@ -175,7 +175,7 @@
     <div class="hrow">
       <h1><span id="stale" title="live"></span><span id="project">roadmap</span>
         <span class="ver" id="cver"></span></h1>
-      <select id="rootsel" hidden></select>
+      <select id="rootsel" autocomplete="off" hidden></select>
       <span class="overall" id="overall"></span>
     </div>
     <div class="hbar"><i id="hbarfill"></i></div>
@@ -183,7 +183,7 @@
     <div class="tabs" id="tabs"></div>
     <div class="counts" id="rmctrls">
       <div class="ctrls">
-        <input id="search" type="search" placeholder="filter items, #id or branch…">
+        <input id="search" type="search" autocomplete="off" placeholder="filter items, #id or branch…">
         <span class="filters">
           <label title="hide done items"><input type="checkbox" id="openOnly"> open only</label>
           <select id="laneFilter" title="show one lane"></select>
@@ -268,7 +268,19 @@ const base = p => String(p||"").split(/[\\/]/).filter(Boolean).pop() || String(p
 
 // VIEW: "trunk" (default — trunk checkout with the git branch overlay),
 // "all" (legacy merged worktree checkboxes), or a worktree index.
-let VIEW = "trunk";
+// The view is deliberately NOT persisted (plan 31): every page load starts on
+// "trunk + branches", whichever checkout `serve` was started from and whatever
+// was picked before the reload. Filters persist; the view does not. Legacy
+// view keys (?view=, localStorage) are ignored and cleared, and the selects
+// carry autocomplete="off" so the browser's form restore cannot bring an old
+// choice back either.
+const DEFAULT_VIEW = "trunk";
+let VIEW = DEFAULT_VIEW;
+for(const k of ["rm-view","rm-root"]){ try { localStorage.removeItem(k); } catch(_){} }
+try {
+  if(/[?&](view|root)=/.test(location.search))
+    history.replaceState(null, "", location.pathname + location.hash);
+} catch(_){}
 let LASTP = null;   // last raw payload {_roots, statuses, merged, trunkRoot}
 const trunkIdx = P => (P && Number.isInteger(P.trunkRoot)
   && P.trunkRoot < (P.statuses||[]).length) ? P.trunkRoot : 0;
@@ -596,6 +608,13 @@ document.getElementById("rootsel").addEventListener("change", e => {
   VIEW = (v === "trunk" || v === "all") ? v : (parseInt(v, 10) || 0);
   if(LASTP) render(view(LASTP));   // view switch is local — no reconnect
   if(TAB !== "roadmap") setTab(TAB);   // re-fetch the open pane for this root
+});
+// A page restored from the back/forward cache keeps its JS state; a fresh
+// view is still the rule, so reset it there too.
+window.addEventListener("pageshow", e => {
+  if(e.persisted && VIEW !== DEFAULT_VIEW){
+    VIEW = DEFAULT_VIEW; if(LASTP) render(view(LASTP));
+  }
 });
 // Relative ages ("3h ago") drift without new data; refresh them each minute.
 setInterval(() => { if(LAST && TAB === "roadmap") render(LAST); }, 60000);
