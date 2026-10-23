@@ -72,3 +72,25 @@ def test_summary_cli_roundtrip(repo):
     assert ok.returncode == 0
     cl = (repo / "CHANGELOG.md").read_text()
     assert "minor bug fixes" in cl and "Share trips" not in cl
+
+
+def test_status_worktrees_cli(repo, tmp_path_factory):
+    """`status --worktrees` lists linked worktrees, marks the merged-clean one
+    safe, prints its removal command, and removes nothing (plan 36)."""
+    git = lambda *a, cwd=repo: subprocess.run(["git", *a], cwd=cwd, check=True,
+                                              capture_output=True, text=True)
+    git("symbolic-ref", "HEAD", "refs/heads/main")
+    assert run(repo, "init", "--name", "E2E").returncode == 0
+    git("add", "-A")
+    git("commit", "-qm", "init")
+    base = tmp_path_factory.mktemp("e2e-wt")
+    done, wip = base / "done", base / "wip"
+    git("worktree", "add", "-q", "-b", "roadmap/1", str(done))
+    git("worktree", "add", "-q", "-b", "roadmap/2", str(wip))
+    git("commit", "--allow-empty", "-qm", "wip (plan 2)", cwd=wip)
+    out = run(repo, "status", "--worktrees")
+    assert out.returncode == 0, out.stderr
+    assert out.stdout.splitlines()[0] == "worktrees: 2 linked · 1 safe to remove"
+    assert f"git worktree remove {done.resolve()}" in out.stdout
+    assert done.is_dir() and wip.is_dir()
+    assert "roadmap/1" in git("branch", "--list").stdout

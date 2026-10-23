@@ -21,6 +21,7 @@ from rmlib.sync import (  # noqa: E402
     _version_complete, incomplete_deps, next_item, render_region,
     roadmap_health, status, sync, uncut_complete_version,
     derive_lane, is_in_flight, lane_counts, lane_label,
+    format_worktrees, worktree_payload,
     warn_incomplete_deps, MAX_ROADMAP_LINES,
     MAX_FREEFORM_LINES, MAX_FREEFORM_CHARS)
 
@@ -87,7 +88,7 @@ __all__ = [  # public facade: names re-exported for callers/tests/hooks (roadmap
     '_progress_map', '_version_complete', 'incomplete_deps', 'next_item',
     'render_region', 'roadmap_health', 'status', 'sync',
     'derive_lane', 'is_in_flight', 'lane_counts', 'lane_label',
-    'uncut_complete_version', 'warn_incomplete_deps', 'MAX_ROADMAP_LINES', 'MAX_FREEFORM_LINES',
+    'format_worktrees', 'worktree_payload', 'uncut_complete_version', 'warn_incomplete_deps', 'MAX_ROADMAP_LINES', 'MAX_FREEFORM_LINES',
     'MAX_FREEFORM_CHARS', 'STEP_RE', '_is_fence', 'parse_plan',
     'count_progress', '_plan_path', 'CLAIM_STAGES', 'CLAIM_VERDICTS',
     'CLAIM_FIELDS', 'read_claim', 'needs_approval', 'parse_rulings', 'set_claim', 'clear_claim', 'set_claims',
@@ -127,7 +128,9 @@ def _dashboard_api():
         parse_plan=parse_plan, changelog_json=changelog_json,
         incubator_file=incubator_file,
         list_incubator_bullets=list_incubator_bullets,
-        discover_branches=rmbranches.discover)
+        discover_branches=rmbranches.discover,
+        worktree_facts=rmbranches.worktree_facts,
+        worktree_payload=worktree_payload)
 
 
 def serve(root: Path, port: int | None = None, open_browser: bool = True,
@@ -387,6 +390,10 @@ def main(argv: list[str]) -> int:
                       help="recorded gate/suite runs, newest first, and trunk health")
     p_st.add_argument("--in-flight", action="store_true", dest="in_flight",
                       help="only unfinished items with a branch or a claim")
+    p_st.add_argument("--worktrees", action="store_true",
+                      help="linked worktrees: branch, item and lane, dirty and "
+                           "unmerged counts, claim stage, age, and which are safe "
+                           "to remove (the command is printed, never run)")
 
     p_search = sub.add_parser(
         "search", help="case-insensitive substring search across item titles/notes, "
@@ -733,7 +740,13 @@ def main(argv: list[str]) -> int:
                 print(p)
             return 0
         if args.command == "status":
-            st = status(root)
+            st = status(root, worktrees=args.worktrees)
+            if args.worktrees:
+                if args.as_json:
+                    print(json.dumps({"worktrees": st["worktrees"]}, indent=2))
+                else:
+                    print(format_worktrees(st["worktrees"]))
+                return 0
             if args.slots:
                 if args.as_json:
                     print(json.dumps({"slots": st.get("slots")}, indent=2))

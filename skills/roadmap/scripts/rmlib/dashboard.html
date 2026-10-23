@@ -234,6 +234,21 @@
   .slot.st-clash, .slot.st-taken { color:var(--blocked); border-color:var(--blocked);
     font-weight:600; background:color-mix(in srgb, var(--blocked) 14%, transparent); }
   .slots .serr { color:var(--blocked); }
+  /* ---- worktree map (plan 36): one row per linked worktree ------------- */
+  .ver-head.wt-over h2, .ver-head.wt-over .vpct { color:var(--blocked); }
+  .wtr { display:grid; grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) auto
+    auto auto auto auto; gap:10px; align-items:center; font-size:12px;
+    padding:5px 0; border-top:1px solid var(--line); }
+  .wtr.wth { color:var(--muted); font-size:11px; border-top:0; }
+  .wtr .bname { overflow-wrap:anywhere; }
+  .wtr .muted { color:var(--muted); }
+  .wtr .ahead { color:var(--build); font-variant-numeric:tabular-nums; }
+  .wtr .dirty { color:var(--active); font-variant-numeric:tabular-nums; }
+  .wtr .wit { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+  .wtr .safe { color:var(--done); font-weight:600; }
+  .wtr .unsafe { color:var(--muted); }
+  .wtcmd { grid-column:1 / -1; font:11px ui-monospace, SFMono-Regular, Menlo,
+    monospace; color:var(--muted); user-select:all; overflow-wrap:anywhere; }
   /* ---- rulings (plan 34): dated decisions, approvals flagged ------------ */
   .rulings { margin-top:8px; display:flex; flex-direction:column; gap:4px; }
   .rulings h4 { margin:0 0 2px; font-size:12px; color:var(--muted); font-weight:600; }
@@ -275,6 +290,8 @@
     .ctrls { margin-left:0; flex-wrap:wrap; }
     .bar { width:60px; }
     .ob { grid-template-columns:1fr auto; }
+    .wtr { grid-template-columns:1fr auto; }
+    .wtr.wth { display:none; }
   }
 </style>
 </head>
@@ -402,7 +419,7 @@ function view(P){
   const st = VIEW === "all" ? (P.merged || {})
     : (P.statuses || [P.merged || {}])[VIEW === "trunk" ? trunkIdx(P) : VIEW]
       || P.merged || {};
-  return {...st, _roots: P._roots};
+  return {...st, _roots: P._roots, worktrees: P.worktrees};
 }
 // Checkout index the item/ideas/changelog endpoints should read.
 const viewRoot = it => VIEW === "all"
@@ -690,6 +707,63 @@ function runPanel(d){
   return [box];
 }
 
+// Worktree map (plan 36): every linked worktree of the repo, the same in
+// every view. Header turns red past settings.worktreeWarn; a safe row shows
+// the removal command as text to copy — the dashboard never runs it.
+function worktreePanel(w){
+  if(!w || !w.count) return [];
+  const KEY = "__worktrees";
+  const sec = el("section","ver-group wtmap");
+  if(!(prefs[KEY])) sec.classList.add("collapsed");
+  const head = el("div","ver-head"+(w.over ? " wt-over" : ""));
+  head.appendChild(txt("span","chev","▾"));
+  head.appendChild(txt("h2",null,"worktrees"));
+  const sum = txt("span","vpct", w.count+" linked · "+w.safe+" safe to remove");
+  if(w.over) sum.title = "more than "+w.warnAt+" (settings.worktreeWarn)";
+  head.appendChild(sum);
+  head.onclick = () => {
+    sec.classList.toggle("collapsed");
+    prefs[KEY] = !sec.classList.contains("collapsed");
+    savePrefs();
+  };
+  sec.appendChild(head);
+  const box = el("div","items");
+  const th = el("div","wtr wth");
+  for(const h of ["worktree","item · lane","dirty","unmerged","stage","age","safe"])
+    th.appendChild(txt("span",null,h));
+  box.appendChild(th);
+  const num = v => v == null ? "?" : String(v);
+  for(const r of (w.rows||[])){
+    const row = el("div","wtr");
+    const name = el("span","bname");
+    name.appendChild(txt("span",null, base(r.path)));
+    name.appendChild(txt("span","muted", " "+(r.branch || "detached "+(r.head||""))));
+    name.title = r.path + (r.lastSubject ? "\n"+r.lastSubject : "");
+    row.appendChild(name);
+    const it = el("span","wit");
+    if(r.item != null){
+      it.appendChild(link("#/plan/"+r.item, r.displayId || "#"+r.item));
+      if(r.lane){
+        const lane = laneOf({lane:r.lane});
+        it.appendChild(txt("span","lane lg-"+(LANE_GROUP[lane]||"plan"), lane));
+      }
+    } else it.appendChild(txt("span","muted","—"));
+    row.appendChild(it);
+    row.appendChild(txt("span", r.dirty ? "dirty" : "muted", num(r.dirty)));
+    row.appendChild(txt("span", r.ahead ? "ahead" : "muted",
+      r.ahead ? "+"+r.ahead : num(r.ahead)));
+    row.appendChild(txt("span","muted", r.stage || "—"));
+    row.appendChild(txt("span","muted", age(r.lastDate) || "—"));
+    const ok = txt("span", r.safe ? "safe" : "unsafe", r.safe ? "safe" : "no");
+    if(!r.safe && r.reason) ok.title = r.reason;
+    row.appendChild(ok);
+    if(r.safe && r.removeCmd) row.appendChild(txt("code","wtcmd", r.removeCmd));
+    box.appendChild(row);
+  }
+  sec.appendChild(box);
+  return [sec];
+}
+
 function render(d){
   LAST = d;
   syncRootSel(d);
@@ -729,7 +803,8 @@ function render(d){
     ...(nblocked ? [chip(nblocked, "blocked", "blocked")] : []));
   const app = document.getElementById("app");
   const others = Array.isArray(d.otherBranches) ? d.otherBranches : [];
-  const tail = others.length ? [otherSection(others)] : [];
+  const tail = [...(others.length ? [otherSection(others)] : []),
+    ...worktreePanel(d.worktrees)];
   const head = [...slotStrip(d.slots), ...runPanel(d)];
   if(!items.length){
     app.replaceChildren(...head, txt("div","empty", d.error||"no roadmap items yet"), ...tail);

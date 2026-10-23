@@ -2664,7 +2664,8 @@ def branches(roadmap):
     sys.path. The ref cache is module-global, so start each test clean."""
     import importlib
     mod = importlib.import_module("rmlib.branches")
-    mod._CACHE.clear()
+    for cache in (mod._CACHE, mod._WT_LIST, mod._DIRTY, mod._UNMERGED):
+        cache.clear()
     return mod
 
 
@@ -2776,6 +2777,194 @@ def test_branches_worktree_path(branches, branch_repo, tmp_path_factory):
     _git(branch_repo, "worktree", "add", "-q", str(wt), "roadmap/7")
     res = branches.discover(branch_repo, [7])
     assert Path(res["items"][7]["worktree"]).resolve() == wt.resolve()
+
+
+# --- worktree map (plan 36) -------------------------------------------------
+
+@pytest.fixture
+def wt_repo(branch_repo, tmp_path_factory):
+    """branch_repo plus linked worktrees: `dirty` on roadmap/7 (unmerged, one
+    untracked file), `merged` on roadmap/3 (merged into main, clean),
+    `unmerged` on fix/side (clean, one commit trunk lacks), and `detached` at
+    main~0 (clean, nothing trunk lacks)."""
+    base = tmp_path_factory.mktemp("wts")
+    paths = {k: base / k for k in ("dirty", "merged", "unmerged", "detached")}
+    _git(branch_repo, "worktree", "add", "-q", str(paths["dirty"]), "roadmap/7")
+    _git(branch_repo, "worktree", "add", "-q", str(paths["merged"]), "roadmap/3")
+    _git(branch_repo, "worktree", "add", "-q", str(paths["unmerged"]), "fix/side")
+    _git(branch_repo, "worktree", "add", "-q", "--detach", str(paths["detached"]),
+         "main")
+    (paths["dirty"] / "scratch.txt").write_text("x")
+    return branch_repo, {k: str(v.resolve()) for k, v in paths.items()}
+
+
+def _rows_by_path(res):
+    return {str(Path(r["path"]).resolve()): r for r in res["rows"]}
+
+
+def test_worktrees_dirty_unmerged_and_safe_marks(branches, wt_repo):
+    repo, paths = wt_repo
+    res = branches.worktrees(repo)
+    assert res["trunk"] == "main"
+    rows = _rows_by_path(res)
+    assert set(rows) == set(paths.values())          # linked only, main excluded
+    d, m, u, x = (rows[paths[k]] for k in ("dirty", "merged", "unmerged", "detached"))
+    assert (d["dirty"], d["ahead"], d["safe"]) == (1, 4, False)
+    assert d["reason"] == "1 dirty; 4 unmerged" and d["removeCmd"] is None
+    assert (m["dirty"], m["ahead"], m["merged"], m["safe"]) == (0, 0, True, True)
+    assert m["removeCmd"] == f"git worktree remove {m['path']}"
+    assert (u["dirty"], u["ahead"], u["safe"]) == (0, 1, False)
+    assert u["reason"] == "1 unmerged"
+    assert (x["branch"], x["detached"], x["ahead"], x["safe"]) == (None, True, 0, True)
+    assert x["lastSubject"] == "done work (plan 3)" and x["lastDate"]  # head facts
+    assert m["lastSubject"] == "done work (plan 3)" and m["lastDate"]
+    # every worktree still exists: nothing was removed
+    assert all(Path(p).is_dir() for p in paths.values())
+
+
+def test_worktrees_detached_head_with_unmerged_work(branches, wt_repo):
+    repo, paths = wt_repo
+    _commit(Path(paths["detached"]), "loose work")
+    branches._WT_LIST.clear()
+    x = _rows_by_path(branches.worktrees(repo))[paths["detached"]]
+    assert (x["ahead"], x["safe"], x["lastSubject"]) == (1, False, "loose work")
+
+
+def test_worktrees_locked_and_missing_are_never_safe(branches, wt_repo):
+    repo, paths = wt_repo
+    _git(repo, "worktree", "lock", paths["merged"])
+    import shutil
+    shutil.rmtree(paths["detached"])
+    rows = _rows_by_path(branches.worktrees(repo))
+    assert rows[paths["merged"]]["safe"] is False
+    assert "locked" in rows[paths["merged"]]["reason"]
+    gone = rows[paths["detached"]]
+    assert gone["safe"] is False and gone["dirty"] is None
+    assert "prune" in gone["reason"]
+
+
+def test_worktrees_unknown_merge_state_is_never_safe(branches, wt_repo, monkeypatch):
+    repo, paths = wt_repo
+    monkeypatch.setattr(branches, "_ahead_behind", lambda *a: {})   # git trouble
+    rows = _rows_by_path(branches.worktrees(repo))
+    m = rows[paths["merged"]]
+    assert (m["ahead"], m["safe"]) == (None, False)
+    assert "unmerged count unknown" in m["reason"]
+
+
+def test_worktrees_outside_git_and_without_linked_worktrees(branches, branch_repo,
+                                                            tmp_path_factory):
+    assert branches.worktrees(tmp_path_factory.mktemp("nogit")) == \
+        {"trunk": None, "rows": []}
+    assert branches.worktrees(branch_repo)["rows"] == []
+
+
+def test_worktree_dirty_counts_are_time_budgeted(branches, wt_repo, monkeypatch):
+    repo, paths = wt_repo
+    clock = [1000.0]
+    monkeypatch.setattr(branches, "_now", lambda: clock[0])
+    calls = []
+    real = branches._git
+    monkeypatch.setattr(branches, "_git",
+                        lambda root, *a, **k: calls.append((str(root), a))
+                        or real(root, *a, **k))
+    per_wt = lambda: [c for c in calls if "status" in c[1]]
+    branches.worktrees(repo)
+    assert len(per_wt()) == 4
+    for _ in range(9):                       # 9 more seconds: all cached
+        clock[0] += 1
+        branches.worktrees(repo)
+        branches.worktree_facts(repo)
+    assert len(per_wt()) == 4
+    assert not [c for c in calls if "worktree" in c[1][:1]][1:]   # listed once
+    (Path(paths["merged"]) / "new.txt").write_text("y")
+    clock[0] += 1                            # 10 s: refreshed once
+    rows = _rows_by_path(branches.worktrees(repo))
+    assert len(per_wt()) == 8
+    assert rows[paths["merged"]]["dirty"] == 1 and rows[paths["merged"]]["safe"] is False
+
+
+def _wt_project(roadmap, repo, monkeypatch, tmp_path_factory):
+    """Items 1-3. Worktrees: roadmap/1 dirty (2 commits trunk lacks),
+    roadmap/2 merged into main and clean, roadmap/3 unmerged (1 commit) and
+    clean. Item 3 carries a claim stage."""
+    monkeypatch.chdir(repo)
+    _git(repo, "symbolic-ref", "HEAD", "refs/heads/main")
+    roadmap.init_project(repo, "P", claude_md=False)
+    for title in "ABC":
+        roadmap.new_item(repo, "feature", title)
+    _git(repo, "add", "-A")
+    _commit(repo, "init")
+    for item, n in ((1, 2), (2, 1), (3, 1)):
+        _git(repo, "branch", f"roadmap/{item}", "main")
+    base = tmp_path_factory.mktemp("wtp")
+    paths = {n: base / f"wt{n}" for n in (1, 2, 3)}
+    for n, path in paths.items():
+        _git(repo, "worktree", "add", "-q", str(path), f"roadmap/{n}")
+        for k in range({1: 2, 2: 1, 3: 1}[n]):
+            _commit(path, f"work {k} (plan {n})")
+    _git(repo, "merge", "-q", "--no-ff", "-m", "merge 2", "roadmap/2")
+    (paths[1] / "a.txt").write_text("a")
+    (paths[1] / "b.txt").write_text("b")
+    roadmap.set_claim(repo, 3, stage="review")
+    return {n: str(p.resolve()) for n, p in paths.items()}
+
+
+def test_status_worktrees_payload_and_marks(roadmap, branches, repo, monkeypatch,
+                                            tmp_path_factory):
+    paths = _wt_project(roadmap, repo, monkeypatch, tmp_path_factory)
+    assert "worktrees" not in roadmap.status(repo)        # opt-in only
+    wt = roadmap.status(repo, worktrees=True)["worktrees"]
+    assert (wt["count"], wt["safe"], wt["warnAt"], wt["over"]) == (3, 1, 20, False)
+    rows = {r["item"]: r for r in wt["rows"]}
+    assert {n: (rows[n]["dirty"], rows[n]["ahead"], rows[n]["safe"]) for n in rows} \
+        == {1: (2, 2, False), 2: (0, 0, True), 3: (0, 1, False)}
+    assert (rows[1]["lane"], rows[3]["lane"], rows[3]["stage"]) == \
+        ("building", "review", "review")
+    assert rows[2]["displayId"] == "FEAT-2" and rows[2]["lane"] == "planned"
+    assert rows[2]["removeCmd"] == f"git worktree remove {rows[2]['path']}"
+    assert {str(Path(r["path"]).resolve()) for r in wt["rows"]} == set(paths.values())
+    # threshold from settings.worktreeWarn
+    _set_settings(roadmap, repo, worktreeWarn=2)
+    wt = roadmap.status(repo, worktrees=True)["worktrees"]
+    assert (wt["warnAt"], wt["over"]) == (2, True)
+
+
+def test_status_worktrees_cli_never_removes(roadmap, branches, repo, monkeypatch,
+                                            capsys, tmp_path_factory):
+    paths = _wt_project(roadmap, repo, monkeypatch, tmp_path_factory)
+    before = subprocess.run(["git", "worktree", "list"], cwd=repo, check=True,
+                            capture_output=True, text=True).stdout
+    refs = subprocess.run(["git", "for-each-ref", "refs/heads"], cwd=repo,
+                          check=True, capture_output=True, text=True).stdout
+    assert roadmap.main(["status", "--worktrees"]) == 0
+    out = capsys.readouterr().out
+    lines = out.splitlines()
+    assert lines[0] == "worktrees: 3 linked · 1 safe to remove"
+    row = {n: next(l for l in lines if l.rstrip().endswith(p))
+           for n, p in paths.items()}
+    assert "FEAT-1" in row[1] and "no (2 dirty; 2 unmerged)" in row[1]
+    assert "  yes  " in row[2]
+    assert "review" in row[3] and "no (1 unmerged)" in row[3]
+    assert lines[-2].startswith("safe to remove")
+    assert lines[-1].strip() == f"git worktree remove {paths[2]}"
+    assert roadmap.main(["status", "--worktrees", "--json"]) == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["worktrees"]["safe"] == 1
+    assert subprocess.run(["git", "worktree", "list"], cwd=repo, check=True,
+                          capture_output=True, text=True).stdout == before
+    assert subprocess.run(["git", "for-each-ref", "refs/heads"], cwd=repo,
+                          check=True, capture_output=True,
+                          text=True).stdout == refs
+    assert all(Path(p).is_dir() for p in paths.values())
+
+
+def test_status_worktrees_without_linked_worktrees(roadmap, branches, repo,
+                                                   monkeypatch, capsys):
+    monkeypatch.chdir(repo)
+    roadmap.init_project(repo, "P", claude_md=False)
+    assert roadmap.main(["status", "--worktrees"]) == 0
+    assert capsys.readouterr().out.strip() == "worktrees: 0 linked · 0 safe to remove"
 
 
 def test_branches_cache_hit_runs_one_git_call(branches, branch_repo, monkeypatch):
@@ -3520,6 +3709,103 @@ def test_landed_when_the_item_branch_was_deleted(roadmap, branches, repo,
     _git(repo, "branch", "-D", "roadmap/2")
     b2 = _by_id(roadmap.status(repo))[2]
     assert (b2["lane"], b2["branch"]["name"]) == ("landed", "integration")
+
+
+def _multi_integration_repo(roadmap, repo, monkeypatch, setting):
+    """Items 1-4 on main. Two rotating integration branches: fix/trunk-a (older,
+    holds roadmap/1) and fix/trunk-b (newer, holds roadmap/2 and — merged
+    later — fix/trunk-a). roadmap/v9 holds roadmap/3. roadmap/4 is open."""
+    monkeypatch.chdir(repo)
+    _git(repo, "symbolic-ref", "HEAD", "refs/heads/main")
+    roadmap.init_project(repo, "P", claude_md=False)
+    for title in "ABCD":
+        roadmap.new_item(repo, "feature", title)
+    _set_settings(roadmap, repo, integrationBranch=setting)
+    _git(repo, "add", "-A")
+    _commit(repo, "init", date="2026-01-01T00:00:00+00:00")
+    for item in (1, 2, 3, 4):
+        _git(repo, "checkout", "-qb", f"roadmap/{item}", "main")
+        _commit(repo, f"work (plan {item})")
+    for name, item, day in (("fix/trunk-a", 1, 3), ("fix/trunk-b", 2, 4),
+                            ("roadmap/v9", 3, 5)):
+        _git(repo, "checkout", "-qb", name, "main")
+        env_date = f"2026-01-0{day}T00:00:00+00:00"
+        _git(repo, "merge", "--no-ff", "-q", "-m", f"merge roadmap/{item}",
+             f"roadmap/{item}", env={"GIT_COMMITTER_DATE": env_date,
+                                     "GIT_AUTHOR_DATE": env_date})
+    _git(repo, "checkout", "-q", "main")
+    return repo
+
+
+def test_integration_branch_list_and_globs(roadmap, branches, repo, monkeypatch):
+    _multi_integration_repo(roadmap, repo, monkeypatch,
+                            ["fix/trunk-*", "roadmap/v9"])
+    items = _by_id(roadmap.status(repo))
+    assert {n: i["lane"] for n, i in items.items()} == \
+        {1: "landed", 2: "landed", 3: "landed", 4: "building"}
+    landed_in = {n: items[n]["branch"]["landedIn"] for n in (1, 2, 3)}
+    assert landed_in == {1: "fix/trunk-a", 2: "fix/trunk-b", 3: "roadmap/v9"}
+    for n in (1, 2, 3):
+        assert items[n]["branch"]["landedSha"] == _tip(repo, landed_in[n])
+    # a single string still works and only that branch counts
+    _set_settings(roadmap, repo, integrationBranch="fix/trunk-b")
+    lanes = {i["id"]: i["lane"] for i in roadmap.status(repo)["items"]}
+    assert lanes == {1: "building", 2: "landed", 3: "building", 4: "building"}
+    # globs matching nothing, the trunk, or junk entries are ignored
+    for junk in (["nope/*"], ["main"], [None, 3, ""], {"a": 1}, []):
+        _set_settings(roadmap, repo, integrationBranch=junk)
+        assert {i["lane"] for i in roadmap.status(repo)["items"]} == {"building"}
+
+
+def test_integration_landed_in_prefers_the_newest_containing_branch(
+        roadmap, branches, repo, monkeypatch):
+    _multi_integration_repo(roadmap, repo, monkeypatch, ["fix/trunk-*"])
+    _git(repo, "checkout", "-q", "fix/trunk-b")      # b now contains a's work
+    _git(repo, "merge", "--no-ff", "-q", "-m", "carry a", "fix/trunk-a",
+         env={"GIT_COMMITTER_DATE": "2026-01-06T00:00:00+00:00",
+              "GIT_AUTHOR_DATE": "2026-01-06T00:00:00+00:00"})
+    _git(repo, "checkout", "-q", "main")
+    b1 = _by_id(roadmap.status(repo))[1]["branch"]
+    assert (b1["name"], b1["landedIn"]) == ("roadmap/1", "fix/trunk-b")
+    found = branches.discover(repo, [1, 2, 3, 4])
+    other = {b["name"]: b for b in found["other"]}
+    assert other["fix/trunk-a"]["landedIn"] == "fix/trunk-b"   # itself contained
+
+
+def test_integration_containment_is_one_call_per_matched_branch(
+        roadmap, branches, repo, monkeypatch):
+    _multi_integration_repo(roadmap, repo, monkeypatch,
+                            ["fix/trunk-*", "roadmap/v9", "fix/trunk-a"])
+    calls = []
+    real = branches._git
+    monkeypatch.setattr(branches, "_git",
+                        lambda root, *a, **k: calls.append(a) or real(root, *a, **k))
+    branches.discover(repo, [1, 2, 3, 4])
+    merged = sorted(a[2] for a in calls if any(x.startswith("--merged=") for x in a))
+    assert merged == ["--merged=refs/heads/fix/trunk-a",
+                      "--merged=refs/heads/fix/trunk-b",
+                      "--merged=refs/heads/roadmap/v9"]
+    calls.clear()
+    branches.discover(repo, [1, 2, 3, 4])                   # refs unchanged: cached
+    assert [a[0] for a in calls] == ["for-each-ref"]
+
+
+def test_integration_inheritance_covers_every_matched_branch(
+        roadmap, branches, repo, monkeypatch):
+    """roadmap/4 is re-cut from fix/trunk-a after roadmap/1 is deleted, and
+    fix/trunk-a then moves on: the (plan 1) commit it carries is integration
+    work, so item 1 stays on fix/trunk-a and roadmap/4 is not credited."""
+    _multi_integration_repo(roadmap, repo, monkeypatch, ["fix/trunk-*"])
+    _git(repo, "branch", "-D", "roadmap/1", "roadmap/4")
+    _git(repo, "checkout", "-qb", "roadmap/4", "fix/trunk-a")
+    _commit(repo, "own (plan 4)")
+    _git(repo, "checkout", "-q", "fix/trunk-a")
+    _commit(repo, "hotfix")
+    _git(repo, "checkout", "-q", "main")
+    items = _by_id(roadmap.status(repo))
+    assert (items[1]["branch"]["name"], items[1]["lane"]) == ("fix/trunk-a", "landed")
+    assert items[4]["branch"]["name"] == "roadmap/4"
+    assert items[4]["branch"]["taggedCommits"] == 1
 
 
 def test_claim_stage_landed_and_landed_sha_field(roadmap, repo, monkeypatch):
