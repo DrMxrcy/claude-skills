@@ -157,14 +157,13 @@ def format_orient(payload: dict, handoff: bool = False) -> str:
                      f"[{nxt['type']}] — {nxt['pct']}%")
         if handoff and nxt.get("file"):
             lines.append(f"Plan: .roadmap/{nxt['file']}")
-        # Dual slash forms so Grok never gets colon-only recommendations
+        # One hyphen form (the single command name every agent uses) plus the bare form.
         lines.append(
-            f"Continue: /roadmap-next · /roadmap-next · /roadmap next"
-            f"  OR  /roadmap-build {nid} · /roadmap-build {nid} · /roadmap build {nid}"
+            f"Continue: /roadmap-next · /roadmap next"
+            f"  OR  /roadmap-build {nid} · /roadmap build {nid}"
         )
         lines.append(
             f"Chain version (pauses off): /roadmap-build {payload['currentVersion']} --auto"
-            f" · /roadmap-build {payload['currentVersion']} --auto"
             f"  (not next --auto — next is always one item)"
         )
     elif payload.get("versionComplete"):
@@ -203,7 +202,7 @@ def format_orient(payload: dict, handoff: bool = False) -> str:
     if payload.get("gitDirty") or payload.get("drift") or handoff:
         lines.append(
             "Resume: commit or catchup if needed, then continue the plan checklist "
-            "(/roadmap-next · /roadmap-next) — formal handoff is optional; git is the sync.")
+            "(/roadmap-next) — formal handoff is optional; git is the sync.")
     if handoff:
         lines.extend([
             "",

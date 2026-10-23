@@ -2015,8 +2015,9 @@ def test_orient_payload(roadmap, repo):
     assert payload["itemsTotal"] == 1
     text = roadmap.format_orient(payload)
     assert "Auth" in text and "v0.0.1" in text
-    # Dual slash forms so Grok never gets colon-only recommendations
+    # One hyphen name per command, never colon-only and never repeated
     assert "/roadmap-next" in text and "/roadmap:next" not in text
+    assert "/roadmap-next · /roadmap-next" not in text
     assert "/roadmap-build" in text
     assert "not next --auto" in text
 
