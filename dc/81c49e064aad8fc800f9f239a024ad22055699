@@ -1,0 +1,135 @@
+skills/adversarial-review/references/security/ai-integration.md
+  s_fbae122c7a65de::t_48151ce5535e95 1-379
+skills/adversarial-review/README.md
+  s_fbae122c7a65de::t_48151ce5535e95 29-30,36-76,85-86
+skills/adversarial-review/scripts/sync-security-refs.py
+  s_fbae122c7a65de::t_48151ce5535e95 1-198
+skills/adversarial-review/references/security/object-storage-security.md
+  s_fbae122c7a65de::t_48151ce5535e95 1-614
+skills/adversarial-review/references/security/dynamic-verification.md
+  s_fbae122c7a65de::t_48151ce5535e95 1-155
+skills/adversarial-review/references/security/cryptography.md
+  s_fbae122c7a65de::t_48151ce5535e95 1-419
+skills/adversarial-review/references/security/webhook-security.md
+  s_fbae122c7a65de::t_48151ce5535e95 1-576
+skills/adversarial-review/references/security/database.md
+  s_fbae122c7a65de::t_48151ce5535e95 1-235
+.playwright-mcp/console-2026-10-23T20-46-32-540Z.log
+  s_fbae122c7a65de::t_48151ce5535e95 1-253
+  s_fbae122c7a65de::t_8f81e190f8f114 260
+  s_46e1afb656488b::t_c374ff5922f9dc 398
+  s_fbae122c7a65de::t_40ada94e86f2ae 254-259
+  s_46e1afb656488b::t_a5b84f14a255d7 399-401
+  s_46e1afb656488b::t_98eca6d0a04220 261-397,402-408
+skills/adversarial-review/references/security/react-native-security.md
+  s_fbae122c7a65de::t_48151ce5535e95 1-189
+skills/adversarial-review/references/security/oauth-oidc-security.md
+  s_fbae122c7a65de::t_48151ce5535e95 1-656
+skills/adversarial-review/references/security/rich-text-security.md
+  s_fbae122c7a65de::t_48151ce5535e95 1-1054
+skills/adversarial-review/references/security/fivem-security.md
+  s_fbae122c7a65de::t_48151ce5535e95 1-1200
+tests/test_adversarial_review.py
+  s_fbae122c7a65de::t_48151ce5535e95 6,8,26-29,76-79,85,101-108,241,245-254,260,262-273,281-282,284,291-318,325-333,350-355,375-377,399-400,417,464-975
+skills/adversarial-review/prompts/adversarial.md
+  s_fbae122c7a65de::t_48151ce5535e95 13-54,57-62,65-75,77-79,87-88,90-91,93-98
+skills/adversarial-review/references/security/better-auth-security.md
+  s_fbae122c7a65de::t_48151ce5535e95 1-527
+skills/adversarial-review/references/security/discord-bot-security.md
+  s_fbae122c7a65de::t_48151ce5535e95 1-652
+skills/adversarial-review/references/security/audit.md
+  s_fbae122c7a65de::t_48151ce5535e95 1-740
+skills/adversarial-review/references/security/ci-cd-security.md
+  s_fbae122c7a65de::t_48151ce5535e95 1-918
+skills/adversarial-review/references/security/docker-security.md
+  s_fbae122c7a65de::t_48151ce5535e95 1-585
+skills/adversarial-review/references/security/LICENSE
+  s_fbae122c7a65de::t_48151ce5535e95 1-21
+commands/adversarial-review.md
+  s_fbae122c7a65de::t_48151ce5535e95 3,24-27
+skills/adversarial-review/references/security/secrets.md
+  s_fbae122c7a65de::t_48151ce5535e95 1-129
+skills/adversarial-review/references/security/python-web-security.md
+  s_fbae122c7a65de::t_48151ce5535e95 1-310
+skills/adversarial-review/references/security/VERSION
+  s_fbae122c7a65de::t_48151ce5535e95 1-5
+skills/adversarial-review/SKILL.md
+  s_fbae122c7a65de::t_48151ce5535e95 16-19,28,34-59,70-83,95-101,105-107,112-150,154-161,164-183,189-197
+skills/adversarial-review/references/security/auth.md
+  s_fbae122c7a65de::t_48151ce5535e95 1-1208
+skills/adversarial-review/references/members.md
+  s_fbae122c7a65de::t_48151ce5535e95 4-6,11-22,83-85,99-110,114-121,145,147,153,158-163
+skills/adversarial-review/references/security/realtime-security.md
+  s_fbae122c7a65de::t_48151ce5535e95 1-651
+skills/adversarial-review/references/security/multi-tenant-isolation.md
+  s_fbae122c7a65de::t_48151ce5535e95 1-728
+skills/adversarial-review/references/security/privilege-escalation.md
+  s_fbae122c7a65de::t_48151ce5535e95 1-165
+skills/adversarial-review/references/security/postgres-security.md
+  s_fbae122c7a65de::t_48151ce5535e95 1-702
+skills/adversarial-review/references/security/README.md
+  s_fbae122c7a65de::t_48151ce5535e95 1-9
+skills/adversarial-review/references/security/deployment.md
+  s_fbae122c7a65de::t_48151ce5535e95 1-313
+skills/adversarial-review/references/security/logging-monitoring.md
+  s_fbae122c7a65de::t_48151ce5535e95 1-293
+skills/adversarial-review/references/security/convex-security.md
+  s_fbae122c7a65de::t_48151ce5535e95 1-242
+skills/adversarial-review/references/security/payments.md
+  s_fbae122c7a65de::t_48151ce5535e95 1-147
+skills/adversarial-review/references/security/web-vulns.md
+  s_fbae122c7a65de::t_48151ce5535e95 1-539
+skills/adversarial-review/references/security/expo-security.md
+  s_fbae122c7a65de::t_48151ce5535e95 1-223
+skills/adversarial-review/references/security/rate-limiting.md
+  s_fbae122c7a65de::t_48151ce5535e95 1-92
+skills/adversarial-review/references/security/data-access.md
+  s_fbae122c7a65de::t_48151ce5535e95 1-628
+skills/adversarial-review/references/security/proxy-trust.md
+  s_fbae122c7a65de::t_48151ce5535e95 1-653
+skills/adversarial-review/references/security/mcp-agent-security.md
+  s_fbae122c7a65de::t_48151ce5535e95 1-1056
+skills/adversarial-review/scripts/run_review.py
+  s_fbae122c7a65de::t_48151ce5535e95 11-12,50,66-68,73-81,138-150,254-256,487-495,516-519,521,528-529,532,534-536,544,546,551,553,555,557-558,562-563,565,568-569,571-572,576,585,692-821,823-833,849-850,973-981,986,988-997,1000,1004-1074,1079-1080,1093,1095-1098,1100-1113,1117-1122,1124,1129-1151,1252-1258,1270-1272,1279-1282,1289-1290,1292-1293,1300-1302,1304,1306-1307,1309,1314,1317-1318,1330-1332,1334-1348,1355-1369,1429-1432,1450-1452,1457,1462-1464,1468-1469,1471-1475,1478,1486-1488,1490,1497-1499
+  s_46e1afb656488b::t_c374ff5922f9dc 29,31,42,69-72,83-121,269,280,345,361,363,387-388
+  s_46e1afb656488b::t_96db006133d158 593-691,921-922,941-965
+  s_46e1afb656488b::t_58155ed5cc30d6 82,966-967
+skills/adversarial-review/references/security/prisma-security.md
+  s_fbae122c7a65de::t_48151ce5535e95 1-462
+skills/adversarial-review/references/security/cloudflare-workers-security.md
+  s_fbae122c7a65de::t_48151ce5535e95 1-663
+skills/adversarial-review/references/security/framework-versions.md
+  s_fbae122c7a65de::t_48151ce5535e95 1-571
+skills/adversarial-review/references/security/supply-chain.md
+  s_fbae122c7a65de::t_48151ce5535e95 1-431
+skills/adversarial-review/references/security/kubernetes-security.md
+  s_fbae122c7a65de::t_48151ce5535e95 1-611
+skills/adversarial-review/references/security/api-surface.md
+  s_fbae122c7a65de::t_48151ce5535e95 1-654
+skills/adversarial-review/references/security/revenuecat-security.md
+  s_fbae122c7a65de::t_48151ce5535e95 1-517
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dc81c49e064aad8fc800f9f239a024ad22055699",
+  "prompts": {},
+  "sessions": {
+    "s_46e1afb656488b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "29cbd46b-401e-4ab9-8990-06b287088024",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    },
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
