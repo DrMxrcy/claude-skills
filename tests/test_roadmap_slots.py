@@ -338,3 +338,65 @@ def test_done_plans_drop_out_of_the_listing(roadmap, proj, slots):
     slots.reserve(proj, 1, "migration")
     roadmap.check_step(proj, 1, None, all_done=True)
     assert _slot_status(roadmap, proj)["kinds"][0]["reservations"] == []
+
+
+# ---- step 3: status payload and `status --slots` --------------------------
+
+def test_no_config_leaves_status_unchanged(roadmap, repo, slots, monkeypatch, capsys):
+    monkeypatch.chdir(repo)
+    roadmap.init_project(repo, "P", claude_md=False)
+    roadmap.new_item(repo, "feature", "A")
+    st = roadmap.status(repo)
+    assert "slots" not in st
+    assert set(st) == {"project", "currentVersion", "versionComplete", "counts",
+                       "items", "trunk", "otherBranches"}
+    assert roadmap.main(["status", "--slots"]) == 0
+    assert "no slot kinds configured" in capsys.readouterr().out
+
+
+def test_bad_config_never_breaks_status(roadmap, proj, capsys):
+    _configure(roadmap, proj, {"migration": {"glob": "db/*.sql"}})
+    st = roadmap.status(proj)
+    assert "pattern is required" in st["slots"]["error"]
+    assert st["items"]                                  # rest of status intact
+    assert roadmap.main(["slot", "--check"]) == 1
+
+
+def test_status_slots_text_and_json(roadmap, proj, slots, capsys):
+    slots.reserve(proj, 1, "migration", name="x")
+    capsys.readouterr()
+    assert roadmap.main(["status", "--slots"]) == 0
+    out = capsys.readouterr().out
+    assert "migration · db/*.sql · trunk highest 0268" in out
+    assert "0269_x" in out and "FEAT-1" in out and "missing" in out
+    assert roadmap.main(["status", "--slots", "--json"]) == 0
+    data = json.loads(capsys.readouterr().out)
+    r = data["slots"]["kinds"][0]["reservations"][0]
+    assert r["numbers"] == ["0269"] and r["state"] == "missing"
+    assert r["displayId"] == "FEAT-1" and r["source"] == "local"
+
+
+def test_branch_checkout_lists_trunk_only_plans(roadmap, proj, slots):
+    """A plan created and reserved on trunk after a worktree forked shows up in
+    the worktree's listing (source trunk) so its clashes are visible there."""
+    wt = proj.parent / (proj.name + "-wt3")
+    _git(proj, "worktree", "add", "-q", "-b", "roadmap/9", str(wt))
+    roadmap.new_item(proj, "feature", "Late")           # id 7, trunk only
+    slots.reserve(proj, 7, "migration", name="late")
+    _commit_all(proj, "late plan")
+    slots._CACHE.clear()
+    p = roadmap.status(wt)["slots"]
+    r = _res(p, 7)
+    assert r["source"] == "trunk" and r["value"] == "0269_late"
+
+
+def test_slot_scan_git_calls_are_cached(roadmap, proj, slots, monkeypatch):
+    slots.reserve(proj, 1, "migration")
+    _commit_all(proj, "reserve")
+    _branch_with(proj, "roadmap/1", ["db/0269_a.sql"], "a (plan 1)")
+    roadmap.status(proj)
+    calls = []
+    real = slots._git
+    monkeypatch.setattr(slots, "_git", lambda root, *a, **k: calls.append(a[0]) or real(root, *a, **k))
+    roadmap.status(proj)
+    assert calls == ["rev-parse"]          # tree/log results come from the cache

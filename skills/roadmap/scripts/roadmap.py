@@ -289,6 +289,9 @@ def main(argv: list[str]) -> int:
                       help="only items with this progress status")
     p_st.add_argument("--open", action="store_true", dest="open_only",
                       help="hide done items (and with them every shipped version)")
+    p_st.add_argument("--slots", action="store_true",
+                      help="numbered slot reservations per kind: trunk highest, "
+                           "each reservation's plan, lane and match state")
     p_st.add_argument("--in-flight", action="store_true", dest="in_flight",
                       help="only unfinished items with a branch or a claim")
 
@@ -599,6 +602,12 @@ def main(argv: list[str]) -> int:
             return 0
         if args.command == "status":
             st = status(root)
+            if args.slots:
+                if args.as_json:
+                    print(json.dumps({"slots": st.get("slots")}, indent=2))
+                else:
+                    print(rmslots.format_slots(st.get("slots")))
+                return 0
             # Filters only narrow the item list (AND); the header stays global.
             ver = _norm_version(args.version) if args.version else None
             st["items"] = [i for i in st["items"]
