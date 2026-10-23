@@ -7,6 +7,17 @@ from rmlib.core import read_config, roadmap_dir
 
 
 STEP_RE = re.compile(r"^(\s*[-*]\s+)\[( |x|X)\](.*)$")
+FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---\n", re.DOTALL)
+
+# In-flight claim (plan 30): what git cannot know about an item — its review/gate
+# stage and verdict — recorded by `roadmap.py claim`. Stored as FLAT `claim_<field>`
+# frontmatter keys: the frontmatter parser is line-based `key: value` (no nesting),
+# so a nested `claim:` block would flatten its children into top-level keys. Flat
+# keys round-trip exactly, and older skill versions simply ignore them.
+CLAIM_STAGES = ("review", "fixing", "gate-ready", "gating", "blocked")
+CLAIM_VERDICTS = ("CONFIRMED", "PARTIAL", "REFUTED")
+CLAIM_FIELDS = ("stage", "verdict", "note", "branch", "updated")
+CLAIM_PREFIX = "claim_"
 
 # Parse results are cached by (path, mtime, size). A short CLI run barely touches
 # it, but a long-lived `serve` process re-parses only the plan that actually
@@ -29,7 +40,7 @@ def parse_plan(path: Path) -> dict:
         key = None
     text = path.read_text(encoding="utf-8")
     meta = {}
-    m = re.match(r"^---\n(.*?)\n---\n", text, re.DOTALL)
+    m = FRONTMATTER_RE.match(text)
     if m:
         for line in m.group(1).splitlines():
             if ":" in line:
@@ -55,6 +66,16 @@ def parse_plan(path: Path) -> dict:
 def count_progress(path: Path) -> tuple[int, int]:
     steps = parse_plan(path)["steps"]
     return sum(1 for done, _ in steps if done), len(steps)
+
+
+def read_claim(path: Path) -> dict | None:
+    """The plan's in-flight claim as {stage, verdict, note, branch, updated} (absent
+    fields are None), or None when the plan carries no claim (no `claim_stage`).
+    Values are returned as written; lane derivation decides what to trust."""
+    meta = parse_plan(path)["meta"]
+    if not meta.get(CLAIM_PREFIX + "stage"):
+        return None
+    return {f: (meta.get(CLAIM_PREFIX + f) or None) for f in CLAIM_FIELDS}
 
 
 def _plan_path(root: Path, plan_id: int) -> Path:

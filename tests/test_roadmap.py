@@ -2800,3 +2800,126 @@ def test_branches_trunk_override(branches, branch_repo):
     res = branches.discover(branch_repo, [7], trunk="trunk")
     assert res["trunk"] == "trunk" and res["items"][7]["ahead"] == 4
     assert branches.discover(branch_repo, [7], trunk="nope")["items"] == {}
+
+
+# --- in-flight claim (roadmap.py claim) -----------------------------------
+
+def _claim_repo(roadmap, repo, monkeypatch):
+    monkeypatch.chdir(repo)
+    roadmap.init_project(repo, "P", claude_md=False)
+    roadmap.new_item(repo, "feature", "A")
+    return repo / ".roadmap/plans/001-a.md"
+
+
+def test_claim_set_writes_flat_frontmatter_keys(roadmap, repo, monkeypatch):
+    plan = _claim_repo(roadmap, repo, monkeypatch)
+    assert roadmap.main(["claim", "1", "--stage", "gate-ready", "--verdict",
+                         "CONFIRMED", "--note", "spec + quality\npassed",
+                         "--branch", "roadmap/1"]) == 0
+    today = datetime.date.today().isoformat()
+    assert roadmap.read_claim(plan) == {
+        "stage": "gate-ready", "verdict": "CONFIRMED", "note": "spec + quality passed",
+        "branch": "roadmap/1", "updated": today}
+    meta = roadmap.parse_plan(plan)["meta"]
+    assert meta["id"] == "1" and meta["claim_stage"] == "gate-ready"
+    assert "stage" not in meta and "claim" not in meta     # flat, no nesting
+    assert roadmap.count_progress(plan) == (0, 2)           # body untouched
+
+
+def test_claim_update_keeps_unpassed_fields(roadmap, repo, monkeypatch):
+    plan = _claim_repo(roadmap, repo, monkeypatch)
+    roadmap.set_claim(repo, 1, stage="review", note="first pass", branch="roadmap/1")
+    roadmap.main(["claim", "#1", "--stage", "fixing", "--verdict", "partial"])
+    c = roadmap.read_claim(plan)
+    assert (c["stage"], c["verdict"], c["note"], c["branch"]) == \
+        ("fixing", "PARTIAL", "first pass", "roadmap/1")
+    roadmap.set_claim(repo, 1, verdict="CONFIRMED", note="")   # stage optional on update
+    c = roadmap.read_claim(plan)
+    assert (c["stage"], c["verdict"], c["note"]) == ("fixing", "CONFIRMED", None)
+    assert plan.read_text().count("claim_stage:") == 1
+
+
+def test_claim_stage_required_for_new_claim(roadmap, repo, monkeypatch, capsys):
+    _claim_repo(roadmap, repo, monkeypatch)
+    assert roadmap.main(["claim", "1", "--verdict", "CONFIRMED"]) == 1
+    assert "--stage" in capsys.readouterr().err
+
+
+def test_claim_clear_removes_and_is_idempotent(roadmap, repo, monkeypatch, capsys):
+    plan = _claim_repo(roadmap, repo, monkeypatch)
+    before = plan.read_text()
+    roadmap.set_claim(repo, 1, stage="blocked", verdict="REFUTED")
+    assert roadmap.main(["claim", "1", "--clear"]) == 0
+    assert "claim cleared" in capsys.readouterr().out
+    assert roadmap.read_claim(plan) is None
+    assert plan.read_text() == before
+    assert roadmap.clear_claim(repo, 1) is False
+    with pytest.raises(SystemExit):
+        roadmap.main(["claim", "1", "--clear", "--stage", "review"])
+
+
+@pytest.mark.parametrize("args", [["--stage", "nope"], ["--stage", "done"],
+                                  ["--stage", "review", "--verdict", "MAYBE"]])
+def test_claim_rejects_invalid_values(roadmap, repo, monkeypatch, capsys, args):
+    plan = _claim_repo(roadmap, repo, monkeypatch)
+    with pytest.raises(SystemExit):
+        roadmap.main(["claim", "1", *args])
+    assert "invalid choice" in capsys.readouterr().err
+    assert roadmap.read_claim(plan) is None
+    with pytest.raises(ValueError, match="invalid"):
+        roadmap.set_claim(repo, 1, stage="nope")
+    with pytest.raises(ValueError, match="invalid verdict"):
+        roadmap.set_claim(repo, 1, stage="review", verdict="MAYBE")
+
+
+def test_claim_rejects_building_with_derived_lane_hint(roadmap, repo, monkeypatch, capsys):
+    plan = _claim_repo(roadmap, repo, monkeypatch)
+    with pytest.raises(SystemExit):
+        roadmap.main(["claim", "1", "--stage", "building"])
+    err = capsys.readouterr().err
+    assert "derived lane" in err and "--clear" in err
+    with pytest.raises(ValueError, match="derived lane"):
+        roadmap.set_claim(repo, 1, stage="building")
+    assert roadmap.read_claim(plan) is None
+
+
+def test_claim_unknown_and_done_items_refused(roadmap, repo, monkeypatch, capsys):
+    plan = _claim_repo(roadmap, repo, monkeypatch)
+    assert roadmap.main(["claim", "9", "--stage", "review"]) == 1
+    assert "no plan with id 9" in capsys.readouterr().err
+    roadmap.check_step(repo, 1, None, all_done=True)
+    assert roadmap.main(["claim", "1", "--stage", "review"]) == 1
+    assert "done" in capsys.readouterr().err
+    assert roadmap.read_claim(plan) is None
+
+
+def test_check_final_step_auto_clears_claim(roadmap, repo, monkeypatch):
+    plan = _claim_repo(roadmap, repo, monkeypatch)
+    roadmap.set_claim(repo, 1, stage="gating", verdict="CONFIRMED")
+    roadmap.check_step(repo, 1, 1)
+    assert roadmap.read_claim(plan)["stage"] == "gating"     # not done yet: kept
+    roadmap.check_step(repo, 1, 2, evidence="pytest: green")
+    assert roadmap.read_claim(plan) is None
+    assert "claim_" not in plan.read_text()
+    assert "status: done" in plan.read_text()
+
+
+def test_check_undo_keeps_claim(roadmap, repo, monkeypatch):
+    plan = _claim_repo(roadmap, repo, monkeypatch)
+    roadmap.check_step(repo, 1, 1)
+    roadmap.set_claim(repo, 1, stage="fixing")
+    roadmap.check_step(repo, 1, 1, undo=True)
+    assert roadmap.read_claim(plan)["stage"] == "fixing"
+
+
+def test_claim_leaves_sync_output_and_status_unchanged(roadmap, repo, monkeypatch):
+    plan = _claim_repo(roadmap, repo, monkeypatch)
+    roadmap.check_step(repo, 1, 1)
+    rm_before = (repo / "ROADMAP.md").read_text()
+    st_before = roadmap.status(repo)
+    roadmap.set_claim(repo, 1, stage="review", note="key: value: colons ok")
+    roadmap.sync(repo)
+    assert (repo / "ROADMAP.md").read_text() == rm_before
+    assert roadmap.status(repo) == st_before
+    assert roadmap.read_claim(plan)["note"] == "key: value: colons ok"
+    assert roadmap.parse_plan(plan)["meta"]["status"] == "active"
