@@ -249,6 +249,7 @@ def roadmap_health(root: Path) -> list[str]:
 # Lanes (plan 30) are display-only: they never feed done/active/planned, which
 # stay derived from trunk checkboxes alone. Precedence, first match wins:
 #   done (every trunk step ticked) > claim stage (what git cannot know) >
+#   landed (branch contained in settings.integrationBranch, not trunk; plan 32) >
 #   stale / building (a branch carrying unmerged work) > planned / active.
 def _branch_has_work(branch: dict | None) -> bool:
     """A branch is in-flight work only when it holds commits trunk lacks. A
@@ -265,6 +266,8 @@ def derive_lane(status: str, claim: dict | None, branch: dict | None) -> str:
     stage = (claim or {}).get("stage")
     if stage in CLAIM_STAGES:          # a hand-edited unknown stage is ignored
         return stage
+    if _branch_has_work(branch) and branch.get("landed"):
+        return "landed"                 # merged into integration, not yet trunk
     if _branch_has_work(branch):
         # Stale is "idle in-flight work": only a branch that would otherwise
         # read as building can go stale, so an old empty branch stays quiet.
@@ -295,11 +298,17 @@ def lane_counts(items: list[dict]) -> dict[str, int]:
 
 
 def lane_label(item: dict) -> str:
-    """`building · roadmap/7 · +4` / `gate-ready · roadmap/7 · CONFIRMED · +4`."""
-    parts = [item.get("lane") or item.get("status") or "?"]
+    """`building · roadmap/7 · +4` / `gate-ready · roadmap/7 · CONFIRMED · +4` /
+    `landed · roadmap/7 · @1a2b3c4 · +4` (the commit it landed in)."""
+    lane = item.get("lane") or item.get("status") or "?"
+    parts = [lane]
     branch, claim = item.get("branch"), item.get("claim") or {}
     if branch:
         parts.append(branch["name"])
+    if lane == "landed":
+        sha = claim.get("landed_sha") or (branch or {}).get("landedSha")
+        if sha:
+            parts.append(f"@{sha[:7]}")
     if claim.get("verdict"):
         parts.append(claim["verdict"])
     if branch and branch.get("ahead"):
@@ -325,9 +334,11 @@ def _discover(root: Path, cfg: dict) -> dict:
         stale_days = int(settings.get("staleDays", rmbranches.DEFAULT_STALE_DAYS))
     except (TypeError, ValueError):
         stale_days = rmbranches.DEFAULT_STALE_DAYS
+    integration = settings.get("integrationBranch")
     try:
         return rmbranches.discover(root, [i["id"] for i in cfg["items"]],
-                                   pattern=pattern, stale_days=stale_days)
+                                   pattern=pattern, stale_days=stale_days,
+                                   integration=integration or None)
     except Exception:  # noqa: BLE001 — status must survive any git surprise
         return {"trunk": None, "items": {}, "other": []}
 

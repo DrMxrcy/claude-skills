@@ -7,7 +7,8 @@ Layer: rmcore only (read-only, never writes, never raises on git trouble).
 
 Git cost is bounded regardless of branch count: one `for-each-ref` call is the
 cache key, and only when refs changed do we spend two more (ahead/behind for
-every branch at once, one `log` across all unmerged tips).
+every branch at once, one `log` across all unmerged tips), plus one when
+settings.integrationBranch is set (which branch tips it contains — `landed`).
 """
 from __future__ import annotations
 import datetime
@@ -28,20 +29,22 @@ _REF_FIELDS = ["%(refname:short)", "%(objectname)", "%(objectname:short)",
                "%(committerdate:iso-strict)", "%(HEAD)", "%(worktreepath)",
                "%(subject)"]
 
-# (root, requested trunk) -> (for-each-ref stdout, git-derived branch data).
-# Only git facts are cached; item mapping and staleness are recomputed per call
-# so a changed item list or a passing day never needs another git call.
-_CACHE: dict[tuple[str, str | None], tuple[str, dict]] = {}
+# (root, requested trunk, integration branch) -> (for-each-ref stdout,
+# git-derived branch data). Only git facts are cached; item mapping and
+# staleness are recomputed per call so a changed item list or a passing day
+# never needs another git call.
+_CACHE: dict[tuple[str, str | None, str | None], tuple[str, dict]] = {}
 _LOCK = threading.Lock()
+_FROM_SETTINGS = object()   # discover(integration=...) default: read the config
 
 
 def _empty(trunk: str | None = None) -> dict:
     return {"trunk": trunk, "items": {}, "other": []}
 
 
-def _git(root: Path, *args: str) -> str | None:
+def _git(root: Path, *args: str, stdin: str | None = None) -> str | None:
     try:
-        out = subprocess.run(["git", "-C", str(root), *args],
+        out = subprocess.run(["git", "-C", str(root), *args], input=stdin,
                              capture_output=True, text=True, timeout=10)
         return out.stdout if out.returncode == 0 else None
     except (OSError, subprocess.SubprocessError):
@@ -144,7 +147,7 @@ def _branch_commits(root: Path, trunk: str, tips: dict[str, str]) -> dict[str, l
             continue
         sha, short, parents, date, subject = parts
         order.append(sha)
-        commits[sha] = {"sha": short, "date": date, "subject": subject,
+        commits[sha] = {"sha": short, "full": sha, "date": date, "subject": subject,
                         "parents": parents.split(),
                         "tags": sorted({int(n) for n in TAG_RE.findall(subject)})}
     result: dict[str, list[dict]] = {}
@@ -161,22 +164,68 @@ def _branch_commits(root: Path, trunk: str, tips: dict[str, str]) -> dict[str, l
     return result
 
 
-def _scan(root: Path, trunk: str, refs: list[dict]) -> dict:
+def _contained_in(root: Path, target: str) -> set[str]:
+    """Names of every local branch whose tip `target` already contains — one
+    for-each-ref call for all branches at once. Empty on any git trouble."""
+    raw = _git(root, "for-each-ref", "refs/heads", f"--merged={target}",
+               "--format=%(refname:short)")
+    return set(raw.split()) if raw else set()
+
+
+def _scan(root: Path, trunk: str, refs: list[dict],
+          integration: str | None = None) -> dict:
     """The git-derived (cacheable) part: every non-trunk branch with its
-    ahead/behind counts and its unmerged commits."""
+    ahead/behind counts and its unmerged commits. With an `integration` branch,
+    a branch not yet merged to trunk whose tip the integration branch contains
+    is `landed` there (landedSha = the integration tip that contains it)."""
     counts = _ahead_behind(root, trunk, refs)
+    tips = {r["name"]: r["sha"] for r in refs}
+    landed_in = (_contained_in(root, f"refs/heads/{integration}")
+                 if integration else set())
     branches = []
     for r in refs:
         if r["name"] == trunk:
             continue
         ahead, behind = counts.get(r["name"], (0, 0))
+        merged = r["name"] in counts and ahead == 0
+        landed = not merged and r["name"] in landed_in
         branches.append({**r, "ahead": ahead, "behind": behind,
-                         "merged": r["name"] in counts and ahead == 0})
+                         "merged": merged, "landed": landed,
+                         "landedIn": integration if landed else None,
+                         "landedSha": tips[integration] if landed else None})
     tips = {b["name"]: b["sha"] for b in branches if not b["merged"]}
     per_branch = _branch_commits(root, trunk, tips)
     for b in branches:
         b["commits"] = per_branch.get(b["name"], [])
-    return {"trunk": trunk, "branches": branches}
+    _mark_inherited(branches, tips, integration)
+    return {"trunk": trunk, "integration": integration, "branches": branches}
+
+
+def _mark_inherited(branches: list[dict], tips: dict[str, str],
+                    integration: str | None) -> None:
+    """Set b["inherited"]: full shas of commits a branch only carries because it
+    was built on top of other work, so their `(plan N)` tags must not attribute
+    item N to it (plan 32). A commit is inherited when it is reachable from
+    another branch whose tip is an ancestor of this one (a base it was cut from,
+    or a branch merged into it), or — for a branch the integration branch does
+    not contain — from the integration branch (it was cut from integration, and
+    that work belongs to the items already landed there). Pure set work on the
+    commit lists already fetched: no extra git call."""
+    reach = {b["name"]: {c["full"] for c in b["commits"]} for b in branches
+             if b["name"] in tips}
+    integ = reach.get(integration or "", set())
+    for b in branches:
+        own = reach.get(b["name"])
+        if not own:
+            b["inherited"] = frozenset()
+            continue
+        inherited: set[str] = set()
+        for other, tip in tips.items():
+            if other != b["name"] and tip != b["sha"] and tip in own:
+                inherited |= reach[other]
+        if integration and b["name"] != integration and not b.get("landed"):
+            inherited |= own & integ
+        b["inherited"] = frozenset(inherited & own)
 
 
 _EPOCH = datetime.datetime.min.replace(tzinfo=datetime.timezone.utc)
@@ -199,12 +248,17 @@ def _is_stale(date: str, stale_days: int, now: datetime.datetime) -> bool:
 def _info(b: dict, item: int | None, stale_days: int,
           now: datetime.datetime) -> dict:
     """Public per-branch record. taggedCommits counts commits tagged for
-    `item` (0 for unattributed branches)."""
-    tagged = sum(1 for c in b["commits"] if item is not None and item in c["tags"])
+    `item` (0 for unattributed branches). `sha` is the full tip; `landed`
+    (plan 32) marks a branch the integration branch contains but trunk does not."""
+    skip = b.get("inherited") or ()
+    tagged = sum(1 for c in b["commits"] if item is not None and item in c["tags"]
+                 and c["full"] not in skip)
     return {"name": b["name"], "item": item, "ahead": b["ahead"],
             "behind": b["behind"], "lastCommit": b["short"],
             "lastSubject": b["subject"], "lastDate": b["date"],
             "merged": b["merged"], "worktree": b["worktree"],
+            "sha": b["sha"], "landed": b.get("landed", False),
+            "landedIn": b.get("landedIn"), "landedSha": b.get("landedSha"),
             "taggedCommits": tagged,
             "stale": _is_stale(b["date"], stale_days, now),
             "commits": [{k: c[k] for k in ("sha", "date", "subject")}
@@ -212,7 +266,8 @@ def _info(b: dict, item: int | None, stale_days: int,
 
 
 def discover(root: Path, item_ids=None, trunk: str | None = None,
-             pattern: str | None = None, stale_days: int | None = None) -> dict:
+             pattern: str | None = None, stale_days: int | None = None,
+             integration=_FROM_SETTINGS) -> dict:
     """Map git branches and tagged commits to roadmap items.
 
     Returns {"trunk": name|None, "items": {id: branchinfo}, "other": [branchinfo]}.
@@ -222,11 +277,16 @@ def discover(root: Path, item_ids=None, trunk: str | None = None,
     `other` holds every unmerged non-trunk branch not chosen for an item.
     `item_ids` limits which ids may be attributed (None = any). Outside git,
     with no commits, or with no resolvable trunk, the result is empty.
+    `integration` (default: settings.integrationBranch; None = off) names the
+    branch work merges into before trunk; branches it contains read `landed`.
+    It is ignored when it is the trunk or does not exist locally.
     """
     root = Path(root)
     settings = None
-    if pattern is None or stale_days is None:
+    if pattern is None or stale_days is None or integration is _FROM_SETTINGS:
         settings = _settings(root)
+    if integration is _FROM_SETTINGS:
+        integration = settings.get("integrationBranch")
     if pattern is None:
         pattern = settings.get("branchPattern")
         if not isinstance(pattern, str) or not pattern:
@@ -244,13 +304,17 @@ def discover(root: Path, item_ids=None, trunk: str | None = None,
     resolved = _pick_trunk(refs, trunk)
     if resolved is None:
         return _empty()
-    key = (str(root.resolve()), trunk)
+    names = {r["name"] for r in refs}
+    if not isinstance(integration, str) or integration == resolved \
+            or integration not in names:
+        integration = None
+    key = (str(root.resolve()), trunk, integration)
     with _LOCK:
         hit = _CACHE.get(key)
     if hit is not None and hit[0] == sig:
         data = hit[1]
     else:
-        data = _scan(root, resolved, refs)
+        data = _scan(root, resolved, refs, integration)
         with _LOCK:
             _CACHE[key] = (sig, data)
 
@@ -268,7 +332,10 @@ def discover(root: Path, item_ids=None, trunk: str | None = None,
         if b["merged"]:
             continue
         counts: dict[int, int] = {}
+        skip = b.get("inherited") or ()
         for c in b["commits"]:
+            if c["full"] in skip:       # carried from a base branch, not its work
+                continue
             for n in c["tags"]:
                 counts[n] = counts.get(n, 0) + 1
         for n, k in counts.items():
@@ -299,3 +366,43 @@ def discover(root: Path, item_ids=None, trunk: str | None = None,
                                          or int(m.group(1)) in allowed) else None
         other.append(_info(b, item, stale_days, now))
     return {"trunk": resolved, "items": items, "other": other}
+
+
+# --- containment checks for landed claims (plan 32) -----------------------
+
+def resolve_commits(root: Path, revs) -> dict[str, str | None]:
+    """{rev: full commit sha, or None when it names no commit}. One
+    `cat-file --batch-check` call for every rev (branch names, short or full
+    shas, tags). A rev containing whitespace never resolves."""
+    revs = list(dict.fromkeys(str(r) for r in revs))
+    out: dict[str, str | None] = {r: None for r in revs}
+    ask = [r for r in revs if r and not any(c.isspace() for c in r)]
+    if not ask:
+        return out
+    raw = _git(Path(root), "cat-file", "--batch-check=%(objectname) %(objecttype)",
+               stdin="".join(f"{r}^{{commit}}\n" for r in ask))
+    if raw is None:
+        return out
+    lines = raw.splitlines()
+    if len(lines) != len(ask):
+        return out
+    for rev, line in zip(ask, lines):
+        sha, _, kind = line.partition(" ")
+        if kind == "commit" and re.fullmatch(r"[0-9a-f]{40,64}", sha):
+            out[rev] = sha
+    return out
+
+
+def contained(root: Path, target: str, shas) -> set[str] | None:
+    """The subset of full commit `shas` that `target` contains (each is target
+    itself or one of its ancestors). One `rev-list` call: a sha is outside
+    target exactly when it is listed among the commits target lacks. None on
+    any git trouble — callers must treat that as "not proven contained"."""
+    shas = sorted({s for s in shas if s})
+    if not shas:
+        return set()
+    raw = _git(Path(root), "rev-list", *shas, "--not", target)
+    if raw is None:
+        return None
+    outside = set(raw.split())
+    return {s for s in shas if s not in outside}

@@ -14,9 +14,11 @@ FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---\n", re.DOTALL)
 # frontmatter keys: the frontmatter parser is line-based `key: value` (no nesting),
 # so a nested `claim:` block would flatten its children into top-level keys. Flat
 # keys round-trip exactly, and older skill versions simply ignore them.
-CLAIM_STAGES = ("review", "fixing", "gate-ready", "gating", "blocked")
+# `landed` (plan 32): merged into the integration branch, not yet on trunk;
+# `claim_landed_sha` is the commit it landed in (set by `claim --landed <sha>`).
+CLAIM_STAGES = ("review", "fixing", "gate-ready", "gating", "blocked", "landed")
 CLAIM_VERDICTS = ("CONFIRMED", "PARTIAL", "REFUTED")
-CLAIM_FIELDS = ("stage", "verdict", "note", "branch", "updated")
+CLAIM_FIELDS = ("stage", "verdict", "note", "branch", "landed_sha", "updated")
 CLAIM_PREFIX = "claim_"
 
 # Parse results are cached by (path, mtime, size). A short CLI run barely touches
@@ -69,8 +71,9 @@ def count_progress(path: Path) -> tuple[int, int]:
 
 
 def read_claim(path: Path) -> dict | None:
-    """The plan's in-flight claim as {stage, verdict, note, branch, updated} (absent
-    fields are None), or None when the plan carries no claim (no `claim_stage`).
+    """The plan's in-flight claim as {stage, verdict, note, branch, landed_sha,
+    updated} (absent fields are None), or None when the plan carries no claim
+    (no `claim_stage`).
     Values are returned as written; lane derivation decides what to trust."""
     meta = parse_plan(path)["meta"]
     if not meta.get(CLAIM_PREFIX + "stage"):
