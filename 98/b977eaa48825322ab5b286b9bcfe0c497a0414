@@ -1,0 +1,43 @@
+CHANGELOG.md
+  s_fbae122c7a65de::t_41e78240529b8f 13-18
+  s_fbae122c7a65de::t_4408428ec031a9 19
+CHANGELOG.internal.md
+  s_fbae122c7a65de::t_41e78240529b8f 15-20
+  s_fbae122c7a65de::t_3befbeee0f2ea7 21
+.roadmap/plans/043-acceptance-ledger-mark-each-acceptance-bullet-passed-with-evidence-and-require-it-for-done.md
+  s_fbae122c7a65de::t_41e78240529b8f 1-35
+.roadmap/plans/045-digest-what-landed-moved-stalled-and-got-blocked-since-a-given-time.md
+  s_fbae122c7a65de::t_41e78240529b8f 1-37
+.roadmap/plans/042-scope-drift-per-branch-flag-changes-outside-the-files-a-plan-lists.md
+  s_fbae122c7a65de::t_41e78240529b8f 1-34
+ROADMAP.md
+  s_fbae122c7a65de::t_41e78240529b8f 42-47
+  s_fbae122c7a65de::t_b03a584051a586 48
+.roadmap/plans/040-claim-owners-and-a-work-in-progress-limit.md
+  s_fbae122c7a65de::t_41e78240529b8f 1-34
+.roadmap/plans/041-branch-conflict-risk-show-which-open-branches-change-the-same-files.md
+  s_fbae122c7a65de::t_41e78240529b8f 1-36
+.roadmap/config.json
+  s_fbae122c7a65de::t_41e78240529b8f 4
+  s_fbae122c7a65de::t_06e1c64c938e6a 376-466
+.roadmap/plans/044-version-forecast-estimate-each-open-version-s-finish-date-from-recent-pace.md
+  s_fbae122c7a65de::t_41e78240529b8f 1-35
+.roadmap/plans/046-waiting-steps-and-split-retarget-time-gated-checks-no-longer-hold-up-a-release-or-drag-the-whole-feature-to-the-next-version.md
+  s_fbae122c7a65de::t_5a05f54e03c854 1-40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "98b977eaa48825322ab5b286b9bcfe0c497a0414",
+  "prompts": {},
+  "sessions": {
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
