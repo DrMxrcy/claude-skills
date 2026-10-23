@@ -370,6 +370,10 @@ def _merge_status(statuses: list[dict], roots_meta: list[dict]) -> dict:
     # trunk checkout's. Absent unless settings.slots is configured.
     if statuses and "slots" in statuses[_trunk_root(statuses, roots_meta)]:
         out["slots"] = statuses[_trunk_root(statuses, roots_meta)]["slots"]
+    # The run log (plan 38) is trunk truth too: its runs and trunk health.
+    for key in ("runs", "trunkHealth", "runWarnings"):
+        if statuses and key in statuses[_trunk_root(statuses, roots_meta)]:
+            out[key] = statuses[_trunk_root(statuses, roots_meta)][key]
     return out
 
 

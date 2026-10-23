@@ -309,3 +309,41 @@ def test_union_merge_resolves_concurrent_appends(roadmap, runs, proj):
     got, warnings = runs.read_runs(proj)
     assert [r["label"] for r in got] == ["side-gate", "main-gate"] and warnings == []
 
+
+# ---- step 4: dashboard gate timeline + trunk health tile -------------------
+
+def test_dashboard_payload_carries_runs_and_health(roadmap, dashboard, runs, proj):
+    runs.append_run(proj, _rec(runs, "merge 1", items=[1], log="https://ci.example/1"))
+    runs.append_run(proj, _rec(runs, "nightly", "fail", "suite", 1,
+                               shards={"e2e": "fail"}, failing=["t_x"]))
+    data = json.loads(dashboard._Broadcaster(roadmap, proj)._dump())
+    st = data["statuses"][0]
+    assert [r["label"] for r in st["runs"]] == ["nightly", "merge 1"]
+    assert st["trunkHealth"]["shards"][0] == {
+        "shard": "e2e", "result": "fail", "at": "2026-10-23T12:01:00Z",
+        "label": "nightly", "log": None, "failing": ["t_x"]}
+
+
+def test_merged_view_takes_trunk_checkout_runs(dashboard):
+    trunk = {"trunk": "main", "items": [], "runs": [{"label": "t"}],
+             "trunkHealth": {"shards": [], "green": None, "ahead": []}}
+    side = {"trunk": "main", "items": [], "runs": [{"label": "side"}],
+            "trunkHealth": {"shards": [{"shard": "x"}], "green": True, "ahead": []},
+            "runWarnings": ["w"]}
+    meta = [{"branch": "roadmap/1", "name": "a"}, {"branch": "main", "name": "b"}]
+    out = dashboard._merge_status([side, trunk], meta)
+    assert out["runs"] == trunk["runs"] and out["trunkHealth"] == trunk["trunkHealth"]
+    assert "runWarnings" not in out
+
+
+def test_dashboard_html_has_gate_timeline_and_health_tile(dashboard):
+    body = dashboard._dashboard_html()
+    for hook in ("function runPanel", "function healthTile", "function gateTimeline",
+                 "d.trunkHealth", "d.runs", 'r.kind === "gate"', "link(g.log",
+                 "link(s.log", '"#/plan/"+id', ".shard.fail", "s.failing",
+                 "a.commits", "...runPanel(d)"):
+        assert hook in body, hook
+    # log URLs only ever reach an href through link() (http(s) / #/ only)
+    import re
+    assert not re.search(r"\.href\s*=\s*[gs]\.log", body)
+    assert ".innerHTML" not in body and "insertAdjacentHTML" not in body
