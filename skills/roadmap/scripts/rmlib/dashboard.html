@@ -276,9 +276,9 @@ const store = {
 };
 // Lanes (plan 30): derived per item by the CLI; the dashboard only colours
 // and filters them. Group -> one colour family.
-const LANES = ["building","review","fixing","gate-ready","gating","blocked",
+const LANES = ["building","review","fixing","gate-ready","gating","landed","blocked",
   "stale","active","planned","done"];
-const LANE_GROUP = {done:"done", gating:"gate", "gate-ready":"gate",
+const LANE_GROUP = {done:"done", gating:"gate", "gate-ready":"gate", landed:"done",
   review:"review", fixing:"review", blocked:"hold", stale:"hold",
   building:"build", active:"build", planned:"plan"};
 const laneOf = it => it.lane || (it.status === "done" || it.pct === 100
