@@ -288,7 +288,9 @@ Anywhere a command takes `--plan ID` (or an id list), the id may be `7`, `#7`, o
   `.roadmap/config.json` controls it: `"nudge"` (default) prints the reminder, `"auto"`
   runs the release itself (target = the later version being started, else the lowest
   existing version above current; never invents a number), `"off"` disables the gate.
-- `claim ID --stage {review,fixing,gate-ready,gating,blocked} [--verdict V] [--note "..."] [--branch B]` (or `ID --clear`) — record the in-flight build stage in plan frontmatter; trunk checkboxes stay the only done source (see `references/state-model.md`)
+- `claim ID [ID…] --stage {review,fixing,gate-ready,gating,blocked,landed} [--verdict V] [--note "..."] [--branch B]` (or `ID… --clear`) — record the in-flight build stage in plan frontmatter, several ids all-or-nothing; trunk checkboxes stay the only done source (see `references/state-model.md`)
+- `claim [ID…] --landed SHA` — move items whose branch tip SHA (e.g. the integration branch) contains to `landed`, recording the sha
+- `check --landed [--evidence "..."] [--yes]` — dry-run list (or with `--yes`, tick every step) of `landed` items whose landing sha and branch tip trunk now contains; clears their claims
 - `status [--type T] [--version V] [--status S] [--open] [--in-flight] [--json]` — print current state (shows lane, branch, and `blocked by […]` when deps incomplete); all given filters must match, and they narrow the item list only; `--json` also includes `counts` (`byType`/`byStatus`/`byVersion`) computed across all items regardless of filters
 - `search <text> [--json]` — case-insensitive substring search across item titles, item note lines, plan bodies and the Idea Incubator (linked `.roadmap/notes/` files are not scanned)
 - `import PATH` — extract checklist lines from a file into a plan

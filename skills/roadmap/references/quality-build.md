@@ -49,10 +49,14 @@ Steps tick on trunk only after the merge gate, so a long review or gate would ot
 | Review passes | `python3 "$RM" claim <id> --stage gate-ready --verdict <CONFIRMED\|PARTIAL\|REFUTED>` |
 | Merge gate runs | `python3 "$RM" claim <id> --stage gating` |
 | Stuck (BLOCKED, budget spent, conflict) | `python3 "$RM" claim <id> --stage blocked --note "<reason>"` |
+| Several items move together | `python3 "$RM" claim <id> <id> … --stage gating` (all-or-nothing) |
+| Batch merged into the integration branch | `python3 "$RM" claim --landed <integration-branch>` |
+| Integration branch merged into trunk | `python3 "$RM" check --landed` (review the list), then `check --landed --yes --evidence "<gate result>"` |
 
 - Claims live in plan frontmatter (`claim_*` keys, see `state-model.md`). `claim <id> --clear` drops one.
 - Ticking the final step on trunk (step 5 below) removes the claim automatically.
 - `status --in-flight` lists claimed or branch-backed items. The dashboard shows each lane, branch, and commit count.
+- **Integration branch** (`settings.integrationBranch`): when item branches merge into an integration branch before trunk, a branch it contains reads `landed` with no claim. That derived lane vanishes once trunk contains the branch, so run `claim --landed <integration-branch>` right after each merge into integration; it records the landing sha that `check --landed` later proves is in trunk. `check --landed` never ticks an item whose landing sha or current branch tip trunk lacks.
 
 ## Merge gate (per-item branches)
 
@@ -66,6 +70,8 @@ When an item was built in its own worktree (`roadmap/<id>`, see `build.md`), its
 6. **Red:** reset the trunk to its pre-merge commit (`git -C <trunk-worktree> reset --hard <pre-merge-sha>`, a commit this gate created, never a commit someone else made), keep the item worktree, and report the failing command. The item is not checked off.
 
 Roadmap state is written only at step 5, from the parent, never from the item worktree.
+
+**With an integration branch** (`settings.integrationBranch`), steps 1–4 merge into the integration branch instead, and step 5 becomes `claim --landed <integration-branch>` for the batch (no ticks yet). When the integration branch itself passes the gate into trunk, `check --landed` lists what trunk now contains and `check --landed --yes --evidence "<gate result>"` ticks those items in one step.
 
 ## Item selection
 
