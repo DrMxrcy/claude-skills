@@ -2664,7 +2664,8 @@ def branches(roadmap):
     sys.path. The ref cache is module-global, so start each test clean."""
     import importlib
     mod = importlib.import_module("rmlib.branches")
-    mod._CACHE.clear()
+    for cache in (mod._CACHE, mod._WT_LIST, mod._DIRTY, mod._UNMERGED):
+        cache.clear()
     return mod
 
 
@@ -2776,6 +2777,102 @@ def test_branches_worktree_path(branches, branch_repo, tmp_path_factory):
     _git(branch_repo, "worktree", "add", "-q", str(wt), "roadmap/7")
     res = branches.discover(branch_repo, [7])
     assert Path(res["items"][7]["worktree"]).resolve() == wt.resolve()
+
+
+# --- worktree map (plan 36) -------------------------------------------------
+
+@pytest.fixture
+def wt_repo(branch_repo, tmp_path_factory):
+    """branch_repo plus linked worktrees: `dirty` on roadmap/7 (unmerged, one
+    untracked file), `merged` on roadmap/3 (merged into main, clean),
+    `unmerged` on fix/side (clean, one commit trunk lacks), and `detached` at
+    main~0 (clean, nothing trunk lacks)."""
+    base = tmp_path_factory.mktemp("wts")
+    paths = {k: base / k for k in ("dirty", "merged", "unmerged", "detached")}
+    _git(branch_repo, "worktree", "add", "-q", str(paths["dirty"]), "roadmap/7")
+    _git(branch_repo, "worktree", "add", "-q", str(paths["merged"]), "roadmap/3")
+    _git(branch_repo, "worktree", "add", "-q", str(paths["unmerged"]), "fix/side")
+    _git(branch_repo, "worktree", "add", "-q", "--detach", str(paths["detached"]),
+         "main")
+    (paths["dirty"] / "scratch.txt").write_text("x")
+    return branch_repo, {k: str(v.resolve()) for k, v in paths.items()}
+
+
+def _rows_by_path(res):
+    return {str(Path(r["path"]).resolve()): r for r in res["rows"]}
+
+
+def test_worktrees_dirty_unmerged_and_safe_marks(branches, wt_repo):
+    repo, paths = wt_repo
+    res = branches.worktrees(repo)
+    assert res["trunk"] == "main"
+    rows = _rows_by_path(res)
+    assert set(rows) == set(paths.values())          # linked only, main excluded
+    d, m, u, x = (rows[paths[k]] for k in ("dirty", "merged", "unmerged", "detached"))
+    assert (d["dirty"], d["ahead"], d["safe"]) == (1, 4, False)
+    assert d["reason"] == "1 dirty; 4 unmerged" and d["removeCmd"] is None
+    assert (m["dirty"], m["ahead"], m["merged"], m["safe"]) == (0, 0, True, True)
+    assert m["removeCmd"] == f"git worktree remove {m['path']}"
+    assert (u["dirty"], u["ahead"], u["safe"]) == (0, 1, False)
+    assert u["reason"] == "1 unmerged"
+    assert (x["branch"], x["detached"], x["ahead"], x["safe"]) == (None, True, 0, True)
+    assert x["lastSubject"] == "done work (plan 3)" and x["lastDate"]  # head facts
+    assert m["lastSubject"] == "done work (plan 3)" and m["lastDate"]
+    # every worktree still exists: nothing was removed
+    assert all(Path(p).is_dir() for p in paths.values())
+
+
+def test_worktrees_detached_head_with_unmerged_work(branches, wt_repo):
+    repo, paths = wt_repo
+    _commit(Path(paths["detached"]), "loose work")
+    branches._WT_LIST.clear()
+    x = _rows_by_path(branches.worktrees(repo))[paths["detached"]]
+    assert (x["ahead"], x["safe"], x["lastSubject"]) == (1, False, "loose work")
+
+
+def test_worktrees_locked_and_missing_are_never_safe(branches, wt_repo):
+    repo, paths = wt_repo
+    _git(repo, "worktree", "lock", paths["merged"])
+    import shutil
+    shutil.rmtree(paths["detached"])
+    rows = _rows_by_path(branches.worktrees(repo))
+    assert rows[paths["merged"]]["safe"] is False
+    assert "locked" in rows[paths["merged"]]["reason"]
+    gone = rows[paths["detached"]]
+    assert gone["safe"] is False and gone["dirty"] is None
+    assert "prune" in gone["reason"]
+
+
+def test_worktrees_outside_git_and_without_linked_worktrees(branches, branch_repo,
+                                                            tmp_path_factory):
+    assert branches.worktrees(tmp_path_factory.mktemp("nogit")) == \
+        {"trunk": None, "rows": []}
+    assert branches.worktrees(branch_repo)["rows"] == []
+
+
+def test_worktree_dirty_counts_are_time_budgeted(branches, wt_repo, monkeypatch):
+    repo, paths = wt_repo
+    clock = [1000.0]
+    monkeypatch.setattr(branches, "_now", lambda: clock[0])
+    calls = []
+    real = branches._git
+    monkeypatch.setattr(branches, "_git",
+                        lambda root, *a, **k: calls.append((str(root), a))
+                        or real(root, *a, **k))
+    per_wt = lambda: [c for c in calls if "status" in c[1]]
+    branches.worktrees(repo)
+    assert len(per_wt()) == 4
+    for _ in range(9):                       # 9 more seconds: all cached
+        clock[0] += 1
+        branches.worktrees(repo)
+        branches.worktree_facts(repo)
+    assert len(per_wt()) == 4
+    assert not [c for c in calls if "worktree" in c[1][:1]][1:]   # listed once
+    (Path(paths["merged"]) / "new.txt").write_text("y")
+    clock[0] += 1                            # 10 s: refreshed once
+    rows = _rows_by_path(branches.worktrees(repo))
+    assert len(per_wt()) == 8
+    assert rows[paths["merged"]]["dirty"] == 1 and rows[paths["merged"]]["safe"] is False
 
 
 def test_branches_cache_hit_runs_one_git_call(branches, branch_repo, monkeypatch):
