@@ -1,0 +1,29 @@
+.roadmap/plans/029-adversarial-review-skill-multi-cli-review-with-triage-from-claude-code.md
+  s_fbae122c7a65de::t_48151ce5535e95 15-16,22-24,44
+.roadmap/config.json
+  s_fbae122c7a65de::t_0443c006f80328 278
+.roadmap/plans/030-honest-in-flight-tracking-claim-branch-stage-verdict-per-item-branch-progress-and-stage-filters-in-status-and-dashboard.md
+  s_fbae122c7a65de::t_41dabb241db306 6,36-47
+CHANGELOG.internal.md
+  s_fbae122c7a65de::t_422766b3aa10ab 15
+CHANGELOG.md
+  s_fbae122c7a65de::t_53ee76f99762ab 10
+ROADMAP.md
+  s_fbae122c7a65de::t_70a5e5218f2bf5 26,29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "18d84f25fba63c737d69370ce117288c26ddcba4",
+  "prompts": {},
+  "sessions": {
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
