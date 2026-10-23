@@ -58,6 +58,9 @@ from rmlib.report import (  # noqa: E402
     _git_dirty, _git_head, _record_last_seen_sha, drift_check,
     format_orient, format_search, handoff, orient, search)
 
+from rmlib.handoff_note import (  # noqa: E402
+    open_decision, resolve_pending, write_pending)
+
 
 from rmlib.project import (  # noqa: E402
     _apply_rules_block, ensure_claude_md_rules, ensure_project_rules,
@@ -215,6 +218,11 @@ def main(argv: list[str]) -> int:
         "handoff",
         help="multi-coder switch brief (orient + drift + git dirty + checklist)")
     p_handoff.add_argument("--json", action="store_true", dest="as_json")
+    p_handoff.add_argument("--plan", help=ID_HELP + " (required with --pending/--resolve)")
+    p_handoff.add_argument("--pending", metavar="TEXT",
+                           help="record an OPEN decision in .roadmap/notes/<id>-handoff.md")
+    p_handoff.add_argument("--resolve", action="store_true",
+                           help="close the open decision for --plan")
 
     sub.add_parser("drift-check", help="nudge if commits landed without check-off")
 
@@ -399,10 +407,33 @@ def main(argv: list[str]) -> int:
                 print(text)
             return 0
         if args.command == "handoff":
+            if args.pending is not None or args.resolve:
+                if not args.plan:
+                    print("handoff --pending/--resolve need --plan <id>", file=sys.stderr)
+                    return 2
+                plan_id = rid(args.plan)
+                if args.pending is not None:
+                    path = write_pending(root, plan_id, args.pending)
+                    print(f"open decision recorded: {path.relative_to(root)}")
+                    return 0
+                if not resolve_pending(root, plan_id):
+                    print(f"no open decision for plan {args.plan}", file=sys.stderr)
+                    return 1
+                print(f"decision resolved for plan {args.plan}")
+                return 0
             payload = handoff(root)
             if payload is None:
                 print("No .roadmap/ here — nothing to hand off.")
                 return 0
+            open_items = [i for i in (payload.get("next") and [payload["next"]] or [])
+                          if open_decision(root, i["id"])]
+            if open_items:
+                i = open_items[0]
+                print(f"refusing handoff: decision still open for {display_id(i)} — "
+                      f"{open_decision(root, i['id'])}\n"
+                      f"resolve it first: roadmap.py handoff --plan {i['id']} --resolve",
+                      file=sys.stderr)
+                return 1
             if args.as_json:
                 print(json.dumps(payload, indent=2))
             else:

@@ -2123,6 +2123,40 @@ def test_orient_clean_tree_has_no_dirty_list(roadmap, repo):
     assert "  - " not in text
 
 
+def test_handoff_pending_writes_note_and_refuses_until_resolved(roadmap, repo, monkeypatch, capsys):
+    monkeypatch.chdir(repo)
+    roadmap.init_project(repo, "P", claude_md=False)
+    roadmap.new_item(repo, "feature", "Auth")
+    assert roadmap.main(["handoff", "--plan", "1", "--pending", "Pick JWT or sessions"]) == 0
+    note = repo / ".roadmap/notes/1-handoff.md"
+    assert note.exists()
+    assert "OPEN: Pick JWT or sessions" in note.read_text()
+
+    # plain handoff refuses while the decision is open
+    assert roadmap.main(["handoff"]) == 1
+    assert "decision still open" in capsys.readouterr().err
+
+    assert roadmap.main(["handoff", "--plan", "1", "--resolve"]) == 0
+    assert "RESOLVED: Pick JWT or sessions" in note.read_text()
+    assert "OPEN:" not in note.read_text()
+    assert roadmap.main(["handoff"]) == 0
+
+
+def test_handoff_resolve_without_open_decision_fails(roadmap, repo, monkeypatch, capsys):
+    monkeypatch.chdir(repo)
+    roadmap.init_project(repo, "P", claude_md=False)
+    roadmap.new_item(repo, "feature", "Auth")
+    assert roadmap.main(["handoff", "--plan", "1", "--resolve"]) == 1
+    assert "no open decision" in capsys.readouterr().err
+
+
+def test_handoff_pending_requires_plan(roadmap, repo, monkeypatch, capsys):
+    monkeypatch.chdir(repo)
+    roadmap.init_project(repo, "P", claude_md=False)
+    assert roadmap.main(["handoff", "--pending", "x"]) == 2
+    assert "need --plan" in capsys.readouterr().err
+
+
 def test_cli_handoff_json(roadmap, repo, monkeypatch, capsys):
     monkeypatch.chdir(repo)
     roadmap.init_project(repo, "P", claude_md=False)

@@ -39,7 +39,8 @@ created: 2026-10-23
 ## 🚶 Step-by-Step Checklist
 - [x] Step 1: Extend `orient` with branch, dirty files and last 5 commits; cover clean and dirty trees in tests -> target: `skills/roadmap/scripts/rmlib/report.py`, `tests/`
   > evidence: python3 -m pytest -q: 334 passed; orient tests: 11 passed (branch, dirty files, last 5 commits, clean tree) (2026-10-23)
-- [ ] Step 2: Add `handoff --pending` that writes `.roadmap/notes/<id>-handoff.md` and links it from the plan; refuse when an open decision marker is unresolved -> target: `skills/roadmap/scripts/rmlib/report.py`, `skills/roadmap/scripts/roadmap.py`, `tests/`
+- [x] Step 2: Add `handoff --pending` that writes `.roadmap/notes/<id>-handoff.md` and links it from the plan; refuse when an open decision marker is unresolved -> target: `skills/roadmap/scripts/rmlib/report.py`, `skills/roadmap/scripts/roadmap.py`, `tests/`
+  > evidence: python3 -m pytest -q: 337 passed; handoff tests: 5 passed (pending writes note, plain handoff refuses while OPEN, --resolve closes it, resolve without decision fails, pending requires --plan); validate_skills.py exit 0 (2026-10-23)
 - [ ] Step 3: Record optional `--tokens` on `check --evidence` beside the verifier ledger line -> target: `skills/roadmap/scripts/rmlib/ops.py`, `skills/roadmap/scripts/roadmap.py`, `tests/`
 - [ ] Step 4: Per-item worktree option for `build --worktree` (`roadmap/<id>-<slug>`) -> target: `commands/roadmap/build.md`, `skills/roadmap/references/quality-build.md`
 - [ ] Step 5: Document one-orchestrator-per-item, spawn budget, respawn-from-brief and merge-only roadmap writes -> target: `skills/roadmap/references/quality-build.md`, `skills/agent/references/orchestration-policy.md`, `commands/roadmap/handoff.md`
