@@ -25,6 +25,13 @@ CLAIM_PREFIX = "claim_"
 # flat for the same reason as claims. Logic lives in rmlib/slots.py.
 SLOT_PREFIX = "slot_"
 
+# Rulings (plan 34): dated decisions recorded in the plan body as
+# `- **Ruling (2026-10-22, owner[, approval]):** text`. `roadmap.py ruling` appends
+# them under RULINGS_HEADING; hand-written ones anywhere in the body parse too.
+RULINGS_HEADING = "## ⚖️ Rulings"
+RULINGS_SECTION_KEY = "rulings"          # _norm_name of the heading text
+RULING_APPROVAL_TAG = "approval"         # the tag `ruling --approval` writes
+
 # Parse results are cached by (path, mtime, size). A short CLI run barely touches
 # it, but a long-lived `serve` process re-parses only the plan that actually
 # changed on each push instead of every plan on every status() call.

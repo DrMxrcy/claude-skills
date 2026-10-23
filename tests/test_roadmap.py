@@ -3762,3 +3762,75 @@ def test_inherited_tags_from_a_base_branch_without_integration(
     res = branches.discover(repo, [1, 2, 3])
     assert res["items"][1]["name"] == "base"
     assert res["items"][1]["taggedCommits"] == 2
+
+
+# --- rulings (roadmap.py ruling, plan 34) ----------------------------------
+
+def _ruling_repo(roadmap, repo, monkeypatch):
+    monkeypatch.chdir(repo)
+    roadmap.init_project(repo, "P", claude_md=False)
+    roadmap.new_item(repo, "feature", "A")
+    return repo / ".roadmap/plans/001-a.md"
+
+
+def _tracked_state(repo):
+    """Bytes of every roadmap file a ruling must NOT touch."""
+    paths = [repo / "ROADMAP.md", repo / ".roadmap/config.json",
+             *sorted(repo.glob("CHANGELOG*.md"))]
+    return {p.name: p.read_bytes() for p in paths if p.exists()}
+
+
+def test_ruling_creates_section_and_appends_bullet(roadmap, repo, monkeypatch, capsys):
+    plan = _ruling_repo(roadmap, repo, monkeypatch)
+    before = _tracked_state(repo)
+    today = datetime.date.today().isoformat()
+    assert roadmap.main(["ruling", "1", "--text", "Use  tabs\nnot spaces",
+                         "--approval"]) == 0
+    line = f"- **Ruling ({today}, owner, approval):** Use tabs not spaces"
+    assert capsys.readouterr().out.strip() == line
+    text = plan.read_text()
+    assert text.endswith("\n## ⚖️ Rulings\n\n" + line + "\n")
+    assert text.count("## ⚖️ Rulings") == 1
+    # Never the changelog, config, or ROADMAP.md.
+    assert _tracked_state(repo) == before
+
+
+def test_ruling_appends_inside_existing_section(roadmap, repo, monkeypatch):
+    plan = _ruling_repo(roadmap, repo, monkeypatch)
+    plan.write_text(plan.read_text() + "\n## ⚖️ Rulings\n\n- **Ruling (2026-01-02, "
+                    "owner):** first\n\n## Appendix\n\ntrailer\n")
+    roadmap.main(["ruling", "#1", "--text", "second", "--by", "build"])
+    text = plan.read_text()
+    today = datetime.date.today().isoformat()
+    assert (f"- **Ruling (2026-01-02, owner):** first\n"
+            f"- **Ruling ({today}, build):** second\n\n## Appendix\n") in text
+    assert text.count("Rulings") == 1 and text.endswith("trailer\n")
+
+
+def test_ruling_ignores_fenced_heading(roadmap, repo, monkeypatch):
+    plan = _ruling_repo(roadmap, repo, monkeypatch)
+    plan.write_text(plan.read_text() + "\n```\n## Rulings\n```\n")
+    roadmap.add_ruling(repo, 1, "real")
+    text = plan.read_text()
+    assert text.count("## ⚖️ Rulings") == 1
+    assert text.index("## ⚖️ Rulings") > text.index("```\n## Rulings\n```")
+
+
+@pytest.mark.parametrize("args, err", [
+    (["--text", "  "], "ruling text is empty"),
+    (["--text", "x", "--by", "a, b"], "invalid ruling author"),
+    (["--text", "x", "--by", ""], "author (--by) is empty"),
+])
+def test_ruling_refuses_bad_input(roadmap, repo, monkeypatch, capsys, args, err):
+    plan = _ruling_repo(roadmap, repo, monkeypatch)
+    before = plan.read_text()
+    assert roadmap.main(["ruling", "1", *args]) == 1
+    assert err in capsys.readouterr().err
+    assert plan.read_text() == before
+
+
+def test_ruling_allowed_on_done_item(roadmap, repo, monkeypatch):
+    plan = _ruling_repo(roadmap, repo, monkeypatch)
+    roadmap.check_step(repo, 1, None, all_done=True, force=True)
+    roadmap.add_ruling(repo, 1, "post-hoc correction")
+    assert "post-hoc correction" in plan.read_text()

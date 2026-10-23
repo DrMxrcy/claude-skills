@@ -13,8 +13,9 @@ from rmlib.core import (
     atomic_write, read_config, roadmap_dir, slugify, write_config)
 from rmlib.parse import (
     CLAIM_FIELDS, CLAIM_PREFIX, CLAIM_STAGES, CLAIM_VERDICTS, FRONTMATTER_RE,
-    STEP_RE, _is_fence, _plan_path, count_progress, parse_plan, read_claim,
-    required_sections, template_stubs)
+    RULING_APPROVAL_TAG, RULINGS_HEADING, RULINGS_SECTION_KEY,
+    STEP_RE, _HEADING_RE, _is_fence, _norm_name, _plan_path, count_progress,
+    parse_plan, read_claim, required_sections, template_stubs)
 from rmlib.changelog import (
     demote_tells, item_audience, lint_note, status_tells)
 from rmlib.sync import (
@@ -382,6 +383,71 @@ def clear_claims(root: Path, plan_ids) -> dict[int, bool]:
     if any(out.values()):
         sync(root)
     return out
+
+
+def _ruling_insert_at(lines: list[str]) -> int | None:
+    """Index to insert a new ruling bullet at: just past the last non-blank line
+    of the plan's `## ... Rulings` section, or None when it has no such section.
+    Fenced code is never read as a heading."""
+    in_fence, start = False, None
+    for i, line in enumerate(lines):
+        if _is_fence(line):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        hm = _HEADING_RE.match(line)
+        if not hm:
+            continue
+        if start is not None and len(hm.group(1)) <= 2:
+            end = i
+            break
+        if start is None and len(hm.group(1)) == 2 \
+                and _norm_name(hm.group(2)) == RULINGS_SECTION_KEY:
+            start = i
+    else:
+        end = len(lines)
+    if start is None:
+        return None
+    last = start
+    for j in range(start + 1, end):
+        if lines[j].strip():
+            last = j
+    return last + 1
+
+
+def add_ruling(root: Path, plan_id: int, text: str, by: str = "owner",
+               approval: bool = False) -> str:
+    """Append a dated ruling bullet to the plan body under `## ⚖️ Rulings` (the
+    section is created at the end of the file when missing) and return the line.
+    Append-only: rulings are never edited or removed from here. Touches only the
+    plan file — never the changelog, config, or ROADMAP.md (a ruling is a
+    decision record, not progress or a release note)."""
+    text = " ".join((text or "").split())
+    if not text:
+        raise ValueError("ruling text is empty")
+    by = " ".join((by or "").split())
+    if not by:
+        raise ValueError("ruling author (--by) is empty")
+    if any(c in by for c in "*(),:[]"):
+        raise ValueError(f"invalid ruling author {by!r} — use a plain name "
+                         f"(no * ( ) , : [ ])")
+    path = _plan_path(root, plan_id)
+    if not path.exists():
+        raise ValueError(f"plan file for #{plan_id} is missing ({path.name})")
+    tags = [datetime.date.today().isoformat(), by] + ([RULING_APPROVAL_TAG]
+                                                       if approval else [])
+    bullet = f"- **Ruling ({', '.join(tags)}):** {text}"
+    lines = path.read_text(encoding="utf-8").splitlines()
+    at = _ruling_insert_at(lines)
+    if at is None:
+        while lines and not lines[-1].strip():
+            lines.pop()
+        lines += ["", RULINGS_HEADING, "", bullet]
+    else:
+        lines.insert(at, bullet)
+    atomic_write(path, "\n".join(lines) + "\n")
+    return bullet
 
 
 TEMPLATE_BY_TYPE = {"feature": "feature-plan.md", "chore": "feature-plan.md",
