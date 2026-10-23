@@ -211,7 +211,7 @@ def test_quality_build_documents_merge_gate():
     assert "Never auto-resolve a conflict" in text
     assert "Run the full gate on the trunk" in text
     assert "Red:" in text and "keep the item worktree" in text
-    assert "Roadmap state is written only at step 5" in text
+    assert "Roadmap state is written only at steps 5 and 7" in text
 
 
 def test_routing_docs_name_branch_scope_and_pending_handoff():
