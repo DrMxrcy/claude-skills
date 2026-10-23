@@ -1,7 +1,7 @@
 {
   "project": "claude-skills",
   "currentVersion": "0.19.0",
-  "nextId": 40,
+  "nextId": 47,
   "items": [
     {
       "id": 1,
@@ -373,6 +373,97 @@
       "file": "plans/039-auto-collapse-shipped-versions-in-roadmap-md-instead-of-a-length-warning-on-every-call.md",
       "note": "The roadmap stops warning about file length once shipped versions fold away on their own.",
       "audience": "public"
+    },
+    {
+      "id": 40,
+      "slug": "claim-owners-and-a-work-in-progress-limit",
+      "title": "Claim owners and a work-in-progress limit",
+      "type": "feature",
+      "version": "0.21.0",
+      "file": "plans/040-claim-owners-and-a-work-in-progress-limit.md",
+      "note": "Each claimed item shows who is working on it, and the roadmap warns when too much is in flight at once.",
+      "audience": "public",
+      "dependsOn": [
+        31
+      ]
+    },
+    {
+      "id": 41,
+      "slug": "branch-conflict-risk-show-which-open-branches-change-the-same-files",
+      "title": "Branch conflict risk: show which open branches change the same files",
+      "type": "feature",
+      "version": "0.21.0",
+      "file": "plans/041-branch-conflict-risk-show-which-open-branches-change-the-same-files.md",
+      "note": "See which in-flight branches touch the same files, so merge order can be planned before the gate.",
+      "audience": "public",
+      "dependsOn": [
+        31
+      ]
+    },
+    {
+      "id": 42,
+      "slug": "scope-drift-per-branch-flag-changes-outside-the-files-a-plan-lists",
+      "title": "Scope drift per branch: flag changes outside the files a plan lists",
+      "type": "feature",
+      "version": "0.21.0",
+      "file": "plans/042-scope-drift-per-branch-flag-changes-outside-the-files-a-plan-lists.md",
+      "note": "Branches that wander outside their plan get flagged before review.",
+      "audience": "public",
+      "dependsOn": [
+        41
+      ]
+    },
+    {
+      "id": 43,
+      "slug": "acceptance-ledger-mark-each-acceptance-bullet-passed-with-evidence-and-require-it-for-done",
+      "title": "Acceptance ledger: mark each acceptance bullet passed with evidence, and require it for done",
+      "type": "feature",
+      "version": "0.21.0",
+      "file": "plans/043-acceptance-ledger-mark-each-acceptance-bullet-passed-with-evidence-and-require-it-for-done.md",
+      "note": "Every acceptance line gets its own pass mark and evidence, so done means every line was checked.",
+      "audience": "public",
+      "dependsOn": [
+        35
+      ]
+    },
+    {
+      "id": 44,
+      "slug": "version-forecast-estimate-each-open-version-s-finish-date-from-recent-pace",
+      "title": "Version forecast: estimate each open version's finish date from recent pace",
+      "type": "feature",
+      "version": "0.21.0",
+      "file": "plans/044-version-forecast-estimate-each-open-version-s-finish-date-from-recent-pace.md",
+      "note": "Each open version shows a forecast finish date based on how fast work has been moving.",
+      "audience": "public",
+      "dependsOn": [
+        31
+      ]
+    },
+    {
+      "id": 45,
+      "slug": "digest-what-landed-moved-stalled-and-got-blocked-since-a-given-time",
+      "title": "Digest: what landed, moved, stalled and got blocked since a given time",
+      "type": "feature",
+      "version": "0.21.0",
+      "file": "plans/045-digest-what-landed-moved-stalled-and-got-blocked-since-a-given-time.md",
+      "note": "A short digest tells you what changed on the roadmap since you last looked.",
+      "audience": "public",
+      "dependsOn": [
+        31
+      ]
+    },
+    {
+      "id": 46,
+      "slug": "waiting-steps-and-split-retarget-time-gated-checks-no-longer-hold-up-a-release-or-drag-the-whole-feature-to-the-next-version",
+      "title": "Waiting steps and split retarget: time-gated checks no longer hold up a release or drag the whole feature to the next version",
+      "type": "feature",
+      "version": "0.21.0",
+      "file": "plans/046-waiting-steps-and-split-retarget-time-gated-checks-no-longer-hold-up-a-release-or-drag-the-whole-feature-to-the-next-version.md",
+      "note": "Steps that need time to pass, like a week of monitoring, can wait without holding up a release.",
+      "audience": "public",
+      "dependsOn": [
+        32
+      ]
     }
   ],
   "settings": {

@@ -39,4 +39,11 @@
 - [ ] **#37 Dashboard lane board: columns per lane with cards for branch, sha, verdict and last note, plus verdict and branch filter chips** `feature` — 0% ([plan](.roadmap/plans/037-dashboard-lane-board-columns-per-lane-with-cards-for-branch-sha-verdict-and-last-note-plus-verdict-and-branch-filter-chips.md))
 - [ ] **#38 Run log: record merge-gate and trunk suite runs from the CLI, shown as a gate timeline and trunk health tile** `feature` — 0% ([plan](.roadmap/plans/038-run-log-record-merge-gate-and-trunk-suite-runs-from-the-cli-shown-as-a-gate-timeline-and-trunk-health-tile.md))
 - [ ] **#39 Auto-collapse shipped versions in ROADMAP.md instead of a length warning on every call** `chore` — 0% ([plan](.roadmap/plans/039-auto-collapse-shipped-versions-in-roadmap-md-instead-of-a-length-warning-on-every-call.md))
+- [ ] **#40 Claim owners and a work-in-progress limit** `feature` — 0% ([plan](.roadmap/plans/040-claim-owners-and-a-work-in-progress-limit.md))
+- [ ] **#41 Branch conflict risk: show which open branches change the same files** `feature` — 0% ([plan](.roadmap/plans/041-branch-conflict-risk-show-which-open-branches-change-the-same-files.md))
+- [ ] **#42 Scope drift per branch: flag changes outside the files a plan lists** `feature` — 0% ([plan](.roadmap/plans/042-scope-drift-per-branch-flag-changes-outside-the-files-a-plan-lists.md))
+- [ ] **#43 Acceptance ledger: mark each acceptance bullet passed with evidence, and require it for done** `feature` — 0% ([plan](.roadmap/plans/043-acceptance-ledger-mark-each-acceptance-bullet-passed-with-evidence-and-require-it-for-done.md))
+- [ ] **#44 Version forecast: estimate each open version's finish date from recent pace** `feature` — 0% ([plan](.roadmap/plans/044-version-forecast-estimate-each-open-version-s-finish-date-from-recent-pace.md))
+- [ ] **#45 Digest: what landed, moved, stalled and got blocked since a given time** `feature` — 0% ([plan](.roadmap/plans/045-digest-what-landed-moved-stalled-and-got-blocked-since-a-given-time.md))
+- [ ] **#46 Waiting steps and split retarget: time-gated checks no longer hold up a release or drag the whole feature to the next version** `feature` — 0% ([plan](.roadmap/plans/046-waiting-steps-and-split-retarget-time-gated-checks-no-longer-hold-up-a-release-or-drag-the-whole-feature-to-the-next-version.md))
 <!-- roadmap:auto:end -->
