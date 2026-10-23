@@ -3344,3 +3344,24 @@ def test_tidy_reports_stub_plans(roadmap, repo, template_gate):
     assert "Observed, Root Cause, Acceptance" in text
     _fill_bug(bug)
     assert roadmap.tidy_report(repo)["stubPlans"] == []
+
+
+def test_collapse_off_long_auto_block_hints_enabling_collapse(roadmap, repo, capsys,
+                                                               monkeypatch):
+    _shipped_versions(roadmap, repo, 50)              # 50 × 3 lines uncollapsed > 150
+    cfg = roadmap.read_config(repo)
+    cfg.setdefault("settings", {})["collapseShipped"] = False
+    roadmap.write_config(repo, cfg)
+    roadmap.sync(repo, quiet=True)
+    msgs = roadmap.roadmap_health(repo)
+    assert len(msgs) == 1 and "collapseShipped" in msgs[0] and "auto block" in msgs[0]
+    monkeypatch.chdir(repo)
+    capsys.readouterr()
+    assert roadmap.main(["status"]) == 0
+    assert "collapseShipped" not in capsys.readouterr().err        # never on status
+    assert roadmap.main(["orient"]) == 0
+    assert "collapseShipped" in capsys.readouterr().out
+    cfg["settings"]["collapseShipped"] = True                      # collapse on: quiet
+    roadmap.write_config(repo, cfg)
+    roadmap.sync(repo, quiet=True)
+    assert roadmap.roadmap_health(repo) == []

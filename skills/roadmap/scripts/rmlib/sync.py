@@ -203,14 +203,16 @@ def roadmap_health(root: Path) -> list[str]:
     lines = rm.read_text(encoding="utf-8").splitlines()
     warnings = []
     in_auto = False
-    freeform = chars = 0
+    freeform = chars = auto = 0
     section, per_section = "top of file", Counter()
     for line in lines:
         if AUTO_START in line:
             in_auto = True
         elif AUTO_END in line:
             in_auto = False
-        elif not in_auto and line.strip():
+        elif in_auto:
+            auto += 1
+        elif line.strip():
             freeform += 1
             chars += len(line)
             if line.startswith("## "):
@@ -229,6 +231,18 @@ def roadmap_health(root: Path) -> list[str]:
             f"ROADMAP.md free-form region (outside the auto block) is {size}{where}. "
             "Move long-form notes into linked files via `roadmap.py idea --title ... "
             "--body-file ...` (or `tidy --externalize`) and keep one bullet per idea.")
+    # The auto block is sync's job — but only while collapse is on. With it off, a
+    # long block is the one thing a setting fixes, so suggest it (orient/tidy only).
+    if auto > MAX_ROADMAP_LINES:
+        try:
+            collapse = (read_config(root).get("settings") or {}).get("collapseShipped", True)
+        except (ValueError, FileNotFoundError):
+            collapse = True
+        if collapse is False:
+            warnings.append(
+                f"ROADMAP.md auto block is {auto} lines (> {MAX_ROADMAP_LINES}) with "
+                "settings.collapseShipped off — set it to true so shipped versions "
+                "collapse to one line each on sync.")
     return warnings
 
 
