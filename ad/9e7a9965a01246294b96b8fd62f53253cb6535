@@ -1,0 +1,23 @@
+skills/roadmap/references/state-model.md
+  s_fbae122c7a65de::t_766540dc882cc9 20
+skills/roadmap/scripts/rmlib/sync.py
+  s_fbae122c7a65de::t_056da5511c644e 206,213-215,234-245
+tests/test_roadmap.py
+  s_fbae122c7a65de::t_fd1b702f8720dd 3347-3367
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ad9e7a9965a01246294b96b8fd62f53253cb6535",
+  "prompts": {},
+  "sessions": {
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
