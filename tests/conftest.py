@@ -1,4 +1,5 @@
 import importlib.util
+import sys
 import subprocess
 from pathlib import Path
 import pytest
@@ -34,3 +35,24 @@ def repo(tmp_path):
                      ("commit.gpgsign", "false"), ("tag.gpgsign", "false")):
         subprocess.run(["git", "config", key, val], cwd=tmp_path, check=True)
     return tmp_path
+
+
+# The plan-35 template gate makes `check` refuse while a plan's required sections are
+# still template text. Most tests check steps on freshly generated plans, so the gate
+# is off by default here; tests that exercise it request `template_gate`. (Subprocess
+# CLI tests don't see this patch — they fill the plan or pass --force.)
+sys.path.insert(0, str(SCRIPT.parent))
+import rmlib.parse as _rmparse  # noqa: E402
+
+_DEFAULT_REQUIRED = dict(_rmparse.DEFAULT_REQUIRED_SECTIONS)
+
+
+@pytest.fixture(autouse=True)
+def _no_template_gate(monkeypatch):
+    monkeypatch.setattr(_rmparse, "DEFAULT_REQUIRED_SECTIONS", {})
+
+
+@pytest.fixture
+def template_gate(monkeypatch):
+    """Re-enable the shipped required-sections defaults for this test."""
+    monkeypatch.setattr(_rmparse, "DEFAULT_REQUIRED_SECTIONS", dict(_DEFAULT_REQUIRED))

@@ -13,7 +13,8 @@ from rmlib.core import (
     atomic_write, read_config, roadmap_dir, slugify, write_config)
 from rmlib.parse import (
     CLAIM_FIELDS, CLAIM_PREFIX, CLAIM_STAGES, CLAIM_VERDICTS, FRONTMATTER_RE,
-    STEP_RE, _is_fence, _plan_path, count_progress, parse_plan, read_claim)
+    STEP_RE, _is_fence, _plan_path, count_progress, parse_plan, read_claim,
+    required_sections, template_stubs)
 from rmlib.changelog import (
     demote_tells, item_audience, lint_note, status_tells)
 from rmlib.sync import (
@@ -63,21 +64,38 @@ def release_gate(root: Path, target: str | None = None) -> None:
 
 def check_step(root: Path, plan_id: int, step: int | None,
                undo: bool = False, all_done: bool = False,
-               evidence: str | None = None, tokens: int | None = None) -> None:
+               evidence: str | None = None, tokens: int | None = None,
+               force: bool = False) -> None:
     """Flip checklist boxes. `evidence` (ignored on --undo) is recorded under each
     step being checked as a blockquote sub-line — a form STEP_RE can never read as a
     step, so counts and generated output are untouched. `tokens` (optional, >= 0) is
-    appended to that same sub-line so spend can be compared per completed step."""
+    appended to that same sub-line so spend can be compared per completed step.
+    Checking is refused while the plan's required sections are still template text
+    (plan 35); `force` checks anyway and records the override in the evidence line."""
     path = _plan_path(root, plan_id)
     evidence = " ".join(evidence.split()) if evidence else ""
     if tokens is not None and tokens < 0:
         raise ValueError("--tokens must be a non-negative integer")
-    if not undo and not evidence and (read_config(root).get("settings") or {}).get(
-            "requireEvidence"):
+    cfg = read_config(root)
+    if not undo and not evidence and (cfg.get("settings") or {}).get("requireEvidence"):
         raise ValueError(
             f"check refused — settings.requireEvidence is on: pass --evidence "
             f'"<verify command + result>" (e.g. --evidence "pytest -q: 287 passed") '
             f"so plan {plan_id} records how the step was proven done.")
+    stubs = []
+    if not undo:
+        type_ = next((i.get("type") for i in cfg["items"] if i["id"] == plan_id),
+                     None) or parse_plan(path)["meta"].get("type", "")
+        stubs = template_stubs(path, *required_sections(cfg, type_))
+    if stubs and not force:
+        raise ValueError(
+            f"check refused — plan {plan_id} still has template text in required "
+            f"section(s): {', '.join(stubs)} ({path.relative_to(root)}). Fill them in "
+            f"(settings.requiredSections lists them per type), or re-run with --force "
+            f"to check anyway (recorded in the evidence line).")
+    if stubs:
+        forced = f"forced past empty template ({', '.join(stubs)})"
+        evidence = f"{evidence} · {forced}" if evidence else forced
     spend = f" · tokens: {tokens}" if tokens is not None and evidence and not undo else ""
     stamp = f"  > evidence: {evidence} ({datetime.date.today().isoformat()}){spend}"
     box = "[ ]" if undo else "[x]"

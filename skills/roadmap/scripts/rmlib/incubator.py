@@ -5,6 +5,7 @@ import datetime
 import re
 from pathlib import Path
 from rmlib.sync import roadmap_health
+from rmlib.parse import count_progress, parse_plan, required_sections, template_stubs
 from rmlib.core import (
     AUTO_END, AUTO_START, atomic_write, read_config, roadmap_dir, slugify,
     write_config)
@@ -245,13 +246,47 @@ def tidy_report(root: Path) -> dict:
         if entry["flags"]:
             report["bullets"].append(entry)
 
-    report["clean"] = not (report["warnings"] or report["bullets"] or prose["lines"])
+    report["stubPlans"] = stub_plans(root)
+    report["clean"] = not (report["warnings"] or report["bullets"] or prose["lines"]
+                           or report["stubPlans"])
     return report
+
+
+def stub_plans(root: Path) -> list[dict]:
+    """Unfinished plans whose required sections are still template text (plan 35) —
+    `check` would refuse their steps. Report-only: [{id, file, sections}]."""
+    try:
+        cfg = read_config(root)
+    except (ValueError, FileNotFoundError, KeyError):
+        return []
+    out = []
+    for item in cfg.get("items", []):
+        path = roadmap_dir(root) / item.get("file", "")
+        if not path.is_file():
+            continue
+        done, total = count_progress(path)
+        if total and done == total:
+            continue
+        type_ = item.get("type") or parse_plan(path)["meta"].get("type", "")
+        stubs = template_stubs(path, *required_sections(cfg, type_))
+        if stubs:
+            out.append({"id": item["id"], "file": f".roadmap/{item['file']}",
+                        "sections": stubs})
+    return out
 
 
 def format_tidy(report: dict) -> str:
     if report["clean"]:
         return "ROADMAP.md free-form region: clean — nothing to tidy."
+    stubs = report.get("stubPlans") or []
+    stub_lines = [f"  - #{s['id']} {s['file']} — still template: {', '.join(s['sections'])}"
+                  for s in stubs]
+    if stubs:
+        stub_lines = (["Plans with required sections still template "
+                       "(check refuses their steps until filled):"] + stub_lines)
+    if stubs and not (report["warnings"] or report["bullets"]
+                      or report["prose"]["lines"]):
+        return "\n".join(["ROADMAP.md free-form region: clean."] + stub_lines)
     out = ["ROADMAP.md free-form region needs grooming:"]
     for w in report["warnings"]:
         out.append(f"  ! {w}")
@@ -271,7 +306,7 @@ def format_tidy(report: dict) -> str:
     out.append("Groom with /roadmap-tidy · /roadmap-tidy — move bodies to linked "
                ".roadmap/notes/ files, one bullet per idea; drop bullets that "
                "duplicate tracked items (or promote them).")
-    return "\n".join(out)
+    return "\n".join(out + stub_lines)
 
 
 INCUBATOR_BULLET_RE = re.compile(r"^(\s*[-*+]\s+)(.+)$")

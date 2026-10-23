@@ -1443,13 +1443,52 @@ def test_health_warns_on_long_freeform_region(roadmap, repo):
     assert any("free-form" in m for m in msgs)
 
 
-def test_health_warns_on_total_length(roadmap, repo):
+def test_health_ignores_total_length(roadmap, repo):
+    # plan 39: only the free-form region is measured — blank lines / a long auto
+    # block are sync's business, not a warning.
     roadmap.init_project(repo, "P")
     rm = repo / "ROADMAP.md"
-    rm.write_text(rm.read_text() + "\n" * 200)            # blank lines: total, not free-form
-    msgs = roadmap.roadmap_health(repo)
-    assert len(msgs) == 1                                 # only the total-length warning
-    assert "ROADMAP.md is" in msgs[0]
+    rm.write_text(rm.read_text() + "\n" * 200)
+    assert roadmap.roadmap_health(repo) == []
+
+
+def _shipped_versions(roadmap, repo, n):
+    """n fully-done versions plus one open item in the version after them."""
+    roadmap.init_project(repo, "P")
+    for v in range(1, n + 1):
+        roadmap.new_item(repo, "feature", f"Item {v}", version=f"0.{v}.0")
+    roadmap.new_item(repo, "feature", "Open", version=f"0.{n + 1}.0")
+    for v in range(1, n + 1):
+        roadmap.check_step(repo, v, None, all_done=True)
+
+
+def test_status_quiet_with_thirty_collapsed_versions(roadmap, repo, capsys):
+    _shipped_versions(roadmap, repo, 30)
+    capsys.readouterr()
+    assert roadmap.main(["status"]) == 0
+    assert "warning" not in capsys.readouterr().err
+    assert roadmap.roadmap_health(repo) == []
+
+
+def test_long_incubator_warns_in_orient_and_tidy_only(roadmap, repo, capsys, monkeypatch):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "A")
+    rm = repo / "ROADMAP.md"
+    filler = "\n".join(f"- idea {i}" for i in range(50))
+    rm.write_text(rm.read_text().replace("- (add ideas here)", filler))
+    monkeypatch.chdir(repo)
+    capsys.readouterr()
+    assert roadmap.main(["status"]) == 0
+    out = capsys.readouterr()
+    assert "free-form" not in out.err + out.out                    # not on every call
+    assert roadmap.main(["orient"]) == 0
+    out = capsys.readouterr().out
+    assert "free-form region" in out and "Idea Incubator" in out   # names the region
+    assert roadmap.main(["tidy"]) == 0
+    out = capsys.readouterr().out
+    assert "free-form region" in out and "Idea Incubator" in out
+    assert roadmap.main(["handoff"]) == 0
+    assert "free-form region" not in capsys.readouterr().out
 
 
 def test_shipped_unnoted_public_item_rolls_up_not_vanishes(roadmap, repo):
@@ -3118,3 +3157,211 @@ def test_status_lanes_without_git(roadmap, branches, tmp_path, monkeypatch, caps
     st = roadmap.status(tmp_path)
     assert st["items"][0]["lane"] == "planned" and st["items"][0]["branch"] is None
 
+
+
+# ---- required plan sections / template gate (plan 35) ---------------------------
+
+FILLED_BUG = """---
+id: 1
+title: B
+type: bug
+---
+
+# 🐛 Plan 1: B
+
+## 🔍 Symptom & Reproduction
+- **Observed:** serve reprints the same line
+- **Expected:**
+- **Repro steps:**
+
+## 🩺 Root Cause
+- **Culprit:** mtime signature
+- **Why:**
+  - it flaps on every touch
+
+## ✅ Acceptance
+- **Passes when:** the repro steps above no longer reproduce the symptom
+- **Fails if:** `check <id>` prints anything for an unchanged payload
+
+## 🛠️ Checklist
+- [ ] Step 1: fix
+"""
+
+
+def _stubs(tmp_path, text, type_="bug", strict=False):
+    from rmlib.parse import template_stubs
+    p = tmp_path / "plan.md"
+    p.write_text(text)
+    names = {"bug": ["Observed", "Root Cause", "Acceptance"],
+             "feature": ["Core objective", "Acceptance"]}[type_]
+    return template_stubs(p, names, strict)
+
+
+def test_template_stubs_fresh_bug_template_names_all_three(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    path = roadmap.new_item(repo, "bug", "B")
+    from rmlib.parse import template_stubs
+    assert template_stubs(path, ["Observed", "Root Cause", "Acceptance"]) == [
+        "Observed", "Root Cause", "Acceptance"]
+
+
+def test_template_stubs_fresh_feature_template(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    path = roadmap.new_item(repo, "feature", "F")
+    from rmlib.parse import template_stubs
+    assert template_stubs(path, ["Core objective", "Acceptance"]) == [
+        "Core objective", "Acceptance"]
+
+
+def test_template_stubs_filled_bug_passes(tmp_path):
+    # Expected/Repro left blank are not required; an indented continuation fills Why;
+    # a `<id>` inside prose is not a placeholder.
+    assert _stubs(tmp_path, FILLED_BUG) == []
+
+
+def test_template_stubs_flags_partially_filled_section(tmp_path):
+    text = FILLED_BUG.replace("- **Why:**\n  - it flaps on every touch\n", "- **Why:**\n")
+    assert _stubs(tmp_path, text) == ["Root Cause"]
+
+
+def test_template_stubs_whole_value_placeholder_is_a_stub(tmp_path):
+    text = FILLED_BUG.replace("`check <id>` prints anything for an unchanged payload",
+                              "<previously green test or adjacent behavior breaks>")
+    assert _stubs(tmp_path, text) == ["Acceptance"]
+
+
+def test_template_stubs_empty_field_and_missing_section(tmp_path):
+    text = FILLED_BUG.replace("- **Observed:** serve reprints the same line",
+                              "- **Observed:**")
+    assert _stubs(tmp_path, text) == ["Observed"]
+    legacy = FILLED_BUG.split("## ✅ Acceptance")[0] + "## 🛠️ Checklist\n- [ ] Step 1\n"
+    assert _stubs(tmp_path, legacy) == []                       # pre-Acceptance plan
+    assert _stubs(tmp_path, legacy, strict=True) == ["Acceptance"]
+
+
+def test_template_stubs_ignores_comments_fences_and_bold_prose(tmp_path):
+    text = """---
+type: feature
+---
+# Plan 1: F
+
+## 🎯 Target Scope & Boundaries
+- **Core objective:** ship it
+<!-- - **Core objective:** -->
+
+## ✅ Acceptance
+- **All tests pass.**
+```
+- **Fails if:** <example inside a fence>
+```
+"""
+    assert _stubs(tmp_path, text, "feature") == []
+    assert _stubs(tmp_path, text.replace("ship it", ""), "feature") == ["Core objective"]
+    empty = text.split("## ✅ Acceptance")[0] + "## ✅ Acceptance\n<!-- todo -->\n"
+    assert _stubs(tmp_path, empty, "feature") == ["Acceptance"]
+
+
+def test_required_sections_defaults_and_override():
+    from rmlib.parse import required_sections
+    assert required_sections({}, "nope") == ([], False)
+    cfg = {"settings": {"requiredSections": {"bug": ["Observed"], "chore": []}}}
+    assert required_sections(cfg, "bug") == (["Observed"], True)
+    assert required_sections(cfg, "chore") == ([], True)
+    assert required_sections(cfg, "feature")[1] is False
+
+
+def _fill_bug(path):
+    text = path.read_text()
+    text = text.replace("- **Observed:**", "- **Observed:** it crashes")
+    text = text.replace("- **Culprit:**", "- **Culprit:** parse.py")
+    text = text.replace("- **Why:**", "- **Why:** off by one")
+    text = text.replace("<previously green test or adjacent behavior breaks>",
+                        "the parse suite regresses")
+    path.write_text(text)
+
+
+def test_check_refuses_fresh_bug_plan_then_succeeds_when_filled(
+        roadmap, repo, template_gate):
+    roadmap.init_project(repo, "P")
+    path = roadmap.new_item(repo, "bug", "B")
+    with pytest.raises(ValueError) as e:
+        roadmap.check_step(repo, 1, 1)
+    msg = str(e.value)
+    assert "Observed, Root Cause, Acceptance" in msg and path.name in msg
+    assert roadmap.count_progress(path) == (0, 3)            # nothing was written
+    _fill_bug(path)
+    roadmap.check_step(repo, 1, 1)
+    assert roadmap.count_progress(path) == (1, 3)
+
+
+def test_check_force_records_override_in_evidence(roadmap, repo, template_gate):
+    roadmap.init_project(repo, "P")
+    path = roadmap.new_item(repo, "feature", "F")
+    roadmap.check_step(repo, 1, 1, evidence="pytest: ok", force=True)
+    body = path.read_text()
+    assert ("> evidence: pytest: ok · forced past empty template "
+            "(Core objective, Acceptance)") in body
+    roadmap.check_step(repo, 1, 2, force=True)               # no --evidence given
+    body = path.read_text()
+    assert "  > evidence: forced past empty template (Core objective, Acceptance)" in body
+    assert body.count("forced past empty template") == 2
+    assert roadmap.count_progress(path) == (2, 2)
+
+
+def test_check_gate_skips_undo_and_honours_settings(roadmap, repo, template_gate):
+    roadmap.init_project(repo, "P")
+    path = roadmap.new_item(repo, "feature", "F")
+    roadmap.check_step(repo, 1, 1, force=True)
+    roadmap.check_step(repo, 1, 1, undo=True)                # undo is never gated
+    assert roadmap.count_progress(path) == (0, 2)
+    cfg = roadmap.read_config(repo)
+    cfg.setdefault("settings", {})["requiredSections"] = {"feature": []}
+    roadmap.write_config(repo, cfg)
+    roadmap.check_step(repo, 1, 1)                           # gate off for features
+    assert roadmap.count_progress(path) == (1, 2)
+    assert path.read_text().count("forced past") == 1        # only the earlier --force
+
+
+def test_check_force_does_not_satisfy_require_evidence(roadmap, repo, template_gate):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "feature", "F")
+    _set_require_evidence(roadmap, repo, True)
+    with pytest.raises(ValueError, match="requireEvidence"):
+        roadmap.check_step(repo, 1, 1, force=True)
+
+
+def test_tidy_reports_stub_plans(roadmap, repo, template_gate):
+    roadmap.init_project(repo, "P")
+    bug = roadmap.new_item(repo, "bug", "B")
+    roadmap.new_item(repo, "feature", "F")
+    roadmap.check_step(repo, 2, None, all_done=True, force=True)  # done → not reported
+    rep = roadmap.tidy_report(repo)
+    assert rep["clean"] is False
+    assert rep["stubPlans"] == [{"id": 1, "file": f".roadmap/plans/{bug.name}",
+                                 "sections": ["Observed", "Root Cause", "Acceptance"]}]
+    text = roadmap.format_tidy(rep)
+    assert "check refuses" in text and bug.name in text
+    assert "Observed, Root Cause, Acceptance" in text
+    _fill_bug(bug)
+    assert roadmap.tidy_report(repo)["stubPlans"] == []
+
+
+def test_collapse_off_long_auto_block_hints_enabling_collapse(roadmap, repo, capsys,
+                                                               monkeypatch):
+    _shipped_versions(roadmap, repo, 50)              # 50 × 3 lines uncollapsed > 150
+    cfg = roadmap.read_config(repo)
+    cfg.setdefault("settings", {})["collapseShipped"] = False
+    roadmap.write_config(repo, cfg)
+    roadmap.sync(repo, quiet=True)
+    msgs = roadmap.roadmap_health(repo)
+    assert len(msgs) == 1 and "collapseShipped" in msgs[0] and "auto block" in msgs[0]
+    monkeypatch.chdir(repo)
+    capsys.readouterr()
+    assert roadmap.main(["status"]) == 0
+    assert "collapseShipped" not in capsys.readouterr().err        # never on status
+    assert roadmap.main(["orient"]) == 0
+    assert "collapseShipped" in capsys.readouterr().out
+    cfg["settings"]["collapseShipped"] = True                      # collapse on: quiet
+    roadmap.write_config(repo, cfg)
+    roadmap.sync(repo, quiet=True)
+    assert roadmap.roadmap_health(repo) == []

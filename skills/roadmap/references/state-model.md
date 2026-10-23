@@ -17,9 +17,10 @@
              "autoRelease":"nudge"}}
 ```
 - `versionDates` — stamped by `sync` the first time a version hits 100% (stable changelog/collapse dates).
-- `settings.collapseShipped` — defaults to `true` when absent.
+- `settings.collapseShipped` — defaults to `true` when absent. With it `false` and the auto block over 150 lines, `orient`/`tidy` suggest turning it back on (the auto block never triggers the free-form length warning).
 - `settings.autoRelease` — `off` | `nudge` (default when absent) | `auto`: what happens when the current version is 100% but uncut (nudge prints a release reminder from `check`/`next`/`orient`; auto runs `release` when a target version is known).
 - `settings.requireEvidence` — defaults to `false`; when `true`, `check` refuses without `--evidence "<verify command + result>"` (`--undo` is never gated).
+- `settings.requiredSections` — per-type override of the plan sections `check` requires to be filled (`{"bug":["Observed","Root Cause","Acceptance"],"feature":["Core objective","Acceptance"],…}`; defaults: bug = Observed, Root Cause, Acceptance; feature/chore/refactor = Core objective, Acceptance). A name matches a `##` heading (emoji-insensitive prefix) or else a `**Label:**` bullet. While one is still template — empty, a bare `-`, an unfilled `**Label:**`, or a whole-value `<…>` placeholder — `check` refuses (naming the sections and file) unless `--force`, which records `forced past empty template (…)` in the evidence line; `--undo` is never gated. A required section the plan lacks entirely is skipped (older plans stay checkable) unless the type is listed here explicitly; `[]` turns the gate off for that type. `tidy` lists unfinished stub plans (report-only).
 - `settings.buildRoles` — optional map of quality-first build roles to model/agent names (`{"implementer":"…","specReviewer":"…","qualityReviewer":"…","explorer":"…"}`). Free-form, host-specific values; the CLI never validates them, only surfaces the map in `orient`/`handoff` so the parent can apply it when spawning subagents. Absent → nothing changes.
 - `settings.incubatorFile` — when set (by `tidy --externalize`), the Idea Incubator lives in this file instead of `ROADMAP.md`.
 - `settings.branchPattern` — default `roadmap/{id}`; also matches `roadmap/{id}-<suffix>`. Maps item branches for discovery.
