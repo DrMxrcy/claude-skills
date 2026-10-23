@@ -85,14 +85,21 @@ next version exists — don't double-release.
 
 ## `--worktree` — isolate the build
 
-When `--worktree` is present, before building:
+When `--worktree` is present, before building, choose the branch by scope:
 
-```
-git worktree add ../<project>-v<version> -b roadmap/v<version>
-```
+- **One item** (`build <id>`, or `next`): one worktree and branch per item, so parallel items never share a checkout:
 
-(`<project>` and `<version>` from `status`). Run the **entire** selection inside that worktree.
-Single-item builds may use `roadmap/<id>-<slug>` instead.
+  ```
+  git worktree add ../<project>-<id>-<slug> -b roadmap/<id>-<slug>
+  ```
+
+- **A whole version** (`build <version>`): one shared worktree for the version:
+
+  ```
+  git worktree add ../<project>-v<version> -b roadmap/v<version>
+  ```
+
+(`<project>`, `<id>`, `<slug>` and `<version>` from `status`.) Run the **entire** selection inside the chosen worktree. Never create a version-wide branch for a single item.
 
 ## `--pr` — open a PR, never merge
 

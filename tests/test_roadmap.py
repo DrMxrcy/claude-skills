@@ -175,6 +175,14 @@ def test_check_evidence_written_under_the_step(roadmap, repo):
     assert roadmap.count_progress(repo / ".roadmap/plans/001-a.md") == (1, 2)
 
 
+def test_build_worktree_scopes_branch_per_item_or_version():
+    text = (Path(__file__).resolve().parents[1] / "commands/roadmap/build.md").read_text()
+    assert "roadmap/<id>-<slug>" in text          # single item gets its own branch
+    assert "roadmap/v<version>" in text           # whole version gets one shared branch
+    assert "Never create a version-wide branch for a single item" in text
+    assert "`roadmap/<id>-<slug>` instead" not in text  # the old optional wording is gone
+
+
 def test_check_tokens_recorded_beside_evidence(roadmap, repo):
     roadmap.init_project(repo, "P")
     roadmap.new_item(repo, "feature", "A")
