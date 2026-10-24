@@ -15,8 +15,8 @@ from rmlib.parse import (
     CLAIM_FIELDS, CLAIM_PREFIX, CLAIM_STAGES, CLAIM_VERDICTS, FRONTMATTER_RE,
     RULING_APPROVAL_TAG, RULINGS_HEADING, RULINGS_SECTION_KEY,
     STEP_RE, WAIT_BOX, _HEADING_RE, _is_fence, _norm_name, _plan_path, count_progress,
-    parse_plan, read_claim, required_sections, split_wait_marker, template_stubs,
-    wait_marker)
+    parse_plan, parse_wait_marker, read_claim, required_sections, split_wait_marker,
+    template_stubs, wait_marker)
 from rmlib.parse import ACCEPT_MARKER_RE, acceptance_bullets, public_bullet  # plan 43
 from rmlib.parse import FOUND_HEADING, FOUND_SECTION_KEY, meta_ids  # plan 47
 from rmlib.changelog import (
@@ -249,20 +249,36 @@ def parse_until(value: str, today: datetime.date | None = None,
                          f"(2026-10-30T14:00Z) or a relative span (24h, 7d, 2w)") from None
 
 
+def clean_who(on: str) -> str:
+    """`wait --on` text (plan 53), whitespace-collapsed. `;` and `:` separate
+    the marker's fields, so a name carrying them is refused, as is a blank one."""
+    who = " ".join((on or "").split())
+    if not who or ";" in who or ":" in who:
+        raise ValueError(f"--on {on!r}: name a person or team (no ';' or ':')")
+    return who
+
+
 def wait_step(root: Path, plan_id: int, step: int, until: str | None = None,
-              reason: str | None = None, clear: bool = False) -> dict:
+              reason: str | None = None, clear: bool = False,
+              on: str | None = None) -> dict:
     """Mark checklist step `step` as waiting (plan 46): `- [~] Step N: text
     (waiting until DATE[: reason])`. A waiting step counts as NOT done; the item
     shows lane `waiting` once every other step is ticked, and the step is listed
-    as due by orient/next/status from its date. Re-running on a waiting step
-    updates its date/reason. `clear` turns it back into an unticked step. A
-    ticked step is refused (undo it first). Returns {step, text, until, reason}."""
+    as due by orient/next/status from its date. `on` (plan 53) waits on a person
+    or team: with no date it is never due or overdue — orient, the digest and
+    the dashboard list it as awaiting `on` since today — and with one it is a
+    dated wait that also names who. Re-running on a waiting step updates what is
+    passed and keeps the rest (date, reason, who; `since` restarts only when who
+    changes). `clear` turns it back into an unticked step. A ticked step is
+    refused (undo it first). Returns {step, text, until, reason} (+ on, since)."""
     path = _plan_path(root, plan_id)
     reason = " ".join(reason.split()) if reason else None
+    if on is not None:
+        on = clean_who(on)
     if not clear:
-        if not until:
-            raise ValueError("wait needs --until <date|7d> (or --clear)")
-        until = parse_until(until)
+        if not until and not on:
+            raise ValueError("wait needs --until <date|24h|7d> or --on <who> (or --clear)")
+        until = parse_until(until) if until else None
     out, n, in_fence, found = [], 0, False, None
     for line in path.read_text(encoding="utf-8").splitlines():
         if _is_fence(line):
@@ -271,22 +287,31 @@ def wait_step(root: Path, plan_id: int, step: int, until: str | None = None,
         if sm:
             n += 1
             if n == step:
-                text, _, old_reason = split_wait_marker(sm.group(3).strip())
+                text, old = parse_wait_marker(sm.group(3).strip())
                 if sm.group(2).lower() == "x":
                     raise ValueError(
                         f"plan {plan_id} step {step} is already checked — undo it "
                         f"first (check --plan {plan_id} --step {step} --undo)")
+                was = (old or {}) if sm.group(2) == WAIT_BOX else {}
                 if clear:
                     if sm.group(2) != WAIT_BOX:
                         raise ValueError(f"plan {plan_id} step {step} is not waiting")
                     line = f"{sm.group(1)}[ ] {text}"
+                    found = {"step": step, "text": text, "until": None, "reason": None}
                 else:
-                    if reason is None and sm.group(2) == WAIT_BOX:
-                        reason = old_reason          # re-dating keeps the reason
-                    line = f"{sm.group(1)}[{WAIT_BOX}] {text}{wait_marker(until, reason)}"
-                found = {"step": step, "text": text,
-                         "until": None if clear else until,
-                         "reason": None if clear else reason}
+                    # re-running keeps what is not passed (plan 46: the reason)
+                    until = until or was.get("until")
+                    reason = reason if reason is not None else was.get("reason")
+                    who = on or was.get("on")
+                    since = None
+                    if who:
+                        since = was.get("since") if who == was.get("on") and \
+                            was.get("since") else datetime.date.today().isoformat()
+                    line = (f"{sm.group(1)}[{WAIT_BOX}] {text}"
+                            f"{wait_marker(until, reason, who, since)}")
+                    found = {"step": step, "text": text, "until": until, "reason": reason}
+                    if who:
+                        found.update(on=who, since=since)
         out.append(line)
     if found is None:
         raise ValueError(f"plan {plan_id} step {step} out of range (1..{n})")
@@ -1010,7 +1035,7 @@ def merge_items(root: Path, keep_id: int, source_ids: list[int]) -> None:
             waits = plan.get("waiting") or {}
             appended.append(f"\n## Merged from #{sid} {src['title']}\n")
             appended += [
-                f"- [{WAIT_BOX}] {txt}{wait_marker(waits[n]['until'], waits[n]['reason'])}"
+                f"- [{WAIT_BOX}] {txt}{wait_marker(**waits[n])}"
                 if n in waits else f"- [{'x' if done else ' '}] {txt}"
                 for n, (done, txt) in enumerate(plan["steps"], 1)]
             sp.unlink()
@@ -1214,11 +1239,15 @@ def _waiting_only(root: Path, items: list[dict]) -> tuple[list, list]:
 
 
 def _wait_desc(item: dict, open_: list[int], waits: dict) -> str:
-    return ", ".join(
-        f"#{item['id']} step {n}" + (f" (waiting until {waits[n]['until']}"
-                                     + (f": {waits[n]['reason']}" if waits[n].get("reason")
-                                        else "") + ")" if waits[n].get("until") else "")
-        for n in open_)
+    def one(n: int) -> str:
+        w = waits[n]
+        bits = ([f"waiting until {w['until']}"] if w.get("until") else []) + \
+            ([f"awaiting {w['on']}"] if w.get("on") else [])          # plan 53
+        if not bits:
+            return f"#{item['id']} step {n}"
+        return (f"#{item['id']} step {n} ({', '.join(bits)}"
+                + (f": {w['reason']}" if w.get("reason") else "") + ")")
+    return ", ".join(one(n) for n in open_)
 
 
 def release(root: Path, version: str, tag: bool = False, force: bool = False,

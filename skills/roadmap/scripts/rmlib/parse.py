@@ -17,24 +17,50 @@ FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---\n", re.DOTALL)
 # is stripped from the step text. `[~]` without a marker is waiting with no date.
 WAIT_BOX = "~"
 # Plan 53: `until` may carry a UTC time of day (`2026-10-25T14:00Z`) when the
-# wait was given in hours (`--until 24h`); date-only markers read as before.
+# wait was given in hours (`--until 24h`); date-only markers read as before. A
+# wait on a person or team (`wait --on`) adds `on: <who>` and `since: <date>`,
+# with or without a date:
+#   (waiting until 2026-10-30; on: dispatch team; since: 2026-10-24: user testing)
+#   (waiting on: dispatch team; since: 2026-10-24: user testing)
+# A marker needs `until` or `on`, so `(waiting)` alone stays step text as before.
 WAIT_UNTIL = r"\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}Z)?"
-WAIT_RE = re.compile(rf"\s*\(waiting until ({WAIT_UNTIL})(?::\s*(.*?))?\)\s*$")
+WAIT_WHO = r"[^;:]+?"              # `wait --on` refuses `;` and `:` in a name
+WAIT_RE = re.compile(
+    rf"\s*\(waiting (?:until ({WAIT_UNTIL})(?:; on: ({WAIT_WHO}))?|on: ({WAIT_WHO}))"
+    rf"(?:; since: (\d{{4}}-\d{{2}}-\d{{2}}))?(?::\s*(.*?))?\)\s*$")
+
+
+def parse_wait_marker(text: str) -> tuple[str, dict | None]:
+    """(step text without the wait marker, {until, reason[, on, since]} or None
+    when there is no marker). `on`/`since` (plan 53) are present only on a wait
+    on someone, so a plan-46 marker reads back exactly as before."""
+    wm = WAIT_RE.search(text)
+    if not wm:
+        return text, None
+    info = {"until": wm.group(1), "reason": (wm.group(5) or "").strip() or None}
+    who = (wm.group(2) or wm.group(3) or "").strip()
+    if who:
+        info.update(on=who, since=wm.group(4))
+    return text[:wm.start()].rstrip(), info
 
 
 def split_wait_marker(text: str) -> tuple[str, str | None, str | None]:
     """(step text without the wait marker, until date or None, reason or None)."""
-    wm = WAIT_RE.search(text)
-    if not wm:
-        return text, None, None
-    return text[:wm.start()].rstrip(), wm.group(1), (wm.group(2) or "").strip() or None
+    text, info = parse_wait_marker(text)
+    info = info or {}
+    return text, info.get("until"), info.get("reason")
 
 
-def wait_marker(until: str | None, reason: str | None) -> str:
-    """The ` (waiting until DATE[: reason])` suffix `wait` appends to a step."""
-    if not until:
+def wait_marker(until: str | None, reason: str | None, on: str | None = None,
+                since: str | None = None) -> str:
+    """The ` (waiting until DATE[: reason])` suffix `wait` appends to a step;
+    with `on` (plan 53) ` (waiting [until DATE; ]on: WHO; since: DATE[: reason])`."""
+    if not until and not on:
         return ""
-    return f" (waiting until {until}" + (f": {reason}" if reason else "") + ")"
+    head = f"until {until}" if until else ""
+    if on:
+        head += ("; " if head else "") + f"on: {on}" + (f"; since: {since}" if since else "")
+    return f" (waiting {head}" + (f": {reason}" if reason else "") + ")"
 
 
 # In-flight claim (plan 30): what git cannot know about an item — its review/gate
@@ -122,8 +148,8 @@ def parse_plan(path: Path) -> dict:
         if sm:
             text_ = sm.group(3).strip()
             if sm.group(2) == WAIT_BOX:
-                text_, until, reason = split_wait_marker(text_)
-                waiting[len(steps) + 1] = {"until": until, "reason": reason}
+                text_, info = parse_wait_marker(text_)
+                waiting[len(steps) + 1] = info or {"until": None, "reason": None}
             steps.append((sm.group(2).lower() == "x", text_))
     body = text[m.end():] if m else text
     result = {"meta": meta, "steps": steps, "waiting": waiting,
@@ -234,7 +260,8 @@ def count_progress(path: Path) -> tuple[int, int]:
 
 def waiting_steps(path: Path) -> list[dict]:
     """The plan's waiting steps (plan 46) as [{step, text, until, reason}], in
-    order; `step` is 1-based like `check --step`."""
+    order; `step` is 1-based like `check --step`. A wait on someone (plan 53)
+    also carries `on` and `since`."""
     plan = parse_plan(path)
     return [{"step": n, "text": plan["steps"][n - 1][1], **w}
             for n, w in sorted((plan.get("waiting") or {}).items())]

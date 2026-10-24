@@ -32,7 +32,7 @@ from rmlib.core import atomic_write, display_id, read_config, roadmap_dir
 from rmlib.parse import (
     FRONTMATTER_RE, STEP_RE, _is_fence, parse_plan, required_sections,
     template_stubs)
-from rmlib.sync import countdown, status
+from rmlib.sync import countdown, status, wait_nudge_days
 from rmlib.incubator import (
     INCUBATOR_BULLET_RE, INCUBATOR_RE, bullet_title, incubator_file,
     list_incubator_bullets)
@@ -51,6 +51,7 @@ SECTIONS = (  # (key, heading) in print order
     ("claims", "Claims moved"), ("stalled", "Stale or blocked"),
     ("newPlans", "New plans"), ("newBranches", "New branches"),
     ("runs", "Runs"), ("ideas", "Ideas added"),
+    ("awaiting", "Awaiting"),         # plan 53: open-ended waits, every digest
     ("attention", "Needs attention"))
 
 
@@ -342,6 +343,24 @@ def _att_waiting(ctx: dict) -> list[dict]:
     return out
 
 
+def _awaiting_text(d: dict) -> str:
+    days = d.get("waitingDays")
+    return (f"{_ref(d)} — step {d.get('step')} awaiting {d.get('on')} "
+            f"(since {d.get('since') or '?'}"
+            + (f", {days} day{'' if days == 1 else 's'}" if isinstance(days, int) else "")
+            + ")" + (f": {d['reason']}" if d.get("reason") else ""))
+
+
+def _att_awaiting(ctx: dict) -> list[dict]:
+    """Open-ended waits on someone (plan 53) open settings.waitNudgeDays
+    (default 7) days or longer — time to chase them."""
+    nudge = wait_nudge_days(ctx["cfg"])
+    return [{"kind": "awaiting", "id": d.get("id"), "displayId": d.get("displayId"),
+             "text": _awaiting_text(d)}
+            for d in ctx["st"].get("waitingOn") or []
+            if isinstance(d.get("waitingDays"), int) and d["waitingDays"] >= nudge]
+
+
 def _att_refuted(ctx: dict) -> list[dict]:
     return [{"kind": "refuted", "id": i["id"], "displayId": i.get("displayId"),
              "text": f"{_ref(i)} — verdict REFUTED"
@@ -411,7 +430,7 @@ def _att_stubs(ctx: dict) -> list[dict]:
     return out
 
 
-ATTENTION = (_att_waiting, _att_refuted, _att_blocked, _att_trunk, _att_wip,
+ATTENTION = (_att_waiting, _att_awaiting, _att_refuted, _att_blocked, _att_trunk, _att_wip,
              _att_slots, _att_conflicts, _att_stubs)
 
 
@@ -560,6 +579,10 @@ def collect(root: Path, since: datetime.datetime, *, now: datetime.datetime | No
                 "stalled": stalled, "newPlans": new_plans,
                 "newBranches": _new_branches(root, cfg, st, since) if history else [],
                 "runs": runs, "ideas": ideas,
+                # Plan 53: every open-ended wait on someone, whatever the window.
+                "awaiting": [{"id": d.get("id"), "displayId": d.get("displayId"),
+                              "title": d.get("title"), "text": _awaiting_text(d)}
+                             for d in st.get("waitingOn") or []],
                 "attention": attention(root, st, cfg)})
     out["counts"] = {k: len(out[k]) for k, _ in SECTIONS}
     out["counts"]["stepsTicked"] = sum(t["count"] for t in ticked)

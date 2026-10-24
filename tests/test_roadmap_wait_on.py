@@ -162,3 +162,162 @@ def test_old_style_markers_parse_and_count_as_before(roadmap, repo):
     path.write_text(path.read_text().replace("- [x] Step 1: do thing 1",
                                              "- [ ] Step 1: do thing 1 (waiting)"))
     assert roadmap.parse_plan(path)["steps"][0] == (False, "Step 1: do thing 1 (waiting)")
+
+
+# ---- step 2: --on open-ended waits, reminders, attention after waitNudgeDays --
+
+def _awaiting_item(roadmap, repo, since_days=0, title="A", reason="user testing",
+                   who="dispatch team"):
+    """Item with steps 1-2 ticked and step 3 waiting on `who`, begun
+    `since_days` ago (the marker's since-date is rewritten to simulate time)."""
+    path = _item(roadmap, repo, title=title)
+    n = roadmap.read_config(repo)["nextId"] - 1
+    roadmap.wait_step(repo, n, 3, on=who, reason=reason)
+    roadmap.check_step(repo, n, None, all_done=True)
+    if since_days:
+        path.write_text(path.read_text().replace(f"since: {_iso(0)}",
+                                                 f"since: {_iso(-since_days)}"))
+    return n
+
+
+def test_wait_on_marks_open_ended_wait(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    path = _item(roadmap, repo)
+    w = roadmap.wait_step(repo, 1, 3, on="  dispatch   team ", reason="user testing")
+    assert w == {"step": 3, "text": "Step 3: do thing 3", "until": None,
+                 "reason": "user testing", "on": "dispatch team", "since": _iso(0)}
+    assert (f"- [~] Step 3: do thing 3 (waiting on: dispatch team; since: {_iso(0)}: "
+            f"user testing)") in path.read_text()
+    parsed = roadmap.parse_plan(path)
+    assert parsed["steps"][2] == (False, "Step 3: do thing 3")
+    assert parsed["waiting"] == {3: {"until": None, "reason": "user testing",
+                                     "on": "dispatch team", "since": _iso(0)}}
+    assert roadmap.count_progress(path) == (0, 3)
+    roadmap.check_step(repo, 1, None, all_done=True)                # never ticks the wait
+    assert roadmap.count_progress(path) == (2, 3)
+    st = roadmap.status(repo)
+    row = st["items"][0]
+    assert (row["lane"], row["status"]) == ("waiting", "active")
+    assert row["waitingSteps"][0]["daysLeft"] is None               # never due
+    assert row["waitingSteps"][0]["waitingDays"] == 0
+    assert roadmap.lane_label(row) == "waiting · step 3 · awaiting dispatch team · 0d"
+    assert st["waitingDue"] == [] and not st["versionComplete"]
+    assert [(d["id"], d["step"], d["on"]) for d in st["waitingOn"]] == \
+        [(1, 3, "dispatch team")]
+    assert roadmap.next_item(repo, quiet=True) is None              # nothing to do yet
+    assert roadmap.uncut_complete_version(repo) is None
+
+
+def test_wait_on_with_until_is_a_dated_wait_naming_who(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    path = _item(roadmap, repo)
+    w = roadmap.wait_step(repo, 1, 3, until="2d", on="QA", reason="sign-off")
+    assert (w["until"], w["on"], w["since"]) == (_iso(2), "QA", _iso(0))
+    assert (f"(waiting until {_iso(2)}; on: QA; since: {_iso(0)}: sign-off)"
+            in path.read_text())
+    roadmap.check_step(repo, 1, None, all_done=True)
+    st = roadmap.status(repo)
+    assert roadmap.lane_label(st["items"][0]) == "waiting · step 3 · 2d left · awaiting QA"
+    assert st["waitingOn"] == []                                    # dated: not open-ended
+    path.write_text(path.read_text().replace(f"until {_iso(2)};", f"until {_iso(-1)};"))
+    due = roadmap.status(repo)["waitingDue"]
+    assert roadmap.format_due(due)[0].startswith(
+        "⏰ FEAT-1 step 3 (1d overdue, awaiting QA: sign-off) — Step 3: do thing 3")
+
+
+def test_wait_on_rerun_keeps_since_and_fields(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    path = _item(roadmap, repo)
+    roadmap.wait_step(repo, 1, 2, on="dispatch team", reason="user testing")
+    path.write_text(path.read_text().replace(f"since: {_iso(0)}", f"since: {_iso(-3)}"))
+    w = roadmap.wait_step(repo, 1, 2, until="7d")                   # add a date
+    assert (w["until"], w["on"], w["since"], w["reason"]) == \
+        (_iso(7), "dispatch team", _iso(-3), "user testing")
+    w = roadmap.wait_step(repo, 1, 2, on="dispatch team")           # same who: since kept
+    assert (w["until"], w["since"]) == (_iso(7), _iso(-3))
+    w = roadmap.wait_step(repo, 1, 2, on="ops")                     # new who: since restarts
+    assert (w["on"], w["since"]) == ("ops", _iso(0))
+    roadmap.wait_step(repo, 1, 2, clear=True)
+    assert "- [ ] Step 2: do thing 2\n" in path.read_text()
+
+
+def test_wait_on_refusals(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    _item(roadmap, repo)
+    for bad in ("", "   ", "team; qa", "team: qa"):
+        with pytest.raises(ValueError, match="--on"):
+            roadmap.wait_step(repo, 1, 1, on=bad)
+    with pytest.raises(ValueError, match="--until .* or --on"):
+        roadmap.wait_step(repo, 1, 1)
+
+
+def test_awaiting_listed_in_orient_status_and_digest_never_overdue(roadmap, repo,
+                                                                    monkeypatch, capsys):
+    monkeypatch.chdir(repo)
+    roadmap.init_project(repo, "P")
+    _awaiting_item(roadmap, repo, since_days=3)
+    st = roadmap.status(repo)
+    assert st["waitingDue"] == [] and st["waitingOn"][0]["waitingDays"] == 3
+    capsys.readouterr()
+    roadmap.main(["orient"])
+    out = capsys.readouterr().out
+    line = (f"⏳ FEAT-1 step 3 awaiting dispatch team (since {_iso(-3)}, 3 days): "
+            f"user testing — Step 3: do thing 3 → once they report back: "
+            f"roadmap.py check --plan 1 --step 3")
+    assert line in out and "overdue" not in out and "⏰" not in out
+    roadmap.main(["status"])
+    assert line in capsys.readouterr().out
+    from rmlib import digest as rmdigest
+    d = rmdigest.collect(repo, datetime.datetime.now(UTC) - datetime.timedelta(days=1))
+    assert [r["text"] for r in d["awaiting"]] == [
+        f"FEAT-1 A — step 3 awaiting dispatch team (since {_iso(-3)}, 3 days): user testing"]
+    assert d["attention"] == []                                     # under waitNudgeDays
+    assert "Awaiting (1)" in rmdigest.format_digest(d)
+    assert any(s["key"] == "awaiting" for s in rmdigest.sections(d))
+
+
+def test_awaiting_needs_attention_after_wait_nudge_days(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    _awaiting_item(roadmap, repo, since_days=6, title="Six")
+    _awaiting_item(roadmap, repo, since_days=7, title="Seven", who="QA", reason=None)
+    from rmlib import digest as rmdigest
+    st = roadmap.status(repo)
+    assert [d["id"] for d in st["waitingOn"]] == [2, 1]            # longest first
+    att = rmdigest.attention(repo, st)
+    assert [(a["kind"], a["id"]) for a in att] == [("awaiting", 2)]
+    assert att[0]["text"] == f"FEAT-2 Seven — step 3 awaiting QA (since {_iso(-7)}, 7 days)"
+    cfg = roadmap.read_config(repo)
+    cfg.setdefault("settings", {})["waitNudgeDays"] = 3
+    roadmap.write_config(repo, cfg)
+    assert [a["id"] for a in rmdigest.attention(repo, roadmap.status(repo))] == [2, 1]
+    assert roadmap.wait_nudge_days({"settings": {"waitNudgeDays": "x"}}) == 7
+    assert roadmap.wait_nudge_days({}) == 7
+
+
+def test_check_ends_an_open_ended_wait(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    _awaiting_item(roadmap, repo, since_days=9)
+    roadmap.check_step(repo, 1, 3, evidence="dispatch team signed off")
+    text = _plan(repo).read_text()
+    assert "- [x] Step 3: do thing 3\n" in text and "waiting on" not in text
+    st = roadmap.status(repo)
+    assert st["items"][0]["lane"] == "done" and st.get("waitingOn", []) == []
+
+
+def test_cli_wait_on(roadmap, repo, monkeypatch, capsys):
+    monkeypatch.chdir(repo)
+    roadmap.init_project(repo, "P")
+    _item(roadmap, repo)
+    assert roadmap.main(["wait", "1", "--step", "3", "--on", "dispatch team",
+                         "--reason", "user testing"]) == 0
+    assert (f"#1 step 3: awaiting dispatch team since {_iso(0)} (user testing)"
+            in capsys.readouterr().out)
+    assert roadmap.main(["wait", "1", "--step", "2", "--until", "24h"]) == 0
+    assert "#1 step 2: waiting until " in capsys.readouterr().out
+    with pytest.raises(SystemExit):
+        roadmap.main(["wait", "1", "--step", "3", "--clear", "--on", "x"])
+    with pytest.raises(SystemExit):
+        roadmap.main(["wait", "1", "--step", "1"])
+    roadmap.main(["status", "--json"])
+    st = json.loads(capsys.readouterr().out)
+    assert st["waitingOn"][0]["on"] == "dispatch team"
