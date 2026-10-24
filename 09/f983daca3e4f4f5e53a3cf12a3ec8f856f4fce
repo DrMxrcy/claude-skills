@@ -1,0 +1,63 @@
+.gitignore
+  s_fbae122c7a65de::t_365e22765b9685 13-15
+.roadmap/config.json
+  s_fbae122c7a65de::t_46f43bed194fa5 533
+.roadmap/plans/037-dashboard-lane-board-columns-per-lane-with-cards-for-branch-sha-verdict-and-last-note-plus-verdict-and-branch-filter-chips.md
+  s_fbae122c7a65de::t_c8be345b100a7b 6,31-36
+.roadmap/plans/043-acceptance-ledger-mark-each-acceptance-bullet-passed-with-evidence-and-require-it-for-done.md
+  s_fbae122c7a65de::t_ded29a761fd5f9 6,32-39
+CHANGELOG.internal.md
+  s_fbae122c7a65de::t_2ce0ad30d8e42e 13,18
+CHANGELOG.md
+  s_fbae122c7a65de::t_f0cb9caa39cd2c 11,16
+ROADMAP.md
+  s_fbae122c7a65de::t_6c8e6456f80add 34,40,46
+agy-plugin/plugins/roadmap/rules/AGENTS.md
+  s_fbae122c7a65de::t_fe05f92359e187 8
+skills/roadmap/SKILL.md
+  s_fbae122c7a65de::t_a2f0f252f6417f 272-279
+skills/roadmap/references/quality-build.md
+  s_fbae122c7a65de::t_34722ebc4f3db3 119,158
+skills/roadmap/references/state-model.md
+  s_fbae122c7a65de::t_a233930ba286ad 25,46,114,118-119
+skills/roadmap/scripts/rmlib/dashboard.html
+  s_fbae122c7a65de::t_2764cece10fa08 303-317,417-472,508,514,578,717,753-782,817,1158-1160,1215-1216,1224-1486,1532,1537,1541,1545,1564,1608-1610,1623,1733,1812-1813,2505-2512,2527,2532,2534,2538,2565,2656
+skills/roadmap/scripts/rmlib/dashboard.py
+  s_fbae122c7a65de::t_4f8284091076c1 245-253,300-303
+skills/roadmap/scripts/rmlib/ops.py
+  s_fbae122c7a65de::t_b69ac0c42efcf3 20,82-84,109,111,132-133,136-143,158-221
+skills/roadmap/scripts/rmlib/parse.py
+  s_fbae122c7a65de::t_ad4c909c51903d 127-130,405-520
+skills/roadmap/scripts/rmlib/project.py
+  s_fbae122c7a65de::t_440e9010adce8b 65-71,80
+skills/roadmap/scripts/rmlib/sync.py
+  s_fbae122c7a65de::t_4463e7b87542cc 16,463-465
+skills/roadmap/scripts/roadmap.py
+  s_fbae122c7a65de::t_c1f5098a364b47 44,110-111,255-281,338-340,409-421,729-730
+tests/conftest.py
+  s_fbae122c7a65de::t_129867ce8113bf 68-90
+tests/test_cli_e2e.py
+  s_fbae122c7a65de::t_f4c96af8ce0fb8 39-44
+tests/test_roadmap_acceptance.py
+  s_fbae122c7a65de::t_70bbaf13b45af2 1-273
+tests/test_roadmap_board.py
+  s_fbae122c7a65de::t_503ade212587e2 1-407
+tests/test_roadmap_nav.py
+  s_fbae122c7a65de::t_962ab629e45a79 376,391,429,496-500,504-507
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "09f983daca3e4f4f5e53a3cf12a3ec8f856f4fce",
+  "prompts": {},
+  "sessions": {
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
