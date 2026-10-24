@@ -1,0 +1,27 @@
+.roadmap/config.json
+  s_fbae122c7a65de::t_22e7398c35c028 4,526-533
+.roadmap/plans/048-all-projects-dashboard-home-every-roadmap-project-on-one-page-registered-automatically.md
+  s_fbae122c7a65de::t_b8851b02d0f6be 8
+.roadmap/plans/052-leftovers-note-error-suggests-a-missing-audience-flag-board-copy-commands-lack-the-project-under-serve-all-board-filters-shared-across-projects.md
+  s_fbae122c7a65de::t_a3710271aa5051 1-31
+CHANGELOG.internal.md
+  s_fbae122c7a65de::t_f299fe6f83a5ba 45
+ROADMAP.md
+  s_fbae122c7a65de::t_30f0fa23ff32dc 24,30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "77409e8016a9be72de9ad40848840386225f5dd1",
+  "prompts": {},
+  "sessions": {
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "unknown"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
