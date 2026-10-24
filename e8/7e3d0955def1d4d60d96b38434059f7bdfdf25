@@ -1,0 +1,27 @@
+.roadmap/config.json
+  s_fbae122c7a65de::t_ecf98cb0b2e25e 525
+.roadmap/plans/040-claim-owners-and-a-work-in-progress-limit.md
+  s_fbae122c7a65de::t_f48a08eb937831 6,31-38
+CHANGELOG.internal.md
+  s_fbae122c7a65de::t_55d8848082d6ee 15
+CHANGELOG.md
+  s_fbae122c7a65de::t_128c5d872cb6f8 13
+ROADMAP.md
+  s_fbae122c7a65de::t_ced8ead941ebfe 33,42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e87e3d0955def1d4d60d96b38434059f7bdfdf25",
+  "prompts": {},
+  "sessions": {
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "unknown"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
