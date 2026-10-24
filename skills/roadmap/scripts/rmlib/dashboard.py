@@ -242,6 +242,15 @@ def _linked_docs(rm, root: Path, text: str, base: Path | None = None,
     return out
 
 
+def _acceptance(bullets: list[dict]) -> dict:
+    """{met, failed, total, bullets} — the status row's counts (criteria only;
+    `Fails if` guards are never marked) plus every bullet for the plan page."""
+    crit = [b for b in bullets if b.get("kind") == "criterion"]
+    return {"met": sum(b.get("state") == "met" for b in crit),
+            "failed": sum(b.get("state") == "failed" for b in crit),
+            "total": len(crit), "bullets": list(bullets)}
+
+
 def _item_detail(rm, root: Path, item_id: int) -> dict:
     """Full detail for one item: its plan checklist steps + note. Fetched lazily
     by the dashboard when a row is expanded, so status payloads stay small."""
@@ -281,7 +290,10 @@ def _item_detail(rm, root: Path, item_id: int) -> dict:
                   "steps": [{"done": d, "text": t} for d, t in plan["steps"]],
                   "lane": None, "claim": None, "branch": None,
                   "rulings": list(plan.get("rulings") or []),
-                  "needsApproval": False}
+                  "needsApproval": False,
+                  # Acceptance ledger (plan 43): counts plus each bullet's state
+                  # and evidence (the status row carries the counts only).
+                  "acceptance": _acceptance(plan.get("acceptance") or [])}
         # Lane/claim/branch come from status() so the expanded row agrees with
         # the list (claim branch override included); commits are added here
         # only, keeping the streamed status payload small.

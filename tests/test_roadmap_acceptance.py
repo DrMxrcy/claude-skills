@@ -232,3 +232,42 @@ def test_init_default_on_for_new_projects_only(roadmap, repo, monkeypatch,
     roadmap.upgrade(repo)
     assert "requireAcceptance" not in roadmap.read_config(repo)["settings"]
 
+
+
+# ---- status payload + dashboard ----------------------------------------------
+
+def test_status_payload_carries_acceptance_counts(roadmap, proj):
+    row = roadmap.status(proj)["items"][0]
+    assert row["acceptance"] == {"met": 0, "failed": 0, "total": 2}
+    roadmap.accept(proj, 1, 1, "renders")
+    roadmap.accept(proj, 1, 2, "2 failures", fail=True)
+    row = roadmap.status(proj)["items"][0]
+    assert row["acceptance"] == {"met": 1, "failed": 1, "total": 2}
+
+
+def test_status_payload_without_acceptance_section(roadmap, proj):
+    _fill(proj, acceptance="## ✅ Acceptance\n")
+    assert roadmap.status(proj)["items"][0]["acceptance"] == \
+        {"met": 0, "failed": 0, "total": 0}
+
+
+def test_item_detail_lists_bullets_with_state_and_evidence(roadmap, dashboard, proj):
+    roadmap.accept(proj, 1, 2, "pytest green")
+    d = dashboard._item_detail(roadmap._dashboard_api(), proj, 1)
+    acc = d["acceptance"]
+    assert (acc["met"], acc["failed"], acc["total"]) == (1, 0, 2)
+    assert [(b["n"], b["kind"], b["state"], b["evidence"]) for b in acc["bullets"]] \
+        == [(1, "criterion", None, None), (2, "criterion", "met", "pytest green"),
+            (3, "guard", None, None)]
+    assert acc["bullets"][1]["date"] == TODAY
+
+
+def test_dashboard_html_has_acceptance_display(dashboard):
+    """Cards show "m/t accepted"; the plan page lists every bullet with its
+    state and evidence — DOM text nodes only."""
+    body = dashboard._dashboard_html()
+    for hook in ("function acceptBadge", "function acceptanceBlock",
+                 "it.acceptance", '" accepted"', "acceptBadge(it)", "acceptBadge(d)",
+                 "acceptanceBlock(d.acceptance)", "b.evidence", "b.state"):
+        assert hook in body, hook
+    assert ".innerHTML" not in body and "insertAdjacentHTML" not in body
