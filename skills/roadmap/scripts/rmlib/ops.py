@@ -679,8 +679,8 @@ def _refuse_unclassified_note(item: dict, note: str, force: bool) -> None:
     pid = item.get("id", "<id>")
     raise ValueError(
         f"note refused — #{pid} has no explicit audience, so this text would silently land "
-        f"in the internal changelog only. Decide where it ships first: pass --audience "
-        f"public|internal, or run roadmap audience --plan {pid} --to public|internal, then "
+        f"in the internal changelog only. Decide where it ships first: run "
+        f"roadmap audience --plan {pid} --to public|internal, then "
         f"set the note. --force keeps it unclassified (renders internal-only).")
 
 

@@ -107,6 +107,7 @@ def test_project_endpoints_are_mounted_under_prefix(served_all, roadmap):
     base, (a, b), _ = served_all
     st = _get_json(base + "/p/alpha/api/status")
     assert st["statuses"][0]["project"] == "Alpha"
+    assert st["root"] == str(a)          # bug 52: copy commands cd here
     assert [i["title"] for i in st["merged"]["items"]] == ["Alpha item 1",
                                                            "Alpha item 2"]
     item = _get_json(base + "/p/beta/api/item?id=1")
