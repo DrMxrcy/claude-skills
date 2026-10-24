@@ -327,6 +327,62 @@
     text-transform:uppercase; font-size:11px; }
   .grow .glabel { font-weight:600; overflow-wrap:anywhere; }
   .grow a { text-decoration:none; } .grow a:hover { text-decoration:underline; }
+  /* ---- lane board (plan 37): #/board, one column per lane --------------- */
+  body.on-board main, body.on-board header .wrap { max-width:1600px; }
+  body.on-board #expandAll, body.on-board #collapseAll { display:none; }
+  .board { display:flex; gap:12px; align-items:flex-start; overflow-x:auto;
+    padding-bottom:10px; }
+  .bcol { flex:0 0 250px; min-width:0; display:flex; flex-direction:column;
+    gap:8px; border:1px solid var(--line); border-radius:8px; padding:8px; }
+  .bcol.flagged { border-color:color-mix(in srgb, var(--blocked) 55%, var(--line));
+    border-style:dashed; }
+  .bhead { display:flex; align-items:center; gap:8px; font-size:12px; }
+  .bhead .bn { color:var(--muted); margin-left:auto;
+    font-variant-numeric:tabular-nums; }
+  .bempty { color:var(--muted); font-size:12px; text-align:center; padding:6px 0; }
+  .bcard { border:1px solid var(--line); border-left:3px solid var(--lc, var(--todo));
+    border-radius:6px; padding:7px 8px; display:flex; flex-direction:column;
+    gap:5px; cursor:pointer; font-size:12px; min-width:0; background:var(--bg); }
+  .bcard:hover { background:rgba(255,255,255,.03); }
+  .bcard.flag { border-color:var(--blocked); border-left-color:var(--blocked); }
+  .btop { display:flex; gap:6px; align-items:baseline; flex-wrap:wrap; }
+  .btop .num { color:var(--muted); font-variant-numeric:tabular-nums; }
+  .bt { overflow-wrap:anywhere; font-size:13px; }
+  .bt a { color:inherit; text-decoration:none; }
+  .bt a:hover { text-decoration:underline; }
+  .bmeta { display:flex; gap:6px; flex-wrap:wrap; align-items:center;
+    color:var(--muted); }
+  .bmeta .bname { color:var(--fg); overflow-wrap:anywhere; }
+  .bmeta .sha { color:var(--accent); }
+  .bmeta .owner { color:var(--fg); }
+  .bmeta .acc-open { color:var(--active); border-color:var(--active); }
+  .bmeta .acc-fail { color:var(--blocked); border-color:var(--blocked); font-weight:600; }
+  .bnote { color:var(--muted); overflow-wrap:anywhere; }
+  .bfoot { display:flex; gap:6px; flex-wrap:wrap; align-items:center;
+    border-top:1px solid var(--line); padding-top:5px; cursor:default; }
+  .bfoot select, .bfoot button { background:var(--bar); border:1px solid var(--line);
+    color:var(--fg); border-radius:5px; padding:1px 6px; font:inherit;
+    font-size:11px; max-width:100%; }
+  .bfoot button { cursor:pointer; }
+  .bfoot .bcmd { flex:1 1 100%; color:var(--muted); font-size:11px;
+    overflow-wrap:anywhere; user-select:all; }
+  #chips { flex-basis:100%; }
+  .fchips summary { cursor:pointer; user-select:none; color:var(--muted); }
+  .fchips[open] summary { margin-bottom:4px; }
+  .fgroup { display:flex; gap:5px; flex-wrap:wrap; align-items:center;
+    padding:2px 0; }
+  .fgroup .fk { color:var(--muted); min-width:56px; }
+  .fchip { background:transparent; border:1px solid var(--line); color:var(--muted);
+    border-radius:10px; padding:0 8px; font:inherit; font-size:11px; cursor:pointer;
+    overflow-wrap:anywhere; max-width:100%; text-align:left; }
+  .fchip:hover { color:var(--fg); }
+  .fchip.on { color:var(--fg); border-color:var(--accent);
+    background:color-mix(in srgb, var(--accent) 16%, transparent); }
+  @media (max-width:640px) {
+    .board { flex-direction:column; align-items:stretch; overflow-x:visible; }
+    .bcol { flex:none; }
+  }
+  /* ---- end lane board (plan 37) ----------------------------------------- */
   @media (max-width:640px) {
     header, main { padding-left:16px; padding-right:16px; }
     .facts { grid-template-columns:1fr; }
@@ -362,11 +418,13 @@
         <span class="lnk" id="expandAll">expand all</span>
         <span class="lnk" id="collapseAll">collapse all</span>
       </div>
+      <div id="chips"></div>
     </div>
   </div>
 </header>
 <main>
   <div id="app"><div class="empty">connecting…</div></div>
+  <div id="board" hidden></div>
   <div id="ideas" hidden></div>
   <div id="changelog" hidden></div>
   <div id="digest" hidden></div>
@@ -430,6 +488,7 @@ const stale = off => document.getElementById("stale").classList.toggle("off", of
 const matches = it => {
   if(FILT.open && laneOf(it) === "done") return false;
   if(FILT.lane && laneOf(it) !== FILT.lane) return false;
+  if(!chipMatch(it)) return false;                // filter chips (plan 37)
   if(!QUERY) return true;
   const q = QUERY.replace(/^#/,"");
   return (""+it.id).includes(q) || (it.title||"").toLowerCase().includes(q)
@@ -637,7 +696,7 @@ function verSection(v, items, cur){
   const nf = items.filter(inFlight).length;
   const sec = el("section","ver-group");
   // While searching/filtering, force every shown group open so matches show.
-  if(!QUERY && !FILT.lane && !isOpen(v,cur)) sec.classList.add("collapsed");
+  if(!QUERY && !FILT.lane && !chipsActive() && !isOpen(v,cur)) sec.classList.add("collapsed");
   sec.dataset.v = v;
   const head = el("div","ver-head");
   head.appendChild(txt("span","chev","▾"));
@@ -975,7 +1034,9 @@ function render(d){
   const items = d.items || [];
   syncLaneSel(items);
   document.getElementById("openOnly").checked = !!FILT.open;
-  const td = items.reduce((a,i)=>a+(i.done||0),0);
+  syncChips(items);                               // filter chips (plan 37)
+  if(ROUTE.name === "board") renderBoard(d);      // lane board (plan 37)
+  const td =items.reduce((a,i)=>a+(i.done||0),0);
   const tt = items.reduce((a,i)=>a+(i.total||0),0);
   document.getElementById("overall").textContent =
     tt ? Math.round(100*td/tt)+"% overall ("+td+"/"+tt+")" : "";
@@ -1030,13 +1091,277 @@ function render(d){
     a===cur?-1:b===cur?1:vcmp(a,b));
   if(!vers.length){
     const why = QUERY ? "no items match “"+QUERY+"”"
-      : FILT.lane ? "no items in lane “"+FILT.lane+"”" : "no open items";
+      : FILT.lane ? "no items in lane “"+FILT.lane+"”"
+      : chipsActive() ? "no items match the filter chips" : "no open items";
     app.replaceChildren(...head, txt("div","empty", why), ...tail);
     return;
   }
   // One clean column, current version first; other branches last.
   app.replaceChildren(...head, ...vers.map(v=>verSection(v, groups[v], cur)), ...tail);
 }
+
+// ---- lane board (plan 37) ---------------------------------------------
+// #/board: one column per lane; every item sits in exactly the column of its
+// lane (laneOf — the CLI's derive_lane). Read-only by design: a write
+// endpoint on a localhost server is reachable from any page the browser
+// visits, so moving a card means copying its `roadmap.py claim …` line and
+// running it in a terminal. Re-rendered from render(), so SSE refreshes,
+// view switches and filter changes all reach it.
+const BOARD_PIPE = ["planned","active","building","review","fixing","gate-ready",
+  "gating","landed","waiting","done"];
+const BOARD_ALWAYS = ["planned","building","review","fixing","gate-ready","gating",
+  "landed","done"];                        // shown even when empty
+const BOARD_FLAGGED = ["blocked","stale"]; // side columns, flagged cards
+const BOARD_DONE_SHOWN = 20;
+const BOARD = {allDone: store.get("rm-board-alldone", false) === true};
+
+// [{lane, flagged, items}] in board order. `onlyLane` (the lane filter)
+// narrows the board to that one column. Done is newest (highest id) first.
+function boardColumns(items, onlyLane){
+  const by = {};
+  for(const it of items) (by[laneOf(it)] ||= []).push(it);
+  const known = [...BOARD_PIPE, ...BOARD_FLAGGED];
+  const order = [...known, ...Object.keys(by).filter(l => !known.includes(l)).sort()];
+  return order
+    .filter(l => onlyLane ? l === onlyLane : BOARD_ALWAYS.includes(l) || (by[l]||[]).length)
+    .map(l => ({lane:l, flagged:BOARD_FLAGGED.includes(l),
+      items:(by[l]||[]).slice().sort(l === "done" ? (a,b) => b.id-a.id : (a,b) => a.id-b.id)}));
+}
+
+function boardCard(it, d){
+  const href = "#/plan/"+it.id;
+  const card = el("div","bcard "+lg(it)+(BOARD_FLAGGED.includes(laneOf(it)) ? " flag" : ""));
+  const top = el("div","btop");
+  top.appendChild(txt("span","num", it.displayId || "#"+it.id));
+  top.appendChild(txt("span","badge", it.type || ""));
+  if(it.version) top.appendChild(txt("span","badge", "v"+it.version));
+  card.appendChild(top);
+  const t = el("div","bt");
+  t.appendChild(link(href, it.title || ""));
+  card.appendChild(t);
+  const c = it.claim || {}, b = it.branch || {};
+  const meta = [];
+  const bname = b.name || c.branch;
+  if(bname) meta.push(txt("span","bname", bname));
+  const sha = boardSha(it);
+  if(sha) meta.push(txt("span","sha", sha));
+  if(c.verdict) meta.push(txt("span","verdict "+c.verdict, c.verdict));
+  if(c.owner) meta.push(txt("span","owner", "owner "+c.owner));
+  if(laneOf(it) === "waiting") meta.push(laneBadge(it));   // countdown (plan 46)
+  meta.push(...boardSlots(it, d));                         // reservations (plan 33)
+  const acc = boardAccept(it);                             // ledger (plan 43)
+  if(acc) meta.push(acc);
+  if(it.foundIn != null) meta.push(txt("span","badge", "from #"+it.foundIn));
+  if(it.blockedBy && it.blockedBy.length) meta.push(txt("span","blockedby",
+    "blocked by "+it.blockedBy.map(x => "#"+x).join(",")));
+  if(meta.length){ const m = el("div","bmeta"); m.append(...meta); card.appendChild(m); }
+  // Last claim note and how long ago the claim was refreshed (or restamped).
+  const ago = age(c.refreshed || c.updated);
+  if(c.note || ago){
+    const n = el("div","bnote");
+    if(c.note) n.appendChild(txt("span",null, c.note));
+    if(ago) n.appendChild(txt("span","bage", (c.note ? " · " : "")+"claimed "+ago));
+    card.appendChild(n);
+  }
+  const moves = boardMoves(it);
+  if(moves.length) card.appendChild(boardFoot(it, moves));
+  card.onclick = e => {
+    if(!(e.target.closest && e.target.closest("a, .bfoot"))) location.hash = href; };
+  return card;
+}
+
+// Short sha: the landing commit once landed (claim --landed), else the tip.
+function boardSha(it){
+  const c = it.claim || {}, b = it.branch || {};
+  if(laneOf(it) === "landed" && c.landed_sha) return String(c.landed_sha).slice(0,7);
+  return b.lastCommit || (b.sha ? String(b.sha).slice(0,7) : "");
+}
+function boardSlots(it, d){
+  const out = [];
+  for(const k of ((d && d.slots && d.slots.kinds) || []))
+    for(const r of (k.reservations || [])) if(r.plan === it.id){
+      const s = txt("span","slot st-"+r.state, k.kind+" "+((r.numbers||[]).join(",") || r.value));
+      s.title = [r.value, r.state+(r.detail ? ": "+r.detail : "")].filter(Boolean).join(" — ");
+      out.push(s);
+    }
+  return out;
+}
+// "m/t accepted" when the payload carries an acceptance ledger {met, failed, total}.
+function boardAccept(it){
+  const a = it.acceptance;
+  if(!a || !a.total) return null;
+  const cls = a.failed ? " acc-fail" : a.met === a.total ? " appr" : a.met ? " acc-open" : "";
+  const s = txt("span","badge"+cls, (a.met||0)+"/"+a.total+" accepted");
+  if(a.failed) s.title = a.failed+" failed";
+  return s;
+}
+
+// Mirrors rmlib/parse.py CLAIM_STAGES (a test keeps the two equal).
+const BOARD_STAGES = ["review","fixing","gate-ready","gating","blocked","landed"];
+const BOARD_NEXT = {planned:"review", active:"review", building:"review", stale:"review",
+  fixing:"review", "gate-ready":"gating", gating:"landed"};
+// The `roadmap.py claim` lines that move a card, the likely next move first.
+// Done and waiting items get none (a waiting item outranks any claim).
+function boardMoves(it){
+  const lane = laneOf(it), c = it.claim || {};
+  if(!Number.isInteger(it.id) || lane === "done" || lane === "waiting") return [];
+  const out = [];
+  const add = (label, ...args) => { const cmd = ["roadmap.py claim", it.id, ...args].join(" ");
+    if(!out.some(m => m.cmd === cmd)) out.push({label, cmd}); };
+  if(lane === "review"){
+    if(c.verdict === "CONFIRMED") add("→ gate-ready", "--stage gate-ready");
+    else if(c.verdict) add("→ fixing", "--stage fixing");
+    else add("→ gate-ready, CONFIRMED", "--stage gate-ready --verdict CONFIRMED");
+  } else if(lane === "blocked" && c.stage) add("unblock (clear claim)", "--clear");
+  else if(BOARD_NEXT[lane]) add("→ "+BOARD_NEXT[lane], "--stage "+BOARD_NEXT[lane]);
+  for(const s of BOARD_STAGES) if(s !== lane && s !== c.stage) add("→ "+s, "--stage "+s);
+  if(c.stage || c.owner) add("clear claim", "--clear");
+  return out;
+}
+
+// Pick a move, see exactly what will be copied, copy it. Never runs anything.
+const BOARD_PICK = {};                 // id -> chosen line, kept across refreshes
+function boardFoot(it, moves){
+  const foot = el("div","bfoot");
+  const sel = el("select","bmove");
+  sel.title = "which claim line to copy";
+  for(const m of moves){ const o = txt("option",null, m.label); o.value = m.cmd; sel.appendChild(o); }
+  const want = BOARD_PICK[it.id];
+  sel.value = moves.some(m => m.cmd === want) ? want : moves[0].cmd;
+  const code = txt("code","bcmd", sel.value);
+  const btn = txt("button","bcopy","copy");
+  btn.type = "button";
+  btn.title = "copy, then run it in a terminal — the board is read-only";
+  sel.addEventListener("change", () => { BOARD_PICK[it.id] = sel.value;
+    code.textContent = sel.value; });
+  btn.addEventListener("click", () => boardCopy(code.textContent, btn, code));
+  foot.append(sel, btn, code);
+  return foot;
+}
+function boardCopy(s, btn, code){
+  const show = ok => {
+    btn.textContent = ok ? "copied" : "press ⌘C / Ctrl+C";
+    if(!ok) try { const r = document.createRange(); r.selectNodeContents(code);
+      const w = window.getSelection(); w.removeAllRanges(); w.addRange(r); } catch(_){}
+    setTimeout(() => { btn.textContent = "copy"; }, 1500);
+  };
+  const legacy = () => { let ok = false;
+    try { const ta = el("textarea"); ta.value = s; ta.setAttribute("readonly", "");
+      ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select(); ok = document.execCommand("copy");
+      ta.remove(); } catch(_){}
+    show(ok); };
+  try { navigator.clipboard.writeText(s).then(() => show(true), legacy); }
+  catch(_){ legacy(); }
+}
+
+function boardColumn(col, d){
+  const box = el("section","bcol"+(col.flagged ? " flagged" : ""));
+  box.dataset.lane = col.lane;
+  const head = el("div","bhead");
+  head.appendChild(txt("span","lane lg-"+(LANE_GROUP[col.lane] || "plan"), col.lane));
+  head.appendChild(txt("span","bn", String(col.items.length)));
+  box.appendChild(head);
+  const many = col.lane === "done" && col.items.length > BOARD_DONE_SHOWN;
+  const shown = many && !BOARD.allDone ? col.items.slice(0, BOARD_DONE_SHOWN) : col.items;
+  for(const it of shown) box.appendChild(boardCard(it, d));
+  if(!col.items.length) box.appendChild(txt("div","bempty","—"));
+  if(many){
+    const t = txt("span","lnk", BOARD.allDone ? "show last "+BOARD_DONE_SHOWN
+      : "show all "+col.items.length);
+    t.onclick = () => { BOARD.allDone = !BOARD.allDone;
+      store.set("rm-board-alldone", BOARD.allDone); if(LAST) renderBoard(LAST); };
+    box.appendChild(t);
+  }
+  return box;
+}
+
+function renderBoard(d){
+  const pane = document.getElementById("board");
+  const all = d.items || [];
+  if(!all.length){
+    pane.replaceChildren(txt("div","empty", d.error || "no roadmap items yet"));
+    return;
+  }
+  const items = all.filter(matches);
+  const old = pane.querySelector(".board"), x = old ? old.scrollLeft : 0;
+  const board = el("div","board");
+  for(const col of boardColumns(items, FILT.lane)) board.appendChild(boardColumn(col, d));
+  pane.replaceChildren(...(items.length ? [] : [txt("div","empty",
+    QUERY ? "no items match “"+QUERY+"”" : "no items match the filters")]), board);
+  board.scrollLeft = x;
+}
+
+// Filter chips, shared by the list and the board through matches() and kept
+// per browser in rm-filters. Lane is single-select and is the same state as
+// the lane <select> (FILT.lane); the other groups are multi-select — OR within
+// a group, AND across groups. "" stands for "no verdict" / "no branch".
+const CHIP_GROUPS = ["lane","verdict","branch","type","version"];
+const CHIP_NONE = {verdict:"no verdict", branch:"no branch"};
+const chipVal = (it, g) => g === "lane" ? laneOf(it)
+  : g === "verdict" ? ((it.claim && it.claim.verdict) || "")
+  : g === "branch" ? ((it.branch && it.branch.name) || (it.claim && it.claim.branch) || "")
+  : String(it[g] == null ? "" : it[g]);
+const chipSel = g => g === "lane" ? (FILT.lane ? [FILT.lane] : [])
+  : (Array.isArray(FILT[g]) ? FILT[g].filter(v => typeof v === "string") : []);
+const chipsActive = () => CHIP_GROUPS.some(g => g !== "lane" && chipSel(g).length);
+function chipMatch(it){
+  return CHIP_GROUPS.every(g => g === "lane" || !chipSel(g).length
+    || chipSel(g).includes(chipVal(it, g)));
+}
+function chipToggle(g, v){
+  if(g === "lane") FILT.lane = FILT.lane === v ? "" : v;
+  else { const s = chipSel(g); FILT[g] = s.includes(v) ? s.filter(x => x !== v) : [...s, v]; }
+  saveFilt();
+  if(LAST) render(LAST);
+}
+function chipOrder(g, vals){
+  const lanes = [...BOARD_PIPE, ...BOARD_FLAGGED];
+  const vk = v => String(v).split(".").map(n => parseInt(n,10) || 0);
+  const by = {
+    lane: (a,b) => (lanes.indexOf(a)+1 || 99) - (lanes.indexOf(b)+1 || 99) || (a < b ? -1 : 1),
+    verdict: (a,b) => (a === "") - (b === "") || (a < b ? -1 : 1),
+    version: (a,b) => { const A = vk(a), B = vk(b);
+      for(let i = 0; i < Math.max(A.length, B.length); i++){
+        const x = (B[i]||0) - (A[i]||0); if(x) return x; }
+      return 0; },
+  }[g] || ((a,b) => (a === "") - (b === "") || (a < b ? -1 : a > b ? 1 : 0));
+  return vals.sort(by);
+}
+function syncChips(items){
+  const box = document.getElementById("chips");
+  const det = el("details","fchips");
+  det.open = store.get("rm-chips-open", false) === true;
+  det.addEventListener("toggle", () => store.set("rm-chips-open", det.open));
+  const active = CHIP_GROUPS.reduce((a,g) => a + chipSel(g).length, 0);
+  det.appendChild(txt("summary",null, "filter chips"+(active ? " · "+active+" on" : "")));
+  for(const g of CHIP_GROUPS){
+    const n = new Map();
+    for(const it of items){ const v = chipVal(it, g); n.set(v, (n.get(v)||0) + 1); }
+    for(const v of chipSel(g)) if(!n.has(v)) n.set(v, 0);   // keep a remembered pick
+    if(!n.size) continue;
+    const row = el("div","fgroup");
+    row.appendChild(txt("span","fk", g));
+    for(const v of chipOrder(g, [...n.keys()])){
+      const on = chipSel(g).includes(v);
+      const b = txt("button","fchip"+(on ? " on" : ""),
+        (v === "" ? CHIP_NONE[g] || "none" : g === "version" ? "v"+v : v)+" "+n.get(v));
+      b.type = "button";
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+      b.addEventListener("click", () => chipToggle(g, v));
+      row.appendChild(b);
+    }
+    det.appendChild(row);
+  }
+  if(active){
+    const clr = txt("span","lnk","clear chips");
+    clr.onclick = () => { FILT.lane = ""; for(const g of CHIP_GROUPS) if(g !== "lane") FILT[g] = [];
+      saveFilt(); if(LAST) render(LAST); };
+    det.appendChild(clr);
+  }
+  box.replaceChildren(det);
+}
+// ---- end lane board (plan 37) -----------------------------------------
 
 document.getElementById("search").addEventListener("input", e => {
   QUERY = e.target.value.trim().toLowerCase();
@@ -1079,18 +1404,19 @@ document.getElementById("rootsel").addEventListener("change", e => {
   refreshRoute();                  // re-fetch the open pane/page for this root
 });
 // Relative ages ("3h ago") drift without new data; refresh them each minute.
-setInterval(() => { if(LAST && ROUTE.name === "roadmap") render(LAST); }, 60000);
+setInterval(() => { if(LAST && ["roadmap","board"].includes(ROUTE.name)) render(LAST); }, 60000);
 
 // ---- routes (plan 31) -------------------------------------------------
 // Hash routes, so deep links and Back work without any server change:
 //   #/  #/ideas  #/changelog          the three list tabs
+//   #/board                           lane board (plan 37)
 //   #/digest[/<since>]                what changed since 3h|1d|3d|1w|2w|last
 //   #/plan/<id>  #/idea/<n>  #/notes/<root-relative .md path>   full pages
 // The route lives only in the URL; nothing about it is stored.
-const TABS = [["roadmap","Roadmap"],["ideas","Ideas"],["changelog","Changelog"],
+const TABS = [["roadmap","Roadmap"],["board","Board"],["ideas","Ideas"],["changelog","Changelog"],
   ["digest","Digest"]];
 const TABCOUNTS = {};
-const LISTS = ["roadmap","ideas","changelog","digest"];
+const LISTS = ["roadmap","board","ideas","changelog","digest"];
 const DIGEST_SINCE = ["3h","1d","3d","1w","2w","last"];
 const paneOf = t => document.getElementById(t==="roadmap" ? "app" : t);
 const rootParam = () => "root=" + viewRoot(null);
@@ -1109,7 +1435,7 @@ function parseRoute(h){
     try { p = decodeURIComponent(p); } catch(_){ return {name:"roadmap"}; }
     return {name:"notes", path:p};
   }
-  if(head === "ideas" || head === "changelog") return {name:head};
+  if(head === "ideas" || head === "changelog" || head === "board") return {name:head};
   if(head === "digest")
     return {name:"digest", since: DIGEST_SINCE.includes(parts[1]) ? parts[1] : "1d"};
   return {name:"roadmap"};
@@ -1143,7 +1469,9 @@ function renderTabs(){
 function showPane(name){
   for(const id of [...LISTS, "page"])
     (id === "page" ? document.getElementById("page") : paneOf(id)).hidden = id !== name;
-  document.getElementById("rmctrls").hidden = name !== "roadmap";
+  // The search / lane / chip controls are shared by the list and the board.
+  document.getElementById("rmctrls").hidden = name !== "roadmap" && name !== "board";
+  document.body.classList.toggle("on-board", name === "board");   // plan 37
 }
 
 function onRoute(){
@@ -1153,7 +1481,7 @@ function onRoute(){
   renderTabs();
   if(LISTS.includes(ROUTE.name)){
     showPane(ROUTE.name);
-    if(ROUTE.name === "roadmap" && LAST) render(LAST);
+    if((ROUTE.name === "roadmap" || ROUTE.name === "board") && LAST) render(LAST);
     const y = SCROLL[ROUTE.name] || 0;
     const done = () => window.scrollTo(0, y);
     if(ROUTE.name === "ideas") loadIdeas(done);
