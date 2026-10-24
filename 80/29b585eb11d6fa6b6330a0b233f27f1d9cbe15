@@ -1,0 +1,27 @@
+.roadmap/config.json
+  s_fbae122c7a65de::t_25fa1ad78ec48f 4,518-525
+CHANGELOG.internal.md
+  s_fbae122c7a65de::t_25fa1ad78ec48f 43-45
+.roadmap/plans/047-bug-routing-a-bug-command-that-fixes-in-flight-plans-in-place-or-files-a-linked-bug-item-and-an-incubator-that-refuses-bugs.md
+  s_fbae122c7a65de::t_25fa1ad78ec48f 8
+.roadmap/plans/051-bug-found-in-writes-the-fix-step-before-refusing-a-claim-held-by-another-owner.md
+  s_fbae122c7a65de::t_25fa1ad78ec48f 1-31
+ROADMAP.md
+  s_fbae122c7a65de::t_25fa1ad78ec48f 24,29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8029b585eb11d6fa6b6330a0b233f27f1d9cbe15",
+  "prompts": {},
+  "sessions": {
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
