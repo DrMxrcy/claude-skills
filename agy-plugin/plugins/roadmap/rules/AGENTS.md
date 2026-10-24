@@ -5,6 +5,7 @@ This project uses the **roadmap** skill to stay on-task and ship **high-quality*
 ### Core rules
 - **Orient first:** run `roadmap.py orient` (or roadmap status, or read `ROADMAP.md`) before writing code. A SessionStart hook may do it for you.
 - **Nothing off-roadmap:** features/bugs get a plan first (`/roadmap-plan`); park stray ideas (`/roadmap-idea`) instead of building them.
+- **Bugs never go in the incubator:** `roadmap.py bug "<title>" --found-in <id> [--observed TEXT]` — in an in-flight item it becomes a Fix step on that plan, in shipped work a linked `bug` item.
 - **One item at a time**, with an active plan file in `.roadmap/plans/` — no functional code without one, no multitasking across features/bugs. The plan's Spec / ✅ Acceptance is the definition of done; the checklist is only the tracker.
 - **Test before you check:** run the real build/tests for a step, then `roadmap.py check`.
 - **Micro-commit** code + roadmap together right after every checked step, so an interrupted session loses at most the in-flight step.
