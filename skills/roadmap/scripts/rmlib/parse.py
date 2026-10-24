@@ -95,7 +95,10 @@ def parse_plan(path: Path) -> dict:
             steps.append((sm.group(2).lower() == "x", sm.group(3).strip()))
     body = text[m.end():] if m else text
     result = {"meta": meta, "steps": steps, "rulings": parse_rulings(body),
-              "foundDuringBuild": parse_found(body)}
+              "foundDuringBuild": parse_found(body),
+              # Acceptance ledger (plan 43): bullets with their marked state.
+              "acceptance": [public_bullet(b)
+                             for b in acceptance_bullets(body.splitlines())]}
     if key is not None:
         _CACHE[str(path)] = (key, result)
     return result
@@ -362,3 +365,119 @@ def template_stubs(path: Path, names: list[str], strict: bool = False) -> list[s
         elif strict:
             stubs.append(name)
     return stubs
+
+
+# ---- acceptance ledger (plan 43) ------------------------------------------------
+# Each top-level bullet of the plan's `## ✅ Acceptance` section is a criterion,
+# except `**Fails if:**` guards (any label starting "Fails"), which are never
+# marked. `roadmap.py accept` records the verdict as a blockquote sub-line under
+# the bullet — `  > accepted: DATE evidence` or `  > failed: DATE evidence` — a
+# form STEP_RE never reads as a step. The last marker under a bullet wins.
+ACCEPTANCE_SECTION_KEY = "acceptance"
+ACCEPT_MARKER_RE = re.compile(
+    r"^\s*>\s*(accepted|failed):\s*(?:(\d{4}-\d{2}-\d{2})\s*)?(.*)$", re.IGNORECASE)
+_TOP_BULLET_RE = re.compile(r"^ ?[-*+]\s+(.*)$")
+_LABEL_RE = re.compile(r"^\*\*([^*]+?)(?::\*\*|\*\*:)\s*(.*)$")
+
+
+def _blank_comments(lines: list[str]) -> list[str]:
+    """Like _strip_comments, but a line swallowed by a multi-line comment becomes
+    "" so indices still line up with the original text."""
+    out, in_comment, in_fence = [], False, False
+    for line in lines:
+        if not in_comment and _is_fence(line):
+            in_fence = not in_fence
+            out.append(line)
+            continue
+        if in_fence:
+            out.append(line)
+            continue
+        text = line
+        if in_comment:
+            if "-->" not in text:
+                out.append("")
+                continue
+            text = text.split("-->", 1)[1]
+            in_comment = False
+        while "<!--" in text:
+            head, _, rest = text.partition("<!--")
+            if "-->" in rest:
+                text = head + rest.split("-->", 1)[1]
+            else:
+                text, in_comment = head, True
+        out.append(text)
+    return out
+
+
+def acceptance_bullets(lines: list[str]) -> list[dict]:
+    """The ✅ Acceptance bullets in `lines` (a plan's lines, frontmatter included
+    or not), in order, as {n, kind, label, text, state, date, evidence, line, end}:
+    `n` is the 1-based bullet number `accept --line` takes; `kind` is "guard" for a
+    `Fails …:` bullet, else "criterion"; `state` is "met" / "failed" / None (guards
+    are always None); `line` is the bullet's index in `lines` and `end` one past its
+    last non-blank line (continuations and markers included). Fenced code and HTML
+    comments are skipped. No Acceptance section → []."""
+    clean = _blank_comments(lines)
+    in_fence, start, level = False, None, 0
+    end = len(lines)
+    for i, line in enumerate(clean):
+        if _is_fence(line):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        hm = _HEADING_RE.match(line)
+        if not hm:
+            continue
+        if start is None:
+            if _norm_name(hm.group(2)).startswith(ACCEPTANCE_SECTION_KEY):
+                start, level = i + 1, len(hm.group(1))
+        elif len(hm.group(1)) <= level:
+            end = i
+            break
+    if start is None:
+        return []
+    out, in_fence = [], False
+    for i in range(start, end):
+        line = clean[i]
+        if _is_fence(line):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        bm = _TOP_BULLET_RE.match(line)
+        if bm:
+            raw = bm.group(1).strip()
+            lm = _LABEL_RE.match(raw)
+            label = lm.group(1).strip() if lm else None
+            out.append({"n": len(out) + 1,
+                        "kind": "guard" if label and _norm_name(label).startswith("fails")
+                        else "criterion",
+                        "label": label, "text": (lm.group(2) if lm else raw).strip(),
+                        "state": None, "date": None, "evidence": None,
+                        "line": i, "end": i + 1})
+            continue
+        if not out or not line.strip():
+            continue
+        if not line[:1].isspace() and not line.lstrip().startswith(">"):
+            continue                       # unindented prose after the list
+        cur = out[-1]
+        cur["end"] = i + 1
+        mm = ACCEPT_MARKER_RE.match(line)
+        if mm and cur["kind"] == "criterion":
+            cur["state"] = "met" if mm.group(1).lower() == "accepted" else "failed"
+            cur["date"], cur["evidence"] = mm.group(2), mm.group(3).strip() or None
+    return out
+
+
+def acceptance_summary(bullets: list[dict]) -> dict:
+    """{met, failed, total} over the criteria (guards excluded)."""
+    crit = [b for b in bullets if b["kind"] == "criterion"]
+    return {"met": sum(b["state"] == "met" for b in crit),
+            "failed": sum(b["state"] == "failed" for b in crit),
+            "total": len(crit)}
+
+
+def public_bullet(b: dict) -> dict:
+    """An acceptance bullet without its line bookkeeping (payload shape)."""
+    return {k: b[k] for k in ("n", "kind", "label", "text", "state", "date", "evidence")}

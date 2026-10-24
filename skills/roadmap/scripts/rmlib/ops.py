@@ -16,6 +16,7 @@ from rmlib.parse import (
     RULING_APPROVAL_TAG, RULINGS_HEADING, RULINGS_SECTION_KEY,
     STEP_RE, _HEADING_RE, _is_fence, _norm_name, _plan_path, count_progress,
     parse_plan, read_claim, required_sections, template_stubs)
+from rmlib.parse import ACCEPT_MARKER_RE, acceptance_bullets, public_bullet  # plan 43
 from rmlib.parse import FOUND_HEADING, FOUND_SECTION_KEY, meta_ids  # plan 47
 from rmlib.changelog import (
     demote_tells, item_audience, lint_note, status_tells)
@@ -131,6 +132,45 @@ def check_step(root: Path, plan_id: int, step: int | None,
     if not undo:
         _record_last_seen_sha(root)
         release_gate(root)
+
+
+def list_acceptance(root: Path, plan_id: int) -> list[dict]:
+    """The plan's acceptance bullets with their state (see acceptance_bullets)."""
+    lines = _plan_path(root, plan_id).read_text(encoding="utf-8").splitlines()
+    return [public_bullet(b) for b in acceptance_bullets(lines)]
+
+
+def accept(root: Path, plan_id: int, n: int, evidence: str,
+           fail: bool = False) -> dict:
+    """Mark acceptance bullet `n` met (or failed with `fail`) with `evidence`
+    (plan 43): writes `  > accepted: DATE evidence` (or `> failed:`) under the
+    bullet, replacing any earlier marker there. `Fails if:` guards are refused.
+    Returns the updated bullet."""
+    evidence = " ".join((evidence or "").split())
+    if not evidence:
+        raise ValueError('accept needs --evidence "<verify command + result>"')
+    path = _plan_path(root, plan_id)
+    lines = path.read_text(encoding="utf-8").splitlines()
+    bullets = acceptance_bullets(lines)
+    if not bullets:
+        raise ValueError(f"plan {plan_id} has no ✅ Acceptance bullets "
+                         f"({path.relative_to(root)})")
+    if not 1 <= n <= len(bullets):
+        raise ValueError(f"plan {plan_id} acceptance bullet {n} out of range "
+                         f"(1..{len(bullets)})")
+    b = bullets[n - 1]
+    if b["kind"] == "guard":
+        raise ValueError(f"plan {plan_id} acceptance bullet {n} is a "
+                         f"'{b['label']}' guard — guards are not marked")
+    span = [ln for ln in lines[b["line"] + 1:b["end"]] if not ACCEPT_MARKER_RE.match(ln)]
+    while span and not span[-1].strip():
+        span.pop()
+    word = "failed" if fail else "accepted"
+    marker = f"  > {word}: {datetime.date.today().isoformat()} {evidence}"
+    lines[b["line"] + 1:b["end"]] = [*span, marker]
+    atomic_write(path, "\n".join(lines) + "\n")
+    sync(root)
+    return list_acceptance(root, plan_id)[n - 1]
 
 
 def _apply_claim(text: str, claim: dict | None) -> str:

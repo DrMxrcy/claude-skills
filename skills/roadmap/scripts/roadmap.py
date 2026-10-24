@@ -39,6 +39,7 @@ from rmlib.ops import (  # noqa: E402
     import_file, merge_items, new_item,
     promote_idea, release, release_gate, remove_item, reorder, retarget,
     set_audience, set_claim, set_claims, set_depends, set_note, set_release_summary)
+from rmlib.ops import accept, list_acceptance  # noqa: E402  (plan 43)
 
 
 from rmlib.incubator import (  # noqa: E402
@@ -101,7 +102,8 @@ __all__ = [  # public facade: names re-exported for callers/tests/hooks (roadmap
     '_incomplete_items', '_refuse_status_note', 'backfill_changelog',
     'check_step', 'import_file', 'merge_items', 'new_item', 'promote_idea',
     'release', 'release_gate', 'remove_item', 'reorder', 'retarget', 'set_audience',
-    'set_depends', 'set_note', 'set_release_summary', 'DUPLICATE_RATIO',
+    'set_depends', 'set_note', 'set_release_summary', 'accept', 'list_acceptance',
+    'DUPLICATE_RATIO',
     'INCUBATOR_BULLET_RE', 'INCUBATOR_HEADING', 'INCUBATOR_RE',
     'MAX_BULLET_CHARS', 'MD_LINK_RE', '_freeform_lines',
     '_incubator_append', '_incubator_stub', '_norm_title',
@@ -240,6 +242,33 @@ def _run_cmd(root: Path, args, rids) -> int:
     return 0
 
 
+def _accept_cmd(root: Path, args, p_accept, rid) -> int:
+    """`accept ID [--line N --evidence E [--fail]] [--json]` (plan 43)."""
+    plan_id = rid(args.id)
+    if args.line is None:
+        if args.evidence or args.fail:
+            p_accept.error("--evidence/--fail need --line N")
+        bullets = list_acceptance(root, plan_id)
+        if args.as_json:
+            print(json.dumps(bullets))
+            return 0
+        if not bullets:
+            print(f"#{plan_id}: no ✅ Acceptance bullets")
+        for b in bullets:
+            state = "guard" if b["kind"] == "guard" else (b["state"] or "open")
+            label = f"{b['label']}: " if b["label"] else ""
+            print(f"{b['n']:>2}. [{state}] {label}{b['text']}")
+            if b["state"]:
+                print(f"      {b['date'] or ''} {b['evidence'] or ''}".rstrip())
+        return 0
+    b = accept(root, plan_id, args.line, args.evidence, fail=args.fail)
+    if args.as_json:
+        print(json.dumps(b))
+    else:
+        print(f"#{plan_id} acceptance {b['n']}: {b['state']} — {b['evidence']}")
+    return 0
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(prog="roadmap")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -353,6 +382,19 @@ def main(argv: list[str]) -> int:
                           help="who ruled (default: owner)")
     p_ruling.add_argument("--approval", action="store_true",
                           help="mark it as a sign-off (satisfies 'approval: required')")
+
+    p_accept = sub.add_parser(
+        "accept", help="mark a ✅ Acceptance bullet met (or --fail) with evidence; "
+                       "with no --line, list the bullets and their state")
+    p_accept.add_argument("id", help=ID_HELP)
+    p_accept.add_argument("--line", type=int, metavar="N",
+                          help="the bullet number (as `accept ID` lists them)")
+    p_accept.add_argument("--evidence",
+                          help="how it was verified (command + result); required "
+                               "with --line")
+    p_accept.add_argument("--fail", action="store_true",
+                          help="record a failure instead of a pass")
+    p_accept.add_argument("--json", action="store_true", dest="as_json")
 
     p_slot = sub.add_parser(
         "slot", help="reserve the next number of a numbered sequence (settings.slots, "
@@ -621,6 +663,8 @@ def main(argv: list[str]) -> int:
             print(add_ruling(root, rid(args.id), args.text, by=args.by,
                              approval=args.approval))
             return 0
+        if args.command == "accept":
+            return _accept_cmd(root, args, p_accept, rid)
         if args.command == "slot":
             return _slot_cmd(root, args, p_slot, rid)
         if args.command == "run":
