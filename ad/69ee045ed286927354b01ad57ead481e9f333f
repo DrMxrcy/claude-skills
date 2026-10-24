@@ -1,0 +1,27 @@
+skills/roadmap/SKILL.md
+  s_fbae122c7a65de::t_a9cd9040317568 305
+skills/roadmap/references/state-model.md
+  s_fbae122c7a65de::t_a35528042b6044 104-112
+skills/roadmap/scripts/rmlib/dashboard.html
+  s_fbae122c7a65de::t_ad2adb0937ef9c 307-310,487-488,577-578,961-974,1280-1281,1357-1369
+skills/roadmap/scripts/rmlib/dashboard.py
+  s_fbae122c7a65de::t_d7e7507facccca 152-165,538-540
+tests/test_roadmap_scope.py
+  s_fbae122c7a65de::t_7cfd5321e327b6 364-416
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ad69ee045ed286927354b01ad57ead481e9f333f",
+  "prompts": {},
+  "sessions": {
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
