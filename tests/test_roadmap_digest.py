@@ -170,3 +170,103 @@ def test_attention_flags_template_stubs_on_in_flight_items(roadmap, repo, monkey
     kinds = [(a["kind"], a.get("id")) for a in
              rmdigest.attention(repo, roadmap.status(repo))]
     assert ("stubs", 1) in kinds and ("stubs", 2) not in kinds   # 2 is only planned
+
+
+# --- step 2: `digest` command, md/json output, `--since last` stamp -----------
+
+def _section(text, heading):
+    """Rows printed under `heading` in the terminal digest."""
+    lines = text.splitlines()
+    start = next(i for i, l in enumerate(lines) if l.startswith(heading + " ("))
+    rows = []
+    for l in lines[start + 1:]:
+        if not l.startswith("  "):
+            break
+        rows.append(l.strip())
+    return rows
+
+
+def test_cli_digest_text_headings(roadmap, repo, monkeypatch, capsys):
+    _fixture(roadmap, repo, monkeypatch)
+    capsys.readouterr()
+    assert roadmap.main(["digest", "--since", "1d"]) == 0
+    out = capsys.readouterr().out
+    assert out.startswith("Digest: P — since ")
+    assert _section(out, "Completed") == ["FEAT-2 Item 2 (v0.0.1)"]
+    assert _section(out, "Claims moved") == ["FEAT-3 Item 3 — review → gate-ready"]
+    assert len(_section(out, "Stale or blocked")) == 1
+    assert _section(out, "Stale or blocked")[0].startswith("FEAT-4 Item 4 — stale (roadmap/4")
+    assert "New plans" not in out and "Ideas added" not in out
+
+
+def test_cli_digest_md_and_json(roadmap, repo, monkeypatch, capsys):
+    _fixture(roadmap, repo, monkeypatch)
+    capsys.readouterr()
+    assert roadmap.main(["digest", "--since", "1d", "--format", "md"]) == 0
+    md = capsys.readouterr().out
+    assert md.startswith("## Digest: P")
+    assert "### Completed (1)\n- FEAT-2 Item 2 (v0.0.1)" in md
+    assert "### Claims moved (1)\n- FEAT-3 Item 3 — review → gate-ready" in md
+    assert roadmap.main(["digest", "--since", "1d", "--json"]) == 0
+    d = json.loads(capsys.readouterr().out)
+    assert [c["id"] for c in d["completed"]] == [2]
+    assert d["label"] == "1d" and d["counts"]["claims"] == 1
+
+
+def test_since_last_covers_only_changes_after_previous_run(roadmap, repo, monkeypatch,
+                                                           capsys):
+    _fixture(roadmap, repo, monkeypatch)
+    capsys.readouterr()
+    assert roadmap.main(["digest", "--json"]) == 0           # first run: 1d fallback
+    first = json.loads(capsys.readouterr().out)
+    assert first["label"].startswith("1d") and [c["id"] for c in first["completed"]] == [2]
+    # A run with nothing new since: the stamp moved, so nothing repeats.
+    _commit(repo, "noise")
+    assert roadmap.main(["digest", "--since", "last", "--json"]) == 0
+    again = json.loads(capsys.readouterr().out)
+    assert again["label"] == "last run"
+    assert again["completed"] == [] and again["claims"] == [] and again["stalled"] == []
+    assert again["baseline"]["sha"] is None       # diffed against the stamped snapshot
+    # A change after the stamp shows up next time (committed a moment later).
+    roadmap.set_claim(repo, 5, stage="review", verdict="REFUTED")
+    _commit(repo, "claim 5", when=_now() + datetime.timedelta(seconds=2))
+    assert roadmap.main(["digest", "--since", "last", "--json"]) == 0
+    third = json.loads(capsys.readouterr().out)
+    assert [(c["id"], c["to"]["stage"]) for c in third["claims"]] == [(5, "review")]
+    # Uncommitted changes count once: seen by this run, gone from the next.
+    roadmap.set_claim(repo, 1, stage="review")
+    assert roadmap.main(["digest", "--json"]) == 0
+    assert [c["id"] for c in json.loads(capsys.readouterr().out)["claims"]] == [1]
+    assert roadmap.main(["digest", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["claims"] == []
+
+
+def test_digest_writes_nothing_git_tracks(roadmap, repo, monkeypatch, capsys):
+    _fixture(roadmap, repo, monkeypatch)
+    before = _git(repo, "status", "--porcelain")
+    assert before == ""
+    assert roadmap.main(["digest", "--since", "1d"]) == 0
+    assert roadmap.main(["digest"]) == 0
+    assert _git(repo, "status", "--porcelain", "--ignored") == ""
+    stamp = repo / ".git" / rmdigest.STAMP_FILE
+    data = json.loads(stamp.read_text())
+    assert list(data) == ["::t"] and "digest" in data["::t"]   # root prefix :: owner
+    assert rmdigest.read_stamp(repo, "digest", "t") is not None
+    assert rmdigest.read_stamp(repo, "digest", "someone-else") is None
+
+
+def test_stamp_is_shared_by_linked_worktrees(roadmap, repo, monkeypatch, tmp_path_factory):
+    _fixture(roadmap, repo, monkeypatch)
+    wt = tmp_path_factory.mktemp("wt") / "w"
+    _git(repo, "worktree", "add", "-q", str(wt), "roadmap/4")
+    assert rmdigest.stamp_path(wt).resolve() == (repo / ".git" / rmdigest.STAMP_FILE).resolve()
+    rmdigest.write_stamp(wt, "digest", "t")
+    assert rmdigest.read_stamp(repo, "digest", "t") is not None
+    assert _git(wt, "status", "--porcelain") == ""
+
+
+def test_bad_since_is_an_error(roadmap, repo, monkeypatch, capsys):
+    _fixture(roadmap, repo, monkeypatch)
+    assert roadmap.main(["digest", "--since", "soon"]) == 1
+    assert "bad --since" in capsys.readouterr().err
+

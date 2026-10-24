@@ -131,20 +131,38 @@ def _read_stamps(path: Path) -> dict:
     return data if isinstance(data, dict) else {}
 
 
+def _entry(root: Path, owner: str | None) -> dict:
+    path = stamp_path(root)
+    entry = _read_stamps(path).get(_stamp_key(root, owner)) if path else None
+    return entry if isinstance(entry, dict) else {}
+
+
 def read_stamp(root: Path, key: str = "digest",
                owner: str | None = None) -> datetime.datetime | None:
     """When this owner last ran digest (or orient, key="orient") here."""
-    path = stamp_path(root)
-    if path is None:
+    return _parse_iso(_entry(root, owner).get(key))
+
+
+def read_snapshot(root: Path, key: str = "digest",
+                  owner: str | None = None) -> dict | None:
+    """The state seen at that run (snapshot_now's shape, int ids), or None."""
+    snap = _entry(root, owner).get(key + "Snapshot")
+    if not isinstance(snap, dict) or not isinstance(snap.get("items"), dict):
         return None
-    entry = _read_stamps(path).get(_stamp_key(root, owner))
-    return _parse_iso(entry.get(key)) if isinstance(entry, dict) else None
+    try:
+        return {"items": {int(k): v for k, v in snap["items"].items()},
+                "ideas": list(snap.get("ideas") or [])}
+    except (TypeError, ValueError):
+        return None
 
 
 def write_stamp(root: Path, key: str = "digest", owner: str | None = None,
-                when: datetime.datetime | None = None) -> Path | None:
-    """Record `when` (default now) for this owner. Never raises; None when
-    there is no git dir to hold it (nothing is ever written in the tree)."""
+                when: datetime.datetime | None = None,
+                snapshot: dict | None = None) -> Path | None:
+    """Record `when` (default now) for this owner, and the state seen then
+    (`snapshot`), so the next `last` diffs against exactly what this run saw —
+    uncommitted changes included. Never raises; None when there is no git dir
+    to hold it (nothing is ever written in the tree)."""
     try:
         path = stamp_path(root)
         if path is None:
@@ -153,6 +171,10 @@ def write_stamp(root: Path, key: str = "digest", owner: str | None = None,
         entry = data.get(_stamp_key(root, owner))
         entry = entry if isinstance(entry, dict) else {}
         entry[key] = iso(when or rmowners.now())
+        if snapshot is not None:
+            entry[key + "Snapshot"] = snapshot
+        else:
+            entry.pop(key + "Snapshot", None)
         data[_stamp_key(root, owner)] = entry
         atomic_write(path, json.dumps(data, indent=2, sort_keys=True) + "\n")
         return path
@@ -435,9 +457,12 @@ def _new_branches(root: Path, cfg: dict, st: dict, since: datetime.datetime) -> 
 
 
 def collect(root: Path, since: datetime.datetime, *, now: datetime.datetime | None = None,
-            st: dict | None = None, conflicts: bool = False) -> dict:
+            st: dict | None = None, conflicts: bool = False,
+            base_snapshot: dict | None = None) -> dict:
     """The digest for [since, now]. `st` reuses a status payload in hand;
-    `conflicts` asks status for branch conflict risk (costly on a cold cache)."""
+    `conflicts` asks status for branch conflict risk (costly on a cold cache).
+    `base_snapshot` (the state a previous run saw) replaces the git baseline.
+    The result carries `_snapshot`, the state seen now, for the caller to stamp."""
     root = Path(root)
     now = _utc(now or rmowners.now())
     since = _utc(since)
@@ -445,43 +470,28 @@ def collect(root: Path, since: datetime.datetime, *, now: datetime.datetime | No
     if st is None:
         st = status(root, conflicts=conflicts)
     head = _git_text(root, "rev-parse", "--verify", "-q", "HEAD")
-    base = baseline_commit(root, since) if head else None
-    snap = baseline(root, base[0]) if base else {"items": {}, "ideas": []}
     history = bool(head)
+    if base_snapshot is not None and history:
+        snap, base_info = base_snapshot, {"sha": None, "date": iso(since)}
+    else:
+        base = baseline_commit(root, since) if head else None
+        snap = baseline(root, base[0]) if base else {"items": {}, "ideas": []}
+        base_info = {"sha": base[0][:7], "date": base[1]} if base else None
     out = {"project": st.get("project"), "since": iso(since), "until": iso(now),
-           "git": history,
-           "baseline": ({"sha": base[0][:7], "date": base[1]} if base else None)}
+           "git": history, "baseline": base_info}
+    seen: dict[int, dict] = {}
     completed, ticked, claims, stalled, new_plans = [], [], [], [], []
     stale_days = _stale_days(cfg)
     for it in st.get("items") or []:
         ref = {"id": it["id"], "displayId": it.get("displayId") or display_id(it),
                "title": it.get("title")}
-        was = snap["items"].get(it["id"])
         claim = it.get("claim") or {}
         stage, verdict = claim.get("stage"), claim.get("verdict")
-        if history:
-            if was is None:
-                new_plans.append({**ref, "type": it.get("type"), "version": it.get("version")})
-            then_steps = was["steps"] if was else []
-            then_done = bool(then_steps) and all(d for d, _ in then_steps)
-            if it.get("lane") == "done" and not then_done:
-                completed.append({**ref, "version": it.get("version")})
-            path = roadmap_dir(root) / it["file"]
-            now_steps = parse_plan(path)["steps"] if path.exists() else []
-            new = _newly_ticked(then_steps, now_steps)
-            if new:
-                ticked.append({**ref, "count": len(new), "steps": new,
-                               "done": it.get("done"), "total": it.get("total")})
-            if it.get("lane") != "done":
-                before = ((was or {}).get("stage"), (was or {}).get("verdict"))
-                became_blocked = stage == "blocked" and before[0] != "blocked"
-                if became_blocked:
-                    stalled.append({**ref, "reason": "blocked",
-                                    "detail": claim.get("note") or ""})
-                if (stage, verdict) != before and not (became_blocked
-                                                        and verdict == before[1]):
-                    claims.append({**ref, "from": {"stage": before[0], "verdict": before[1]},
-                                   "to": {"stage": stage, "verdict": verdict}})
+        path = roadmap_dir(root) / it["file"]
+        now_steps = parse_plan(path)["steps"] if path.exists() else []
+        seen[it["id"]] = {"title": it.get("title"), "version": it.get("version"),
+                          "type": it.get("type"), "steps": [list(x) for x in now_steps],
+                          "stage": stage, "verdict": verdict}
         branch = it.get("branch") or {}
         last = _parse_iso(branch.get("lastDate"))
         if it.get("lane") == "stale" and last is not None and \
@@ -489,6 +499,27 @@ def collect(root: Path, since: datetime.datetime, *, now: datetime.datetime | No
             stalled.append({**ref, "reason": "stale",
                             "detail": f"{branch.get('name')}, last commit "
                                       f"{(now - last).days}d ago"})
+        if not history:
+            continue
+        was = snap["items"].get(it["id"])
+        if was is None:
+            new_plans.append({**ref, "type": it.get("type"), "version": it.get("version")})
+        then_steps = (was or {}).get("steps") or []
+        if it.get("lane") == "done" and not (then_steps and all(d for d, _ in then_steps)):
+            completed.append({**ref, "version": it.get("version")})
+        new = _newly_ticked(then_steps, now_steps)
+        if new:
+            ticked.append({**ref, "count": len(new), "steps": new,
+                           "done": it.get("done"), "total": it.get("total")})
+        if it.get("lane") == "done":
+            continue                       # a done item's claim ends with it
+        before = ((was or {}).get("stage"), (was or {}).get("verdict"))
+        became_blocked = stage == "blocked" and before[0] != "blocked"
+        if became_blocked:
+            stalled.append({**ref, "reason": "blocked", "detail": claim.get("note") or ""})
+        if (stage, verdict) != before and not (became_blocked and verdict == before[1]):
+            claims.append({**ref, "from": {"stage": before[0], "verdict": before[1]},
+                           "to": {"stage": stage, "verdict": verdict}})
     runs = []
     try:
         for r in rmruns.read_runs(root)[0]:
@@ -497,13 +528,12 @@ def collect(root: Path, since: datetime.datetime, *, now: datetime.datetime | No
                 runs.append(r)
     except Exception:  # noqa: BLE001 — a broken run log never breaks the digest
         runs = []
+    now_ideas = [b["body"] for b in list_incubator_bullets(root)
+                 if b["body"] != IDEA_PLACEHOLDER]
     ideas = []
     if history:
         was_ideas = Counter(snap["ideas"])
-        for b in list_incubator_bullets(root):
-            body = b["body"]
-            if body == IDEA_PLACEHOLDER:
-                continue
+        for body in now_ideas:
             if was_ideas[body]:
                 was_ideas[body] -= 1
             else:
@@ -515,4 +545,163 @@ def collect(root: Path, since: datetime.datetime, *, now: datetime.datetime | No
                 "attention": attention(root, st, cfg)})
     out["counts"] = {k: len(out[k]) for k, _ in SECTIONS}
     out["counts"]["stepsTicked"] = sum(t["count"] for t in ticked)
+    out["_snapshot"] = {"items": seen, "ideas": now_ideas}
     return out
+
+
+# ---- output ------------------------------------------------------------------
+
+def _when(iso_text: str) -> str:
+    return iso_text.replace("T", " ")[:16] + "Z" if iso_text else "?"
+
+
+def _stage(s: str | None, empty: str) -> str:
+    return s or empty
+
+
+def _row(key: str, r: dict) -> str:
+    ref = _ref(r) if r.get("id") is not None else ""
+    if key == "completed":
+        return f"{ref} (v{r['version']})" if r.get("version") else ref
+    if key == "ticked":
+        n = r["count"]
+        return f"{ref} — +{n} step{'s' if n != 1 else ''} ({r['done']}/{r['total']})"
+    if key == "claims":
+        f, t = r["from"], r["to"]
+        parts = []
+        if f["stage"] != t["stage"]:
+            parts.append(f"{_stage(f['stage'], 'unclaimed')} → {_stage(t['stage'], 'cleared')}")
+        if f["verdict"] != t["verdict"]:
+            parts.append(f"verdict {_stage(f['verdict'], '—')} → {_stage(t['verdict'], '—')}")
+        return f"{ref} — {' · '.join(parts)}"
+    if key == "stalled":
+        return f"{ref} — {r['reason']}" + (f" ({r['detail']})" if r.get("detail") else "")
+    if key == "newPlans":
+        return f"{ref} [{r['type']}] → v{r['version']}"
+    if key == "newBranches":
+        who = f" ({_ref(r)})" if r.get("id") is not None else ""
+        return f"{r['name']}{who} · +{r['ahead']} since {_when(r['firstCommit'])}"
+    if key == "runs":
+        return rmruns.format_run(r).strip().splitlines()[0]
+    if key == "ideas":
+        return r["title"]
+    return r.get("text", "")
+
+
+def _runs_tally(runs: list[dict]) -> str:
+    c = Counter((r["kind"], r["result"]) for r in runs)
+    return ", ".join(f"{n} {k} {res}" for (k, res), n in sorted(c.items()))
+
+
+def format_digest(d: dict, md: bool = False) -> str:
+    """Terminal text, or Markdown for pasting into chat (`md`)."""
+    head = (f"Digest: {d.get('project')} — since {_when(d['since'])}"
+            + (f" ({d['label']})" if d.get("label") else "")
+            + (f" · baseline {d['baseline']['sha']}"
+               if (d.get("baseline") or {}).get("sha") else ""))
+    lines = [("## " if md else "") + head]
+    if not d.get("git"):
+        lines.append(("_" if md else "") + "not a git repo — only runs and attention "
+                     "can be reported" + ("_" if md else ""))
+    shown = 0
+    for key, title in SECTIONS:
+        rows = d.get(key) or []
+        if not rows:
+            continue
+        shown += 1
+        extra = f": {_runs_tally(rows)}" if key == "runs" else ""
+        if md:
+            lines += ["", f"### {title} ({len(rows)}){extra}"]
+            lines += [f"- {_row(key, r)}" for r in rows]
+        else:
+            lines.append(f"{title} ({len(rows)}){extra}")
+            mark = "⚠ " if key == "attention" else ""
+            lines += [f"  {mark}{_row(key, r)}" for r in rows]
+    if not shown:
+        lines += ([""] if md else []) + ["Nothing changed in the window."]
+    return "\n".join(lines)
+
+
+def summary_line(d: dict) -> str:
+    """`1 completed · 4 steps ticked · 2 claims moved ...` (empty: no changes)."""
+    c = d.get("counts") or {}
+    plural = lambda n, w: f"{n} {w}{'' if n == 1 else 's'}"
+    parts = [f"{c['completed']} completed" if c.get("completed") else "",
+             plural(c["stepsTicked"], "step") + " ticked" if c.get("stepsTicked") else "",
+             plural(c["claims"], "claim") + " moved" if c.get("claims") else "",
+             f"{c['stalled']} stale/blocked" if c.get("stalled") else "",
+             plural(c["newPlans"], "new plan") if c.get("newPlans") else "",
+             plural(c["newBranches"], "new branch").replace("branchs", "branches")
+             if c.get("newBranches") else "",
+             plural(c["runs"], "run") if c.get("runs") else "",
+             plural(c["ideas"], "idea") + " added" if c.get("ideas") else ""]
+    return " · ".join(p for p in parts if p)
+
+
+def digest(root: Path, since: str = "last", *, conflicts: bool = False,
+           owner: str | None = None, now: datetime.datetime | None = None,
+           record: bool = False) -> dict:
+    """Resolve `since` (incl. `last`), collect, and — when `record` — stamp the
+    window's end as this owner's last digest run (the CLI records; the
+    dashboard and tests do not)."""
+    return _run(root, since, "digest", owner, now, record, conflicts=conflicts)
+
+
+def _run(root: Path, since: str, key: str, owner: str | None,
+         now: datetime.datetime | None, record: bool, conflicts: bool = False) -> dict:
+    when, label = resolve_since(root, since, key, owner, now)
+    last = str(since).strip().lower() == "last" and label == "last run"
+    d = collect(root, when, now=now, conflicts=conflicts,
+                base_snapshot=read_snapshot(root, key, owner) if last else None)
+    snap = d.pop("_snapshot")
+    d["label"] = label
+    if record:
+        write_stamp(root, key, owner, _parse_iso(d["until"]), snapshot=snap)
+    return d
+
+
+# ---- orient (3 lines since the last session) -----------------------------------
+
+ORIENT_ATTENTION = 2          # attention items named on orient's line
+
+
+def orient_digest(root: Path, owner: str | None = None,
+                  now: datetime.datetime | None = None, record: bool = True) -> dict | None:
+    """Compact digest since this owner's previous orient (DEFAULT_SINCE the
+    first time), then — when `record` — restamp. None outside git or on any
+    trouble: orient runs from a SessionStart hook and must never fail."""
+    try:
+        if stamp_path(root) is None:
+            return None
+        d = _run(root, "last", "orient", owner, now, record)
+    except Exception:  # noqa: BLE001
+        return None
+    return {"since": d["since"], "until": d["until"],
+            "label": "last session" if d["label"] == "last run" else d["label"],
+            "summary": summary_line(d), "counts": d["counts"],
+            "attention": [a["text"] for a in d["attention"]]}
+
+
+def orient_lines(o: dict | None) -> list[str]:
+    """At most three lines: what changed, what needs attention, the command."""
+    if not o:
+        return []
+    since = o["since"]
+    try:
+        secs = int((_parse_iso(o["until"]) - _parse_iso(since)).total_seconds())
+    except TypeError:
+        secs = 0
+    ago = next((f"{secs // n}{u}" for u, n in (("w", 604800), ("d", 86400),
+                                               ("h", 3600), ("m", 60)) if secs >= n), "now")
+    head = f"Since {o['label']} ({ago} ago)" if o["label"] == "last session" \
+        else f"Since {o['label']}"
+    att = o.get("attention") or []
+    if not o.get("summary") and not att:
+        return [f"{head}: no roadmap changes"]
+    lines = [f"{head}: {o.get('summary') or 'no roadmap changes'}"]
+    if att:
+        more = len(att) - ORIENT_ATTENTION
+        lines.append(f"⚠ Needs attention ({len(att)}): " + " · ".join(att[:ORIENT_ATTENTION])
+                     + (f" · +{more} more" if more > 0 else ""))
+    lines.append(f"Details: roadmap.py digest --since {since}")
+    return lines

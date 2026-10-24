@@ -79,6 +79,7 @@ from rmlib import forecast as rmforecast  # noqa: E402  (plan 44: version foreca
 from rmlib import conflicts as rmconflicts  # noqa: E402  (plan 41: conflict risk)
 from rmlib import runs as rmruns  # noqa: E402  (plan 38: run log)
 from rmlib import owners as rmowners  # noqa: E402  (plan 40: claim owners, WIP limit)
+from rmlib import digest as rmdigest  # noqa: E402  (plan 45: digest since a time)
 
 
 __all__ = [  # public facade: names re-exported for callers/tests/hooks (roadmap.X)
@@ -451,6 +452,20 @@ def main(argv: list[str]) -> int:
 
     sub.add_parser("drift-check", help="nudge if commits landed without check-off")
 
+    p_digest = sub.add_parser(
+        "digest", help="what completed, moved, stalled and got blocked since a time, "
+                       "and what needs attention now (read-only)")
+    p_digest.add_argument("--since", default="last",
+                          help="3h | 1d | 2w | a date (2026-10-20) | an ISO time | "
+                               "last (default: since your previous digest run; "
+                               "1d the first time)")
+    p_digest.add_argument("--format", choices=["text", "md"], default="text",
+                          help="md: Markdown for pasting into chat")
+    p_digest.add_argument("--json", action="store_true", dest="as_json")
+    p_digest.add_argument("--conflicts", action="store_true",
+                          help="also flag high-risk branch conflicts (one git diff "
+                               "per open branch on a cold cache)")
+
     p_promote = sub.add_parser("promote", help="lift an Idea Incubator bullet into a plan")
     p_promote.add_argument("--match", help="substring match against incubator bullet title")
     p_promote.add_argument("--index", type=int, help="1-based index into incubator bullets")
@@ -764,6 +779,12 @@ def main(argv: list[str]) -> int:
             msg = drift_check(root)
             if msg:
                 print(msg)
+            return 0
+        if args.command == "digest":                            # plan 45
+            d = rmdigest.digest(root, args.since, conflicts=args.conflicts,
+                                owner=rmowners.default_owner(root), record=True)
+            print(json.dumps(d, indent=2) if args.as_json
+                  else rmdigest.format_digest(d, md=args.format == "md"))
             return 0
         if args.command == "deps-check":
             plan_id = rid(args.plan)
