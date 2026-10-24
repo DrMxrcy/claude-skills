@@ -76,9 +76,9 @@
 - Risk: `high` = `git merge-tree --write-tree` (git >= 2.38) reports a conflict between the two tips (`conflictFiles`); `low` = shared files but the tips merge cleanly; `medium` = file overlap only (older git, or merge-tree could not decide). Pairs sort high first, then most shared files. Two branches landed in the same integration branch are skipped (already merged together there).
 - Suggested merge order: items with no overlaps first, then fewest overlaps, then fewest high-risk ones, then id.
 - Read-only: merge-tree runs in memory and writes only loose objects — no branch, index, worktree or HEAD changes.
-- JSON: `status(root, conflicts=True)` adds top-level `conflicts` = `{mergeTree, checked, unknown, pairs, counts, order}`; each pair is `{a, b, risk, files, fileCount, conflictFiles}` with `a`/`b` = `{id, displayId, title, branch}`. Plain `status` / `status --json` leave `conflicts` out.
+- JSON: `status(root, conflicts=True)` adds top-level `conflicts` = `{mergeTree, checked, unknown, pairs, counts, order}`; each pair is `{a, b, risk, files, fileCount, conflictFiles}` with `a`/`b` = `{id, displayId, title, branch, items}`. Items sharing one branch are one node (`items` lists every id on it, `id` is the lowest), so an integration branch carrying many landed items is one merge, not N pairs. Plain `status` / `status --json` leave `conflicts` out.
 - Dashboard: a collapsible **conflicts** panel (pairs by risk plus the merge order), and each plan page lists the items it overlaps with.
-- Cost: changed files are cached on (trunk tip, branch tip) and merge results on the two tips, so unchanged refs run no git call and a moved tip recomputes only that branch and its pairs. `rmlib.conflicts.changed_files(root, branch)` exposes the cached per-branch list.
+- Cost: changed files are cached on (trunk tip, branch tip) and merge results on the two tips, so unchanged refs run no git call and a moved tip recomputes only that branch and its pairs. Cold work runs up to 8 git calls in parallel. `rmlib.conflicts.changed_files(root, branch, base=None)` exposes the cached per-branch list (`base` = diff from another branch instead of trunk, for a branch's own work).
 
 ## Invariants
 - Never hand-edit the managed region of ROADMAP.md; run `sync`.

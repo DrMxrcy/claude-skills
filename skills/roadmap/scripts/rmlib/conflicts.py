@@ -21,10 +21,12 @@ from __future__ import annotations
 import re
 import subprocess
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from rmlib import branches as rmbranches
 
 MAX_FILES = 10            # shared files shown per pair
+WORKERS = 8               # parallel git calls on a cold cache
 _CACHE_MAX = 4096         # per-dict entry cap; oldest evicted first
 RISKS = ("high", "medium", "low")
 _RANK = {r: i for i, r in enumerate(RISKS)}
@@ -92,21 +94,24 @@ def changed_files_at(root: Path, trunk_sha: str, tip_sha: str) -> list[str] | No
 
 
 def changed_files(root: Path, branch: str, trunk: str | None = None,
-                  integration=None) -> list[str] | None:
+                  integration=None, base: str | None = None) -> list[str] | None:
     """Files local `branch` changes vs trunk (default: main/master, as in
     rmbranches.discover) — the per-branch list plan 41 caches, for reuse
-    (plan 42 scope drift). Costs the cached ref scan (one for-each-ref) plus
-    one `git diff` only when the branch or trunk tip moved. None when the
-    branch or trunk is unknown, or on git trouble."""
+    (plan 42 scope drift). `base` names another local branch to diff from
+    instead (`base...branch`: only the work since it forked from that base,
+    e.g. a branch cut from an integration branch). Costs the cached ref scan
+    (one for-each-ref) plus one `git diff` only when a tip moved. None when
+    a branch or the trunk is unknown, or on git trouble."""
     scanned = rmbranches._scan_cached(Path(root), trunk, integration)
     if scanned is None:
         return None
-    _, data = scanned
-    trunk_sha = data.get("trunkSha")
-    tip = next((b["sha"] for b in data["branches"] if b["name"] == branch), None)
-    if not trunk_sha or not tip:
+    resolved, data = scanned
+    tips = {b["name"]: b["sha"] for b in data["branches"]}
+    tips[resolved] = data.get("trunkSha")
+    frm, tip = tips.get(base or resolved), tips.get(branch)
+    if not frm or not tip:
         return None
-    return changed_files_at(Path(root), trunk_sha, tip)
+    return changed_files_at(Path(root), frm, tip)
 
 
 def merge_conflicts(root: Path, sha_a: str, sha_b: str) -> list[str] | None:
@@ -133,21 +138,47 @@ def merge_conflicts(root: Path, sha_a: str, sha_b: str) -> list[str] | None:
 
 
 def _who(c: dict) -> dict:
-    return {k: c[k] for k in ("id", "displayId", "title", "branch")}
+    return {k: c[k] for k in ("id", "displayId", "title", "branch", "items")}
+
+
+def _each(fn, jobs: list) -> list:
+    """fn over jobs; uncached git work fans out over a small thread pool
+    (a lone job runs inline)."""
+    if len(jobs) < 2:
+        return [fn(j) for j in jobs]
+    with ThreadPoolExecutor(max_workers=min(WORKERS, len(jobs))) as ex:
+        return list(ex.map(fn, jobs))
+
+
+def _group(candidates: list[dict]) -> list[dict]:
+    """One node per branch: items sharing a branch (an integration branch
+    carrying many landed items, say) are one merge, not N pairwise ones.
+    The node takes the lowest item id; `items` lists every id on it."""
+    nodes: dict[str, dict] = {}
+    for c in sorted(candidates, key=lambda c: c["id"]):
+        n = nodes.get(c["branch"])
+        if n is None:
+            nodes[c["branch"]] = {**c, "items": [c["id"]]}
+        else:
+            n["items"].append(c["id"])
+    return list(nodes.values())
 
 
 def overlaps(root: Path, trunk_sha: str | None, candidates: list[dict],
              max_files: int = MAX_FILES) -> dict:
     """Overlap report for `candidates`: [{id, displayId, title, branch, sha,
-    landedIn}] — one open branch per item. Returns
+    landedIn}] — each item with its open branch; items on the same branch are
+    one node (`items` = every id on it, `id` the lowest). Returns
     {"mergeTree", "checked", "unknown", "pairs", "counts", "order"}:
+      checked — branches whose changed files were read
       pairs   — {a, b, risk, files (<= max_files), fileCount, conflictFiles},
                 high first, then most shared files
-      order   — every checked item, no overlaps first, then fewest overlaps
-                (then fewest high-risk ones, then id): a suggested merge order
+      order   — every checked branch node, no overlaps first, then fewest
+                overlaps (then fewest high-risk ones, then id): a suggested
+                merge order
       unknown — branches whose changed files could not be read
     Two branches that landed in the same integration branch are skipped
-    (their conflicts were already resolved there), as are two items on the
+    (their conflicts were already resolved there), as are two branches on the
     same tip. Never raises; no trunk sha means an empty report."""
     root = Path(root)
     supported = merge_tree_supported()
@@ -155,16 +186,18 @@ def overlaps(root: Path, trunk_sha: str | None, candidates: list[dict],
            "counts": {r: 0 for r in RISKS}, "order": []}
     if not trunk_sha:
         return out
+    nodes = _group(candidates)
+    got = _each(lambda c: changed_files_at(root, trunk_sha, c["sha"])
+                if c.get("sha") else None, nodes)
     files: dict[int, set[str]] = {}
     checked: list[dict] = []
-    for c in candidates:
-        got = changed_files_at(root, trunk_sha, c["sha"]) if c.get("sha") else None
-        if got is None:
+    for c, f in zip(nodes, got):
+        if f is None:
             out["unknown"].append(c["branch"])
             continue
-        files[c["id"]] = set(got)
+        files[c["id"]] = set(f)
         checked.append(c)
-    pairs = []
+    overlapping = []
     for i, a in enumerate(checked):
         for b in checked[i + 1:]:
             if a["sha"] == b["sha"]:
@@ -172,13 +205,16 @@ def overlaps(root: Path, trunk_sha: str | None, candidates: list[dict],
             if a.get("landedIn") and a.get("landedIn") == b.get("landedIn"):
                 continue
             shared = sorted(files[a["id"]] & files[b["id"]])
-            if not shared:
-                continue
-            hit = merge_conflicts(root, a["sha"], b["sha"]) if supported else None
-            risk = "medium" if hit is None else ("high" if hit else "low")
-            pairs.append({"a": _who(a), "b": _who(b), "risk": risk,
-                          "files": shared[:max_files], "fileCount": len(shared),
-                          "conflictFiles": (hit or [])[:max_files]})
+            if shared:
+                overlapping.append((a, b, shared))
+    hits = (_each(lambda ab: merge_conflicts(root, ab[0]["sha"], ab[1]["sha"]),
+                  overlapping) if supported else [None] * len(overlapping))
+    pairs = []
+    for (a, b, shared), hit in zip(overlapping, hits):
+        risk = "medium" if hit is None else ("high" if hit else "low")
+        pairs.append({"a": _who(a), "b": _who(b), "risk": risk,
+                      "files": shared[:max_files], "fileCount": len(shared),
+                      "conflictFiles": (hit or [])[:max_files]})
     pairs.sort(key=lambda p: (_RANK[p["risk"]], -p["fileCount"],
                               p["a"]["id"], p["b"]["id"]))
     tally: dict[int, list[int]] = {c["id"]: [0, 0] for c in checked}
@@ -204,11 +240,16 @@ def format_conflicts(rep: dict | None) -> str:
     pairs = rep.get("pairs") or []
     mode = ("merge-tree check" if rep.get("mergeTree")
             else "file overlap only (git < 2.38: no merge-tree)")
-    lines = [f"conflicts: {rep.get('checked', 0)} open branches · "
-             f"{len(pairs)} overlapping pairs · {counts.get('high', 0)} high · "
+    lines = [f"conflicts: {rep.get('checked', 0)} open item branches · "
+             f"{len(pairs)} overlapping pair{'s' if len(pairs) != 1 else ''} · "
+             f"{counts.get('high', 0)} high · "
              f"{counts.get('medium', 0)} medium · {counts.get('low', 0)} low"
              f" — {mode}"]
-    tag = lambda w: f"{w['displayId'] or '#' + str(w['id'])} ({w['branch']})"
+    def tag(w: dict) -> str:
+        more = len(w.get("items") or []) - 1
+        return (f"{w['displayId'] or '#' + str(w['id'])}"
+                f"{f' +{more}' if more > 0 else ''} ({w['branch']})")
+
     for p in pairs:
         more = p["fileCount"] - len(p["files"])
         shown = ", ".join(p["files"]) + (f", +{more} more" if more > 0 else "")
@@ -225,6 +266,5 @@ def format_conflicts(rep: dict | None) -> str:
             note = ("no overlaps" if not o["overlaps"] else
                     f"{o['overlaps']} overlap{'s' if o['overlaps'] != 1 else ''}"
                     + (f", {o['high']} high" if o["high"] else ""))
-            lines.append(f"  {n}. {o['displayId'] or '#' + str(o['id'])} "
-                         f"{o['title']} ({o['branch']}) — {note}")
+            lines.append(f"  {n}. {tag(o)} {o['title']} — {note}")
     return "\n".join(lines)

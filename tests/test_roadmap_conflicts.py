@@ -77,6 +77,13 @@ def test_changed_files_vs_trunk(cf, repo, abc):
     assert cf.changed_files(repo, "C") == ["y.py"]
     assert cf.changed_files(repo, "nope") is None
     assert cf.changed_files_at(repo, abc["main"], abc["B"]) == ["x.py"]
+    # stacked: E cut from A sees x.py vs trunk, only its own z.py vs A
+    _git(repo, "checkout", "-qb", "E", "A")
+    _commit_files(repo, "E work", z__py="z\n")
+    _git(repo, "checkout", "-q", "main")
+    assert cf.changed_files(repo, "E") == ["x.py", "z.py"]
+    assert cf.changed_files(repo, "E", base="A") == ["z.py"]
+    assert cf.changed_files(repo, "E", base="nope") is None
 
 
 def test_same_lines_is_high_and_lone_branch_leads_order(cf, repo, abc):
@@ -134,10 +141,10 @@ def test_cached_on_tips_no_git_when_unchanged(cf, repo, abc, monkeypatch):
     first = cf.overlaps(repo, abc["main"], cands)
     calls = []
     real = subprocess.run
-    me = threading.current_thread()
 
     def counting(cmd, *a, **k):
-        if cmd and cmd[0] == "git" and threading.current_thread() is me:
+        # any thread (the cold path fans out), but only git calls on this repo
+        if cmd and cmd[0] == "git" and str(repo) in cmd:
             calls.append(cmd)
         return real(cmd, *a, **k)
 
@@ -264,4 +271,63 @@ def test_status_conflicts_outside_git(roadmap, tmp_path, monkeypatch, capsys):
     roadmap.main(["init", "--name", "Demo"])
     capsys.readouterr()
     assert roadmap.main(["status", "--conflicts"]) == 0
-    assert "0 open branches" in capsys.readouterr().out
+    assert "0 open item branches" in capsys.readouterr().out
+
+
+def test_items_sharing_a_branch_are_one_node(cf, repo, abc):
+    cands = _cands(abc, "A", "B", "C")
+    cands.append({"id": 9, "displayId": "F9", "title": "also on A", "branch": "A",
+                  "sha": abc["A"], "landedIn": None})
+    rep = cf.overlaps(repo, abc["main"], cands)
+    assert rep["checked"] == 3 and len(rep["pairs"]) == 1
+    a = next(w for w in (rep["pairs"][0]["a"], rep["pairs"][0]["b"]) if w["branch"] == "A")
+    assert a["id"] == 1 and a["items"] == [1, 9]
+    assert "F1 +1 (A)" in cf.format_conflicts(rep)
+
+
+# --- dashboard panel and plan-page overlaps (step 3) ------------------------
+
+def test_dashboard_payload_carries_conflicts(roadmap, dashboard, items3):
+    bc = dashboard._Broadcaster(roadmap._dashboard_api(), items3)
+    payload = json.loads(bc.snapshot()[1])
+    rep = payload["conflicts"]
+    assert rep["counts"]["high"] == 1
+    assert {rep["pairs"][0]["a"]["id"], rep["pairs"][0]["b"]["id"]} == {1, 2}
+    assert rep["order"][0]["id"] == 3
+
+
+def test_dashboard_unchanged_refs_tick_runs_no_extra_git(roadmap, dashboard,
+                                                         items3, monkeypatch):
+    bc = dashboard._Broadcaster(roadmap._dashboard_api(), items3)
+    calls = []
+    real = subprocess.run
+    me = threading.current_thread()
+
+    def counting(cmd, *a, **k):
+        if cmd and cmd[0] == "git" and threading.current_thread() is me:
+            calls.append(cmd)
+        return real(cmd, *a, **k)
+
+    monkeypatch.setattr(subprocess, "run", counting)
+    bc._tick()
+    # the refs signature only: no diff, no merge-tree, no status rebuild
+    assert len(calls) == 1 and "for-each-ref" in calls[0]
+    # A rebuild with unchanged tips reuses every cached diff and merge-tree.
+    calls.clear()
+    bc._dump()
+    assert not [c for c in calls if "diff" in c or "merge-tree" in c]
+
+
+def test_dashboard_without_conflicts_hook_omits_panel(roadmap, dashboard, items3):
+    api = roadmap._dashboard_api()
+    del api.conflicts_payload
+    payload = json.loads(dashboard._Broadcaster(api, items3).snapshot()[1])
+    assert "conflicts" not in payload
+
+
+def test_dashboard_html_has_conflict_hooks(dashboard):
+    body = dashboard._dashboard_html()
+    for hook in ("conflictsPanel(d.conflicts)", "overlapsOf(d.id)",
+                 'fact(facts, "overlaps"', "conflicts: P.conflicts", "r-high"):
+        assert hook in body, hook
+    assert ".innerHTML" not in body and "insertAdjacentHTML" not in body

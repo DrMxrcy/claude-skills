@@ -258,6 +258,23 @@
   .wtr .unsafe { color:var(--muted); }
   .wtcmd { grid-column:1 / -1; font:11px ui-monospace, SFMono-Regular, Menlo,
     monospace; color:var(--muted); user-select:all; overflow-wrap:anywhere; }
+  /* ---- conflict risk (plan 41): open branches changing the same files -- */
+  .ver-head.cf-high h2, .ver-head.cf-high .vpct { color:var(--blocked); }
+  .cfr { display:grid; grid-template-columns:auto minmax(0,1fr) minmax(0,2fr);
+    gap:10px; align-items:baseline; font-size:12px; padding:5px 0;
+    border-top:1px solid var(--line); }
+  .cffiles, .cfo .cff { color:var(--muted); overflow-wrap:anywhere;
+    font:11px ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .risk { border:1px solid var(--line); border-radius:4px; padding:0 6px;
+    font-size:11px; }
+  .risk.r-high { color:var(--blocked); border-color:var(--blocked); font-weight:600; }
+  .risk.r-medium { color:var(--active); border-color:var(--active); }
+  .risk.r-low { color:var(--muted); }
+  .cforder { display:flex; gap:8px; flex-wrap:wrap; align-items:baseline;
+    font-size:12px; padding:6px 0; border-top:1px solid var(--line); }
+  .cforder .muted { color:var(--muted); }
+  .cfo { display:inline-flex; gap:6px; align-items:baseline; flex-wrap:wrap;
+    margin-right:10px; }
   /* ---- rulings (plan 34): dated decisions, approvals flagged ------------ */
   .rulings { margin-top:8px; display:flex; flex-direction:column; gap:4px; }
   .rulings h4 { margin:0 0 2px; font-size:12px; color:var(--muted); font-weight:600; }
@@ -428,7 +445,7 @@ function view(P){
   const st = VIEW === "all" ? (P.merged || {})
     : (P.statuses || [P.merged || {}])[VIEW === "trunk" ? trunkIdx(P) : VIEW]
       || P.merged || {};
-  return {...st, _roots: P._roots, worktrees: P.worktrees};
+  return {...st, _roots: P._roots, worktrees: P.worktrees, conflicts: P.conflicts};
 }
 // Checkout index the item/ideas/changelog endpoints should read.
 const viewRoot = it => VIEW === "all"
@@ -829,6 +846,77 @@ function worktreePanel(w){
   return [sec];
 }
 
+// Branch conflict risk (plan 41): open item branches changing the same
+// files — high (git merge-tree finds a conflict) first — then the suggested
+// merge order. The same in every view; red header while any pair is high.
+function conflictsPanel(c){
+  if(!c || !(c.pairs||[]).length) return [];
+  const KEY = "__conflicts";
+  const n = c.counts || {};
+  const sec = el("section","ver-group cfmap");
+  if(!(prefs[KEY])) sec.classList.add("collapsed");
+  const head = el("div","ver-head"+(n.high ? " cf-high" : ""));
+  head.appendChild(txt("span","chev","▾"));
+  head.appendChild(txt("h2",null,"conflicts"));
+  const sum = txt("span","vpct", c.pairs.length+" overlapping · "+(n.high||0)+" high");
+  sum.title = c.mergeTree ? "checked with git merge-tree"
+    : "file overlap only (git < 2.38: no merge-tree)";
+  head.appendChild(sum);
+  head.onclick = () => {
+    sec.classList.toggle("collapsed");
+    prefs[KEY] = !sec.classList.contains("collapsed");
+    savePrefs();
+  };
+  sec.appendChild(head);
+  const box = el("div","items");
+  // A branch carrying several items is one node: "FEAT-1 +3".
+  const tag = w => (w.displayId || "#"+w.id)
+    + ((w.items||[]).length > 1 ? " +"+(w.items.length-1) : "");
+  for(const p of c.pairs){
+    const row = el("div","cfr");
+    row.appendChild(txt("span","risk r-"+p.risk, p.risk));
+    const who = el("span","wit");
+    const a = link("#/plan/"+p.a.id, tag(p.a)); a.title = p.a.title+" ("+p.a.branch+")";
+    const b = link("#/plan/"+p.b.id, tag(p.b)); b.title = p.b.title+" ("+p.b.branch+")";
+    who.append(a, txt("span","muted","↔"), b);
+    row.appendChild(who);
+    const more = (p.fileCount||0) - (p.files||[]).length;
+    const f = txt("span","cffiles", (p.files||[]).join(", ")+(more > 0 ? " +"+more+" more" : ""));
+    if(p.conflictFiles && p.conflictFiles.length)
+      f.title = "conflicts: "+p.conflictFiles.join(", ");
+    row.appendChild(f);
+    box.appendChild(row);
+  }
+  const order = c.order || [];
+  if(order.length){
+    const o = el("div","cforder");
+    o.appendChild(txt("span","muted","merge order"));
+    order.forEach((x, i) => {
+      const a = link("#/plan/"+x.id, (i+1)+". "+tag(x));
+      a.title = x.title+" — "+(x.overlaps ? x.overlaps+" overlap"+(x.overlaps > 1 ? "s" : "")
+        +(x.high ? ", "+x.high+" high" : "") : "no overlaps");
+      o.appendChild(a);
+    });
+    box.appendChild(o);
+  }
+  sec.appendChild(box);
+  return [sec];
+}
+// The items a plan's branch overlaps with (plan page "overlaps" fact).
+function overlapsOf(id){
+  const pairs = (LAST && LAST.conflicts && LAST.conflicts.pairs) || [];
+  const on = (w, id) => (w.items || [w.id]).includes(id);
+  return pairs.filter(p => on(p.a, id) || on(p.b, id)).map(p => {
+    const o = on(p.a, id) ? p.b : p.a;
+    const s = el("span","cfo");
+    s.appendChild(txt("span","risk r-"+p.risk, p.risk));
+    s.appendChild(link("#/plan/"+o.id, o.displayId || "#"+o.id));
+    const more = (p.fileCount||0) - (p.files||[]).length;
+    s.appendChild(txt("span","cff", (p.files||[]).join(", ")+(more > 0 ? " +"+more+" more" : "")));
+    return s;
+  });
+}
+
 function render(d){
   LAST = d;
   syncRootSel(d);
@@ -869,7 +957,7 @@ function render(d){
   const app = document.getElementById("app");
   const others = Array.isArray(d.otherBranches) ? d.otherBranches : [];
   const tail = [...(others.length ? [otherSection(others)] : []),
-    ...worktreePanel(d.worktrees)];
+    ...conflictsPanel(d.conflicts), ...worktreePanel(d.worktrees)];
   const head = [...slotStrip(d.slots), ...runPanel(d)];
   if(!items.length){
     app.replaceChildren(...head, txt("div","empty", d.error||"no roadmap items yet"), ...tail);
@@ -1131,6 +1219,7 @@ function planPage(r){
         s.appendChild(document.createTextNode(" ")); }
       fact(facts, "blocked", s);
     }
+    fact(facts, "overlaps", ...overlapsOf(d.id));
     const b = d.branch;
     if(b) fact(facts, "branch", b.name, b.ahead ? "+"+b.ahead+" ahead" : "",
       b.behind ? "-"+b.behind+" behind" : "", b.merged ? "merged" : "",
