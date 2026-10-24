@@ -16,7 +16,10 @@ FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---\n", re.DOTALL)
 # changelog and gate reads it as open; its date/reason live in `waiting`. The marker
 # is stripped from the step text. `[~]` without a marker is waiting with no date.
 WAIT_BOX = "~"
-WAIT_RE = re.compile(r"\s*\(waiting until (\d{4}-\d{2}-\d{2})(?::\s*(.*?))?\)\s*$")
+# Plan 53: `until` may carry a UTC time of day (`2026-10-25T14:00Z`) when the
+# wait was given in hours (`--until 24h`); date-only markers read as before.
+WAIT_UNTIL = r"\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}Z)?"
+WAIT_RE = re.compile(rf"\s*\(waiting until ({WAIT_UNTIL})(?::\s*(.*?))?\)\s*$")
 
 
 def split_wait_marker(text: str) -> tuple[str, str | None, str | None]:

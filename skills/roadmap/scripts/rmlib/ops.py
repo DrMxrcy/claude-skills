@@ -219,22 +219,34 @@ def accept(root: Path, plan_id: int, n: int, evidence: str,
     return list_acceptance(root, plan_id)[n - 1]
 
 
-_REL_UNTIL_RE = re.compile(r"^(\d+)\s*([dw])$", re.IGNORECASE)
+_REL_UNTIL_RE = re.compile(r"^(\d+)\s*([dwh])$", re.IGNORECASE)
+_AT_UNTIL_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}Z$")
+UNTIL_AT_FMT = "%Y-%m-%dT%H:%MZ"      # plan 53: an hours wait's due time (UTC)
 
 
-def parse_until(value: str, today: datetime.date | None = None) -> str:
-    """`2026-10-30` or a relative `7d` / `2w` (from today) → ISO date string."""
+def parse_until(value: str, today: datetime.date | None = None,
+                now: datetime.datetime | None = None) -> str:
+    """`2026-10-30` or a relative `7d` / `2w` (from today) → ISO date string.
+    Hours (plan 53): `24h` (from `now`, UTC) or an explicit `2026-10-30T14:00Z`
+    → a UTC due time `YYYY-MM-DDTHH:MMZ` (to the minute)."""
     today = today or datetime.date.today()
     v = (value or "").strip()
     rel = _REL_UNTIL_RE.match(v)
+    if rel and rel.group(2).lower() == "h":
+        now = now or datetime.datetime.now(datetime.timezone.utc)
+        due = now.astimezone(datetime.timezone.utc) + datetime.timedelta(
+            hours=int(rel.group(1)))
+        return due.strftime(UNTIL_AT_FMT)
     if rel:
         days = int(rel.group(1)) * (7 if rel.group(2).lower() == "w" else 1)
         return (today + datetime.timedelta(days=days)).isoformat()
     try:
+        if _AT_UNTIL_RE.match(v):
+            return datetime.datetime.strptime(v, UNTIL_AT_FMT).strftime(UNTIL_AT_FMT)
         return datetime.date.fromisoformat(v).isoformat()
     except ValueError:
-        raise ValueError(f"--until {value!r}: use a date (2026-10-30) or a "
-                         f"relative span (7d, 2w)") from None
+        raise ValueError(f"--until {value!r}: use a date (2026-10-30), a UTC time "
+                         f"(2026-10-30T14:00Z) or a relative span (24h, 7d, 2w)") from None
 
 
 def wait_step(root: Path, plan_id: int, step: int, until: str | None = None,

@@ -21,7 +21,7 @@ from rmlib.sync import (  # noqa: E402
     _version_complete, incomplete_deps, next_item, render_region,
     roadmap_health, status, sync, uncut_complete_version,
     derive_lane, is_in_flight, lane_counts, lane_label,
-    countdown, due_waiting, format_due,
+    countdown, due_waiting, format_due, wait_left,
     format_worktrees, worktree_payload, conflicts_payload,
     scope_drift_payload, format_scope_drift,
     warn_incomplete_deps, MAX_ROADMAP_LINES,
@@ -99,7 +99,7 @@ __all__ = [  # public facade: names re-exported for callers/tests/hooks (roadmap
     '_progress_map', '_version_complete', 'incomplete_deps', 'next_item',
     'render_region', 'roadmap_health', 'status', 'sync',
     'derive_lane', 'is_in_flight', 'lane_counts', 'lane_label',
-    'countdown', 'due_waiting', 'format_due',
+    'countdown', 'due_waiting', 'format_due', 'wait_left',
     'format_worktrees', 'worktree_payload', 'conflicts_payload', 'scope_drift_payload', 'format_scope_drift', 'uncut_complete_version', 'warn_incomplete_deps', 'MAX_ROADMAP_LINES', 'MAX_FREEFORM_LINES',
     'MAX_FREEFORM_CHARS', 'STEP_RE', '_is_fence', 'parse_plan',
     'count_progress', '_plan_path', 'CLAIM_STAGES', 'CLAIM_VERDICTS',
@@ -375,7 +375,8 @@ def main(argv: list[str]) -> int:
                      "are ticked; `check --step N` ticks it once verified")
     p_wait.add_argument("plan", help=ID_HELP)
     p_wait.add_argument("--step", type=int, required=True)
-    p_wait.add_argument("--until", help="due date: 2026-10-30, or relative 7d / 2w")
+    p_wait.add_argument("--until", help="due date: 2026-10-30, a UTC time "
+                                        "2026-10-30T14:00Z, or relative 24h / 7d / 2w")
     p_wait.add_argument("--reason", help="what is being waited on (e.g. soak)")
     p_wait.add_argument("--clear", action="store_true",
                         help="end the wait: the step goes back to unticked")

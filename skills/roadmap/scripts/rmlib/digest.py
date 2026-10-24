@@ -32,7 +32,7 @@ from rmlib.core import atomic_write, display_id, read_config, roadmap_dir
 from rmlib.parse import (
     FRONTMATTER_RE, STEP_RE, _is_fence, parse_plan, required_sections,
     template_stubs)
-from rmlib.sync import status
+from rmlib.sync import countdown, status
 from rmlib.incubator import (
     INCUBATOR_BULLET_RE, INCUBATOR_RE, bullet_title, incubator_file,
     list_incubator_bullets)
@@ -330,9 +330,12 @@ def _att_waiting(ctx: dict) -> list[dict]:
     """Waiting steps due today or overdue (plan 46's `waitingDue`)."""
     out = []
     for d in ctx["st"].get("waitingDue") or []:
-        left = d.get("daysLeft")
-        when = ("due today" if not left else f"{-left}d overdue") \
-            if isinstance(left, int) else "due"
+        left, hours = d.get("daysLeft"), d.get("hoursLeft")
+        if isinstance(hours, int):           # plan 53: due at a time of day
+            when = "due now" if hours >= 0 else countdown(left, hours)
+        else:
+            when = ("due today" if not left else f"{-left}d overdue") \
+                if isinstance(left, int) else "due"
         out.append({"kind": "waiting", "id": d.get("id"), "displayId": d.get("displayId"),
                     "text": f"{_ref(d)} — step {d.get('step')} waiting, {when}"
                             + (f" ({d['reason']})" if d.get("reason") else "")})

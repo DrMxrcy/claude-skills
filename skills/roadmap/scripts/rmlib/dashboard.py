@@ -1130,8 +1130,9 @@ def _card_alerts(st: dict, items: list[dict]) -> list[dict]:
     if wip.get("over"):
         out.append({"kind": "wip", "text": f"{wip.get('count')} in flight "
                                            f"(WIP limit {wip.get('limit')})"})
-    late = [d for d in st.get("waitingDue") or []
-            if isinstance(d.get("daysLeft"), int) and d["daysLeft"] < 0]
+    late = [d for d in st.get("waitingDue") or []          # hoursLeft: plan 53
+            if isinstance(d.get("hoursLeft", d.get("daysLeft")), int)
+            and d.get("hoursLeft", d.get("daysLeft")) < 0]
     if late:
         out.append({"kind": "waiting", "text": f"{len(late)} waiting "
                                                f"step{'s' if len(late) != 1 else ''} overdue"})
