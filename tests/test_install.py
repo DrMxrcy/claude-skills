@@ -283,3 +283,40 @@ def test_install_agy_global_uses_gemini_config(tmp_path):
     assert (tmp_path / ".gemini/config/hooks.json").exists()
     assert (tmp_path / ".gemini/config/AGENTS.md").exists()
 
+
+
+def test_claude_roadmap_shim_resolution_and_home_default(tmp_path):
+    """Plan 48: the shim prefers a project's own skill copy, then the installed
+    one; a bare `claude-roadmap` outside every roadmap project runs `serve --all`."""
+    fake_py = tmp_path / "fakepy"
+    fake_py.write_text('#!/usr/bin/env bash\necho "$1|${*:2}"\n')
+    fake_py.chmod(0o755)
+    home = tmp_path / "home"
+    home.mkdir()
+    env = {**os.environ, "PYTHON": str(fake_py), "HOME": str(home)}
+    res = subprocess.run(["bash", str(INSTALL), "--global", "--only=roadmap"],
+                         cwd=home, env=env, capture_output=True, text=True)
+    assert res.returncode == 0, res.stderr
+    shim = home / ".local/bin/claude-roadmap"
+    installed = home / ".claude/skills/roadmap/scripts/roadmap.py"
+    (home / ".roadmap").mkdir()          # the registry home is not a project
+    plain = home / "work" / "plain"
+    plain.mkdir(parents=True)
+    proj = home / "work" / "proj"
+    (proj / ".roadmap").mkdir(parents=True)
+    (proj / ".roadmap/config.json").write_text("{}")
+    (proj / "src").mkdir()
+    local = proj / ".claude/skills/roadmap/scripts/roadmap.py"
+    local.parent.mkdir(parents=True)
+    local.write_text("")
+
+    def run(cwd, *args):
+        r = subprocess.run([str(shim), *args], cwd=cwd, env=env,
+                           capture_output=True, text=True)
+        assert r.returncode == 0, r.stderr
+        return r.stdout.strip()
+
+    assert run(plain) == f"{installed}|serve --all"
+    assert run(plain, "status") == f"{installed}|status"
+    assert run(proj / "src") == f"{local}|"              # inside a project: as typed
+    assert run(proj / "src", "serve") == f"{local}|serve"

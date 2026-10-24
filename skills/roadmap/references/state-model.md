@@ -118,6 +118,11 @@
 - Needs attention (`rmlib/digest.py` `ATTENTION`, one function per check, in order): waiting steps due or overdue (`waitingDue`), REFUTED verdicts, blocked claims, failing trunk suite, WIP over limit, slot clashes, high-risk conflict pairs (only with `--conflicts` — cold cost is a `git diff` per open branch — and always on the dashboard, whose conflict cache is already warm), and in-flight or started plans whose required sections are still template text.
 - Output: terminal text, `--format md` (Markdown for chat), `--json` (`since`, `until`, `label`, `baseline`, `completed`, `ticked`, `claims`, `stalled`, `newPlans`, `newBranches`, `runs`, `ideas`, `attention`, `counts`). `orient` adds `digest` (`since`, `label`, `summary`, `counts`, `attention`) and prints at most three lines. Dashboard: `#/digest/<3h|1d|3d|1w|2w|last>` via `/api/digest?since=`.
 
+## Project registry
+- Per user, outside every repo: `~/.roadmap/projects.json` (`$ROADMAP_HOME` overrides the directory). `{"version": 1, "projects": {"<abs root>": {"name", "lastSeen"}}}`. Every `orient`, `status`, `serve` and `check` run in a roadmap project records its root — a linked worktree records its main checkout — at most once a minute, written atomically. Any read or write failure is silent: a malformed file reads as empty (and is rewritten on the next record), an unwritable one is skipped; no command fails because of the registry. `~/.roadmap` has no `config.json`, so it never makes `$HOME` a project.
+- `projects` lists it; each entry gets a URL-safe slug from its name (clashing names add a 4-char path hash). `projects --forget <slug|name|path>` removes entries; a project you run a command in again comes back.
+- `serve --all`: `/api/projects` builds one card per entry from `status()` of that root only (no worktree scan), cached 10 s per project; a project's normal endpoints are mounted at `/p/<slug>/…`, its broadcaster created the first time it is opened and ticking (1 s) only while one of its SSE streams is open. Missing paths render greyed and are not mounted.
+
 ## Invariants
 - Never hand-edit the managed region of ROADMAP.md; run `sync`.
 - All mutations go through `roadmap.py` (atomic writes; safe on partial failure).
