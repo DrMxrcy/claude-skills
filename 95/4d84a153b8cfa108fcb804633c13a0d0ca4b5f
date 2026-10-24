@@ -1,0 +1,57 @@
+install.sh
+  s_fbae122c7a65de::t_fa995c9d448a98 711-713,723-756,758
+skills/roadmap/README.md
+  s_fbae122c7a65de::t_b036124ab3d1d2 77
+skills/roadmap/SKILL.md
+  s_0d994e3368ddf8::t_2b22419b9a161e 64-65,314-315
+skills/roadmap/references/state-model.md
+  s_fbae122c7a65de::t_56cc6fd361daa0 121-125
+skills/roadmap/scripts/rmlib/core.py
+  s_fbae122c7a65de::t_3b5abb6745a358 59-64
+skills/roadmap/scripts/rmlib/dashboard.html
+  s_fbae122c7a65de::t_3bd4a4d0fe4d75 6,463-486,500,538,755,1325,1579-1580,1582-1583,1626,1700,1710,1765,1786,1798,1806,1816,1818,1835,1876,2287,2325-2433
+skills/roadmap/scripts/rmlib/dashboard.py
+  s_fbae122c7a65de::t_e025af22ab6cfb 712-713,722-725,736-738,845-846,907-1244
+skills/roadmap/scripts/rmlib/registry.py
+  s_fbae122c7a65de::t_1bffd90dceb3f2 1-199
+skills/roadmap/scripts/roadmap.py
+  s_0d994e3368ddf8::t_1c3058b3ceed62 87,132,154-155,172-188,523-532,664-667,1049-1067
+tests/conftest.py
+  s_0d994e3368ddf8::t_94d37c407acebe 91-101
+tests/test_install.py
+  s_fbae122c7a65de::t_61e78761c27151 286-322
+tests/test_roadmap_board.py
+  s_fbae122c7a65de::t_1ead76efe92520 317-318
+tests/test_roadmap_dashboard_polish.py
+  s_0d994e3368ddf8::t_540e1df2ce9fe5 26-37,49
+tests/test_roadmap_registry.py
+  s_fbae122c7a65de::t_a7f1ffc1378e3c 1-154
+tests/test_roadmap_serve.py
+  s_fbae122c7a65de::t_699e87ae508489 673-679
+tests/test_roadmap_serve_all.py
+  s_fbae122c7a65de::t_3051f44ff12520 1-361
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "954d84a153b8cfa108fcb804633c13a0d0ca4b5f",
+  "prompts": {},
+  "sessions": {
+    "s_0d994e3368ddf8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1e59e42f-734a-4197-96a1-8f7a72731de8",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    },
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
