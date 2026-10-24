@@ -1,0 +1,22 @@
+tests/test_roadmap_digest.py
+  s_fbae122c7a65de::t_96fed1ba8b18a1 1-171
+  s_fbae122c7a65de::t_d1af74188d364f 172
+skills/roadmap/scripts/rmlib/digest.py
+  s_fbae122c7a65de::t_9f80c5035d84c1 1-518
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5c1b2af51b493f38b2d3e00ca61f5f37c0282d2a",
+  "prompts": {},
+  "sessions": {
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "unknown"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
