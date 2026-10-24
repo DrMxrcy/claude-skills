@@ -267,7 +267,7 @@ Anywhere a command takes `--plan ID` (or an id list), the id may be `7`, `#7`, o
   `check` refuse until you pass it. `check` also refuses while the plan's required sections
   (bug: Observed/Root Cause/Acceptance; others: Core objective/Acceptance —
   `settings.requiredSections`) are still template text; `--force` overrides and records it.
-- `next [--version V] [--force] [--json]` — next unfinished item (skips incomplete `dependsOn`)
+- `next [--version V] [--force] [--json]` — next unfinished item (skips incomplete `dependsOn`, and items held by another owner)
 - `deps-check --plan ID [--force]` — warn if dependencies are incomplete
 - `remove --plan ID` — archive a plan, drop it, demote it to the Idea Incubator
 - `depends --plan ID --on IDS [--clear]` — set dependency ordering (`next`/`build` honor it)
@@ -292,6 +292,7 @@ Anywhere a command takes `--plan ID` (or an id list), the id may be `7`, `#7`, o
   runs the release itself (target = the later version being started, else the lowest
   existing version above current; never invents a number), `"off"` disables the gate.
 - `claim ID [ID…] --stage {review,fixing,gate-ready,gating,blocked,landed} [--verdict V] [--note "..."] [--branch B]` (or `ID… --clear`) — record the in-flight build stage in plan frontmatter, several ids all-or-nothing; trunk checkboxes stay the only done source (see `references/state-model.md`)
+- `claim ID [ID…] [--owner NAME] [--take]` — every claim records its owner (default `$ROADMAP_OWNER`, else the git user name, else the agent name); an item held by another owner (refreshed within `settings.claimTtlHours`, default 12) is refused, naming the owner and age, unless `--take` (applies to `--clear` too); `--owner` alone opens an owner-only claim that holds the item while it builds. `next` skips held items; `orient` lists yours. `settings.wipLimit` makes `status`/`next`/`orient` warn when more items are in flight (see `references/state-model.md` → "Claim owners")
 - `claim [ID…] --landed SHA` — move items whose branch tip SHA (e.g. the integration branch) contains to `landed`, recording the sha
 - `check --landed [--evidence "..."] [--yes]` — dry-run list (or with `--yes`, tick every step) of `landed` items whose landing sha and branch tip trunk now contains; clears their claims
 - `slot ID --kind K [--name N] [--add]` (or `ID --kind K --release`, or `[ID] --check`) — reserve the next number of a numbered sequence from `settings.slots` (e.g. a DB migration) for an item and print it; `--check` exits 1 when a reservation clashes or is taken (merge gate; see `references/state-model.md` → "Numbered slots")
