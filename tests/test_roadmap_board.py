@@ -409,3 +409,71 @@ def test_dashboard_html_has_chip_hooks(dashboard):
     for hook in ('id="chips"', "if(!chipMatch(it)) return false;", "syncChips(items);",
                  'name !== "roadmap" && name !== "board"'):
         assert hook in body, hook
+
+
+# --- bug 52: all-projects copy commands and per-project storage keys --------
+
+def test_note_refusal_names_only_real_commands(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    roadmap.new_item(repo, "bug", "Needs class", force=True)
+    with pytest.raises(ValueError) as e:
+        roadmap.set_note(repo, 1, "A user-facing fix")
+    msg = str(e.value)
+    assert "--audience" not in msg                       # `note` has no such flag
+    assert "roadmap audience --plan 1 --to public|internal" in msg
+
+
+def test_all_mode_copy_command_runs_from_another_cwd(dashboard, proj, tmp_path):
+    roadmap, repo = proj
+    st = _status(roadmap, repo)
+    root = str(repo)
+    pre = 'document.querySelector = s => s.includes("roadmap-mode") ? {content:"all"} : null;\n'
+    res = _run(dashboard, tmp_path, f"""
+PROJ = "demo"; PROJ_ROOT = {json.dumps(root)};
+const d = {json.dumps(st)};
+const c = boardCard(d.items.find(i => i.id === 1), d);
+PROJ_ROOT = "/odd dir/it's";
+const q = inRoot("roadmap.py next");
+console.log(JSON.stringify({{cmd: c.find("bcmd")[0].textContent,
+  opts: c.find("bmove")[0].kids.map(o => o.value), quoted: q}}));
+""", pre=pre)
+    assert res["cmd"].startswith(f"cd '{root}' && roadmap.py claim 1 ") or \
+        res["cmd"].startswith(f"cd {root} && roadmap.py claim 1 ")
+    assert all(o.startswith("cd ") and " && roadmap.py claim 1 " in o for o in res["opts"])
+    assert res["quoted"] == "cd '/odd dir/it'\\''s' && roadmap.py next"
+    # runs from an unrelated cwd: the cd lands in the project, then the command runs
+    other = tmp_path / "elsewhere"
+    other.mkdir()
+    cmd = res["cmd"].replace("roadmap.py", "pwd #", 1)
+    out = subprocess.run(["sh", "-c", cmd], cwd=other, capture_output=True, text=True)
+    assert out.returncode == 0 and out.stdout.strip() == str(repo.resolve())
+
+
+def test_single_mode_copy_command_unchanged(dashboard, tmp_path):
+    res = _run(dashboard, tmp_path, """
+PROJ_ROOT = "/some/root";
+console.log(JSON.stringify(inRoot("roadmap.py next")));
+""")
+    assert res == "roadmap.py next"
+
+
+def test_storage_keys_per_project_in_all_mode_only(dashboard, tmp_path):
+    pre = 'document.querySelector = s => s.includes("roadmap-mode") ? {content:"all"} : null;\n'
+    res = _run(dashboard, tmp_path, """
+PROJ = "alpha"; FILT.lane = "review"; saveFilt();
+BOARD.allDone = true; store.set(skey("rm-board-alldone"), true);
+PROJ = "beta"; loadFilt(); loadBoard();
+const beta = [FILT.lane, BOARD.allDone];
+PROJ = "alpha"; loadFilt(); loadBoard();
+console.log(JSON.stringify({keys: Object.keys(LS).sort(), beta, alpha: [FILT.lane, BOARD.allDone]}));
+""", pre=pre)
+    assert res["keys"] == ["rm-board-alldone:alpha", "rm-filters:alpha"]
+    assert res["beta"] == ["", False] and res["alpha"] == ["review", True]
+
+
+def test_storage_keys_unchanged_in_single_mode(dashboard, tmp_path):
+    res = _run(dashboard, tmp_path, """
+FILT.lane = "review"; saveFilt(); store.set(skey("rm-board-alldone"), true);
+console.log(JSON.stringify(Object.keys(LS).sort()));
+""")
+    assert res == ["rm-board-alldone", "rm-filters"]

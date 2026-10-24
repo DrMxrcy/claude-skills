@@ -661,9 +661,17 @@ const isOpen = (v,cur) => (v in prefs) ? prefs[v] : (v === cur);
 // Items open in a page now (plan 31) — the inline-expand key and the
 // remembered tab (now a #/ route) are retired.
 for(const k of ["rm-open-items","rm-tab"]){ try { localStorage.removeItem(k); } catch(_){} }
+// Per-project storage key (bug 52): under serve --all (ALLMODE/PROJ, plan 48,
+// declared further down) each project keeps its own filters and board choices;
+// a single-project dashboard, and the all-projects home, keep the bare keys.
+const skey = k => ALLMODE && PROJ != null ? k + ":" + PROJ : k;
 // Client-side filters, remembered per browser.
 const FILT = Object.assign({open:false, lane:""}, store.get("rm-filters", {}) || {});
-const saveFilt = () => store.set("rm-filters", FILT);
+function loadFilt(){   // switchProject: swap in the new project's filters
+  for(const k of Object.keys(FILT)) delete FILT[k];
+  Object.assign(FILT, {open:false, lane:""}, store.get(skey("rm-filters"), {}) || {});
+}
+const saveFilt = () => store.set(skey("rm-filters"), FILT);
 let LAST = null;   // last rendered view, for instant re-render on toggle
 let QUERY = "";    // active search filter
 const stale = off => document.getElementById("stale").classList.toggle("off", off);
@@ -1348,6 +1356,7 @@ const BOARD_ALWAYS = ["planned","building","review","fixing","gate-ready","gatin
 const BOARD_FLAGGED = ["blocked","stale"]; // side columns, flagged cards
 const BOARD_DONE_SHOWN = 20;
 const BOARD = {allDone: store.get("rm-board-alldone", false) === true};
+function loadBoard(){ BOARD.allDone = store.get(skey("rm-board-alldone"), false) === true; }
 
 // [{lane, flagged, items}] in board order. `onlyLane` (the lane filter)
 // narrows the board to that one column. Done is newest (highest id) first.
@@ -1459,6 +1468,7 @@ function boardFoot(it, moves){
   const foot = el("div","bfoot");
   const sel = el("select","bmove");
   sel.title = "which claim line to copy";
+  moves = moves.map(m => ({label: m.label, cmd: inRoot(m.cmd)}));   // bug 52
   for(const m of moves){ const o = txt("option",null, m.label); o.value = m.cmd; sel.appendChild(o); }
   const want = BOARD_PICK[it.id];
   sel.value = moves.some(m => m.cmd === want) ? want : moves[0].cmd;
@@ -1504,7 +1514,7 @@ function boardColumn(col, d){
     const t = txt("span","lnk", BOARD.allDone ? "show last "+BOARD_DONE_SHOWN
       : "show all "+col.items.length);
     t.onclick = () => { BOARD.allDone = !BOARD.allDone;
-      store.set("rm-board-alldone", BOARD.allDone); if(LAST) renderBoard(LAST); };
+      store.set(skey("rm-board-alldone"), BOARD.allDone); if(LAST) renderBoard(LAST); };
     box.appendChild(t);
   }
   return box;
@@ -1804,6 +1814,7 @@ PAYLOAD_HOOKS.push((P, restarted) => {
 // the data last changed.
 const hhmm = ms => { const d = new Date(ms); return isNaN(d) ? "" :
   d.toLocaleTimeString([], {hour:"2-digit", minute:"2-digit", second:"2-digit"}); };
+PAYLOAD_HOOKS.push(P => { if(typeof P.root === "string") PROJ_ROOT = P.root; });
 PAYLOAD_HOOKS.push(P => {
   const sc = P.scanning, hint = document.getElementById("scanhint");
   const left = sc ? Math.max(0, (sc.total||0) - (sc.done||0)) : 0;
@@ -2437,6 +2448,7 @@ function loadDigest(after){
 // false and both are identities, so nothing changes there.
 const ALLMODE = (document.querySelector('meta[name="roadmap-mode"]') || {}).content === "all";
 let PROJ = null;            // slug of the open project (serve --all only)
+let PROJ_ROOT = null;       // its absolute root, from its /api/status payload (bug 52)
 let HOME_TIMER = null;
 const API = () => PROJ == null ? "" : "/p/" + encodeURIComponent(PROJ);
 const R = h => (ALLMODE && PROJ != null && /^#\//.test(h||"")
@@ -2464,7 +2476,9 @@ function switchProject(slug){
   document.getElementById("attnlink").hidden = true;
   document.getElementById("favicon").href = FAVICON(false);
   document.title = titleFor(slug, 0);
-  PROJ = slug; LASTP = null; LAST = null; VIEW = DEFAULT_VIEW; PREV_HASH = "";
+  PROJ = slug; PROJ_ROOT = null; loadFilt(); loadBoard();
+  for(const k of Object.keys(BOARD_PICK)) delete BOARD_PICK[k];
+  LASTP = null; LAST = null; VIEW = DEFAULT_VIEW; PREV_HASH = "";
   for(const o of [TABCOUNTS, SCROLL]) for(const k of Object.keys(o)) delete o[k];
   document.getElementById("homelink").hidden = slug == null;
   document.getElementById("app").replaceChildren(txt("div","empty","connecting…"));
@@ -2621,6 +2635,10 @@ function searchPage(r){
 const CLI = "roadmap.py";
 const sh = s => /^[\w@%+=:,.\/-]+$/.test(String(s)) ? String(s)
   : "'"+String(s).replace(/'/g, "'\\''")+"'";
+// Bug 52: under serve --all a copied command must run from any cwd, so it is
+// prefixed with `cd <project root> &&`. Single-project output is unchanged.
+const inRoot = cmd => (typeof ALLMODE !== "undefined" && ALLMODE && PROJ_ROOT)
+  ? "cd " + sh(PROJ_ROOT) + " && " + cmd : cmd;
 function copyText(s, btn){
   const ok = () => { btn.textContent = "copied"; btn.classList.add("ok");
     setTimeout(() => { btn.textContent = "copy"; btn.classList.remove("ok"); }, 1200); };
@@ -2640,10 +2658,11 @@ function cmdBlock(title, cmds){
   for(const c of cmds){
     const row = el("div","cmd");
     if(c.why) row.appendChild(txt("span","why", c.why));
-    row.appendChild(txt("code",null, c.cmd));
+    const full = inRoot(c.cmd);      // bug 52: runnable from any cwd under serve --all
+    row.appendChild(txt("code",null, full));
     const b = txt("button","copy","copy");
-    b.type = "button"; b.title = "copy: "+c.cmd;
-    b.addEventListener("click", () => copyText(c.cmd, b));
+    b.type = "button"; b.title = "copy: "+full;
+    b.addEventListener("click", () => copyText(full, b));
     row.appendChild(b);
     box.appendChild(row);
   }

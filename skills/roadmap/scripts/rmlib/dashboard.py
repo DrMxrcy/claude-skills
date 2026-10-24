@@ -775,7 +775,7 @@ class _Broadcaster:
         # The worktree map is repo-wide: computed once, from the trunk view.
         self._wt_root = self.roots[trunk][0] if trunk < len(self.roots) else self.origin
         out = {"_roots": meta, "statuses": stats, "merged": merged,
-               "trunkRoot": trunk}
+               "trunkRoot": trunk, "root": str(self.origin)}
         cf = None
         if scanning is not None:
             # Mid-scan (plan 50): the repo-wide panels wait for the full scan.
