@@ -139,3 +139,96 @@ def test_cli_accept_list_and_mark(proj):
     r = run("accept", "1", "--line", "3", "--evidence", "x")
     assert r.returncode != 0 and "guard" in (r.stderr + r.stdout)
 
+
+# ---- completion gate (settings.requireAcceptance) ----------------------------
+
+def _steps(roadmap, repo, n=1):
+    return len(roadmap.parse_plan(_plan(repo, n))["steps"])
+
+
+def test_gate_refuses_final_step_naming_unmarked_bullets(roadmap, proj):
+    _require(roadmap, proj)
+    total = _steps(roadmap, proj)
+    assert total >= 2
+    for s in range(1, total):                 # non-final steps are never gated
+        roadmap.check_step(proj, 1, s)
+    roadmap.accept(proj, 1, 1, "renders")
+    before = _plan(proj).read_text(encoding="utf-8")
+    with pytest.raises(ValueError) as exc:
+        roadmap.check_step(proj, 1, total, evidence="suite green")
+    msg = str(exc.value)
+    assert "requireAcceptance" in msg and "#2 [unmarked]" in msg
+    assert "`pytest -q` is green" in msg and "#1" not in msg and "Fails if" not in msg
+    assert _plan(proj).read_text(encoding="utf-8") == before      # nothing written
+
+
+def test_gate_refuses_all_done_and_failed_bullets(roadmap, proj):
+    _require(roadmap, proj)
+    roadmap.accept(proj, 1, 1, "ok")
+    roadmap.accept(proj, 1, 2, "3 failures", fail=True)
+    with pytest.raises(ValueError, match=r"#2 \[failed\]"):
+        roadmap.check_step(proj, 1, None, all_done=True)
+
+
+def test_gate_passes_once_every_criterion_is_met(roadmap, proj):
+    _require(roadmap, proj)
+    roadmap.accept(proj, 1, 1, "renders")
+    roadmap.accept(proj, 1, 2, "pytest green")          # the guard stays unmarked
+    roadmap.check_step(proj, 1, None, all_done=True, evidence="suite green")
+    assert roadmap.count_progress(_plan(proj)) == (_steps(roadmap, proj),) * 2
+    assert "forced past" not in _plan(proj).read_text(encoding="utf-8")
+
+
+def test_gate_force_succeeds_and_records_override(roadmap, proj):
+    _require(roadmap, proj)
+    total = _steps(roadmap, proj)
+    roadmap.check_step(proj, 1, None, all_done=True, evidence="suite green",
+                       force=True)
+    text = _plan(proj).read_text(encoding="utf-8")
+    assert roadmap.count_progress(_plan(proj)) == (total, total)
+    assert text.count(f"> evidence: suite green · forced past unaccepted "
+                      f"acceptance (#1, #2) ({TODAY})") == total
+
+
+def test_gate_force_without_evidence_still_records(roadmap, proj):
+    _require(roadmap, proj)
+    total = _steps(roadmap, proj)
+    for s in range(1, total):
+        roadmap.check_step(proj, 1, s)
+    roadmap.check_step(proj, 1, total, force=True)
+    text = _plan(proj).read_text(encoding="utf-8")
+    assert text.count("> evidence: forced past unaccepted acceptance (#1, #2)") == 1
+    lines = text.splitlines()
+    step_line = [i for i, l in enumerate(lines) if l.startswith("- [x]")][-1]
+    assert lines[step_line + 1].startswith("  > evidence: forced past unaccepted")
+
+
+def test_gate_ignores_undo_and_rechecks_of_done_items(roadmap, proj):
+    roadmap.check_step(proj, 1, None, all_done=True)       # done before opting in
+    _require(roadmap, proj)
+    roadmap.check_step(proj, 1, 1)                          # re-tick: not completing
+    roadmap.check_step(proj, 1, 1, undo=True)
+    with pytest.raises(ValueError, match="requireAcceptance"):
+        roadmap.check_step(proj, 1, 1)                      # completes again: gated
+
+
+def test_gate_off_behaviour_unchanged(roadmap, proj):
+    assert not (roadmap.read_config(proj).get("settings") or {}).get(
+        "requireAcceptance")
+    roadmap.check_step(proj, 1, None, all_done=True, evidence="suite green")
+    text = _plan(proj).read_text(encoding="utf-8")
+    assert "forced past" not in text and "> accepted" not in text
+
+
+def test_init_default_on_for_new_projects_only(roadmap, repo, monkeypatch,
+                                               acceptance_gate):
+    monkeypatch.chdir(repo)
+    cfg = roadmap.init_project(repo, "P", claude_md=False)
+    assert cfg["settings"]["requireAcceptance"] is True
+    # an existing project (no setting) keeps it off through init and upgrade
+    cfg["settings"].pop("requireAcceptance")
+    roadmap.write_config(repo, cfg)
+    roadmap.init_project(repo, "P", claude_md=False)
+    roadmap.upgrade(repo)
+    assert "requireAcceptance" not in roadmap.read_config(repo)["settings"]
+

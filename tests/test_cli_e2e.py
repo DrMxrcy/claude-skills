@@ -36,7 +36,12 @@ def test_full_flow(repo):
     assert "Login" in st.stdout
     # release is guarded: an incomplete version is refused...
     assert run(repo, "release", "--version", "0.0.2").returncode == 1
-    # ...complete the item, then release succeeds and writes a changelog.
+    # ...complete the item, then release succeeds and writes a changelog. New
+    # projects require every acceptance bullet marked before the item completes.
+    refused = run(repo, "check", "--plan", "1", "--all-done")
+    assert refused.returncode == 1 and "requireAcceptance" in refused.stderr
+    for n in ("1", "2"):
+        assert run(repo, "accept", "1", "--line", n, "--evidence", "e2e").returncode == 0
     assert run(repo, "check", "--plan", "1", "--all-done").returncode == 0
     assert run(repo, "release", "--version", "0.0.2").returncode == 0
     rm = (repo / "ROADMAP.md").read_text()

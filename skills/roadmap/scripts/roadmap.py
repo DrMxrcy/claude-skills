@@ -325,7 +325,9 @@ def main(argv: list[str]) -> int:
                               "settings.requireEvidence is true.")
     p_check.add_argument("--force", action="store_true",
                          help="check even though the plan's required sections are "
-                              "still template text (recorded in the evidence line)")
+                              "still template text, or (settings.requireAcceptance) "
+                              "acceptance bullets are not marked met — recorded in "
+                              "the evidence line")
     p_check.add_argument("--landed", action="store_true",
                          help="tick every step of each item in the landed lane whose "
                               "landing sha (and branch tip) trunk now contains, record "
