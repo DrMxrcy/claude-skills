@@ -1,7 +1,7 @@
 {
   "project": "claude-skills",
   "currentVersion": "0.19.0",
-  "nextId": 51,
+  "nextId": 52,
   "items": [
     {
       "id": 1,
@@ -515,6 +515,14 @@
       "file": "plans/050-dashboard-resilience-and-polish-reconnect-banner-tab-title-alerts-light-theme-fast-first-paint.md",
       "note": "The dashboard reconnects on its own, flags problems in the browser tab, follows your light or dark setting, and opens faster.",
       "audience": "public"
+    },
+    {
+      "id": 51,
+      "slug": "bug-found-in-writes-the-fix-step-before-refusing-a-claim-held-by-another-owner",
+      "title": "bug --found-in writes the Fix step before refusing a claim held by another owner",
+      "type": "bug",
+      "version": "0.19.0",
+      "file": "plans/051-bug-found-in-writes-the-fix-step-before-refusing-a-claim-held-by-another-owner.md"
     }
   ],
   "settings": {
