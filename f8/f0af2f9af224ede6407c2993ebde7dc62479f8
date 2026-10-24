@@ -1,0 +1,65 @@
+.gitignore
+  s_fbae122c7a65de::t_663ca093f20f9e 13-15
+.roadmap/config.json
+  s_fbae122c7a65de::t_1b5e919a3e0705 4,518-525,533
+.roadmap/plans/045-digest-what-landed-moved-stalled-and-got-blocked-since-a-given-time.md
+  s_fbae122c7a65de::t_f6dc8dc39dc52e 6,34-41
+.roadmap/plans/046-waiting-steps-and-split-retarget-time-gated-checks-no-longer-hold-up-a-release-or-drag-the-whole-feature-to-the-next-version.md
+  s_fbae122c7a65de::t_29b1af00164e82 6,35-46
+.roadmap/plans/047-bug-routing-a-bug-command-that-fixes-in-flight-plans-in-place-or-files-a-linked-bug-item-and-an-incubator-that-refuses-bugs.md
+  s_fbae122c7a65de::t_91361f7d40e871 8
+.roadmap/plans/051-bug-found-in-writes-the-fix-step-before-refusing-a-claim-held-by-another-owner.md
+  s_fbae122c7a65de::t_9fff4c270b8149 1-34
+CHANGELOG.internal.md
+  s_fbae122c7a65de::t_5c5f4f29ab63ca 20-21,43-45
+CHANGELOG.md
+  s_fbae122c7a65de::t_f47f6618219edd 18-19
+ROADMAP.md
+  s_fbae122c7a65de::t_1b5d6a78fc6f3c 24,29,34,48-49
+agy-plugin/plugins/roadmap/rules/AGENTS.md
+  s_fbae122c7a65de::t_32832f4a8c6e28 8
+skills/roadmap/SKILL.md
+  s_fbae122c7a65de::t_825b0a7ff0592e 279-280,287,292
+skills/roadmap/references/state-model.md
+  s_fbae122c7a65de::t_cca4facc18dee0 43,47-54,75,104-109,115
+skills/roadmap/scripts/rmlib/dashboard.html
+  s_fbae122c7a65de::t_0c7b35358bec0a 13,128-134,142-146,372,391,394,398-414,517-527,578,991,994,1006,1087,1090-1091,1093-1094,1113-1114,1161,1175-1176,1183,1286-1294,1454,1456-1458,1591-1641
+skills/roadmap/scripts/rmlib/dashboard.py
+  s_fbae122c7a65de::t_39ae82b60d926e 281-288,301,354-370,676-679
+skills/roadmap/scripts/rmlib/digest.py
+  s_fbae122c7a65de::t_3fe8d10d45caf8 1-737
+skills/roadmap/scripts/rmlib/ops.py
+  s_fbae122c7a65de::t_29de1ba3ac1a5d 17-19,109,116-119,122-125,137-140,147-210,818,822-827,831-832,855-884,922-923,925-928,948-1064,1111-1142,1147-1153,1156-1178,1192,1322-1323,1354-1361
+skills/roadmap/scripts/rmlib/parse.py
+  s_fbae122c7a65de::t_4a1035dd516d96 10,13-36,110,120-124,126-127,229-236
+skills/roadmap/scripts/rmlib/report.py
+  s_fbae122c7a65de::t_4be3bc02f7dbab 10,14,135-139,183,205-208,218
+skills/roadmap/scripts/rmlib/sync.py
+  s_fbae122c7a65de::t_e905f45b365f90 15,26-29,60-61,63,132,138,171,275-279,282-283,298-301,305-308,312-313,328-331,346-386,430,447-450,454,457,479-482,835-845
+skills/roadmap/scripts/roadmap.py
+  s_fbae122c7a65de::t_dc14468fb1b0be 24,34,43-44,85,100,104-105,147-149,317-327,409-411,482-495,564-566,577-579,582-585,633-646,694-695,741,766-769,776,786-790,843-848,856-863,938,940-943,954-955
+tests/test_roadmap.py
+  s_fbae122c7a65de::t_f1e63d6de3badf 3283
+tests/test_roadmap_bug.py
+  s_fbae122c7a65de::t_8ca32f7c27b9e4 336-352
+tests/test_roadmap_digest.py
+  s_fbae122c7a65de::t_a9a5bd3f05ce68 1-402
+tests/test_roadmap_waiting.py
+  s_fbae122c7a65de::t_8b05c4e33bc941 1-455
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f8f0af2f9af224ede6407c2993ebde7dc62479f8",
+  "prompts": {},
+  "sessions": {
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
