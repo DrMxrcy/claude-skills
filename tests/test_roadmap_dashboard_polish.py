@@ -198,3 +198,46 @@ def test_attention_degrades_without_hook(roadmap, dashboard, repo, monkeypatch):
     assert json.loads(bc.snapshot()[1])["attention"] == []
     api.attention = lambda root, st: 1 / 0
     assert dashboard._safe_attention(api, repo, roadmap.status(repo), None) == []
+
+
+# ---- step 2: connection banner + reconnect ---------------------------------
+
+def _script(dashboard):
+    import re
+    body = dashboard._dashboard_html()
+    return body, "\n".join(re.findall(r"<script>(.*?)</script>", body, re.S))
+
+
+def test_dashboard_html_has_connection_banner(dashboard):
+    body, js = _script(dashboard)
+    assert 'id="connbanner"' in body and "claude-roadmap serve" in body
+    assert 'id="cbcopy"' in body and "navigator.clipboard" in js
+    # our own backoff replaces EventSource's retry; the last data stays drawn
+    assert "BACKOFF = [1000, 2000, 4000, 8000]" in js
+    onerror = js[js.index("es.onerror"):js.index("function onPayload")]
+    assert "es.close()" in onerror and "scheduleRetry()" in onerror
+    assert "replaceChildren" not in onerror and "render(" not in onerror
+    # the banner shows well inside the 5 s acceptance window
+    import re
+    grace = int(re.search(r"DOWN_GRACE = (\d+)", js).group(1))
+    assert grace <= 2000
+    # a restarted server (new instance id) reloads the open route in place
+    on = js[js.index("function onPayload"):]
+    assert "P.instance !== INSTANCE" in on and "refreshRoute()" in on
+    assert "location.reload" not in js
+    # manual refresh + scanning hint + last-updated stamp
+    for hook in ('id="refreshBtn"', 'id="scanhint"', 'id="stamp"',
+                 "scanning this worktree"):
+        assert hook in body, hook
+    assert ".innerHTML" not in body and "insertAdjacentHTML" not in body
+
+
+@pytest.mark.skipif(__import__("shutil").which("node") is None,
+                    reason="node not installed")
+def test_dashboard_script_parses(dashboard, tmp_path):
+    import subprocess
+    _, js = _script(dashboard)
+    f = tmp_path / "d.js"
+    f.write_text(js)
+    r = subprocess.run(["node", "--check", str(f)], capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
