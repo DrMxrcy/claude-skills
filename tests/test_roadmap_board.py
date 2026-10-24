@@ -314,7 +314,8 @@ def test_no_endpoint_accepts_writes(roadmap, repo, monkeypatch, dashboard):
         holder["srv"].shutdown()
     src = (dashboard.__file__)
     handlers = [ln.strip() for ln in open(src) if ln.strip().startswith("def do_")]
-    assert [h.split("(")[0] for h in handlers] == ["def do_GET"]
+    # serve --all (plan 48) adds the home server's own GET-only handler.
+    assert {h.split("(")[0] for h in handlers} == {"def do_GET"}
 
 
 # --- shared filter chips (step 3) ------------------------------------------

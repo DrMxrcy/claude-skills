@@ -670,9 +670,13 @@ def test_dashboard_html_markdown_renderer_is_dom_only(served):
     # every href assignment goes through link() (or a fixed tab route)
     import re
     assigns = re.findall(r"\.href\s*=\s*([^;]+);", body)
-    # (plan 50: the favicon's href is a data: URI built from constants only)
-    assert sorted(assigns) == sorted(['href', 'id === "roadmap" ? "#/" : "#/"+id',
-                                      'FAVICON(n > 0)']), assigns
+    # (plan 50: the favicon's href is a data: URI built from constants only;
+    # plan 48: tab routes, the attention link and home cards are fixed #/
+    # routes, R() only adds the #/p/<encodeURIComponent(slug)> prefix)
+    assert sorted(assigns) == sorted(['href', 'R(id === "roadmap" ? "#/" : "#/"+id)',
+                                      'R("#/digest")',
+                                      '"#/p/" + encodeURIComponent(c.slug) + "/"',
+                                      'FAVICON(n > 0)', 'FAVICON(false)']), assigns
 
 
 def test_api_item_returns_rulings(served):

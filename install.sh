@@ -708,6 +708,9 @@ fi
 # Optional 'claude-roadmap' PATH command. Default on for --global: the script
 # resolves the project from your CWD (find_root), so one command serves every
 # project — e.g. `claude-roadmap serve` or `claude-roadmap status` anywhere.
+# It prefers a project's own skill copy (walking up from CWD), then this install,
+# then any ~/.claude|.grok|.agents copy; a bare `claude-roadmap` outside every
+# roadmap project opens the all-projects dashboard (`serve --all`, plan 48).
 if [ "$cli" = "-1" ]; then
   if [ "$scope" = "global" ]; then cli=1; else cli=0; fi
 fi
@@ -717,11 +720,42 @@ if [ "$cli" = "1" ] && [ "$agent" = "claude" ]; then
     bindir="$HOME/.local/bin"
     mkdir -p "$bindir"
     shim="$bindir/claude-roadmap"
-    cat > "$shim" <<SHIM
-#!/usr/bin/env bash
-# Installed by claude-skills install.sh — runs the roadmap CLI against your CWD.
-exec "${PYTHON:-python3}" "$rp_script" "\$@"
+    {
+      printf '#!/usr/bin/env bash\n'
+      printf '# Installed by claude-skills install.sh — runs the roadmap CLI against your CWD.\n'
+      printf 'py=%q\ninstalled=%q\n' "${PYTHON:-python3}" "$rp_script"
+      cat <<'SHIM'
+# Prefers the project's own copy (walking up from CWD), then the installed one,
+# then any ~/.claude|.grok|.agents copy. Outside every roadmap project, a bare
+# `claude-roadmap` opens the all-projects dashboard (`serve --all`).
+rel=skills/roadmap/scripts/roadmap.py
+script= inproj=
+d=$PWD
+while :; do
+  [ -f "$d/.roadmap/config.json" ] && inproj=1
+  if [ -z "$script" ]; then
+    for a in .claude .grok .agents; do
+      [ -f "$d/$a/$rel" ] && { script="$d/$a/$rel"; break; }
+    done
+  fi
+  { [ -n "$script" ] && [ -n "$inproj" ]; } && break
+  [ "$d" = / ] && break
+  d=$(dirname "$d")
+done
+[ -z "$script" ] && [ -f "$installed" ] && script=$installed
+if [ -z "$script" ]; then
+  for a in .claude .grok .agents; do
+    [ -f "$HOME/$a/$rel" ] && { script="$HOME/$a/$rel"; break; }
+  done
+fi
+if [ -z "$script" ]; then
+  echo "claude-roadmap: no roadmap skill found in this project or ~/.claude|.grok|.agents" >&2
+  exit 1
+fi
+[ $# -eq 0 ] && [ -z "$inproj" ] && set -- serve --all
+exec "$py" "$script" "$@"
 SHIM
+    } > "$shim"
     chmod +x "$shim"
     echo "Installed CLI:    claude-roadmap -> $shim"
     case ":$PATH:" in

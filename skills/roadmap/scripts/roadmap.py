@@ -84,6 +84,7 @@ from rmlib import conflicts as rmconflicts  # noqa: E402  (plan 41: conflict ris
 from rmlib import runs as rmruns  # noqa: E402  (plan 38: run log)
 from rmlib import owners as rmowners  # noqa: E402  (plan 40: claim owners, WIP limit)
 from rmlib import digest as rmdigest  # noqa: E402  (plan 45: digest since a time)
+from rmlib import registry as rmregistry  # noqa: E402  (plan 48: all-projects home)
 
 
 __all__ = [  # public facade: names re-exported for callers/tests/hooks (roadmap.X)
@@ -128,6 +129,7 @@ __all__ = [  # public facade: names re-exported for callers/tests/hooks (roadmap
     'handoff', 'orient', '_apply_rules_block', 'ensure_claude_md_rules',
     'ensure_project_rules', 'init_project', 'upgrade', 'serve', 'main',
     'file_bug', 'bug_tells',   # plan 47
+    'serve_all', 'REGISTRY_COMMANDS',   # plan 48
 ]
 
 
@@ -149,7 +151,11 @@ def _dashboard_api():
         scope_drift_payload=scope_drift_payload,
         digest=rmdigest.digest, digest_sections=rmdigest.sections,   # plan 45
         default_owner=rmowners.default_owner,
-        attention=rmdigest.attention)   # plan 50: tab-title / favicon count
+        attention=rmdigest.attention,   # plan 50: tab-title / favicon count
+        registry_entries=rmregistry.entries,   # plan 48: serve --all
+        # plan 49: full-text search + version-page changelog preview
+        search=search, render_public_changelog=render_public_changelog,
+        render_internal_changelog=render_internal_changelog)
 
 
 def serve(root: Path, port: int | None = None, open_browser: bool = True,
@@ -164,6 +170,23 @@ def serve(root: Path, port: int | None = None, open_browser: bool = True,
     spec.loader.exec_module(mod)
     return mod.serve(_dashboard_api(), root, port=port, open_browser=open_browser,
                      verbose=verbose)
+
+
+def serve_all(port: int | None = None, open_browser: bool = True,
+              verbose: bool = False) -> int:
+    """All-projects home (plan 48): one server for every registered project,
+    loaded like serve()."""
+    import importlib.util
+    path = Path(__file__).resolve().parent / "rmlib" / "dashboard.py"
+    spec = importlib.util.spec_from_file_location("roadmap_dashboard", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod.serve_all(_dashboard_api(), port=port, open_browser=open_browser,
+                         verbose=verbose)
+
+
+# Commands that record the project in the per-user registry (plan 48).
+REGISTRY_COMMANDS = ("orient", "status", "serve", "check")
 
 
 def _print_check_landed(res: dict, applied: bool) -> int:
@@ -500,6 +523,16 @@ def main(argv: list[str]) -> int:
     p_srv.add_argument("--verbose", action="store_true",
                        help="print one line per checkout on every refresh "
                             "(default: one summary line with the URL)")
+    p_srv.add_argument("--all", action="store_true", dest="all_projects",
+                       help="one home page for every registered project "
+                            "(default when run outside any roadmap project)")
+
+    p_proj = sub.add_parser(
+        "projects", help="list the per-user project registry (~/.roadmap/projects.json) "
+                         "that `serve --all` shows")
+    p_proj.add_argument("--forget", metavar="NAME",
+                        help="remove a project (by name, slug or path) from the registry")
+    p_proj.add_argument("--json", action="store_true", dest="as_json")
 
     p_next = sub.add_parser("next", help="print the next unblocked unfinished item")
     p_next.add_argument("--version", help="target version (default: current)")
@@ -631,6 +664,10 @@ def main(argv: list[str]) -> int:
 
     args = parser.parse_args(argv)
     root = find_root(Path.cwd())
+    # Plan 48: remember this project for `serve --all`. Silent and best-effort —
+    # touch() never raises, and a registry it cannot write is simply skipped.
+    if args.command in REGISTRY_COMMANDS:
+        rmregistry.touch(root)
 
     def rid(token: str) -> int:      # one shared resolver for every id-taking arg
         return resolve_id(read_config(root), token)
@@ -1012,6 +1049,25 @@ def main(argv: list[str]) -> int:
             else:
                 print(format_search(hits, args.text.strip()))
             return 0
+        if args.command == "projects":
+            if args.forget:
+                gone = rmregistry.forget(args.forget)
+                if not gone:
+                    print(f"Error: no registered project named {args.forget!r} "
+                          "(see `roadmap.py projects`)", file=sys.stderr)
+                    return 1
+                for p in gone:
+                    print(f"forgot {p}")
+                return 0
+            rows = rmregistry.entries()
+            print(json.dumps({"registry": str(rmregistry.registry_path()),
+                              "projects": rows}, indent=2) if args.as_json
+                  else rmregistry.format_entries(rows))
+            return 0
+        if args.command == "serve" and (args.all_projects
+                                        or not roadmap_dir(root).exists()):
+            return serve_all(port=args.port, open_browser=args.open_browser,
+                             verbose=args.verbose)
         if args.command == "serve":
             return serve(root, port=args.port, open_browser=args.open_browser,
                          verbose=args.verbose)

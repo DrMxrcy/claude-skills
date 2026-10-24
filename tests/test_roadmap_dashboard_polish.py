@@ -23,6 +23,18 @@ def _start_serve(dashboard, api, repo, monkeypatch, holder_thread=None):
             holder["srv"] = self
 
     monkeypatch.setattr(http.server, "ThreadingHTTPServer", Capturing)
+    # The broadcaster's watcher thread outlives the server; silence it on
+    # shutdown so a monkeypatch undone at teardown (fake roots) never makes it
+    # print "worktrees now" into a later test's captured stdout.
+    started = []
+    orig_start = dashboard._Broadcaster.start
+    monkeypatch.setattr(dashboard._Broadcaster, "start",
+                        lambda self: (started.append(self), orig_start(self))[1])
+
+    def stop():
+        holder["srv"].shutdown()
+        for b in started:
+            b._tick = lambda rescan=False: None
     t = threading.Thread(target=lambda: dashboard.serve(
         api, repo, port=0, open_browser=False), daemon=True)
     if holder_thread is not None:
@@ -34,7 +46,7 @@ def _start_serve(dashboard, api, repo, monkeypatch, holder_thread=None):
         time.sleep(0.02)
     assert "srv" in holder, "server did not start"
     port = holder["srv"].server_address[1]
-    return f"http://127.0.0.1:{port}", holder["srv"].shutdown
+    return f"http://127.0.0.1:{port}", stop
 
 
 def _get(url):

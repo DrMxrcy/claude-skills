@@ -349,6 +349,13 @@ def _item_detail(rm, root: Path, item_id: int) -> dict:
             for k in ("displayId", "pct", "done", "total",
                       "foundIn", "bugsFound", "foundDuringBuild"):   # plan 47
                 detail[k] = row.get(k)
+            # plan 49: who `claim` would default to, so the page's copy
+            # buttons add --take only when someone else holds the item.
+            owner_fn = getattr(rm, "default_owner", None)
+            try:
+                detail["me"] = owner_fn(root) if owner_fn else None
+            except Exception:  # noqa: BLE001 — a git hiccup must not break the page
+                detail["me"] = None
             if row.get("branch"):
                 detail["branch"] = {
                     **row["branch"],
@@ -413,6 +420,136 @@ def _digest(rm, root: Path, since: str) -> dict:
         return {"error": str(e), "since": since, "options": list(DIGEST_SINCE)}
     return {**d, "sections": rm.digest_sections(d), "sinceArg": since,
             "options": list(DIGEST_SINCE)}
+
+
+# ---- full-text search (plan 49) ---------------------------------------------
+SEARCH_MAX_Q = 200      # longer queries are refused
+SEARCH_MAX_HITS = 300   # hits returned; `truncated` says when more matched
+SNIPPET_CTX = 70        # characters kept either side of the match
+
+
+def _snippet(text: str, needle: str) -> tuple[str, list[int] | None]:
+    """A window of `text` around the first case-insensitive match of `needle`,
+    with ellipses where it was cut, plus the match's [start, end] inside the
+    returned snippet (None when the needle does not occur, e.g. whitespace
+    collapsed away). The page highlights it with text nodes only."""
+    at = text.lower().find(needle.lower())
+    if at < 0:
+        return (text if len(text) <= 2 * SNIPPET_CTX else text[:2 * SNIPPET_CTX] + "…",
+                None)
+    lo, hi = max(0, at - SNIPPET_CTX), min(len(text), at + len(needle) + SNIPPET_CTX)
+    pre, post = ("…" if lo else ""), ("…" if hi < len(text) else "")
+    start = len(pre) + at - lo
+    return pre + text[lo:hi] + post, [start, start + len(needle)]
+
+
+def _search(rm, root: Path, q: str) -> dict:
+    """Dashboard full-text search: the CLI `search` (item titles/notes, plan
+    bodies, incubator bullets) plus `.roadmap/notes/*.md`, each hit resolved to
+    the dashboard page it opens — `id` (plan page), `idea` (incubator index as
+    /api/ideas numbers it) or `path` (note page) — with a snippet around the
+    match. Files are only reported when /api/note would serve them (no symlink
+    escapes). Read-only."""
+    q = (q or "").strip()
+    if not q:
+        return {"q": q, "hits": [], "error": "empty query"}
+    if len(q) > SEARCH_MAX_Q:
+        return {"q": q[:SEARCH_MAX_Q], "hits": [], "error": "query too long"}
+    fn = getattr(rm, "search", None)
+    if fn is None:
+        return {"q": q, "hits": [], "error": "search unavailable"}
+    try:
+        cfg = rm.read_config(root)
+        raw = fn(root, q, notes=True)
+        idea_of = {b["lineNo"]: i
+                   for i, b in enumerate(rm.list_incubator_bullets(root), 1)}
+    except (ValueError, FileNotFoundError, OSError) as e:
+        return {"q": q, "hits": [], "error": str(e)}
+    items = {i["id"]: i for i in cfg.get("items", [])}
+    by_file = {}
+    for it in items.values():
+        try:
+            by_file[(rm.roadmap_dir(root) / it["file"]).relative_to(root).as_posix()] = it
+        except (ValueError, KeyError):
+            pass
+    ok_files: dict[str, bool] = {}
+    hits = []
+    for h in raw:
+        out = {"kind": h["kind"], "ref": h.get("ref"), "line": h.get("line")}
+        if h["kind"] == "item":
+            it = items.get(h.get("id"))
+            out.update(id=h.get("id"), field=h.get("field"),
+                       title=(it or {}).get("title"))
+        elif h["kind"] in ("plan", "note"):
+            f = h.get("file") or ""
+            if f not in ok_files:
+                ok_files[f] = _doc_path(rm, root, f)[0] == 200
+            if not ok_files[f]:
+                continue
+            out["path"] = f
+            it = by_file.get(f) if h["kind"] == "plan" else None
+            if it is not None:
+                out.update(id=it["id"], title=it.get("title"))
+        elif h["kind"] == "idea":
+            out["idea"] = idea_of.get(h.get("line"))
+        if out.get("id") is not None:
+            it = items.get(out["id"]) or {}
+            out["version"] = it.get("version")
+            out["type"] = it.get("type")
+        out["snippet"], out["match"] = _snippet(h.get("text") or "", q)
+        hits.append(out)
+    return {"q": q, "hits": hits[:SEARCH_MAX_HITS], "total": len(hits),
+            "truncated": len(hits) > SEARCH_MAX_HITS}
+
+
+# ---- version page (plan 49) -------------------------------------------------
+
+def _changelog_block(md: str, version: str) -> str | None:
+    """The `## v<version>` section of a rendered changelog (header included),
+    or None when the version has no section there."""
+    out: list[str] | None = None
+    for line in md.splitlines():
+        if line.startswith("## "):
+            if out is not None:
+                break
+            if line == f"## v{version}" or line.startswith(f"## v{version} "):
+                out = [line]
+        elif out is not None:
+            out.append(line)
+    return "\n".join(out).strip() if out else None
+
+
+def _version_page(rm, root: Path, v: str) -> dict:
+    """Version page data: its items (status rows, so lanes and the branch
+    overlay match the list), the forecast, and the unreleased changelog preview
+    — the version's section of the public and internal renderers. Read-only:
+    the renderers build text, nothing is written."""
+    v = (v or "").strip().removeprefix("v")
+    if not v or len(v) > 64:
+        return {"version": v, "error": "missing version"}
+    try:
+        st = rm.status(root)
+        cfg = rm.read_config(root)
+    except (ValueError, FileNotFoundError, OSError) as e:
+        return {"version": v, "error": str(e)}
+    items = [i for i in st.get("items", []) if i.get("version") == v]
+    if not items:
+        return {"version": v, "error": f"no items target v{v}"}
+    out = {"version": v, "currentVersion": st.get("currentVersion"),
+           "items": items, "forecast": (st.get("forecast") or {}).get(v),
+           "date": (cfg.get("versionDates") or {}).get(v),
+           "summary": (cfg.get("releaseNotes") or {}).get(v),
+           "done": sum(i.get("done", 0) for i in items),
+           "total": sum(i.get("total", 0) for i in items),
+           "public": None, "internal": None}
+    try:
+        if getattr(rm, "render_public_changelog", None):
+            out["public"] = _changelog_block(rm.render_public_changelog(root)[0], v)
+        if getattr(rm, "render_internal_changelog", None):
+            out["internal"] = _changelog_block(rm.render_internal_changelog(root), v)
+    except (ValueError, FileNotFoundError, OSError, KeyError) as e:
+        out["changelogError"] = str(e)
+    return out
 
 
 def _discover_roots(rm, root: Path) -> list[tuple[Path, str | None]]:
@@ -709,7 +846,8 @@ class _Broadcaster:
 
 
 def serve(rm, root: Path, port: int | None = None,
-          open_browser: bool = True, verbose: bool = False) -> int:
+          open_browser: bool = True, verbose: bool = False,
+          bcast: "_Broadcaster | None" = None, handler_only: bool = False):
     """Run a local, read-only web dashboard that pushes live updates via SSE.
 
     One dashboard per project: port=None derives a stable port from the project
@@ -718,6 +856,10 @@ def serve(rm, root: Path, port: int | None = None,
     different ports and run side by side. An explicit port is honored strictly.
     Every refresh line in the terminal carries the URL; `verbose` adds one
     line per checkout under each summary.
+
+    `handler_only` (plan 48) returns the per-project request Handler class
+    instead of serving, wired to `bcast` — `serve_all` mounts one per project
+    under /p/<slug>/, so every endpoint here works there too.
     """
     if not rm.roadmap_dir(root).exists():
         print("No .roadmap/ here — run `roadmap init` first, then `roadmap serve`.")
@@ -728,8 +870,9 @@ def serve(rm, root: Path, port: int | None = None,
     # key on the primary (main-checkout) root, so `roadmap serve` from any
     # checkout converges on the same dashboard.
     # fast_start (plan 50): bind after the trunk scan only; the watcher
-    # thread adds the other checkouts as they finish.
-    bcast = _Broadcaster(rm, root, verbose=verbose, fast_start=True)
+    # thread adds the other checkouts as they finish. Under serve --all (plan
+    # 48) the hub passes its own lazily-ticking broadcaster in.
+    bcast = bcast or _Broadcaster(rm, root, verbose=verbose, fast_start=True)
     primary = bcast.roots[0][0]
     root_id = str(primary)
     dashboard_html = _dashboard_html()
@@ -811,6 +954,14 @@ def serve(rm, root: Path, port: int | None = None,
                 since = (urllib.parse.parse_qs(query).get("since") or ["1d"])[0]
                 self._send(200, json.dumps(_digest(rm, rroot, since)).encode("utf-8"),
                            "application/json")
+            elif path == "/api/search":   # plan 49: full-text search
+                q = (urllib.parse.parse_qs(query).get("q") or [""])[0]
+                self._send(200, json.dumps(_search(rm, rroot, q)).encode("utf-8"),
+                           "application/json")
+            elif path == "/api/version":   # plan 49: version page
+                v = (urllib.parse.parse_qs(query).get("v") or [""])[0]
+                self._send(200, json.dumps(_version_page(rm, rroot, v)).encode("utf-8"),
+                           "application/json")
             elif path == "/api/changelog":
                 try:
                     payload = rm.changelog_json(rroot)
@@ -836,6 +987,8 @@ def serve(rm, root: Path, port: int | None = None,
                 return
             super().handle_error(request, client_address)
 
+    if handler_only:
+        return Handler
     if port is None:
         preferred = _project_port(primary)
         # Already serving THIS project in another terminal? Point at it, don't
@@ -884,6 +1037,344 @@ def serve(rm, root: Path, port: int | None = None,
     if len(data.get("statuses") or []) > 1 and not verbose:
         print("  (one line per refresh; `serve --verbose` adds per-checkout detail)",
               flush=True)
+    if open_browser:
+        try:
+            webbrowser.open(url)
+        except Exception:
+            pass
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print("\nstopped.")
+    finally:
+        httpd.server_close()
+    return 0
+
+
+# ---- all-projects home (plan 48) ---------------------------------------------
+# `serve --all` (also `serve` outside any project): one server for every project
+# in the per-user registry. `/` serves the same page in "all" mode; `/api/projects`
+# the home cards; `/p/<slug>/<endpoint>` mounts that project's normal per-project
+# Handler (built by serve(handler_only=True)), so every endpoint a single-project
+# dashboard has works under the prefix with no duplication. A project's
+# broadcaster starts the first time it is viewed and ticks only while one of its
+# SSE streams is open; the home cards come from status() at most every HOME_TTL s.
+ALL_PORT = 4690          # below the per-project span (4700+)
+ALL_SPAN = 10
+ALL_ROOT_ID = "*all-projects*"   # X-Roadmap-Root of the all-projects server
+HOME_TTL = 10.0
+MODE_META = '<meta name="roadmap-mode" content="project">'
+MODE_META_ALL = '<meta name="roadmap-mode" content="all">'
+
+
+class _LazyBroadcaster(_Broadcaster):
+    """A project's broadcaster under `serve --all`: ticks only while at least
+    one SSE client watches it; any other request refreshes it (at most once a
+    second) so an idle project never serves a stale payload."""
+
+    def __init__(self, *a, **k):
+        self._tick_lock = threading.RLock()
+        self._count_lock = threading.Lock()
+        self.clients = 0
+        self._refreshed = time.monotonic()
+        super().__init__(*a, **k)
+
+    def _tick(self, rescan: bool = False) -> None:
+        with self._tick_lock:
+            super()._tick(rescan=rescan)
+            self._refreshed = time.monotonic()
+
+    def _run(self) -> None:
+        tick = 0
+        while True:
+            time.sleep(1)
+            if self.clients <= 0:
+                continue          # nobody watching: no git, no stat, no status()
+            tick += 1
+            self._tick(rescan=tick % self.RESCAN_TICKS == 0)
+
+    def refresh(self, min_age: float = 1.0) -> None:
+        if time.monotonic() - self._refreshed >= min_age:
+            try:
+                self._tick(rescan=True)
+            except Exception:  # noqa: BLE001 — a refresh never fails a request
+                pass
+
+    def attach(self) -> None:
+        with self._count_lock:
+            self.clients += 1
+        self.refresh()
+
+    def detach(self) -> None:
+        with self._count_lock:
+            self.clients = max(0, self.clients - 1)
+
+
+def _iso(ts: float) -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(ts))
+
+
+def _card_alerts(st: dict, items: list[dict]) -> list[dict]:
+    """The home card's alerts, each only where its feature is in use."""
+    out = []
+    ref = [i for i in items if (i.get("claim") or {}).get("verdict") == "REFUTED"
+           and i.get("lane") != "done"]
+    if ref:
+        out.append({"kind": "refuted", "text": f"{len(ref)} REFUTED: " + ", ".join(
+            i.get("displayId") or f"#{i.get('id')}" for i in ref)})
+    clashes = (st.get("slots") or {}).get("clashes")
+    if isinstance(clashes, int) and clashes > 0:
+        out.append({"kind": "slots",
+                    "text": f"{clashes} slot clash{'es' if clashes != 1 else ''}"})
+    wip = st.get("wip") or {}
+    if wip.get("over"):
+        out.append({"kind": "wip", "text": f"{wip.get('count')} in flight "
+                                           f"(WIP limit {wip.get('limit')})"})
+    late = [d for d in st.get("waitingDue") or []
+            if isinstance(d.get("daysLeft"), int) and d["daysLeft"] < 0]
+    if late:
+        out.append({"kind": "waiting", "text": f"{len(late)} waiting "
+                                               f"step{'s' if len(late) != 1 else ''} overdue"})
+    th = st.get("trunkHealth") or {}
+    if th.get("green") is False:
+        bad = [s.get("shard") for s in th.get("shards") or [] if s.get("result") == "fail"]
+        out.append({"kind": "trunk", "text": "trunk suite failing"
+                    + (f" ({', '.join(str(b) for b in bad)})" if bad else "")})
+    return out
+
+
+def _project_card(rm, row: dict) -> dict:
+    """One home card from a registry row: status() of the project root only
+    (no worktree scan, no conflicts). A missing path yields a greyed card."""
+    card = {k: row.get(k) for k in ("slug", "name", "path", "lastSeen")}
+    card["exists"] = bool(row.get("exists"))
+    if not card["exists"]:
+        return card
+    root = Path(row["path"])
+    st = _safe_status(rm, root)
+    items = st.get("items") or []
+    td = sum(i.get("done", 0) for i in items)
+    tt = sum(i.get("total", 0) for i in items)
+    lanes = (st.get("counts") or {}).get("lanes") or {}
+    last = row.get("lastSeen")
+    mtime = _roadmap_signature(rm, root)
+    if mtime and (not last or _iso(mtime) > last):
+        last = _iso(mtime)
+    card.update({
+        "project": st.get("project"), "version": st.get("currentVersion"),
+        "items": len(items), "done": td, "total": tt,
+        "pct": round(100 * td / tt) if tt else 0,
+        "inFlight": lanes.get("inFlight", 0), "waiting": lanes.get("waiting", 0),
+        "blocked": sum(1 for i in items if i.get("blockedBy")),
+        "lastActivity": last, "alerts": _card_alerts(st, items)})
+    if st.get("error"):
+        card["error"] = st["error"]
+    return card
+
+
+class _Home:
+    """State of the all-projects server: the cached home cards and the
+    per-project mounts (broadcaster + Handler), created on first view."""
+
+    def __init__(self, rm, verbose: bool = False):
+        self.rm, self.verbose = rm, verbose
+        self.base: str | None = None      # set once the port is bound
+        self._card_lock = threading.Lock()
+        self._mount_lock = threading.Lock()
+        self._cards: dict[str, tuple[float, dict]] = {}
+        self._mounts: dict[str, tuple[_LazyBroadcaster, type]] = {}
+
+    def rows(self) -> list[dict]:
+        try:
+            return list(self.rm.registry_entries())
+        except Exception:  # noqa: BLE001 — a broken registry is an empty one
+            return []
+
+    def cards(self) -> list[dict]:
+        now = time.monotonic()
+        out = []
+        with self._card_lock:
+            for row in self.rows():
+                hit = self._cards.get(row["path"])
+                if hit is None or now - hit[0] >= HOME_TTL \
+                        or hit[1].get("exists") != bool(row.get("exists")):
+                    try:
+                        card = _project_card(self.rm, row)
+                    except Exception as e:  # noqa: BLE001 — one bad project, one bad card
+                        card = {**{k: row.get(k) for k in ("slug", "name", "path",
+                                                           "lastSeen", "exists")},
+                                "error": str(e)}
+                    self._cards[row["path"]] = (now, card)
+                else:   # names, slugs and lastSeen are always the registry's latest
+                    card = {**hit[1], **{k: row.get(k)
+                                         for k in ("slug", "name", "lastSeen")}}
+                out.append(card)
+        return out
+
+    def mount(self, slug: str):
+        """(broadcaster, Handler) for the project `slug`, started on first use;
+        None when the slug is unknown or its path is gone."""
+        row = next((r for r in self.rows() if r.get("slug") == slug), None)
+        if row is None or not row.get("exists"):
+            return None
+        with self._mount_lock:
+            hit = self._mounts.get(row["path"])
+            if hit is not None:
+                return hit
+            try:
+                root = Path(row["path"])
+                b = _LazyBroadcaster(self.rm, root, verbose=self.verbose)
+                handler = serve(self.rm, root, bcast=b, handler_only=True)
+            except Exception:  # noqa: BLE001
+                return None
+            if not isinstance(handler, type):
+                return None
+            if self.base:
+                b.url = f"{self.base}/#/p/{urllib.parse.quote(slug)}/"
+            b.start()
+            self._mounts[row["path"]] = (b, handler)
+            return b, handler
+
+    def mounted(self) -> int:
+        return len(self._mounts)
+
+
+def _delegate(outer, handler_cls, path: str) -> None:
+    """Answer the request `outer` is handling with a per-project Handler, as if
+    it had been sent to that project's own dashboard with `path`."""
+    h = handler_cls.__new__(handler_cls)
+    for k in ("server", "client_address", "request", "connection", "rfile",
+              "wfile", "request_version", "requestline", "command", "headers",
+              "raw_requestline", "close_connection"):
+        if hasattr(outer, k):
+            setattr(h, k, getattr(outer, k))
+    h.path = path
+    try:
+        h.do_GET()
+    finally:
+        outer.close_connection = getattr(h, "close_connection", True)
+
+
+def _running_all(port: int):
+    """URL of an all-projects server already on `port`, else None."""
+    try:
+        req = urllib.request.Request(f"http://127.0.0.1:{port}/api/status")
+        with urllib.request.urlopen(req, timeout=0.4) as r:
+            if r.headers.get("X-Roadmap-Root") == ALL_ROOT_ID:
+                return f"http://127.0.0.1:{port}"
+    except Exception:
+        return None
+    return None
+
+
+def serve_all(rm, port: int | None = None, open_browser: bool = True,
+              verbose: bool = False) -> int:
+    """Serve the all-projects home page (plan 48). One instance per user:
+    with port=None an already-running one is reused."""
+    home = _Home(rm, verbose=verbose)
+    page = _dashboard_html().replace(MODE_META, MODE_META_ALL, 1)
+
+    class AllHandler(http.server.BaseHTTPRequestHandler):
+        def _send(self, code: int, body: bytes, ctype: str) -> None:
+            self.send_response(code)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Roadmap-Root", ALL_ROOT_ID)
+            self.end_headers()
+            self.wfile.write(body)
+
+        def _json(self, code: int, payload) -> None:
+            self._send(code, json.dumps(payload).encode("utf-8"), "application/json")
+
+        def do_GET(self) -> None:  # noqa: N802
+            path, _, query = self.path.partition("?")
+            if path == "/":
+                self._send(200, page.encode("utf-8"), "text/html; charset=utf-8")
+            elif path == "/api/projects":
+                self._json(200, {"projects": home.cards()})
+            elif path == "/api/status":
+                self._json(200, {"mode": "all", "projects": len(home.rows())})
+            elif path.startswith("/p/"):
+                slug, _, rest = path[len("/p/"):].partition("/")
+                slug = urllib.parse.unquote(slug)
+                mount = home.mount(slug)
+                if mount is None:
+                    self._json(404, {"error": f"no registered project {slug!r} "
+                                              "(or its path no longer exists)"})
+                    return
+                bcast, handler = mount
+                rest = "/" + rest
+                if rest == "/":    # a typed /p/<slug>/ URL: the page routes by hash
+                    self.send_response(302)
+                    self.send_header("Location", f"/#/p/{urllib.parse.quote(slug)}/")
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return
+                if rest == "/events":
+                    bcast.attach()
+                    try:
+                        _delegate(self, handler, rest)
+                    finally:
+                        bcast.detach()
+                    return
+                if bcast.clients <= 0:
+                    bcast.refresh()
+                _delegate(self, handler, rest + ("?" + query if query else ""))
+            else:
+                self._send(404, b"not found", "text/plain")
+
+        def log_message(self, *args) -> None:
+            pass
+
+    class Server(http.server.ThreadingHTTPServer):
+        daemon_threads = True
+
+        def handle_error(self, request, client_address) -> None:
+            exc = sys.exc_info()[1]
+            if isinstance(exc, (ConnectionResetError, BrokenPipeError,
+                                ConnectionAbortedError)):
+                return
+            super().handle_error(request, client_address)
+
+    httpd = None
+    if port is None:
+        for candidate in range(ALL_PORT, ALL_PORT + ALL_SPAN):
+            existing = _running_all(candidate)
+            if existing:
+                print(f"roadmap home already running → {existing}\n"
+                      "  One all-projects server per user — open the URL above; "
+                      "nothing new started.", flush=True)
+                if open_browser:
+                    try:
+                        webbrowser.open(existing)
+                    except Exception:
+                        pass
+                return 0
+        for candidate in range(ALL_PORT, ALL_PORT + ALL_SPAN):
+            try:
+                httpd = Server(("127.0.0.1", candidate), AllHandler)
+                break
+            except OSError:
+                continue
+        if httpd is None:
+            print(f"Error: no free port in {ALL_PORT}-{ALL_PORT + ALL_SPAN - 1}",
+                  file=sys.stderr)
+            return 1
+    else:
+        try:
+            httpd = Server(("127.0.0.1", port), AllHandler)
+        except OSError as e:
+            print(f"Error: cannot bind 127.0.0.1:{port} — {e}", file=sys.stderr)
+            return 1
+    url = f"http://127.0.0.1:{httpd.server_address[1]}"
+    home.base = url
+    n = len(home.rows())
+    print(f"roadmap home → {url}  ({n} project{'s' if n != 1 else ''}; "
+          "Ctrl-C to stop)", flush=True)
+    if not n:
+        print("  no projects registered yet — run `roadmap.py status` in a project "
+              "to add it", flush=True)
     if open_browser:
         try:
             webbrowser.open(url)
