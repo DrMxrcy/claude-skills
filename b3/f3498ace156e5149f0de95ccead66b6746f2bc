@@ -1,0 +1,21 @@
+skills/roadmap/SKILL.md
+  s_fbae122c7a65de::t_5befc8c1204c18 64
+skills/roadmap/references/state-model.md
+  s_fbae122c7a65de::t_b097ae946b9664 110-118
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b3f3498ace156e5149f0de95ccead66b6746f2bc",
+  "prompts": {},
+  "sessions": {
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
