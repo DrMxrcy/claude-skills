@@ -17,7 +17,7 @@ _Full work log — every item, including internal/dev work. The curated public c
 - (pending) Branches that wander outside their plan get flagged before review.
 - (pending) Every acceptance line gets its own pass mark and evidence, so done means every line was checked.
 - Each open version shows a forecast finish date based on how fast work has been moving.
-- (pending) A short digest tells you what changed on the roadmap since you last looked.
+- A short digest tells you what changed on the roadmap since you last looked.
 - Steps that need time to pass, like a week of monitoring, can wait without holding up a release.
 - Bugs always land in the right place: fixed inside the plan still being built, or tracked as their own item, never lost among ideas.
 - (pending) One dashboard page lists every project you use the roadmap in, with no setup.

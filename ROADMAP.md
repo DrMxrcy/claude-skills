@@ -31,7 +31,7 @@
 ### [x] v0.20.0 — 100%
 - [x] **#27 Parallel-safe roadmap builds: per-item worktrees, fresh-session orchestration, pending-decision handoff and per-item token spend** `feature` — 100% ([plan](.roadmap/plans/027-parallel-safe-roadmap-builds-per-item-worktrees-fresh-session-orchestration-pending-decision-handoff-and-per-item-token-spend.md))
 
-### [ ] v0.21.0 — 65%
+### [ ] v0.21.0 — 70%
 - [x] **#32 Batch claims, a landed stage, and bulk check-off from claims** `feature` — 100% ([plan](.roadmap/plans/032-batch-claims-a-landed-stage-and-bulk-check-off-from-claims.md))
 - [x] **#33 Numbered slot reservations: reserve the next migration (or any numbered sequence) per plan, with clash detection** `feature` — 100% ([plan](.roadmap/plans/033-numbered-slot-reservations-reserve-the-next-migration-or-any-numbered-sequence-per-plan-with-clash-detection.md))
 - [x] **#34 Rulings: record dated decisions on a plan from the CLI and show them on the dashboard** `feature` — 100% ([plan](.roadmap/plans/034-rulings-record-dated-decisions-on-a-plan-from-the-cli-and-show-them-on-the-dashboard.md))
@@ -45,7 +45,7 @@
 - [ ] **#42 Scope drift per branch: flag changes outside the files a plan lists** `feature` — 0% ([plan](.roadmap/plans/042-scope-drift-per-branch-flag-changes-outside-the-files-a-plan-lists.md))
 - [ ] **#43 Acceptance ledger: mark each acceptance bullet passed with evidence, and require it for done** `feature` — 0% ([plan](.roadmap/plans/043-acceptance-ledger-mark-each-acceptance-bullet-passed-with-evidence-and-require-it-for-done.md))
 - [x] **#44 Version forecast: estimate each open version's finish date from recent pace** `feature` — 100% ([plan](.roadmap/plans/044-version-forecast-estimate-each-open-version-s-finish-date-from-recent-pace.md))
-- [ ] **#45 Digest: what landed, moved, stalled and got blocked since a given time** `feature` — 0% ([plan](.roadmap/plans/045-digest-what-landed-moved-stalled-and-got-blocked-since-a-given-time.md))
+- [x] **#45 Digest: what landed, moved, stalled and got blocked since a given time** `feature` — 100% ([plan](.roadmap/plans/045-digest-what-landed-moved-stalled-and-got-blocked-since-a-given-time.md))
 - [x] **#46 Waiting steps and split retarget: time-gated checks no longer hold up a release or drag the whole feature to the next version** `feature` — 100% ([plan](.roadmap/plans/046-waiting-steps-and-split-retarget-time-gated-checks-no-longer-hold-up-a-release-or-drag-the-whole-feature-to-the-next-version.md))
 - [x] **#47 Bug routing: a bug command that fixes in-flight plans in place or files a linked bug item, and an incubator that refuses bugs** `feature` — 100% ([plan](.roadmap/plans/047-bug-routing-a-bug-command-that-fixes-in-flight-plans-in-place-or-files-a-linked-bug-item-and-an-incubator-that-refuses-bugs.md))
 - [ ] **#48 All-projects dashboard home: every roadmap project on one page, registered automatically** `feature` — 0% ([plan](.roadmap/plans/048-all-projects-dashboard-home-every-roadmap-project-on-one-page-registered-automatically.md))
