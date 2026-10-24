@@ -74,6 +74,7 @@ command files are installed where each agent can discover them. Bare
 | `/roadmap-catchup [id]` · `/roadmap-catchup` | Reconcile the roadmap with work done outside the commands (checks off completed steps) |
 | `/roadmap-status` · `/roadmap-status` | Show versions, items, types, and progress |
 | `roadmap serve [--port N] [--no-open] [--verbose]` | Local live web dashboard — pushes progress over SSE as you build; read-only; one dashboard per project (different projects coexist on their own ports). Each refresh logs one line with the URL; `--verbose` adds a line per checkout |
+| `roadmap serve --all` · `roadmap projects [--forget NAME]` | One home page for every project you have used the roadmap in — registered automatically by `orient`/`status`/`serve`/`check`, no setup. Cards show version, progress, in-flight/blocked/waiting counts, last activity and alerts; a card opens that project's dashboard under `#/p/<name>/` on the same port. Also what `serve` (and a bare `claude-roadmap`) does outside any project; `projects` lists the registry, `--forget` drops a moved or deleted one |
 | `/roadmap-done <id> [step]` · `/roadmap-done` | Mark a step/item done and resync |
 | `/roadmap-remove <id>` · `/roadmap-remove` | Remove a tracked item — archive its plan, demote it to the Idea Incubator |
 | `/roadmap-retarget …` · `/roadmap-retarget` | Re-stamp items onto another version (e.g. consolidate shipped work into one release on a branch) |
