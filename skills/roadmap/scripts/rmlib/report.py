@@ -7,10 +7,11 @@ from pathlib import Path
 from rmlib.core import (
     display_id, get_version, read_config, roadmap_dir, write_config)
 from rmlib.sync import (
-    next_item, roadmap_health, status)
+    format_due, next_item, roadmap_health, status)
 from rmlib.incubator import (
     incubator_file, list_incubator_bullets)
 from rmlib import owners as rmowners
+from rmlib import digest as rmdigest
 
 
 def _git_head(root: Path) -> str | None:
@@ -131,6 +132,11 @@ def orient(root: Path) -> dict | None:
                   "file": nxt.get("file")}
                  if nxt else None),
         "versionComplete": bool(st.get("versionComplete")),
+        # Plan 46: waiting steps due today/overdue (listed first), and whether
+        # the current version's only open work is waiting steps.
+        "waitingDue": st.get("waitingDue") or [],
+        "waitingOnly": any(i["lane"] == "waiting" for i in in_ver) and all(
+            i["lane"] in ("done", "waiting") for i in in_ver),
         "drift": drift_check(root),
         "skillVersionInstalled": installed,
         "skillVersionProject": recorded,
@@ -174,6 +180,7 @@ def format_orient(payload: dict, handoff: bool = False) -> str:
         f"Progress: {payload['itemsDone']}/{payload['itemsTotal']} items · "
         f"{payload['stepsDone']}/{payload['stepsTotal']} steps",
     ]
+    lines.extend(format_due(payload.get("waitingDue") or []))
     nxt = payload.get("next")
     if nxt:
         nid = nxt["id"]
@@ -195,6 +202,10 @@ def format_orient(payload: dict, handoff: bool = False) -> str:
             f"🎉 v{payload['currentVersion']} is 100% complete but uncut — cut it: "
             f"/roadmap-release · /roadmap-release · roadmap.py release --version <next> "
             f'(or set settings.autoRelease to "auto")')
+    elif payload.get("waitingOnly"):
+        lines.append(
+            f"Next: (none — v{payload['currentVersion']} has only waiting steps left; "
+            f"ship it now with: roadmap.py release --version <next> --with-waiting)")
     else:
         lines.append("Next: (none — current version complete or all remaining items blocked)")
     held = payload.get("held") or []
@@ -204,6 +215,7 @@ def format_orient(payload: dict, handoff: bool = False) -> str:
     over = rmowners.wip_warning(payload.get("wip"))
     if over:
         lines.append(f"⚠ {over}")
+    lines.extend(rmdigest.orient_lines(payload.get("digest")))   # plan 45
     if payload.get("drift"):
         lines.append(payload["drift"])
     if payload.get("branch"):

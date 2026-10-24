@@ -21,6 +21,7 @@ from rmlib.sync import (  # noqa: E402
     _version_complete, incomplete_deps, next_item, render_region,
     roadmap_health, status, sync, uncut_complete_version,
     derive_lane, is_in_flight, lane_counts, lane_label,
+    countdown, due_waiting, format_due,
     format_worktrees, worktree_payload, conflicts_payload,
     scope_drift_payload, format_scope_drift,
     warn_incomplete_deps, MAX_ROADMAP_LINES,
@@ -30,7 +31,7 @@ from rmlib.sync import (  # noqa: E402
 from rmlib.parse import (  # noqa: E402
     STEP_RE, _is_fence, parse_plan, count_progress, _plan_path,
     CLAIM_STAGES, CLAIM_VERDICTS, CLAIM_FIELDS, read_claim, needs_approval,
-    parse_rulings)
+    parse_rulings, waiting_steps)
 
 
 from rmlib.ops import (  # noqa: E402
@@ -39,7 +40,8 @@ from rmlib.ops import (  # noqa: E402
     clear_claims,
     import_file, merge_items, new_item,
     promote_idea, release, release_gate, remove_item, reorder, retarget,
-    set_audience, set_claim, set_claims, set_depends, set_note, set_release_summary)
+    set_audience, set_claim, set_claims, set_depends, set_note, set_release_summary,
+    create_follow_up, parse_until, wait_step)
 
 
 from rmlib.incubator import (  # noqa: E402
@@ -80,6 +82,7 @@ from rmlib import forecast as rmforecast  # noqa: E402  (plan 44: version foreca
 from rmlib import conflicts as rmconflicts  # noqa: E402  (plan 41: conflict risk)
 from rmlib import runs as rmruns  # noqa: E402  (plan 38: run log)
 from rmlib import owners as rmowners  # noqa: E402  (plan 40: claim owners, WIP limit)
+from rmlib import digest as rmdigest  # noqa: E402  (plan 45: digest since a time)
 
 
 __all__ = [  # public facade: names re-exported for callers/tests/hooks (roadmap.X)
@@ -94,10 +97,12 @@ __all__ = [  # public facade: names re-exported for callers/tests/hooks (roadmap
     '_progress_map', '_version_complete', 'incomplete_deps', 'next_item',
     'render_region', 'roadmap_health', 'status', 'sync',
     'derive_lane', 'is_in_flight', 'lane_counts', 'lane_label',
+    'countdown', 'due_waiting', 'format_due',
     'format_worktrees', 'worktree_payload', 'conflicts_payload', 'scope_drift_payload', 'format_scope_drift', 'uncut_complete_version', 'warn_incomplete_deps', 'MAX_ROADMAP_LINES', 'MAX_FREEFORM_LINES',
     'MAX_FREEFORM_CHARS', 'STEP_RE', '_is_fence', 'parse_plan',
     'count_progress', '_plan_path', 'CLAIM_STAGES', 'CLAIM_VERDICTS',
-    'CLAIM_FIELDS', 'read_claim', 'needs_approval', 'parse_rulings', 'set_claim', 'clear_claim', 'set_claims',
+    'CLAIM_FIELDS', 'read_claim', 'needs_approval', 'parse_rulings',
+    'waiting_steps', 'create_follow_up', 'parse_until', 'wait_step', 'set_claim', 'clear_claim', 'set_claims',
     'clear_claims', 'claim_landed', 'check_landed', 'add_ruling', 'TEMPLATE_BY_TYPE',
     '_incomplete_items', '_refuse_status_note', 'backfill_changelog',
     'check_step', 'import_file', 'merge_items', 'new_item', 'promote_idea',
@@ -139,7 +144,9 @@ def _dashboard_api():
         worktree_facts=rmbranches.worktree_facts,
         worktree_payload=worktree_payload,
         conflicts_payload=conflicts_payload,
-        scope_drift_payload=scope_drift_payload)
+        scope_drift_payload=scope_drift_payload,
+        digest=rmdigest.digest, digest_sections=rmdigest.sections,   # plan 45
+        default_owner=rmowners.default_owner)
 
 
 def serve(root: Path, port: int | None = None, open_browser: bool = True,
@@ -307,6 +314,17 @@ def main(argv: list[str]) -> int:
     p_check.add_argument("--yes", action="store_true",
                          help="with --landed: apply instead of listing")
 
+    p_wait = sub.add_parser(
+        "wait", help="mark a step as waiting on time (soak, propagation, review): "
+                     "not done, but the item reads `waiting` once its other steps "
+                     "are ticked; `check --step N` ticks it once verified")
+    p_wait.add_argument("plan", help=ID_HELP)
+    p_wait.add_argument("--step", type=int, required=True)
+    p_wait.add_argument("--until", help="due date: 2026-10-30, or relative 7d / 2w")
+    p_wait.add_argument("--reason", help="what is being waited on (e.g. soak)")
+    p_wait.add_argument("--clear", action="store_true",
+                        help="end the wait: the step goes back to unticked")
+
     def claim_stage(value: str) -> str:
         v = value.strip().lower()
         if v == "building":
@@ -388,6 +406,9 @@ def main(argv: list[str]) -> int:
     p_rel.add_argument("--version", required=True)
     p_rel.add_argument("--tag", action="store_true")
     p_rel.add_argument("--force", action="store_true")
+    p_rel.add_argument("--with-waiting", action="store_true", dest="with_waiting",
+                       help="ship items whose only open steps are waiting steps; each "
+                            "waiting step moves into a linked follow-up item in --version")
 
     p_st = sub.add_parser("status")
     p_st.add_argument("--json", action="store_true", dest="as_json")
@@ -458,6 +479,20 @@ def main(argv: list[str]) -> int:
 
     sub.add_parser("drift-check", help="nudge if commits landed without check-off")
 
+    p_digest = sub.add_parser(
+        "digest", help="what completed, moved, stalled and got blocked since a time, "
+                       "and what needs attention now (read-only)")
+    p_digest.add_argument("--since", default="last",
+                          help="3h | 1d | 2w | a date (2026-10-20) | an ISO time | "
+                               "last (default: since your previous digest run; "
+                               "1d the first time)")
+    p_digest.add_argument("--format", choices=["text", "md"], default="text",
+                          help="md: Markdown for pasting into chat")
+    p_digest.add_argument("--json", action="store_true", dest="as_json")
+    p_digest.add_argument("--conflicts", action="store_true",
+                          help="also flag high-risk branch conflicts (one git diff "
+                               "per open branch on a cold cache)")
+
     p_promote = sub.add_parser("promote", help="lift an Idea Incubator bullet into a plan")
     p_promote.add_argument("--match", help="substring match against incubator bullet title")
     p_promote.add_argument("--index", type=int, help="1-based index into incubator bullets")
@@ -526,6 +561,9 @@ def main(argv: list[str]) -> int:
                                          "(default: current; ignored for a Fix step)")
     p_bug.add_argument("--target", help="files for the Fix step's '-> target:' "
                                         "(default: TBD)")
+    p_bug.add_argument("--owner", help="claimant for the fixing claim (default: as claim)")
+    p_bug.add_argument("--take", action="store_true",
+                       help="fix an in-flight item held by another owner anyway")
 
     p_cl = sub.add_parser("changelog")
     p_cl.add_argument("--backfill", action="store_true")
@@ -536,9 +574,15 @@ def main(argv: list[str]) -> int:
                            "(for in-app changelog screens / What's New popups)")
 
     p_rt = sub.add_parser("retarget")
-    p_rt.add_argument("--to", required=True)
+    p_rt.add_argument("ids", nargs="*", metavar="id",
+                      help=ID_HELP + " (same as --plan)")
+    p_rt.add_argument("--to", "--version", dest="to", required=True)
     p_rt.add_argument("--from", dest="from_versions", default="")
     p_rt.add_argument("--plan", dest="plan_ids", default="", help=IDS_HELP)
+    p_rt.add_argument("--split", action="store_true",
+                      help="keep the ticked steps in the item's version (it completes "
+                           "there) and move only the open steps into a new linked "
+                           "follow-up item in --to")
 
     args = parser.parse_args(argv)
     root = find_root(Path.cwd())
@@ -585,6 +629,20 @@ def main(argv: list[str]) -> int:
             check_step(root, rid(args.plan), args.step, undo=args.undo,
                        all_done=args.all_done, evidence=args.evidence,
                        tokens=args.tokens, force=args.force)
+            return 0
+        if args.command == "wait":
+            if args.clear and (args.until or args.reason):
+                p_wait.error("--clear takes no --until/--reason")
+            if not args.clear and not args.until:
+                p_wait.error("--until is required (or --clear)")
+            plan_id = rid(args.plan)
+            w = wait_step(root, plan_id, args.step, until=args.until,
+                          reason=args.reason, clear=args.clear)
+            if args.clear:
+                print(f"#{plan_id} step {w['step']}: no longer waiting")
+            else:
+                print(f"#{plan_id} step {w['step']}: waiting until {w['until']}"
+                      + (f" ({w['reason']})" if w["reason"] else ""))
             return 0
         if args.command == "claim":
             if args.clear and any(v is not None for v in
@@ -633,7 +691,8 @@ def main(argv: list[str]) -> int:
         if args.command == "run":
             return _run_cmd(root, args, rids)
         if args.command == "release":
-            release(root, args.version, tag=args.tag, force=args.force)
+            release(root, args.version, tag=args.tag, force=args.force,
+                    with_waiting=args.with_waiting)
             return 0
         if args.command == "sync":
             sync(root)
@@ -679,7 +738,7 @@ def main(argv: list[str]) -> int:
             res = file_bug(root, args.title,
                            found_in=rid(args.found_in) if args.found_in else None,
                            observed=args.observed, version=args.version,
-                           target=args.target)
+                           target=args.target, owner=args.owner, take=args.take)
             rel = res["path"].relative_to(root)
             if res["route"] == "fix-step":
                 claim = (" · claim stage → fixing" if res["claim"]
@@ -704,13 +763,17 @@ def main(argv: list[str]) -> int:
             return 0
         if args.command == "next":
             item = next_item(root, version=args.version, force=args.force)
+            due = due_waiting(status(root)["items"])   # plan 46: due waits first
+            if not args.as_json:
+                for line in format_due(due):
+                    print(line)
             if item is None:
                 print("No unfinished unblocked items.")
                 if not args.version:
                     release_gate(root)
                 return 0
             if args.as_json:
-                print(json.dumps(item, indent=2))
+                print(json.dumps({**item, "waitingDue": due}, indent=2))
             else:
                 print(f"{item['displayId']} {item['title']} [{item['type']}] "
                       f"v{item['version']} — {item['pct']}% "
@@ -720,6 +783,11 @@ def main(argv: list[str]) -> int:
             payload = orient(root)
             if payload is None:
                 return 0
+            # Plan 45: what changed since this owner's previous orient (stamped
+            # in the git dir, never in the tree); absent outside git.
+            dg = rmdigest.orient_digest(root, rmowners.default_owner(root))
+            if dg is not None:
+                payload["digest"] = dg
             text = format_orient(payload)
             if args.hook:
                 # Claude Code SessionStart: inject as additionalContext
@@ -772,6 +840,12 @@ def main(argv: list[str]) -> int:
             if msg:
                 print(msg)
             return 0
+        if args.command == "digest":                            # plan 45
+            d = rmdigest.digest(root, args.since, conflicts=args.conflicts,
+                                owner=rmowners.default_owner(root), record=True)
+            print(json.dumps(d, indent=2) if args.as_json
+                  else rmdigest.format_digest(d, md=args.format == "md"))
+            return 0
         if args.command == "deps-check":
             plan_id = rid(args.plan)
             blocked = warn_incomplete_deps(root, plan_id, force=args.force)
@@ -779,9 +853,14 @@ def main(argv: list[str]) -> int:
                 print(f"#{plan_id}: ok" + (" (force)" if args.force and blocked else ""))
             return 0
         if args.command == "retarget":
-            retarget(root, args.to,
-                     from_versions=[v for v in args.from_versions.split(",") if v.strip()] or None,
-                     plan_ids=rids(args.plan_ids) or None)
+            ids = [*rids(args.plan_ids), *(n for tok in args.ids for n in rids(tok))]
+            made = retarget(
+                root, args.to,
+                from_versions=[v for v in args.from_versions.split(",") if v.strip()] or None,
+                plan_ids=ids or None, split=args.split)
+            for fu in made:
+                print(f"#{fu['followUpOf']}: open steps → follow-up #{fu['id']} "
+                      f"in v{fu['version']} (.roadmap/{fu['file']})")
             return 0
         if args.command == "changelog":
             if args.backfill:
@@ -856,8 +935,12 @@ def main(argv: list[str]) -> int:
             else:
                 lc = st["counts"]["lanes"]
                 active = f" · {lc['active']} active" if lc["active"] else ""
+                waiting = f" · {lc['waiting']} waiting" if lc.get("waiting") else ""
                 print(f"{st['project']} — v{st['currentVersion']} · {lc['done']} done"
-                      f" · {lc['inFlight']} in-flight{active} · {lc['planned']} planned")
+                      f" · {lc['inFlight']} in-flight{active} · {lc['planned']} planned"
+                      f"{waiting}")
+                for line in format_due(st.get("waitingDue") or []):   # plan 46
+                    print(line)
                 # Items grouped under a version header carrying its forecast (plan 44).
                 groups: dict[str, list] = {}
                 for it in st["items"]:
@@ -868,7 +951,8 @@ def main(argv: list[str]) -> int:
                     for it in its:
                         block = (f" blocked by {it['blockedBy']}"
                                  if it.get("blockedBy") else "")
-                        lane = f" — {lane_label(it)}" if is_in_flight(it) else ""
+                        lane = (f" — {lane_label(it)}"
+                                if is_in_flight(it) or it["lane"] == "waiting" else "")
                         print(f"  {it['displayId']} {it['title']} [{it['type']}] "
                               f"{it['pct']}% ({it['status']}){lane}{block}")
             return 0

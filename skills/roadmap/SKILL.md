@@ -276,18 +276,20 @@ Anywhere a command takes `--plan ID` (or an id list), the id may be `7`, `#7`, o
 - `depends --plan ID --on IDS [--clear]` — set dependency ordering (`next`/`build` honor it)
 - `reorder --version V --order IDS` — set display/build order within a version
 - `merge --into KEEP --from IDS` — fold duplicate items into one keeper
-- `retarget --to V (--from VERS | --plan IDS)` — re-stamp items onto another version
+- `retarget --to V (--from VERS | --plan IDS)` — re-stamp items onto another version; `retarget ID --version V --split` keeps the ticked steps (the item completes where it is) and moves only the open ones into a linked follow-up item in V
+- `wait ID --step N --until DATE|7d [--reason R]` (or `--clear`) — mark a step that can only be verified after time passes (soak, propagation); never done, lane `waiting` once the rest is ticked, due steps listed first by `orient`/`next`/`status`; tick it with `check --step N` once verified
 - `orient [--json] [--hook]` — session orientation (project, progress, next item, drift)
 - `handoff [--json]` — multi-coder switch brief (orient + git dirty + checklist)
 - `handoff --plan ID --pending "<decision>"` — record an open decision in `.roadmap/notes/<id>-handoff.md`; a plain `handoff` refuses while it is open
 - `handoff --plan ID --resolve` — close the open decision for that plan
 - `orient` also reports the branch, dirty files and the last 5 commits (in handoff mode)
 - `drift-check` — nudge if commits landed without a check-off
+- `digest [--since 3h|1d|2w|<date>|last] [--format md] [--json] [--conflicts]` — catch up after a break: items completed, steps ticked, claims that moved stage or verdict, items that went stale or blocked, new plans and branches, gate/suite runs and ideas added in the window, plus a **needs attention** list (due waiting steps, REFUTED verdicts, blocked claims, failing trunk suite, WIP over limit, slot clashes, high-risk conflicts with `--conflicts`, in-flight plans with template text). Read-only; `--since last` (the default) covers changes since your previous digest, `orient` prints a 3-line version since your last session, and the dashboard has a `#/digest` page (see `references/state-model.md` → "Digest")
 - `tidy [--json] [--externalize [PATH]]` — report-only free-form/incubator hygiene analysis (long bullets, nested blocks, dupes vs tracked items, bug-like bullets, stray prose, unfinished plans whose required sections are still template); `--externalize` moves the incubator into a linked external file (default `.roadmap/IDEAS.md`; `idea`/`promote`/`remove` follow via `settings.incubatorFile`); `/roadmap-tidy` applies the grooming + idea curation
 - `sync` — recompute progress + re-render ROADMAP.md **and both changelogs** (safe anytime)
 - `upgrade` — refresh this project's `CLAUDE.md` + `AGENTS.md` rules to the installed skill version
 - `changelog [--internal] [--backfill] [--json]` — print the public (or `--internal`) changelog + audit warnings; `--backfill` dates past versions from git tags; `--json` emits structured data (versions, dates, sections, pending flags) for in-app changelog screens / What's New popups
-- `release --version V [--tag] [--force]` — bump version (optional; changelog is automatic).
+- `release --version V [--tag] [--force] [--with-waiting]` — bump version (optional; changelog is automatic). `--with-waiting` ships items whose only open steps are waiting steps and moves those steps into linked follow-up items in V.
   The CLI watches for a finished-but-uncut version: when every item in the current version
   is 100%, `check`/`next`/`orient` print a release nudge, and starting work on a later
   version (`new`/`promote` targeting it) triggers the gate too. `settings.autoRelease` in

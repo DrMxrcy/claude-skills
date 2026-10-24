@@ -12,7 +12,7 @@ from rmlib.core import (
     write_config)
 from rmlib.parse import (
     CLAIM_STAGES, count_progress, meta_ids, needs_approval, off_plan, parse_plan,
-    read_claim, scope_allow)
+    read_claim, scope_allow, waiting_steps)
 from rmlib import branches as rmbranches
 from rmlib import slots as rmslots
 from rmlib import forecast as rmforecast
@@ -23,7 +23,10 @@ from rmlib.changelog import (
     render_internal_changelog, render_public_changelog)
 
 
-def render_region(cfg: dict, progress: dict) -> str:
+def render_region(cfg: dict, progress: dict, waiting: dict | None = None) -> str:
+    """`waiting` ({id: n waiting steps}, plan 46) adds ` (+n waiting)` to an item's
+    line; waiting steps are already counted as open in `progress`."""
+    waiting = waiting or {}
     by_version: dict[str, list] = {}
     for item in cfg["items"]:
         by_version.setdefault(item["version"], []).append(item)
@@ -54,8 +57,10 @@ def render_region(cfg: dict, progress: dict) -> str:
             done, total = progress.get(item["id"], (0, 0))
             ipct = round(100 * done / total) if total else 0
             box = "x" if total and done == total else " "
+            nw = waiting.get(item["id"]) or 0
+            wtag = f" (+{nw} waiting)" if nw else ""
             lines.append(f"- [{box}] **#{item['id']} {item['title']}** "
-                         f"`{item['type']}` — {ipct}% "
+                         f"`{item['type']}` — {ipct}%{wtag} "
                          f"([plan](.roadmap/{item['file']}))")
         lines.append("")
     return "\n".join(lines).rstrip() + "\n"
@@ -124,12 +129,13 @@ def sync(root: Path, quiet: bool = False) -> None:
                 _set_frontmatter(path, "version", nv)
     if changed:
         write_config(root, cfg)
-    progress = {}
+    progress, waiting = {}, {}
     for item in cfg["items"]:
         path = roadmap_dir(root) / item["file"]
         if path.exists():
             done, total = count_progress(path)
             progress[item["id"]] = (done, total)
+            waiting[item["id"]] = len(parse_plan(path).get("waiting") or {})
             _set_frontmatter(path, "status", derive_status(done, total))
     # stamp a completion date when a version reaches 100% (deterministic changelog).
     # A version that is not yet cut (>= currentVersion) and regains incomplete work
@@ -162,7 +168,7 @@ def sync(root: Path, quiet: bool = False) -> None:
             changed = True
     if changed:
         write_config(root, cfg)
-    body = render_region(cfg, progress) if cfg["items"] else \
+    body = render_region(cfg, progress, waiting) if cfg["items"] else \
         "_No items yet. Use the roadmap skill to add one._\n"
     region = f"**Current version: v{cfg['currentVersion']}**\n\n{body}"
     rm_path = root / "ROADMAP.md"
@@ -266,9 +272,15 @@ def _branch_has_work(branch: dict | None) -> bool:
     return (branch.get("ahead") or 0) > 0 or (branch.get("taggedCommits") or 0) > 0
 
 
-def derive_lane(status: str, claim: dict | None, branch: dict | None) -> str:
+def derive_lane(status: str, claim: dict | None, branch: dict | None,
+                waiting: bool = False) -> str:
+    """`waiting` (plan 46): every step is ticked except waiting ones — the work
+    is built and only time-gated verification is left, so it outranks claims
+    and branches (and keeps `check --landed` from ever ticking the wait)."""
     if status == "done":
         return "done"
+    if waiting:
+        return "waiting"
     stage = (claim or {}).get("stage")
     if stage in CLAIM_STAGES:          # a hand-edited unknown stage is ignored
         return stage
@@ -283,17 +295,22 @@ def derive_lane(status: str, claim: dict | None, branch: dict | None) -> str:
 
 def is_in_flight(item: dict) -> bool:
     """Not done, and git (a branch) or the build loop (a claim) says work is
-    under way. The one predicate behind `status --in-flight` and the counts."""
-    return item.get("lane") != "done" and bool(item.get("branch") or item.get("claim"))
+    under way. The one predicate behind `status --in-flight` and the counts.
+    A `waiting` item (plan 46) is parked on time, not in flight."""
+    return item.get("lane") not in ("done", "waiting") \
+        and bool(item.get("branch") or item.get("claim"))
 
 
 def lane_counts(items: list[dict]) -> dict[str, int]:
-    """done / inFlight / active / planned — every item lands in exactly one.
-    `active` holds trunk-active items with no branch and no claim."""
-    out = {"done": 0, "inFlight": 0, "active": 0, "planned": 0}
+    """done / inFlight / active / planned / waiting — every item lands in
+    exactly one. `active` holds trunk-active items with no branch and no claim;
+    `waiting` (plan 46) items whose only open steps wait on a date."""
+    out = {"done": 0, "inFlight": 0, "active": 0, "planned": 0, "waiting": 0}
     for i in items:
         if i.get("lane") == "done":
             out["done"] += 1
+        elif i.get("lane") == "waiting":
+            out["waiting"] += 1
         elif is_in_flight(i):
             out["inFlight"] += 1
         elif i.get("status") == "active":
@@ -308,6 +325,10 @@ def lane_label(item: dict) -> str:
     `landed · roadmap/7 · @1a2b3c4 · +4` (the commit it landed in)."""
     lane = item.get("lane") or item.get("status") or "?"
     parts = [lane]
+    if lane == "waiting":                  # plan 46: `waiting · step 3 · 4d left`
+        for w in item.get("waitingSteps") or []:
+            parts += [f"step {w['step']}", countdown(w.get("daysLeft"))]
+        return " · ".join(parts)
     branch, claim = item.get("branch"), item.get("claim") or {}
     if branch:
         parts.append(branch["name"])
@@ -320,6 +341,47 @@ def lane_label(item: dict) -> str:
     if branch and branch.get("ahead"):
         parts.append(f"+{branch['ahead']}")
     return " · ".join(parts)
+
+
+def countdown(days_left: int | None) -> str:
+    """`4d left` / `due` / `2d overdue` for a waiting step (plan 46)."""
+    if days_left is None:
+        return "no date"
+    if days_left > 0:
+        return f"{days_left}d left"
+    return "due" if days_left == 0 else f"{-days_left}d overdue"
+
+
+def _waiting_rows(path: Path, today: datetime.date) -> list[dict]:
+    """waiting_steps() plus `daysLeft` (None when the step has no date)."""
+    out = []
+    for w in waiting_steps(path):
+        try:
+            left = (datetime.date.fromisoformat(w["until"]) - today).days
+        except (TypeError, ValueError):
+            left = None
+        out.append({**w, "daysLeft": left})
+    return out
+
+
+def due_waiting(items: list[dict]) -> list[dict]:
+    """Every waiting step due today or overdue across `items` (status rows),
+    most overdue first: {id, displayId, title, version, step, text, until,
+    reason, daysLeft}."""
+    due = [{"id": i["id"], "displayId": i.get("displayId"), "title": i["title"],
+            "version": i["version"], **w}
+           for i in items for w in i.get("waitingSteps") or []
+           if w.get("daysLeft") is not None and w["daysLeft"] <= 0]
+    return sorted(due, key=lambda d: (d["daysLeft"], d["id"], d["step"]))
+
+
+def format_due(due: list[dict]) -> list[str]:
+    """One reminder line per due waiting step, with the command that ticks it."""
+    return [f"⏰ {d['displayId'] or '#' + str(d['id'])} step {d['step']} "
+            f"({countdown(d['daysLeft'])}"
+            + (f": {d['reason']}" if d.get("reason") else "") + f") — {d['text']} "
+            f"→ verify, then: roadmap.py check --plan {d['id']} --step {d['step']}"
+            for d in due]
 
 
 def _public_branch(info: dict, item_id: int) -> dict:
@@ -365,6 +427,7 @@ def status(root: Path, worktrees: bool = False, conflicts: bool = False,
     by_name = {b["name"]: b for b in [*found["items"].values(), *found["other"]]}
     other_names = {b["name"] for b in found["other"]}
     claimed_from_other: set[str] = set()
+    today = datetime.date.today()
     items = []
     for item in cfg["items"]:
         done, total = progress.get(item["id"], (0, 0))
@@ -381,12 +444,17 @@ def status(root: Path, worktrees: bool = False, conflicts: bool = False,
             claimed_from_other.add(info["name"])
         branch = _public_branch(info, item["id"]) if info else None
         st = derive_status(done, total)
+        # Waiting steps (plan 46): counted open in done/total; `waiting` counts
+        # them separately and the lane flips once they are all that is left.
+        wrows = _waiting_rows(path, today) if path.exists() else []
+        waits = bool(wrows) and done + len(wrows) == total
         row = {**item, "displayId": display_id(item),
                "done": done, "total": total, "pct": pct,
                "status": st,
+               "waiting": len(wrows), "waitingSteps": wrows,
                "dependsOn": list(item.get("dependsOn") or []),
                "blockedBy": blocked_by,
-               "lane": derive_lane(st, claim, branch),
+               "lane": derive_lane(st, claim, branch, waiting=waits),
                "claim": claim, "branch": branch,
                # Rulings (plan 34): dated decisions from the plan body.
                "rulings": list(plan.get("rulings") or []),
@@ -408,6 +476,10 @@ def status(root: Path, worktrees: bool = False, conflicts: bool = False,
     # so projects without it see an unchanged payload.
     extra = ({"slots": rmslots.slots_status(root, cfg, items, found)}
              if (cfg.get("settings") or {}).get("slots") else {})
+    # Waiting steps due today or overdue, most overdue first (plan 46) — only
+    # when some item has a waiting step, so other projects' payload is unchanged.
+    if any(i["waiting"] for i in items):
+        extra["waitingDue"] = due_waiting(items)
     # Run log (plan 38): last runs, trunk health, and skipped-line warnings.
     extra.update(rmruns.runs_status(root, cfg, found["trunk"]))
     # Work-in-progress limit (plan 40): only present when settings.wipLimit is set.
@@ -760,8 +832,17 @@ def next_item(root: Path, version: str | None = None,
     """
     st = status(root)
     ver = _norm_version(version or st["currentVersion"])
-    candidates = [i for i in st["items"] if i["version"] == ver and i["pct"] < 100]
-    candidates.sort(key=lambda i: (i.get("order", i["id"]), i["id"]))
+    # A `waiting` item (plan 46) has nothing to do until a wait falls due; a due
+    # one comes first (most overdue first) — verifying it is the next thing to do.
+    def overdue(i: dict) -> int | None:
+        left = [w["daysLeft"] for w in i.get("waitingSteps") or []
+                if w.get("daysLeft") is not None and w["daysLeft"] <= 0]
+        return min(left) if left else None
+    candidates = [i for i in st["items"] if i["version"] == ver and i["pct"] < 100
+                  and not (i["lane"] == "waiting" and overdue(i) is None)]
+    candidates.sort(key=lambda i: (
+        (0, overdue(i)) if i["lane"] == "waiting" else (1, 0),
+        i.get("order", i["id"]), i["id"]))
     me = rmowners.clean_owner(owner) or rmowners.default_owner(root)
     ttl = rmowners.claim_ttl_hours(read_config(root))
     over = rmowners.wip_warning(st.get("wip"))
