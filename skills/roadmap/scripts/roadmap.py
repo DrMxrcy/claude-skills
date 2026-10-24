@@ -73,6 +73,8 @@ from rmlib.project import (  # noqa: E402
     init_project, upgrade)
 
 from rmlib import slots as rmslots  # noqa: E402  (plan 33: numbered slots)
+from rmlib.ops import file_bug  # noqa: E402  (plan 47: bug routing)
+from rmlib.incubator import bug_tells  # noqa: E402  (plan 47)
 from rmlib import forecast as rmforecast  # noqa: E402  (plan 44: version forecast)
 from rmlib import runs as rmruns  # noqa: E402  (plan 38: run log)
 
@@ -114,7 +116,8 @@ __all__ = [  # public facade: names re-exported for callers/tests/hooks (roadmap
     '_git_head', '_record_last_seen_sha', 'drift_check', 'format_orient',
     'format_search', 'search',
     'handoff', 'orient', '_apply_rules_block', 'ensure_claude_md_rules',
-    'ensure_project_rules', 'init_project', 'upgrade', 'serve', 'main'
+    'ensure_project_rules', 'init_project', 'upgrade', 'serve', 'main',
+    'file_bug', 'bug_tells',   # plan 47
 ]
 
 
@@ -438,7 +441,9 @@ def main(argv: list[str]) -> int:
     p_promote = sub.add_parser("promote", help="lift an Idea Incubator bullet into a plan")
     p_promote.add_argument("--match", help="substring match against incubator bullet title")
     p_promote.add_argument("--index", type=int, help="1-based index into incubator bullets")
-    p_promote.add_argument("--type", default="feature")
+    p_promote.add_argument("--type", default=None,
+                           help="item type (default: bug when the bullet reads like a "
+                                "bug report, else feature)")
     p_promote.add_argument("--version")
     p_promote.add_argument("--note", default="")
     p_promote.add_argument("--audience", choices=["public", "internal"])
@@ -486,6 +491,21 @@ def main(argv: list[str]) -> int:
     p_idea.add_argument("--body", help="long-form content -> .roadmap/notes/ file")
     p_idea.add_argument("--body-file", dest="body_file",
                         help="read long-form content from a file")
+    p_idea.add_argument("--force", action="store_true",
+                        help="park it even though the title reads like a bug report")
+
+    p_bug = sub.add_parser(
+        "bug", help="route a bug: a Fix step on an in-flight item's plan (--found-in), "
+                    "else a new bug item linked to its origin — never the incubator")
+    p_bug.add_argument("title")
+    p_bug.add_argument("--found-in", dest="found_in", metavar="ID",
+                       help=ID_HELP + " — the item the bug was found in")
+    p_bug.add_argument("--observed", help="what was observed (pre-fills Observed / "
+                                          "the Found during build note)")
+    p_bug.add_argument("--version", help="target version for a new bug item "
+                                         "(default: current; ignored for a Fix step)")
+    p_bug.add_argument("--target", help="files for the Fix step's '-> target:' "
+                                        "(default: TBD)")
 
     p_cl = sub.add_parser("changelog")
     p_cl.add_argument("--backfill", action="store_true")
@@ -630,8 +650,28 @@ def main(argv: list[str]) -> int:
             body = args.body
             if args.body_file:
                 body = Path(args.body_file).read_text(encoding="utf-8")
-            note = add_idea(root, args.title, body)
+            note = add_idea(root, args.title, body, force=args.force)
             print(f"Parked idea: {args.title}" + (f" (notes: {note})" if note else ""))
+            return 0
+        if args.command == "bug":
+            res = file_bug(root, args.title,
+                           found_in=rid(args.found_in) if args.found_in else None,
+                           observed=args.observed, version=args.version,
+                           target=args.target)
+            rel = res["path"].relative_to(root)
+            if res["route"] == "fix-step":
+                claim = (" · claim stage → fixing" if res["claim"]
+                         else " · not started, no claim set")
+                print(f"#{res['id']}: Step {res['step']} 'Fix: {args.title.strip()}' "
+                      f"appended to {rel}{claim} — no new item")
+                if res["ignoredVersion"]:
+                    print(f"note: --version {res['ignoredVersion']} ignored — the fix "
+                          f"ships with #{res['id']}", file=sys.stderr)
+            else:
+                link = f" (foundIn #{res['foundIn']}, linked both ways)" \
+                    if res["foundIn"] is not None else ""
+                print(f"#{res['id']}: new bug item{link}")
+                print(res["path"])
             return 0
         if args.command == "promote":
             path = promote_idea(root, match=args.match, index=args.index,

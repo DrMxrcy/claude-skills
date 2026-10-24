@@ -16,16 +16,19 @@ from rmlib.parse import (
     RULING_APPROVAL_TAG, RULINGS_HEADING, RULINGS_SECTION_KEY,
     STEP_RE, _HEADING_RE, _is_fence, _norm_name, _plan_path, count_progress,
     parse_plan, read_claim, required_sections, template_stubs)
+from rmlib.parse import FOUND_HEADING, FOUND_SECTION_KEY, meta_ids  # plan 47
 from rmlib.changelog import (
     demote_tells, item_audience, lint_note, status_tells)
 from rmlib.sync import (
     _branch_has_work, status, sync, uncut_complete_version)
+from rmlib.sync import is_in_flight  # plan 47
 from rmlib import branches as rmbranches
 from rmlib.report import (
     _record_last_seen_sha)
 from rmlib.incubator import (
     INCUBATOR_BULLET_RE, MD_LINK_RE, _incubator_stub, _strip_incubator_placeholder,
     incubator_file, list_incubator_bullets)
+from rmlib.incubator import bug_tells  # plan 47
 
 
 def _auto_release_mode(cfg: dict) -> str:
@@ -385,9 +388,11 @@ def clear_claims(root: Path, plan_ids) -> dict[int, bool]:
     return out
 
 
-def _ruling_insert_at(lines: list[str]) -> int | None:
+def _ruling_insert_at(lines: list[str],
+                      key: str = RULINGS_SECTION_KEY) -> int | None:
     """Index to insert a new ruling bullet at: just past the last non-blank line
-    of the plan's `## ... Rulings` section, or None when it has no such section.
+    of the plan's `## ... Rulings` section (or the `##` section whose normalized
+    heading is `key`), or None when it has no such section.
     Fenced code is never read as a heading."""
     in_fence, start = False, None
     for i, line in enumerate(lines):
@@ -403,7 +408,7 @@ def _ruling_insert_at(lines: list[str]) -> int | None:
             end = i
             break
         if start is None and len(hm.group(1)) == 2 \
-                and _norm_name(hm.group(2)) == RULINGS_SECTION_KEY:
+                and _norm_name(hm.group(2)) == key:
             start = i
     else:
         end = len(lines)
@@ -854,14 +859,15 @@ def release(root: Path, version: str, tag: bool = False, force: bool = False) ->
 
 
 def promote_idea(root: Path, *, match: str | None = None, index: int | None = None,
-                 type_: str = "feature", version: str | None = None,
+                 type_: str | None = None, version: str | None = None,
                  note: str = "", audience: str | None = None,
                  force: bool = False) -> Path:
     """Lift one Idea Incubator bullet into a tracked plan item and remove that bullet.
 
     Select by 1-based --index or by --match substring against the bullet title.
     Exactly one selector required when multiple bullets exist; a single bullet can be
-    promoted with no selector.
+    promoted with no selector. With no `type_`, a bullet that reads like a bug
+    report (incubator.bug_tells, plan 47) becomes a `bug` item, else a `feature`.
     """
     if match and index is not None:
         raise ValueError("pass only one of --match / --index")
@@ -891,6 +897,8 @@ def promote_idea(root: Path, *, match: str | None = None, index: int | None = No
             f"multiple incubator bullets — pass --index N or --match TEXT:\n{listing}")
 
     title = chosen["title"]
+    if type_ is None:
+        type_ = "bug" if bug_tells(title) else "feature"
     path = new_item(root, type_, title, version=version, note=note, audience=audience,
                     force=force)
 
@@ -922,6 +930,115 @@ def promote_idea(root: Path, *, match: str | None = None, index: int | None = No
         new_lines.append(line)
     atomic_write(rm, "".join(new_lines))
     return path
+
+
+# ---- bug routing (plan 47) ------------------------------------------------------
+def _upsert_meta(text: str, key: str, value: str) -> str:
+    """Plan `text` with frontmatter `key: value` set (replaced, else appended)."""
+    m = FRONTMATTER_RE.match(text)
+    if not m:
+        raise ValueError("plan file has no frontmatter block")
+    lines = [ln for ln in m.group(1).splitlines()
+             if ln.partition(":")[0].strip() != key]
+    return "---\n" + "\n".join(lines + [f"{key}: {value}"]) + "\n---\n" + text[m.end():]
+
+
+def _append_fix_step(text: str, title: str, target: str, observed: str) -> tuple[str, int]:
+    """Plan `text` with an unchecked `Step N: Fix: <title> -> target: <target>` after
+    its last checklist step (and that step's evidence/continuation lines), plus a
+    dated bullet under `## 🐞 Found during build` (created at the end when
+    missing). Returns (new text, N)."""
+    lines = text.splitlines()
+    last, n, in_fence = None, 0, False
+    for i, line in enumerate(lines):
+        if _is_fence(line):
+            in_fence = not in_fence
+            continue
+        if not in_fence and STEP_RE.match(line):
+            last, n = i, n + 1
+    n += 1
+    if last is None:
+        while lines and not lines[-1].strip():
+            lines.pop()
+        lines += ["", "## 🛠️ Checklist", f"- [ ] Step {n}: Fix: {title} -> target: {target}"]
+    else:
+        indent = len(lines[last]) - len(lines[last].lstrip())
+        at = last + 1
+        while at < len(lines) and lines[at].strip() \
+                and len(lines[at]) - len(lines[at].lstrip()) > indent \
+                and not STEP_RE.match(lines[at]):
+            at += 1
+        prefix = STEP_RE.match(lines[last]).group(1).lstrip()   # top level, same marker
+        lines.insert(at, f"{prefix}[ ] Step {n}: Fix: {title} -> target: {target}")
+    bullet = f"- Step {n}: {title} ({datetime.date.today().isoformat()})"
+    if observed:
+        bullet += f" — observed: {observed}"
+    at = _ruling_insert_at(lines, FOUND_SECTION_KEY)
+    if at is None:
+        while lines and not lines[-1].strip():
+            lines.pop()
+        lines += ["", FOUND_HEADING, "", bullet]
+    else:
+        lines.insert(at, bullet)
+    return "\n".join(lines) + "\n", n
+
+
+def file_bug(root: Path, title: str, found_in: int | None = None,
+             observed: str | None = None, version: str | None = None,
+             target: str | None = None) -> dict:
+    """Route a bug by where it lives (plan 47) — never into the Idea Incubator.
+
+    In-flight origin (`found_in` not done, with a branch or claim — or trunk-active,
+    some steps ticked): append `Step N: Fix: <title>` to its plan, note it under
+    `## 🐞 Found during build`, and set its claim stage to `fixing` (verdict and
+    other claim fields kept). A not-yet-started origin gets the step but no claim.
+    No new item either way.
+    Shipped origin (done) or no `found_in`: a new `bug` item through new_item (bug
+    template, id, config, ROADMAP.md row) in `version` or the current one, with
+    Observed pre-filled and `foundIn` / `bugsFound` frontmatter linking both plans.
+
+    Returns {"route": "fix-step"|"new-item", "id", "path", ...}."""
+    title = " ".join((title or "").split())
+    if not title:
+        raise ValueError("bug title must not be empty")
+    observed = " ".join((observed or "").split())
+    target = " ".join((target or "").split()) or "TBD"
+    origin = None
+    if found_in is not None:
+        origin = next((i for i in status(root)["items"] if i["id"] == found_in), None)
+        if origin is None:
+            raise ValueError(f"no item #{found_in} (--found-in)")
+        path = roadmap_dir(root) / origin["file"]
+        if not path.exists():
+            raise ValueError(f"plan file for #{found_in} is missing ({path.name})")
+    if origin is not None and origin["lane"] != "done":
+        text, n = _append_fix_step(path.read_text(encoding="utf-8"), title, target,
+                                   observed)
+        atomic_write(path, text)
+        claimed = is_in_flight(origin) or origin["status"] == "active"
+        if claimed:
+            set_claim(root, found_in, stage="fixing")      # also syncs
+        else:
+            sync(root)
+        return {"route": "fix-step", "id": found_in, "path": path, "step": n,
+                "claim": "fixing" if claimed else None,
+                "ignoredVersion": version if version else None}
+    path = new_item(root, "bug", title, version=version)
+    cfg = read_config(root)
+    new_id = cfg["nextId"] - 1
+    text = path.read_text(encoding="utf-8")
+    if observed:
+        text = re.sub(r"(?m)^(\s*[-*+]\s+\*\*Observed:\*\*)[ \t]*$",
+                      lambda m: f"{m.group(1)} {observed}", text, count=1)
+    if origin is not None:
+        text = _upsert_meta(text, "foundIn", str(found_in))
+        opath = roadmap_dir(root) / origin["file"]
+        otext = opath.read_text(encoding="utf-8")
+        ids = meta_ids(parse_plan(opath)["meta"], "bugsFound")
+        atomic_write(opath, _upsert_meta(otext, "bugsFound",
+                                         ", ".join(str(i) for i in _unique(ids + [new_id]))))
+    atomic_write(path, text)
+    return {"route": "new-item", "id": new_id, "path": path, "foundIn": found_in}
 
 
 def import_file(root: Path, src: Path) -> list[Path]:

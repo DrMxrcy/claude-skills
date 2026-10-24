@@ -63,14 +63,100 @@ def _strip_incubator_placeholder(root: Path) -> None:
         atomic_write(target, new)
 
 
-def add_idea(root: Path, title: str, body: str | None = None) -> Path | None:
+# Bug tells (plan 47): a bug parked in the Idea Incubator is never tracked, so
+# `idea` refuses a title that reads like a defect report and points at `bug`.
+# Tuned for ZERO false refusals on real feature ideas: every tell needs defect
+# phrasing (a verb, a be-verb, or a trailing preposition), noun uses are exempt
+# ("voice clips", "error pages", "crash reporting", "regression tests"), and a
+# title that opens with an imperative ("Add …", "Detect broken links", "Retry
+# failed jobs") is an idea unless its second word is a defect verb ("Export
+# crashes …"). Missing a real bug is cheap (it stays an idea); refusing an idea
+# is not. Titles only — long-form bodies are never scanned.
+_BE = (r"(?:is|are|was|were|gets?|got|goes|go|went|still|now|looks?|seems?|"
+       r"became|becomes|being|been)")
+_ERR_NOUNS = r"(?: (?:pages?|handling|messages?|states?|boundar(?:y|ies)|tracking|" \
+             r"reporting|inbox|budget|codes?))"
+BUG_TELLS = (
+    ("crash", re.compile(r"\bcrash(?:es|ed|ing)?\b(?![- ](?:reports?|reporting|logs?|"
+                         r"analytics|free|recovery|dumps?|tests?))")),
+    ("broken", re.compile(
+        r"^broken\b(?!.*\b(?:checker|detector|detection|scan|scanner|report|linter)\b)"
+        rf"|\b{_BE} broken\b|\bbroken (?:on|in|after|when|since|for|by|again)\b"
+        r"|\bbroken$|\bbreaks (?:on|in|after|when|the)\b")),
+    ("error", re.compile(
+        r"\b(?:throws?|threw|thrown|shows?|showing|gives?|giving|returns?|returning|"
+        r"hits?|raises?|getting|gets|got|with) (?:an? |the )?(?:\w+ )?errors?\b"
+        rf"(?!{_ERR_NOUNS})|\berrors? (?:when|on|after|while|if|whenever)\b"
+        rf"|\berrors? out\b|^errors?\b(?!{_ERR_NOUNS})")),
+    ("fails", re.compile(r"\bfails\b|\b(?:fail|failed|failing) (?:to|with|on|when|after|"
+                         r"for|silently|randomly|intermittently)\b|\bfailed$")),
+    ("regression", re.compile(r"\bregress(?:ion|ions|ed)?\b(?![- ](?:tests?|testing|"
+                              r"suites?|checks?|guards?|baselines?))")),
+    ("doesn't work", re.compile(r"\b(?:does ?n[o'’]?t|do ?n[o'’]?t|is ?n[o'’]?t|"
+                                r"are ?n[o'’]?t|not|stopped|no longer|never) "
+                                r"work(?:s|ing|ed)?\b")),
+    ("wrong", re.compile(r"\bwrong(?:ly)?\b|\bincorrect(?:ly)?\b")),
+    ("missing", re.compile(rf"^missing\b|\b{_BE} missing\b|\bmissing (?:from|in|on|"
+                           r"after|when|for|since)\b|\bmissing$")),
+    ("clips", re.compile(r"(?<!voice )(?<!audio )(?<!video )(?<!sound )(?<!own )"
+                         r"\b(?:clips|clipped|clipping)\b(?! (?:to|for|from|library|"
+                         r"pack|board|upload))|\bgets? clipped\b|\bcut off\b")),
+    ("exception", re.compile(r"\b(?:throws?|threw|thrown|raises?|raised|unhandled|"
+                             r"uncaught|an|null ?pointer) exceptions?\b"
+                             r"|\bexceptions? (?:when|on|in|after|while|thrown|raised)\b")),
+    ("500", re.compile(r"\b(?:returns?|returned|returning|throws?|gives?|got|gets|"
+                       r"getting|answers?|answered|responds? with|http|status|a) 500s?\b"
+                       r"|\b500s? (?:errors?|responses?|internal|on|when|for|after)\b"
+                       r"|\(500\)")),
+)
+_IDEA_LEAD_VERBS = frozenset("""
+    add adds allow let support detect warn flag surface show display handle catch
+    report log track alert retry recover prevent guard block refuse validate lint
+    check test make improve enable expose offer provide introduce build create
+    generate send notify highlight explain document harden audit monitor scan dedupe
+    collect record capture list filter export import sync cache render auto keep
+    move split merge rename replace remove drop clean tidy reduce speed skip ignore
+    hide mark tag link group sort search find suggest require enforce use switch
+    migrate upgrade bump publish ship release cut gate stop limit cap throttle rate
+    reconnect restore redirect route map print stream preview edit view open close
+    """.split())
+_DEFECT_SECOND = frozenset("""
+    is are was were does doesn't doesnt did didn't do don't has have had isn't aren't
+    wasn't can't cannot won't never no still always sometimes now crashes crashed
+    fails failed breaks broke clips clipped throws threw returns returned shows
+    errors hangs freezes
+    """.split())
+
+
+def bug_tells(text: str) -> list[str]:
+    """Names of the bug-report tells in an idea title ([] = reads like an idea)."""
+    t = TRAILING_LINK_RE.sub("", " ".join((text or "").split())).lower().strip(" .")
+    words = t.split()
+    if words and re.sub(r"[^a-z'’-]", "", words[0]) in _IDEA_LEAD_VERBS \
+            and not (len(words) > 1 and words[1] in _DEFECT_SECOND):
+        return []
+    return [name for name, rx in BUG_TELLS if rx.search(t)]
+
+
+def add_idea(root: Path, title: str, body: str | None = None,
+             force: bool = False) -> Path | None:
     """Park an idea as ONE incubator bullet. Long-form content (brainstorm output,
     deferred review findings, phase sketches) goes to a linked note file under
-    .roadmap/notes/ so ROADMAP.md itself stays short."""
+    .roadmap/notes/ so ROADMAP.md itself stays short. A title that reads like a
+    bug report is refused (plan 47) unless `force`: bugs go through `bug`."""
     title = title.strip()
     if not title:
         raise ValueError("idea title must not be empty")
     read_config(root)  # fail early with a clear error if not initialized
+    tells = [] if force else bug_tells(title)
+    if tells:
+        quoted = title.replace('"', "'")
+        raise ValueError(
+            f"idea refused — this reads like a bug report ({', '.join(tells)}), and "
+            f"the Idea Incubator tracks nothing. File it instead: roadmap.py bug "
+            f"\"{quoted}\" [--found-in <id>] [--observed TEXT] — a bug in an in-flight "
+            f"item becomes a Fix step on its plan, one in shipped work a linked bug "
+            f"item. Re-run with --force if this really is an idea.")
     _strip_incubator_placeholder(root)
     stub = f"- {title}"
     note_path = None
@@ -235,6 +321,10 @@ def tidy_report(root: Path) -> dict:
             entry["flags"].append("long-no-link")
         elif b["chars"] > 2 * MAX_BULLET_CHARS:
             entry["flags"].append("long")
+        tells = bug_tells(title)
+        if tells:
+            entry["flags"].append("bug")
+            entry["bugTells"] = tells
         norm = _norm_title(title)
         if norm and tracked:
             best = max(tracked, key=lambda t: difflib.SequenceMatcher(
@@ -298,6 +388,10 @@ def format_tidy(report: dict) -> str:
             detail.append("no notes link")
         if "duplicate" in b["flags"]:
             detail.append(f"≈ tracked item #{b['duplicateOf']}")
+        if "bug" in b["flags"]:
+            detail.append(f"reads like a bug ({', '.join(b['bugTells'])}) — "
+                          f"promote it (defaults to --type bug) or file it with "
+                          f"roadmap.py bug")
         out.append(f"  - bullet {b['index']} “{b['title']}” — " + ", ".join(detail))
     if report["prose"]["lines"]:
         leads = "; ".join(report["prose"]["leads"][:5])

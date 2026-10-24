@@ -68,6 +68,7 @@ If the user message / `$ARGUMENTS` starts with one of these verbs, run that flow
 | `build` | Build the rest of the args (id / version / empty / flags) — same as `/roadmap-build` |
 | `plan` | Brainstorm remaining args into a tracked plan |
 | `idea` | Park remaining args in the Idea Incubator |
+| `bug` | Route a bug: `roadmap.py bug "<title>" [--found-in ID] [--observed TEXT]` — never the incubator |
 | `init` | Initialize / adopt |
 | `done` | Mark step/item done |
 | `remove` / `retarget` / `review` / `release` / `changelog` / `catchup` / `reevaluate` / `tidy` / `upgrade` | Follow that command's flow |
@@ -94,6 +95,7 @@ If there are no args on bare `/roadmap` in Claude/Grok, use **Phase routing** be
 
 - At the start of a session, run `roadmap.py orient` / `handoff` (or status) before writing code.
 - New features or found bugs become roadmap items (`/roadmap-plan`) before coding; park stray ideas in the Idea Incubator — nothing is built off-roadmap.
+- **Bugs never go in the incubator** (nothing tracks them there): `roadmap.py bug "<title>" --found-in <id> [--observed TEXT]`. Found during an in-flight item's build → a `Fix:` step on that plan (claim stage `fixing`), no new item; found in shipped work → a `bug` item linked to its origin. `idea` refuses titles that read like bug reports (`--force` overrides).
 - **Incubator hygiene — ROADMAP.md stays skimmable.** One bullet per parked idea, added via
   `roadmap.py idea --title "..."`. Long-form content — brainstorm output, deferred review
   findings, phase sketches, option analyses — goes to a linked `.roadmap/notes/` file
@@ -254,8 +256,9 @@ On invocation, detect state and pick a phase:
 Anywhere a command takes `--plan ID` (or an id list), the id may be `7`, `#7`, or its typed display id `FEAT-7` / `BUG-7` / `REF-7` / `CHORE-7` (case-insensitive; `ITEM-7` matches any type).
 - `init [--name N] [--adopt]` — scaffold (adopt = existing repo, non-destructive)
 - `new --type T --title "..." [--version V] [--note "..."] [--audience public|internal]` — scaffold + register a plan
-- `idea --title "..." [--body "..." | --body-file PATH]` — park an idea: one incubator bullet; a body becomes a linked `.roadmap/notes/` file
-- `promote [--match T | --index N] [--type T] …` — lift an incubator bullet into a tracked plan
+- `idea --title "..." [--body "..." | --body-file PATH] [--force]` — park an idea: one incubator bullet; a body becomes a linked `.roadmap/notes/` file. A title that reads like a bug report (crashes, broken, fails, doesn't work, wrong, missing from, clips, exception, returns 500, …) is refused with a `bug` suggestion; `--force` parks it anyway
+- `promote [--match T | --index N] [--type T] …` — lift an incubator bullet into a tracked plan (`--type` defaults to `bug` for a bullet that reads like a bug report, else `feature`)
+- `bug "<title>" [--found-in ID] [--observed TEXT] [--version X] [--target FILES]` — route a bug (plan 47): an origin that is not done gets `- [ ] Step N: Fix: <title> -> target: <FILES|TBD>` after its last step plus a dated bullet under `## 🐞 Found during build`, and its claim stage becomes `fixing` (verdict kept; a not-yet-started origin gets no claim) — no new item; a done origin or no `--found-in` files a new `bug` item (same path as `new --type bug`) with Observed pre-filled and `foundIn`/`bugsFound` frontmatter linking both plans
 - `note --plan ID --text "..." [--force]` — set an item's user-facing changelog line (lints public notes; refuses status-dump text on public items)
 - `ruling ID --text "..." [--by owner|NAME] [--approval]` — append a dated decision to the plan's `## ⚖️ Rulings` section (plan file only; never the changelog or ROADMAP.md); `--approval` marks an owner sign-off, which clears a plan's `approval: required` marker (see `references/state-model.md` → "Rulings")
 - `summary --version V --text "..." [--clear] [--force]` — set a version's public release-notes blurb; renders instead of item bullets in CHANGELOG.md (keep it stupid simple)
@@ -280,7 +283,7 @@ Anywhere a command takes `--plan ID` (or an id list), the id may be `7`, `#7`, o
 - `handoff --plan ID --resolve` — close the open decision for that plan
 - `orient` also reports the branch, dirty files and the last 5 commits (in handoff mode)
 - `drift-check` — nudge if commits landed without a check-off
-- `tidy [--json] [--externalize [PATH]]` — report-only free-form/incubator hygiene analysis (long bullets, nested blocks, dupes vs tracked items, stray prose, unfinished plans whose required sections are still template); `--externalize` moves the incubator into a linked external file (default `.roadmap/IDEAS.md`; `idea`/`promote`/`remove` follow via `settings.incubatorFile`); `/roadmap-tidy` applies the grooming + idea curation
+- `tidy [--json] [--externalize [PATH]]` — report-only free-form/incubator hygiene analysis (long bullets, nested blocks, dupes vs tracked items, bug-like bullets, stray prose, unfinished plans whose required sections are still template); `--externalize` moves the incubator into a linked external file (default `.roadmap/IDEAS.md`; `idea`/`promote`/`remove` follow via `settings.incubatorFile`); `/roadmap-tidy` applies the grooming + idea curation
 - `sync` — recompute progress + re-render ROADMAP.md **and both changelogs** (safe anytime)
 - `upgrade` — refresh this project's `CLAUDE.md` + `AGENTS.md` rules to the installed skill version
 - `changelog [--internal] [--backfill] [--json]` — print the public (or `--internal`) changelog + audit warnings; `--backfill` dates past versions from git tags; `--json` emits structured data (versions, dates, sections, pending flags) for in-app changelog screens / What's New popups

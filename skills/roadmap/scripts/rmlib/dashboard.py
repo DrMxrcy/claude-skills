@@ -279,7 +279,8 @@ def _item_detail(rm, root: Path, item_id: int) -> dict:
             detail["lane"], detail["claim"] = row.get("lane"), row.get("claim")
             detail["blockedBy"] = list(row.get("blockedBy") or [])
             detail["needsApproval"] = bool(row.get("needsApproval"))
-            for k in ("displayId", "pct", "done", "total"):
+            for k in ("displayId", "pct", "done", "total",
+                      "foundIn", "bugsFound", "foundDuringBuild"):   # plan 47
                 detail[k] = row.get(k)
             if row.get("branch"):
                 detail["branch"] = {
