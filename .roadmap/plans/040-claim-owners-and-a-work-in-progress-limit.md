@@ -3,7 +3,7 @@ id: 40
 title: Claim owners and a work-in-progress limit
 type: feature
 version: 0.21.0
-status: planned
+status: done
 created: 2026-10-23
 ---
 
@@ -28,7 +28,11 @@ created: 2026-10-23
 - **Fails if:** an existing claim without an owner becomes unclaimable.
 
 ## 🚶 Step-by-Step Checklist
-- [ ] Step 1: `claim_owner`, held check, `--take`, TTL -> target: rmlib/ops.py, rmlib/parse.py, roadmap.py, tests
-- [ ] Step 2: `next` skips held items, `orient` lists own holds -> target: roadmap.py / report module, tests
-- [ ] Step 3: `wipLimit` warning in CLI and dashboard -> target: rmlib/sync.py, rmlib/dashboard.html, tests
-- [ ] Step 4: docs -> target: references/*.md, SKILL.md
+- [x] Step 1: `claim_owner`, held check, `--take`, TTL -> target: rmlib/ops.py, rmlib/parse.py, roadmap.py, tests
+  > evidence: babf9bf d54a39b f32dcf5 + docs; 21 owner tests; merged f6410c1; 595 passed in 157.97s (0:02:37); reviews skipped at owner request (2026-10-24)
+- [x] Step 2: `next` skips held items, `orient` lists own holds -> target: roadmap.py / report module, tests
+  > evidence: babf9bf d54a39b f32dcf5 + docs; 21 owner tests; merged f6410c1; 595 passed in 157.97s (0:02:37); reviews skipped at owner request (2026-10-24)
+- [x] Step 3: `wipLimit` warning in CLI and dashboard -> target: rmlib/sync.py, rmlib/dashboard.html, tests
+  > evidence: babf9bf d54a39b f32dcf5 + docs; 21 owner tests; merged f6410c1; 595 passed in 157.97s (0:02:37); reviews skipped at owner request (2026-10-24)
+- [x] Step 4: docs -> target: references/*.md, SKILL.md
+  > evidence: babf9bf d54a39b f32dcf5 + docs; 21 owner tests; merged f6410c1; 595 passed in 157.97s (0:02:37); reviews skipped at owner request (2026-10-24)
