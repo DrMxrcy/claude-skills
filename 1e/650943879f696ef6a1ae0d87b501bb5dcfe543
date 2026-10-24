@@ -1,0 +1,21 @@
+skills/roadmap/scripts/rmlib/dashboard.html
+  s_fbae122c7a65de::t_00857750362c23 7-11,14-18,20-28,32-40,101,410,1207-1223
+tests/test_roadmap_dashboard_polish.py
+  s_fbae122c7a65de::t_c516fc3f44ef27 307-402
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1e650943879f696ef6a1ae0d87b501bb5dcfe543",
+  "prompts": {},
+  "sessions": {
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
