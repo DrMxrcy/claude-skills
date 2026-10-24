@@ -5,6 +5,7 @@ type: feature
 version: 0.21.0
 status: done
 created: 2026-10-23
+bugsFound: 52
 ---
 
 # Plan 48: All-projects dashboard home: every roadmap project on one page, registered automatically

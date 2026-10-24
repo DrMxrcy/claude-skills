@@ -42,6 +42,7 @@ _Full work log — every item, including internal/dev work. The curated public c
 
 ### 🐛 Fixed
 - bug --found-in writes the Fix step before refusing a claim held by another owner
+- (pending) Leftovers: note error suggests a missing --audience flag; board copy commands lack the project under serve --all; board filters shared across projects
 
 ## v0.18.0 — 2026-10-21
 

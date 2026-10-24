@@ -1,7 +1,7 @@
 {
   "project": "claude-skills",
   "currentVersion": "0.19.0",
-  "nextId": 52,
+  "nextId": 53,
   "items": [
     {
       "id": 1,
@@ -523,6 +523,14 @@
       "type": "bug",
       "version": "0.19.0",
       "file": "plans/051-bug-found-in-writes-the-fix-step-before-refusing-a-claim-held-by-another-owner.md"
+    },
+    {
+      "id": 52,
+      "slug": "leftovers-note-error-suggests-a-missing-audience-flag-board-copy-commands-lack-the-project-under-serve-all-board-filters-shared-across-projects",
+      "title": "Leftovers: note error suggests a missing --audience flag; board copy commands lack the project under serve --all; board filters shared across projects",
+      "type": "bug",
+      "version": "0.19.0",
+      "file": "plans/052-leftovers-note-error-suggests-a-missing-audience-flag-board-copy-commands-lack-the-project-under-serve-all-board-filters-shared-across-projects.md"
     }
   ],
   "settings": {
