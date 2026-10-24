@@ -3,7 +3,7 @@ id: 41
 title: Branch conflict risk: show which open branches change the same files
 type: feature
 version: 0.21.0
-status: planned
+status: done
 created: 2026-10-23
 ---
 
@@ -31,6 +31,9 @@ created: 2026-10-23
 - **Fails if:** any command modifies a branch or the index.
 
 ## 🚶 Step-by-Step Checklist
-- [ ] Step 1: per-branch changed files and pairwise overlap with merge-tree check, cached -> target: rmlib/conflicts.py, tests
-- [ ] Step 2: `status --conflicts`, payload, merge-order suggestion -> target: roadmap.py, rmlib/sync.py, tests
-- [ ] Step 3: dashboard panel and plan-page overlaps -> target: rmlib/dashboard.html, tests
+- [x] Step 1: per-branch changed files and pairwise overlap with merge-tree check, cached -> target: rmlib/conflicts.py, tests
+  > evidence: 9093403 3f79d12 + dashboard step; 20 conflict tests; statewide read-only 36 overlapping pairs, 9 high, 1.1s; merged ce62386; 615 passed in 210.00s (0:03:30); reviews skipped at owner request (2026-10-24)
+- [x] Step 2: `status --conflicts`, payload, merge-order suggestion -> target: roadmap.py, rmlib/sync.py, tests
+  > evidence: 9093403 3f79d12 + dashboard step; 20 conflict tests; statewide read-only 36 overlapping pairs, 9 high, 1.1s; merged ce62386; 615 passed in 210.00s (0:03:30); reviews skipped at owner request (2026-10-24)
+- [x] Step 3: dashboard panel and plan-page overlaps -> target: rmlib/dashboard.html, tests
+  > evidence: 9093403 3f79d12 + dashboard step; 20 conflict tests; statewide read-only 36 overlapping pairs, 9 high, 1.1s; merged ce62386; 615 passed in 210.00s (0:03:30); reviews skipped at owner request (2026-10-24)
