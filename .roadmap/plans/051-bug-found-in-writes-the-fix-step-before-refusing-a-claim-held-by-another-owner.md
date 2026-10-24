@@ -3,7 +3,7 @@ id: 51
 title: bug --found-in writes the Fix step before refusing a claim held by another owner
 type: bug
 version: 0.19.0
-status: planned
+status: done
 created: 2026-10-24
 foundIn: 47
 ---
@@ -26,6 +26,9 @@ foundIn: 47
 - **Fails if:** a bug on an unheld in-flight item stops getting its Fix step and `fixing` claim, or `--take` stops overriding the hold.
 
 ## 🛠️ Checklist
-- [ ] Step 1: Write a reproduction test
-- [ ] Step 2: Apply the fix
-- [ ] Step 3: Verify suite is green
+- [x] Step 1: Write a reproduction test
+  > evidence: b954627 regression test failed on old code; 7d5c3e0 fix; 87 bug+owner tests; merged 56ac747; 648 passed in 180.93s (0:03:00); reviews skipped at owner request (2026-10-24)
+- [x] Step 2: Apply the fix
+  > evidence: b954627 regression test failed on old code; 7d5c3e0 fix; 87 bug+owner tests; merged 56ac747; 648 passed in 180.93s (0:03:00); reviews skipped at owner request (2026-10-24)
+- [x] Step 3: Verify suite is green
+  > evidence: b954627 regression test failed on old code; 7d5c3e0 fix; 87 bug+owner tests; merged 56ac747; 648 passed in 180.93s (0:03:00); reviews skipped at owner request (2026-10-24)

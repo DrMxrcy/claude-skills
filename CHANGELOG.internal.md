@@ -41,7 +41,7 @@ _Full work log — every item, including internal/dev work. The curated public c
 - The live roadmap page opens on everything, and every plan and idea gets its own page.
 
 ### 🐛 Fixed
-- (pending) bug --found-in writes the Fix step before refusing a claim held by another owner
+- bug --found-in writes the Fix step before refusing a claim held by another owner
 
 ## v0.18.0 — 2026-10-21
 
