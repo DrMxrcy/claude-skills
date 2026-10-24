@@ -3,7 +3,7 @@ id: 42
 title: Scope drift per branch: flag changes outside the files a plan lists
 type: feature
 version: 0.21.0
-status: planned
+status: done
 created: 2026-10-23
 ---
 
@@ -29,6 +29,9 @@ created: 2026-10-23
 - **Fails if:** tests, lockfiles or `.roadmap/` files are flagged by default.
 
 ## 🚶 Step-by-Step Checklist
-- [ ] Step 1: declared-path extraction from plan bodies -> target: rmlib/parse.py, tests
-- [ ] Step 2: off-plan computation with allow list, `status --drift`, payload -> target: rmlib/sync.py, roadmap.py, tests
-- [ ] Step 3: dashboard chip and plan-page list -> target: rmlib/dashboard.html, tests
+- [x] Step 1: declared-path extraction from plan bodies -> target: rmlib/parse.py, tests
+  > evidence: f23aacb ad69ee0 integrated 72ec453; plan 30 merge 1 off-plan, plan 31 merge 1 off-plan; statewide 10 branches 5 off-plan 5 no scope; main at f220b16; 761 passed, 1 flaky digest test passes alone; reviews skipped at owner request (2026-10-24)
+- [x] Step 2: off-plan computation with allow list, `status --drift`, payload -> target: rmlib/sync.py, roadmap.py, tests
+  > evidence: f23aacb ad69ee0 integrated 72ec453; plan 30 merge 1 off-plan, plan 31 merge 1 off-plan; statewide 10 branches 5 off-plan 5 no scope; main at f220b16; 761 passed, 1 flaky digest test passes alone; reviews skipped at owner request (2026-10-24)
+- [x] Step 3: dashboard chip and plan-page list -> target: rmlib/dashboard.html, tests
+  > evidence: f23aacb ad69ee0 integrated 72ec453; plan 30 merge 1 off-plan, plan 31 merge 1 off-plan; statewide 10 branches 5 off-plan 5 no scope; main at f220b16; 761 passed, 1 flaky digest test passes alone; reviews skipped at owner request (2026-10-24)

@@ -12,7 +12,7 @@
 - Merge gates and test runs are recorded, so everyone can see what ran, what passed, and how far the trunk is ahead.
 - Each claimed item shows who is working on it, and the roadmap warns when too much is in flight at once.
 - See which in-flight branches touch the same files, so merge order can be planned before the gate.
-- (pending) Branches that wander outside their plan get flagged before review.
+- Branches that wander outside their plan get flagged before review.
 - Every acceptance line gets its own pass mark and evidence, so done means every line was checked.
 - Each open version shows a forecast finish date based on how fast work has been moving.
 - A short digest tells you what changed on the roadmap since you last looked.
@@ -20,7 +20,7 @@
 - Bugs always land in the right place: fixed inside the plan still being built, or tracked as their own item, never lost among ideas.
 - (pending) One dashboard page lists every project you use the roadmap in, with no setup.
 - (pending) Find anything fast: pages per version, a dependency map, search across every plan, and keyboard shortcuts.
-- (pending) The dashboard reconnects on its own, flags problems in the browser tab, follows your light or dark setting, and opens faster.
+- The dashboard reconnects on its own, flags problems in the browser tab, follows your light or dark setting, and opens faster.
 
 ### ⚡ Improved
 - The roadmap stops warning about file length once shipped versions fold away on their own.

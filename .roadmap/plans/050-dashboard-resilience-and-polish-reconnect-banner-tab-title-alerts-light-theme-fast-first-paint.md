@@ -3,7 +3,7 @@ id: 50
 title: Dashboard resilience and polish: reconnect banner, tab-title alerts, light theme, fast first paint
 type: feature
 version: 0.21.0
-status: planned
+status: done
 created: 2026-10-23
 ---
 
@@ -31,7 +31,11 @@ created: 2026-10-23
 - **Fails if:** a browser notification fires without the viewer opting in.
 
 ## 🚶 Step-by-Step Checklist
-- [ ] Step 1: incremental first payload and server instance id -> target: rmlib/dashboard.py, tests
-- [ ] Step 2: connection banner and reconnect -> target: rmlib/dashboard.html, tests
-- [ ] Step 3: title, favicon and opt-in notifications -> target: rmlib/dashboard.html, tests
-- [ ] Step 4: light theme tokens, toggle, contrast test, last-updated stamp -> target: rmlib/dashboard.html, tests
+- [x] Step 1: incremental first payload and server instance id -> target: rmlib/dashboard.py, tests
+  > evidence: b450921 b903a77 bca66df 1e65094 7cf8ed3 integrated f220b16; Playwright banner 1.3s, title (2), theme toggle; main at f220b16; 761 passed, 1 flaky digest test passes alone; reviews skipped at owner request (2026-10-24)
+- [x] Step 2: connection banner and reconnect -> target: rmlib/dashboard.html, tests
+  > evidence: b450921 b903a77 bca66df 1e65094 7cf8ed3 integrated f220b16; Playwright banner 1.3s, title (2), theme toggle; main at f220b16; 761 passed, 1 flaky digest test passes alone; reviews skipped at owner request (2026-10-24)
+- [x] Step 3: title, favicon and opt-in notifications -> target: rmlib/dashboard.html, tests
+  > evidence: b450921 b903a77 bca66df 1e65094 7cf8ed3 integrated f220b16; Playwright banner 1.3s, title (2), theme toggle; main at f220b16; 761 passed, 1 flaky digest test passes alone; reviews skipped at owner request (2026-10-24)
+- [x] Step 4: light theme tokens, toggle, contrast test, last-updated stamp -> target: rmlib/dashboard.html, tests
+  > evidence: b450921 b903a77 bca66df 1e65094 7cf8ed3 integrated f220b16; Playwright banner 1.3s, title (2), theme toggle; main at f220b16; 761 passed, 1 flaky digest test passes alone; reviews skipped at owner request (2026-10-24)
