@@ -361,3 +361,56 @@ def test_items_sharing_a_branch_judged_against_all_their_plans(roadmap, drift3):
     one = next(e for e in rep["items"] if e["branch"] == "roadmap/1")
     assert one["items"] == [1, 3] and one["offPlan"] == ["src/b.py"]
     assert rep["byItem"][3] == ["src/b.py"]
+
+
+# --- dashboard chip and plan-page list (step 3) ------------------------------
+
+def test_dashboard_payload_carries_scope_drift(roadmap, dashboard, drift3):
+    before = _repo_state(drift3)
+    bc = dashboard._Broadcaster(roadmap._dashboard_api(), drift3)
+    rep = json.loads(bc.snapshot()[1])["scopeDrift"]
+    assert rep["byItem"] == {"1": ["src/b.py"], "2": ["assets/sub/j.svg"], "3": None}
+    assert rep["flagged"] == 2
+    assert _repo_state(drift3) == before
+
+
+def test_dashboard_rebuild_unchanged_refs_runs_no_diff(roadmap, dashboard, drift3,
+                                                       monkeypatch):
+    bc = dashboard._Broadcaster(roadmap._dashboard_api(), drift3)
+    calls = []
+    real = subprocess.run
+    me = threading.current_thread()
+
+    def counting(cmd, *a, **k):
+        if cmd and cmd[0] == "git" and threading.current_thread() is me:
+            calls.append(cmd)
+        return real(cmd, *a, **k)
+
+    monkeypatch.setattr(subprocess, "run", counting)
+    bc._dump()
+    assert not [c for c in calls if "diff" in c]
+
+
+def test_dashboard_without_drift_hook_omits_it(roadmap, dashboard, drift3):
+    api = roadmap._dashboard_api()
+    del api.scope_drift_payload
+    payload = json.loads(dashboard._Broadcaster(api, drift3).snapshot()[1])
+    assert "scopeDrift" not in payload
+
+
+def test_dashboard_safe_drift_survives_a_failing_hook(dashboard, tmp_path):
+    import types
+
+    def boom(root, st):
+        raise RuntimeError("git trouble")
+    rm = types.SimpleNamespace(scope_drift_payload=boom)
+    assert dashboard._safe_drift(rm, tmp_path, {}) is None
+
+
+def test_dashboard_html_has_drift_hooks(dashboard):
+    body = dashboard._dashboard_html()
+    for hook in ("scopeDrift: P.scopeDrift", "function offPlanOf(",
+                 "offPlanChip(it.id)", "offPlanChip(d.id)", "offPlanOf(d.id)",
+                 '" off-plan"', "no declared scope", "offplan-list"):
+        assert hook in body, hook
+    assert ".innerHTML" not in body and "insertAdjacentHTML" not in body

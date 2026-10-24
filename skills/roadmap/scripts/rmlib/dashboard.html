@@ -304,6 +304,10 @@
   .found { margin-top:8px; display:flex; flex-direction:column; gap:4px; font-size:12px; }
   .found h4 { margin:0 0 2px; font-size:12px; color:var(--muted); font-weight:600; }
   .found div { overflow-wrap:anywhere; }
+  .badge.offplan { color:var(--blocked); border-color:var(--blocked); }
+  .offplan-list { margin-top:8px; display:flex; flex-direction:column; gap:4px; font-size:12px; }
+  .offplan-list h4 { margin:0 0 2px; font-size:12px; color:var(--muted); font-weight:600; }
+  .offplan-list .opf { overflow-wrap:anywhere; }
   .needs-appr { color:var(--blocked); border-color:var(--blocked); font-weight:600; }
   /* ---- run log (plan 38): trunk health tile + gate timeline ------------ */
   .runs { display:flex; flex-direction:column; gap:8px; font-size:12px; }
@@ -480,7 +484,8 @@ function view(P){
   const st = VIEW === "all" ? (P.merged || {})
     : (P.statuses || [P.merged || {}])[VIEW === "trunk" ? trunkIdx(P) : VIEW]
       || P.merged || {};
-  return {...st, _roots: P._roots, worktrees: P.worktrees, conflicts: P.conflicts};
+  return {...st, _roots: P._roots, worktrees: P.worktrees, conflicts: P.conflicts,
+          scopeDrift: P.scopeDrift};
 }
 // Checkout index the item/ideas/changelog endpoints should read.
 const viewRoot = it => VIEW === "all"
@@ -569,6 +574,8 @@ function itemRow(it){
   title.appendChild(txt("span","badge", it.type));
   rulingBadges(it).forEach(b => title.appendChild(b));
   if(it.foundIn != null) title.appendChild(txt("span","badge", "from #"+it.foundIn));
+  const opc = offPlanChip(it.id);
+  if(opc) title.appendChild(opc);
   if(VIEW === "all" && it.checkout) title.appendChild(txt("span","badge", it.checkout));
   if(it.blockedBy && it.blockedBy.length)
     title.appendChild(txt("span","blockedby",
@@ -951,6 +958,20 @@ function conflictsPanel(c){
   sec.appendChild(box);
   return [sec];
 }
+// Scope drift (plan 42): the off-plan files of an item's branch — an array
+// (possibly empty) when checked against declared paths, null when its plan
+// declares no scope, undefined when the item was not checked (no open branch).
+function offPlanOf(id){
+  const by = (LAST && LAST.scopeDrift && LAST.scopeDrift.byItem) || {};
+  return Object.prototype.hasOwnProperty.call(by, String(id)) ? by[String(id)] : undefined;
+}
+function offPlanChip(id){
+  const off = offPlanOf(id);
+  if(!off || !off.length) return null;
+  const c = txt("span","badge offplan", off.length+" off-plan");
+  c.title = "changed outside the plan's declared files: "+off.join(", ");
+  return c;
+}
 // The items a plan's branch overlaps with (plan page "overlaps" fact).
 function overlapsOf(id){
   const pairs = (LAST && LAST.conflicts && LAST.conflicts.pairs) || [];
@@ -1256,6 +1277,8 @@ function planPage(r){
     if(d.version) meta.appendChild(txt("span","badge", "v"+d.version));
     if(d.status) meta.appendChild(txt("span","badge", d.status));
     rulingBadges(d).forEach(b => meta.appendChild(b));
+    const opc = offPlanChip(d.id);
+    if(opc) meta.appendChild(opc);
     meta.appendChild(progressBar(row, fly));
     meta.appendChild(txt("span","frac", (row.done||0)+"/"+(row.total||0)));
     head.appendChild(meta);
@@ -1331,6 +1354,19 @@ function planPage(r){
       out.push(box);
     }
     if(d.rulings && d.rulings.length) out.push(rulingsBlock(d.rulings));
+    const off = offPlanOf(d.id);
+    if(off === null){
+      const box = el("div","offplan-list");
+      box.appendChild(txt("h4",null, "scope"));
+      box.appendChild(txt("div","muted", "no declared scope — the plan lists no files, so nothing is flagged"));
+      out.push(box);
+    } else if(off && off.length){
+      const box = el("div","offplan-list");
+      box.appendChild(txt("h4",null, "off-plan · "+off.length+" file"+(off.length === 1 ? "" : "s")
+        +" changed outside the plan's declared paths"));
+      for(const f of off) box.appendChild(txt("div","opf", f));
+      out.push(box);
+    }
     if(row.foundDuringBuild && row.foundDuringBuild.length){
       const box = el("div","found");
       box.appendChild(txt("h4",null, "🐞 found during build"));

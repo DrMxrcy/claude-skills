@@ -149,6 +149,20 @@ def _safe_conflicts(rm, root: Path, st: dict) -> dict | None:
         return None
 
 
+def _safe_drift(rm, root: Path, st: dict) -> dict | None:
+    """Scope drift (plan 42) for the trunk view's status `st`: off-plan files
+    per open item branch. None without the hook or on any failure (cards and
+    plan pages simply show no off-plan marks). Reuses the conflict item's
+    cached per-branch diffs, so an unchanged-refs rebuild runs no git diff."""
+    fn = getattr(rm, "scope_drift_payload", None)
+    if fn is None:
+        return None
+    try:
+        return fn(root, st)
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def _safe_status(rm, root: Path) -> dict:
     try:
         return rm.status(root)
@@ -521,6 +535,9 @@ class _Broadcaster:
         cf = _safe_conflicts(self.rm, self._wt_root, stats[trunk])
         if cf is not None:
             out["conflicts"] = cf
+        sd = _safe_drift(self.rm, self._wt_root, stats[trunk])
+        if sd is not None:
+            out["scopeDrift"] = sd
         return json.dumps(out)
 
     def start(self) -> None:
