@@ -1,0 +1,73 @@
+.roadmap/config.json
+  s_fbae122c7a65de::t_3496f913b78eff 525
+.roadmap/plans/040-claim-owners-and-a-work-in-progress-limit.md
+  s_fbae122c7a65de::t_cc0f54928c77a5 6,31-38
+.roadmap/plans/041-branch-conflict-risk-show-which-open-branches-change-the-same-files.md
+  s_fbae122c7a65de::t_2d8f0360ff4212 6,34-39
+.roadmap/plans/047-bug-routing-a-bug-command-that-fixes-in-flight-plans-in-place-or-files-a-linked-bug-item-and-an-incubator-that-refuses-bugs.md
+  s_fbae122c7a65de::t_3821523e0b740c 6,36-43
+CHANGELOG.internal.md
+  s_fbae122c7a65de::t_1e7af2fc3e350a 15-16,22
+CHANGELOG.md
+  s_fbae122c7a65de::t_79a6f6afd19d9b 13-14,20
+ROADMAP.md
+  s_fbae122c7a65de::t_cd0bf0aa7bdf00 33,42-43,49
+skills/roadmap/SKILL.md
+  s_fbae122c7a65de::t_02bbb5ec195bfe 71,98,259-261,273,287,299,304
+skills/roadmap/example/CLAUDE.md
+  s_fbae122c7a65de::t_30a173714ec0e2 18
+skills/roadmap/references/quality-build.md
+  s_fbae122c7a65de::t_d16d0e4254d237 57
+skills/roadmap/references/state-model.md
+  s_fbae122c7a65de::t_8467453bf302e0 31-32,41,44,55-63,95-103
+skills/roadmap/scripts/rmlib/branches.py
+  s_fbae122c7a65de::t_5026768a06134d 333-334,415-416
+skills/roadmap/scripts/rmlib/conflicts.py
+  s_fbae122c7a65de::t_bdd28f033103b4 1-270
+skills/roadmap/scripts/rmlib/core.py
+  s_fbae122c7a65de::t_6149137bc96417 25
+skills/roadmap/scripts/rmlib/dashboard.html
+  s_fbae122c7a65de::t_e4f5086e730b6e 43,154,269-285,296-299,475,544-546,563,890-960,995,1003,1211-1220,1259-1260,1279-1281,1289,1318-1323
+skills/roadmap/scripts/rmlib/dashboard.py
+  s_fbae122c7a65de::t_2024f9beded693 140-151,302-303,429-431,504-506
+skills/roadmap/scripts/rmlib/incubator.py
+  s_fbae122c7a65de::t_21fcf6013e6b96 66-142,145-146,151-159,324-327,391-394
+skills/roadmap/scripts/rmlib/ops.py
+  s_fbae122c7a65de::t_4e5bfc0665965c 20,25,27,33,225-227,231-233,236-242,270,272-282,302-303,307-310,319-320,323-329,333-335,337-339,471-472,475,478-479,481-482,484-485,491-494,508-509,511-512,528,1196,1203-1204,1234-1235,1269-1377
+skills/roadmap/scripts/rmlib/owners.py
+  s_fbae122c7a65de::t_ad64c0670ccdd1 1-168
+skills/roadmap/scripts/rmlib/parse.py
+  s_fbae122c7a65de::t_385a6c5613565e 45-49,72-79,124,126-127,187-213,237-238,241
+skills/roadmap/scripts/rmlib/report.py
+  s_fbae122c7a65de::t_2dd3c79a2079b5 13,117-118,146-151,162-175,210-216
+skills/roadmap/scripts/rmlib/sync.py
+  s_fbae122c7a65de::t_98cd307f80e447 14,20-21,414,416-418,458-462,482-485,494-496,500-530,688-689,693-697,712-716,721-727,730-731,734-735
+skills/roadmap/scripts/roadmap.py
+  s_fbae122c7a65de::t_c908f17c31ac3d 25,78-79,81,83,99,125-126,143-144,350-355,428-431,475-477,525-539,624-625,627,646-647,652-653,707,710-729,847-853,869-871
+tests/conftest.py
+  s_fbae122c7a65de::t_b930e4b828ab7f 55-63
+tests/test_roadmap.py
+  s_fbae122c7a65de::t_d39ea89694b42a 3050-3052,3054-3055,3385-3387
+tests/test_roadmap_bug.py
+  s_fbae122c7a65de::t_d1580ba2ab0015 1-335
+tests/test_roadmap_conflicts.py
+  s_fbae122c7a65de::t_958623b41b9779 1-333
+tests/test_roadmap_owners.py
+  s_fbae122c7a65de::t_e1dd8c5f149841 1-340
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0a7d437563620b022d027853f8dd46002444874f",
+  "prompts": {},
+  "sessions": {
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
