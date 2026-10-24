@@ -1,0 +1,25 @@
+.roadmap/config.json
+  s_e990102f8038eb::t_6a4b1bd41e855b 533
+.roadmap/plans/051-bug-found-in-writes-the-fix-step-before-refusing-a-claim-held-by-another-owner.md
+  s_e990102f8038eb::t_9b13099902b33b 6,29-34
+CHANGELOG.internal.md
+  s_e990102f8038eb::t_fc4db0609a1e7f 44
+ROADMAP.md
+  s_e990102f8038eb::t_e2d48499e118f8 24,29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d5f84149ebbea8fa1a10caa939cacb8764d55901",
+  "prompts": {},
+  "sessions": {
+    "s_e990102f8038eb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "79a0420f-b322-415c-bc0c-2b7d125f5552",
+        "model": "unknown"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
