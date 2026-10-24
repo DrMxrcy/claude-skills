@@ -1,0 +1,29 @@
+.roadmap/config.json
+  s_fbae122c7a65de::t_b0b5180925aa3d 533,541-542
+.roadmap/plans/048-all-projects-dashboard-home-every-roadmap-project-on-one-page-registered-automatically.md
+  s_fbae122c7a65de::t_51d5e163e0df0b 6,34-41
+.roadmap/plans/049-dashboard-navigation-version-pages-dependency-graph-full-text-search-keyboard-shortcuts-and-copy-command-buttons.md
+  s_fbae122c7a65de::t_ecd42fc3fcb5d8 6,34-41
+CHANGELOG.internal.md
+  s_fbae122c7a65de::t_8146f0cca2ef90 5,23-24
+CHANGELOG.md
+  s_fbae122c7a65de::t_448309ace5b091 3,21-22
+ROADMAP.md
+  s_fbae122c7a65de::t_8432762f8b07e3 34,51-52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3615ff41704959a0a6af477710fbf53edc9d2ae0",
+  "prompts": {},
+  "sessions": {
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
