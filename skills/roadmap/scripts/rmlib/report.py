@@ -263,10 +263,12 @@ def format_orient(payload: dict, handoff: bool = False) -> str:
     return "\n".join(lines)
 
 
-def search(root: Path, text: str) -> list[dict]:
+def search(root: Path, text: str, notes: bool = False) -> list[dict]:
     """Case-insensitive substring search over item titles/notes, plan file bodies and
     Idea Incubator bullets. Every hit carries a locatable `ref`: a typed item id
-    (FEAT-12) or file:line. No fuzzy matching, no regex — plain substring."""
+    (FEAT-12) or file:line. No fuzzy matching, no regex — plain substring.
+    `notes=True` also searches `.roadmap/notes/*.md` (the dashboard's full-text
+    search, plan 49); the CLI keeps its original scope."""
     needle = text.lower()
     hits: list[dict] = []
     try:
@@ -296,6 +298,17 @@ def search(root: Path, text: str) -> list[dict]:
         if needle in b["body"].lower():
             hits.append({"kind": "idea", "ref": f"{rel}:{b['lineNo']}", "file": rel,
                          "line": b["lineNo"], "text": b["body"]})
+    if notes:
+        for path in sorted((roadmap_dir(root) / "notes").glob("*.md")):
+            if not path.is_file():
+                continue
+            for n, line in enumerate(
+                    path.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
+                if needle in line.lower():
+                    hits.append({"kind": "note",
+                                 "ref": f".roadmap/notes/{path.name}:{n}",
+                                 "file": f".roadmap/notes/{path.name}", "line": n,
+                                 "text": line.strip()})
     return hits
 
 

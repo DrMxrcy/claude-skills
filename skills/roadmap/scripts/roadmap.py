@@ -144,7 +144,10 @@ def _dashboard_api():
         worktree_payload=worktree_payload,
         conflicts_payload=conflicts_payload,
         digest=rmdigest.digest, digest_sections=rmdigest.sections,   # plan 45
-        default_owner=rmowners.default_owner)
+        default_owner=rmowners.default_owner,
+        # plan 49: full-text search + version-page changelog preview
+        search=search, render_public_changelog=render_public_changelog,
+        render_internal_changelog=render_internal_changelog)
 
 
 def serve(root: Path, port: int | None = None, open_browser: bool = True,

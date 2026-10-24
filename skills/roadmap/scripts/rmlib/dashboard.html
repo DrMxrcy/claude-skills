@@ -327,6 +327,19 @@
     text-transform:uppercase; font-size:11px; }
   .grow .glabel { font-weight:600; overflow-wrap:anywhere; }
   .grow a { text-decoration:none; } .grow a:hover { text-decoration:underline; }
+  /* ---- navigation (plan 49): search, versions, graph, keys, copy ------- */
+  .fts { background:var(--bar); border:1px solid var(--line); color:var(--fg);
+    border-radius:6px; padding:5px 9px; font:inherit; font-size:13px; width:100%; }
+  .hitgrp { border-top:1px solid var(--line); padding:8px 0; display:flex;
+    flex-direction:column; gap:3px; min-width:0; }
+  .hitgrp .hh { display:flex; gap:8px; align-items:baseline; flex-wrap:wrap; }
+  .hitgrp .hh a { text-decoration:none; } .hitgrp .hh a:hover { text-decoration:underline; }
+  .hit { display:flex; gap:10px; font-size:12px; align-items:baseline; min-width:0; }
+  .hit .hl { color:var(--muted); flex:none; min-width:56px; }
+  .hit .hs { overflow-wrap:anywhere; min-width:0; }
+  mark { background:color-mix(in srgb, var(--active) 35%, transparent);
+    color:var(--fg); border-radius:2px; }
+  .kbsel { outline:1px solid var(--accent); outline-offset:2px; border-radius:4px; }
   @media (max-width:640px) {
     header, main { padding-left:16px; padding-right:16px; }
     .facts { grid-template-columns:1fr; }
@@ -354,7 +367,7 @@
     <div class="tabs" id="tabs"></div>
     <div class="counts" id="rmctrls">
       <div class="ctrls">
-        <input id="search" type="search" autocomplete="off" placeholder="filter items, #id or branch…">
+        <input id="search" type="search" autocomplete="off" placeholder="filter items · Enter: full-text">
         <span class="filters">
           <label title="hide done items"><input type="checkbox" id="openOnly"> open only</label>
           <select id="laneFilter" title="show one lane"></select>
@@ -1042,6 +1055,10 @@ document.getElementById("search").addEventListener("input", e => {
   QUERY = e.target.value.trim().toLowerCase();
   if(LAST) render(LAST);
 });
+// Enter runs the full-text search (plan 49): plan bodies, notes, ideas.
+document.getElementById("search").addEventListener("keydown", e => {
+  if(e.key === "Enter" && e.target.value.trim()) location.hash = searchHref(e.target.value);
+});
 document.getElementById("openOnly").addEventListener("change", e => {
   FILT.open = e.target.checked; saveFilt();
   if(LAST) render(LAST);
@@ -1110,6 +1127,12 @@ function parseRoute(h){
     return {name:"notes", path:p};
   }
   if(head === "ideas" || head === "changelog") return {name:head};
+  // plan 49: #/search/<q>
+  if(head === "search"){
+    let q = parts.slice(1).join("/");
+    try { q = decodeURIComponent(q); } catch(_){ q = ""; }
+    return {name:"search", q};
+  }
   if(head === "digest")
     return {name:"digest", since: DIGEST_SINCE.includes(parts[1]) ? parts[1] : "1d"};
   return {name:"roadmap"};
@@ -1173,7 +1196,8 @@ window.addEventListener("hashchange", () => {
 function routeHash(r){
   return r.name === "plan" ? "#/plan/"+r.id : r.name === "idea" ? "#/idea/"+r.n
     : r.name === "notes" ? noteHref(r.path) : r.name === "roadmap" ? "#/"
-    : r.name === "digest" ? "#/digest/"+r.since : "#/"+r.name;
+    : r.name === "digest" ? "#/digest/"+r.since
+    : r.name === "search" ? searchHref(r.q) : "#/"+r.name;
 }
 
 // Re-render the open route after an SSE payload or a view switch.
@@ -1195,8 +1219,11 @@ function renderPage(inPlace){
   // A deep link loads before the first SSE payload; which checkout to read
   // depends on it, so wait — connect()'s first message re-renders the route.
   if(!LASTP) return;
+  // Never swap the page out from under someone typing in it (plan 49).
+  if(inPlace && pane.contains(document.activeElement)
+     && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return;
   const build = r.name === "plan" ? planPage(r) : r.name === "idea" ? ideaPage(r)
-    : notePage(r);
+    : r.name === "search" ? searchPage(r) : notePage(r);
   build.then(nodes => {
     if(seq !== PAGE_SEQ) return;
     const y = window.scrollY;
@@ -1637,6 +1664,84 @@ function loadDigest(after){
     if(!after) window.scrollTo(0, y);
   }).catch(()=>pane.replaceChildren(txt("div","empty","failed to load digest")))
     .finally(()=>{ if(after) after(); });
+}
+
+// ---- navigation (plan 49) -------------------------------------------------
+// Full-text search page (#/search/<q>): /api/search runs the CLI search over
+// titles, item notes, plan bodies, ideas and notes files; hits are grouped
+// by the page they open, the match highlighted with a <mark> text node.
+const searchHref = q => "#/search/" + encodeURIComponent(String(q||"").trim());
+const SNIPS_SHOWN = 5;
+function hl(parent, s, m){
+  s = String(s||"");
+  if(!Array.isArray(m) || !(m[0] >= 0) || !(m[1] > m[0]) || m[1] > s.length){
+    parent.appendChild(document.createTextNode(s)); return parent; }
+  parent.appendChild(document.createTextNode(s.slice(0, m[0])));
+  parent.appendChild(txt("mark", null, s.slice(m[0], m[1])));
+  parent.appendChild(document.createTextNode(s.slice(m[1])));
+  return parent;
+}
+// Group hits by target page, in first-hit order: plan, idea, note, other.
+function groupHits(hits){
+  const groups = [], at = {};
+  for(const h of (hits||[])){
+    const key = h.id != null ? "p"+h.id : h.idea != null ? "i"+h.idea
+      : h.path ? "n"+h.path : "x"+h.ref;
+    if(!(key in at)){
+      const href = h.id != null ? "#/plan/"+h.id : h.idea != null ? "#/idea/"+h.idea
+        : h.path ? noteHref(h.path) : "";
+      at[key] = groups.length;
+      groups.push({key, href, id:h.id, idea:h.idea, path:h.path, title:h.title,
+        kind:h.kind, hits:[]});
+    }
+    groups[at[key]].hits.push(h);
+  }
+  return groups;
+}
+function searchNodes(d, q, items){
+  const box = el("div","phead");
+  const inp = el("input","fts");
+  inp.type = "search"; inp.value = q; inp.placeholder = "search plans, notes, ideas…";
+  inp.autocomplete = "off";
+  inp.addEventListener("keydown", e => {
+    if(e.key === "Enter" && inp.value.trim()) location.hash = searchHref(inp.value); });
+  box.appendChild(inp);
+  const out = [crumb("#/", "roadmap", ""), box];
+  if(!q){ out.push(txt("div","srcfile","type a word and press Enter")); return out; }
+  if(d.error){ out.push(txt("div","empty", d.error)); return out; }
+  const groups = groupHits(d.hits);
+  out.push(txt("div","srcfile", (d.total||0)+" match"+(d.total === 1 ? "" : "es")
+    +" in "+groups.length+" place"+(groups.length === 1 ? "" : "s")+" for “"+q+"”"
+    +(d.truncated ? " — first "+(d.hits||[]).length+" shown" : "")));
+  if(!groups.length) out.push(txt("div","empty","nothing matches “"+q+"”"));
+  const byId = {};
+  for(const it of (items||[])) byId[it.id] = it;
+  for(const g of groups){
+    const grp = el("div","hitgrp");
+    const hh = el("div","hh");
+    const it = g.id != null ? byId[g.id] : null;
+    const label = g.id != null ? ((it && it.displayId) || "#"+g.id)+" "+(g.title || (it && it.title) || "")
+      : g.idea != null ? "idea "+g.idea : g.path || g.key.slice(1);
+    hh.appendChild(link(g.href, label));
+    hh.appendChild(txt("span","badge", g.id != null ? "plan" : g.kind));
+    grp.appendChild(hh);
+    for(const h of g.hits.slice(0, SNIPS_SHOWN)){
+      const row = el("div","hit");
+      row.appendChild(txt("span","hl", h.kind === "item" ? (h.field || "item")
+        : h.line != null ? "line "+h.line : h.kind));
+      row.appendChild(hl(el("span","hs"), h.snippet, h.match));
+      grp.appendChild(row);
+    }
+    if(g.hits.length > SNIPS_SHOWN)
+      grp.appendChild(txt("div","srcfile", "+"+(g.hits.length-SNIPS_SHOWN)+" more in here"));
+    out.push(grp);
+  }
+  return out;
+}
+function searchPage(r){
+  if(!r.q) return Promise.resolve(searchNodes({hits:[], total:0}, "", []));
+  return getJSON("/api/search?q="+encodeURIComponent(r.q)+"&"+rootParam())
+    .then(d => searchNodes(d, r.q, (LAST && LAST.items) || []));
 }
 
 onRoute();

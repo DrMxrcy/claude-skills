@@ -368,6 +368,86 @@ def _digest(rm, root: Path, since: str) -> dict:
             "options": list(DIGEST_SINCE)}
 
 
+# ---- full-text search (plan 49) ---------------------------------------------
+SEARCH_MAX_Q = 200      # longer queries are refused
+SEARCH_MAX_HITS = 300   # hits returned; `truncated` says when more matched
+SNIPPET_CTX = 70        # characters kept either side of the match
+
+
+def _snippet(text: str, needle: str) -> tuple[str, list[int] | None]:
+    """A window of `text` around the first case-insensitive match of `needle`,
+    with ellipses where it was cut, plus the match's [start, end] inside the
+    returned snippet (None when the needle does not occur, e.g. whitespace
+    collapsed away). The page highlights it with text nodes only."""
+    at = text.lower().find(needle.lower())
+    if at < 0:
+        return (text if len(text) <= 2 * SNIPPET_CTX else text[:2 * SNIPPET_CTX] + "…",
+                None)
+    lo, hi = max(0, at - SNIPPET_CTX), min(len(text), at + len(needle) + SNIPPET_CTX)
+    pre, post = ("…" if lo else ""), ("…" if hi < len(text) else "")
+    start = len(pre) + at - lo
+    return pre + text[lo:hi] + post, [start, start + len(needle)]
+
+
+def _search(rm, root: Path, q: str) -> dict:
+    """Dashboard full-text search: the CLI `search` (item titles/notes, plan
+    bodies, incubator bullets) plus `.roadmap/notes/*.md`, each hit resolved to
+    the dashboard page it opens — `id` (plan page), `idea` (incubator index as
+    /api/ideas numbers it) or `path` (note page) — with a snippet around the
+    match. Files are only reported when /api/note would serve them (no symlink
+    escapes). Read-only."""
+    q = (q or "").strip()
+    if not q:
+        return {"q": q, "hits": [], "error": "empty query"}
+    if len(q) > SEARCH_MAX_Q:
+        return {"q": q[:SEARCH_MAX_Q], "hits": [], "error": "query too long"}
+    fn = getattr(rm, "search", None)
+    if fn is None:
+        return {"q": q, "hits": [], "error": "search unavailable"}
+    try:
+        cfg = rm.read_config(root)
+        raw = fn(root, q, notes=True)
+        idea_of = {b["lineNo"]: i
+                   for i, b in enumerate(rm.list_incubator_bullets(root), 1)}
+    except (ValueError, FileNotFoundError, OSError) as e:
+        return {"q": q, "hits": [], "error": str(e)}
+    items = {i["id"]: i for i in cfg.get("items", [])}
+    by_file = {}
+    for it in items.values():
+        try:
+            by_file[(rm.roadmap_dir(root) / it["file"]).relative_to(root).as_posix()] = it
+        except (ValueError, KeyError):
+            pass
+    ok_files: dict[str, bool] = {}
+    hits = []
+    for h in raw:
+        out = {"kind": h["kind"], "ref": h.get("ref"), "line": h.get("line")}
+        if h["kind"] == "item":
+            it = items.get(h.get("id"))
+            out.update(id=h.get("id"), field=h.get("field"),
+                       title=(it or {}).get("title"))
+        elif h["kind"] in ("plan", "note"):
+            f = h.get("file") or ""
+            if f not in ok_files:
+                ok_files[f] = _doc_path(rm, root, f)[0] == 200
+            if not ok_files[f]:
+                continue
+            out["path"] = f
+            it = by_file.get(f) if h["kind"] == "plan" else None
+            if it is not None:
+                out.update(id=it["id"], title=it.get("title"))
+        elif h["kind"] == "idea":
+            out["idea"] = idea_of.get(h.get("line"))
+        if out.get("id") is not None:
+            it = items.get(out["id"]) or {}
+            out["version"] = it.get("version")
+            out["type"] = it.get("type")
+        out["snippet"], out["match"] = _snippet(h.get("text") or "", q)
+        hits.append(out)
+    return {"q": q, "hits": hits[:SEARCH_MAX_HITS], "total": len(hits),
+            "truncated": len(hits) > SEARCH_MAX_HITS}
+
+
 def _discover_roots(rm, root: Path) -> list[tuple[Path, str | None]]:
     """All git checkouts of this repo (main + linked worktrees) that have a
     `.roadmap/`, as (path, branch) with the main checkout first. Outside git,
@@ -676,6 +756,10 @@ def serve(rm, root: Path, port: int | None = None,
             elif path == "/api/digest":
                 since = (urllib.parse.parse_qs(query).get("since") or ["1d"])[0]
                 self._send(200, json.dumps(_digest(rm, rroot, since)).encode("utf-8"),
+                           "application/json")
+            elif path == "/api/search":   # plan 49: full-text search
+                q = (urllib.parse.parse_qs(query).get("q") or [""])[0]
+                self._send(200, json.dumps(_search(rm, rroot, q)).encode("utf-8"),
                            "application/json")
             elif path == "/api/changelog":
                 try:
