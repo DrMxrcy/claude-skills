@@ -1,0 +1,27 @@
+.roadmap/config.json
+  s_fbae122c7a65de::t_8e1b324a334b09 533
+.roadmap/plans/043-acceptance-ledger-mark-each-acceptance-bullet-passed-with-evidence-and-require-it-for-done.md
+  s_fbae122c7a65de::t_91f3371f6b129f 6,32-39
+CHANGELOG.internal.md
+  s_fbae122c7a65de::t_40d7d5adb8c8e7 18
+CHANGELOG.md
+  s_fbae122c7a65de::t_2e212cb3063014 16
+ROADMAP.md
+  s_fbae122c7a65de::t_fbe496ca1739c4 34,46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f9ec6eaa0372b33b9a5930c53c7bb25652f58ed8",
+  "prompts": {},
+  "sessions": {
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "unknown"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
