@@ -39,25 +39,32 @@ class Node { constructor(tag){ this.tag=tag; this.kids=[]; this.className="";
 const IDS = {};
 const document = { createElement: t => new Node(t), createElementNS: (ns,t) => new Node(t),
   createTextNode: s => { const n = new Node("#text"); n._t = String(s); return n; },
-  getElementById: id => IDS[id] ||= new Node("div"), body: new Node("body") };
+  getElementById: id => IDS[id] ||= new Node("div"), body: new Node("body"),
+  addEventListener(){}, querySelector: () => null };
+const window = { addEventListener(){}, scrollTo(){}, scrollY: 0 };
+const location = { hash: "", search: "", pathname: "/" };
+const history = { replaceState(){} };
+const setInterval = () => 0;
+const LS = {};
+const localStorage = { getItem: k => k in LS ? LS[k] : null,
+  setItem: (k,v) => { LS[k] = String(v); }, removeItem: k => { delete LS[k]; } };
 """
 
 
 def _script(dashboard):
+    """The whole page script minus its start-up calls (no route, no SSE)."""
     body = dashboard._dashboard_html()
-    s = body.index("// All text goes in via textContent")
-    e = body.index('document.getElementById("search").addEventListener', s)
-    ls = body.index("const SAFE_HREF")
-    le = body.index("function renderTabs", ls)
-    return body[s:e] + body[ls:le]
+    js = body[body.index("<script>") + len("<script>"):body.rindex("</script>")]
+    boot = js.rindex("onRoute();")
+    return js[:boot] + js[boot:].replace("onRoute();", "").replace("connect();", "")
 
 
-def _run(dashboard, tmp_path, js):
+def _run(dashboard, tmp_path, js, pre=""):
     node = shutil.which("node")
     if not node:
         pytest.skip("node not installed")
     f = tmp_path / "board.js"
-    f.write_text(_DOM + _script(dashboard) + "\nlet ROUTE = {name:'board'};\n" + js)
+    f.write_text(_DOM + pre + _script(dashboard) + "\nROUTE = {name:'board'};\n" + js)
     out = subprocess.run([node, str(f)], capture_output=True, text=True)
     assert out.returncode == 0, out.stderr
     return json.loads(out.stdout)
@@ -305,3 +312,96 @@ def test_no_endpoint_accepts_writes(roadmap, repo, monkeypatch, dashboard):
     src = (dashboard.__file__)
     handlers = [ln.strip() for ln in open(src) if ln.strip().startswith("def do_")]
     assert [h.split("(")[0] for h in handlers] == ["def do_GET"]
+
+
+# --- shared filter chips (step 3) ------------------------------------------
+
+def _chip_items():
+    return [
+        _item(1, "review", type="bug", claim={"stage": "review", "verdict": "PARTIAL"},
+              branch={"name": "roadmap/1", "lastCommit": "aaaaaaa"}),
+        _item(2, "review", claim={"stage": "review", "verdict": "CONFIRMED"},
+              branch={"name": "roadmap/2", "lastCommit": "bbbbbbb"}),
+        _item(3, "planned", type="bug", version="0.2.0"),
+        _item(4, "done", version="0.2.0"),
+        _item(5, "building", type="bug", branch={"name": "fix/x", "lastCommit": "ccccccc"}),
+    ]
+
+
+# Ids shown by the list (rendered rows) and by the board (cards) for one payload.
+_SHOWN = r"""
+const d = {items: ITEMS, currentVersion: "0.1.0"};
+const ids = (root, cls, numCls) => IDS[root].find(cls)
+  .map(n => n.find(numCls)[0].textContent);
+function shown(){
+  ROUTE = {name:"roadmap"}; render(d);
+  const list = ids("app", "item", "num");
+  ROUTE = {name:"board"}; render(d);
+  return [list, ids("board", "bcard", "num")];
+}
+"""
+
+
+def test_chips_filter_list_and_board_alike(dashboard, tmp_path):
+    js = _SHOWN.replace("ITEMS", json.dumps(_chip_items())) + r"""
+const out = [shown()];
+chipToggle("type", "bug");             out.push(shown());
+chipToggle("verdict", "");             // bugs with no verdict
+out.push(shown());
+chipToggle("verdict", "PARTIAL");      // OR within a group
+out.push(shown());
+chipToggle("branch", "roadmap/1");     // AND across groups
+out.push(shown());
+chipToggle("lane", "review");          out.push([shown(), FILT.lane]);
+chipToggle("lane", "review");          // second click clears the lane
+out.push(FILT.lane);
+const chipText = IDS.chips.find("fchip").filter(b => b.className.includes("on"))
+  .map(b => [b.textContent, b.attrs["aria-pressed"]]);
+console.log(JSON.stringify([out, chipText, JSON.parse(LS["rm-filters"])]));
+"""
+    out, on, saved = _run(dashboard, tmp_path, js)
+    every, bugs, bugs_unreviewed, bugs_or_partial, on_branch, (lane_only, lane), cleared = out
+    for lst, board in (every, bugs, bugs_unreviewed, bugs_or_partial, on_branch):
+        assert sorted(lst) == sorted(board)                  # list and board agree
+    assert sorted(every[0]) == ["#1", "#2", "#3", "#4", "#5"]
+    assert sorted(bugs[0]) == ["#1", "#3", "#5"]
+    assert sorted(bugs_unreviewed[0]) == ["#3", "#5"]
+    assert sorted(bugs_or_partial[0]) == ["#1", "#3", "#5"]
+    assert on_branch[0] == ["#1"] and on_branch[1] == ["#1"]
+    assert lane_only == [["#1"], ["#1"]] and lane == "review" and cleared == ""
+    assert ["bug 3", "true"] in on and ["no verdict 3", "true"] in on
+    assert ["roadmap/1 1", "true"] in on
+    assert saved["type"] == ["bug"] and saved["verdict"] == ["", "PARTIAL"]
+    assert saved["branch"] == ["roadmap/1"] and saved["lane"] == ""
+
+
+def test_chips_persist_per_viewer_across_reload(dashboard, tmp_path):
+    pre = 'LS["rm-filters"] = ' + json.dumps(json.dumps(
+        {"open": False, "lane": "", "version": ["0.2.0"], "verdict": "junk"})) + ";\n"
+    js = _SHOWN.replace("ITEMS", json.dumps(_chip_items())) + r"""
+console.log(JSON.stringify([shown(), chipsActive(),
+  IDS.chips.find("fchip").filter(b => b.className.includes("on")).map(b => b.textContent),
+  IDS.chips.find("fchip").filter(b => b.textContent.startsWith("v")).map(b => b.textContent)]));
+"""
+    (lst, board), active, on, versions = _run(dashboard, tmp_path, js, pre=pre)
+    assert sorted(lst) == sorted(board) == ["#3", "#4"]      # a non-array is ignored
+    assert active is True and on == ["v0.2.0 2"]
+    assert versions == ["v0.2.0 2", "v0.1.0 3"]              # newest version first
+
+
+def test_chips_and_board_share_search_and_open_only(dashboard, tmp_path):
+    js = _SHOWN.replace("ITEMS", json.dumps(_chip_items())) + r"""
+FILT.open = true; const a = shown();
+QUERY = "roadmap/"; const b = shown();
+console.log(JSON.stringify([a, b]));
+"""
+    (a_list, a_board), (b_list, b_board) = _run(dashboard, tmp_path, js)
+    assert sorted(a_list) == sorted(a_board) == ["#1", "#2", "#3", "#5"]
+    assert sorted(b_list) == sorted(b_board) == ["#1", "#2"]
+
+
+def test_dashboard_html_has_chip_hooks(dashboard):
+    body = dashboard._dashboard_html()
+    for hook in ('id="chips"', "if(!chipMatch(it)) return false;", "syncChips(items);",
+                 'name !== "roadmap" && name !== "board"'):
+        assert hook in body, hook

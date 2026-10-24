@@ -418,6 +418,7 @@
         <span class="lnk" id="expandAll">expand all</span>
         <span class="lnk" id="collapseAll">collapse all</span>
       </div>
+      <div id="chips"></div>
     </div>
   </div>
 </header>
@@ -487,6 +488,7 @@ const stale = off => document.getElementById("stale").classList.toggle("off", of
 const matches = it => {
   if(FILT.open && laneOf(it) === "done") return false;
   if(FILT.lane && laneOf(it) !== FILT.lane) return false;
+  if(!chipMatch(it)) return false;                // filter chips (plan 37)
   if(!QUERY) return true;
   const q = QUERY.replace(/^#/,"");
   return (""+it.id).includes(q) || (it.title||"").toLowerCase().includes(q)
@@ -694,7 +696,7 @@ function verSection(v, items, cur){
   const nf = items.filter(inFlight).length;
   const sec = el("section","ver-group");
   // While searching/filtering, force every shown group open so matches show.
-  if(!QUERY && !FILT.lane && !isOpen(v,cur)) sec.classList.add("collapsed");
+  if(!QUERY && !FILT.lane && !chipsActive() && !isOpen(v,cur)) sec.classList.add("collapsed");
   sec.dataset.v = v;
   const head = el("div","ver-head");
   head.appendChild(txt("span","chev","▾"));
@@ -1032,6 +1034,7 @@ function render(d){
   const items = d.items || [];
   syncLaneSel(items);
   document.getElementById("openOnly").checked = !!FILT.open;
+  syncChips(items);                               // filter chips (plan 37)
   if(ROUTE.name === "board") renderBoard(d);      // lane board (plan 37)
   const td =items.reduce((a,i)=>a+(i.done||0),0);
   const tt = items.reduce((a,i)=>a+(i.total||0),0);
@@ -1088,7 +1091,8 @@ function render(d){
     a===cur?-1:b===cur?1:vcmp(a,b));
   if(!vers.length){
     const why = QUERY ? "no items match “"+QUERY+"”"
-      : FILT.lane ? "no items in lane “"+FILT.lane+"”" : "no open items";
+      : FILT.lane ? "no items in lane “"+FILT.lane+"”"
+      : chipsActive() ? "no items match the filter chips" : "no open items";
     app.replaceChildren(...head, txt("div","empty", why), ...tail);
     return;
   }
@@ -1286,6 +1290,76 @@ function renderBoard(d){
   pane.replaceChildren(...(items.length ? [] : [txt("div","empty",
     QUERY ? "no items match “"+QUERY+"”" : "no items match the filters")]), board);
   board.scrollLeft = x;
+}
+
+// Filter chips, shared by the list and the board through matches() and kept
+// per browser in rm-filters. Lane is single-select and is the same state as
+// the lane <select> (FILT.lane); the other groups are multi-select — OR within
+// a group, AND across groups. "" stands for "no verdict" / "no branch".
+const CHIP_GROUPS = ["lane","verdict","branch","type","version"];
+const CHIP_NONE = {verdict:"no verdict", branch:"no branch"};
+const chipVal = (it, g) => g === "lane" ? laneOf(it)
+  : g === "verdict" ? ((it.claim && it.claim.verdict) || "")
+  : g === "branch" ? ((it.branch && it.branch.name) || (it.claim && it.claim.branch) || "")
+  : String(it[g] == null ? "" : it[g]);
+const chipSel = g => g === "lane" ? (FILT.lane ? [FILT.lane] : [])
+  : (Array.isArray(FILT[g]) ? FILT[g].filter(v => typeof v === "string") : []);
+const chipsActive = () => CHIP_GROUPS.some(g => g !== "lane" && chipSel(g).length);
+function chipMatch(it){
+  return CHIP_GROUPS.every(g => g === "lane" || !chipSel(g).length
+    || chipSel(g).includes(chipVal(it, g)));
+}
+function chipToggle(g, v){
+  if(g === "lane") FILT.lane = FILT.lane === v ? "" : v;
+  else { const s = chipSel(g); FILT[g] = s.includes(v) ? s.filter(x => x !== v) : [...s, v]; }
+  saveFilt();
+  if(LAST) render(LAST);
+}
+function chipOrder(g, vals){
+  const lanes = [...BOARD_PIPE, ...BOARD_FLAGGED];
+  const vk = v => String(v).split(".").map(n => parseInt(n,10) || 0);
+  const by = {
+    lane: (a,b) => (lanes.indexOf(a)+1 || 99) - (lanes.indexOf(b)+1 || 99) || (a < b ? -1 : 1),
+    verdict: (a,b) => (a === "") - (b === "") || (a < b ? -1 : 1),
+    version: (a,b) => { const A = vk(a), B = vk(b);
+      for(let i = 0; i < Math.max(A.length, B.length); i++){
+        const x = (B[i]||0) - (A[i]||0); if(x) return x; }
+      return 0; },
+  }[g] || ((a,b) => (a === "") - (b === "") || (a < b ? -1 : a > b ? 1 : 0));
+  return vals.sort(by);
+}
+function syncChips(items){
+  const box = document.getElementById("chips");
+  const det = el("details","fchips");
+  det.open = store.get("rm-chips-open", false) === true;
+  det.addEventListener("toggle", () => store.set("rm-chips-open", det.open));
+  const active = CHIP_GROUPS.reduce((a,g) => a + chipSel(g).length, 0);
+  det.appendChild(txt("summary",null, "filter chips"+(active ? " · "+active+" on" : "")));
+  for(const g of CHIP_GROUPS){
+    const n = new Map();
+    for(const it of items){ const v = chipVal(it, g); n.set(v, (n.get(v)||0) + 1); }
+    for(const v of chipSel(g)) if(!n.has(v)) n.set(v, 0);   // keep a remembered pick
+    if(!n.size) continue;
+    const row = el("div","fgroup");
+    row.appendChild(txt("span","fk", g));
+    for(const v of chipOrder(g, [...n.keys()])){
+      const on = chipSel(g).includes(v);
+      const b = txt("button","fchip"+(on ? " on" : ""),
+        (v === "" ? CHIP_NONE[g] || "none" : g === "version" ? "v"+v : v)+" "+n.get(v));
+      b.type = "button";
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+      b.addEventListener("click", () => chipToggle(g, v));
+      row.appendChild(b);
+    }
+    det.appendChild(row);
+  }
+  if(active){
+    const clr = txt("span","lnk","clear chips");
+    clr.onclick = () => { FILT.lane = ""; for(const g of CHIP_GROUPS) if(g !== "lane") FILT[g] = [];
+      saveFilt(); if(LAST) render(LAST); };
+    det.appendChild(clr);
+  }
+  box.replaceChildren(det);
 }
 // ---- end lane board (plan 37) -----------------------------------------
 
