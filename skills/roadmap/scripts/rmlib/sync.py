@@ -11,12 +11,14 @@ from rmlib.core import (
     atomic_write, derive_status, display_id, read_config, roadmap_dir,
     write_config)
 from rmlib.parse import (
-    CLAIM_STAGES, count_progress, needs_approval, parse_plan, read_claim,
+    CLAIM_STAGES, count_progress, meta_ids, needs_approval, parse_plan, read_claim,
     waiting_steps)
 from rmlib import branches as rmbranches
 from rmlib import slots as rmslots
 from rmlib import forecast as rmforecast
 from rmlib import runs as rmruns
+from rmlib import owners as rmowners
+from rmlib import conflicts as rmconflicts
 from rmlib.changelog import (
     render_internal_changelog, render_public_changelog)
 
@@ -409,9 +411,11 @@ def _discover(root: Path, cfg: dict) -> dict:
         return {"trunk": None, "items": {}, "other": []}
 
 
-def status(root: Path, worktrees: bool = False) -> dict:
+def status(root: Path, worktrees: bool = False, conflicts: bool = False) -> dict:
     """Status payload. `worktrees=True` adds the worktree map (plan 36) —
-    opt-in because it costs one `git status` per linked worktree."""
+    opt-in because it costs one `git status` per linked worktree.
+    `conflicts=True` adds branch conflict risk (plan 41) — opt-in because a
+    cold cache costs one `git diff` per branch and one merge-tree per pair."""
     cfg = read_config(root)
     by_id = {i["id"]: i for i in cfg["items"]}
     # Full progress map first — blockedBy for early ids must see later deps' progress.
@@ -451,7 +455,11 @@ def status(root: Path, worktrees: bool = False) -> dict:
                "claim": claim, "branch": branch,
                # Rulings (plan 34): dated decisions from the plan body.
                "rulings": list(plan.get("rulings") or []),
-               "needsApproval": needs_approval(plan) if plan else False}
+               "needsApproval": needs_approval(plan) if plan else False,
+               # Bug routing (plan 47): origin link, back-links, in-place fixes.
+               "foundIn": next(iter(meta_ids(plan.get("meta") or {}, "foundIn")), None),
+               "bugsFound": meta_ids(plan.get("meta") or {}, "bugsFound"),
+               "foundDuringBuild": list(plan.get("foundDuringBuild") or [])}
         items.append(row)
     cur_items = [i for i in cfg["items"] if i["version"] == cfg["currentVersion"]]
     # Counts cover every item — callers may filter `items`, the summary stays global.
@@ -471,6 +479,10 @@ def status(root: Path, worktrees: bool = False) -> dict:
         extra["waitingDue"] = due_waiting(items)
     # Run log (plan 38): last runs, trunk health, and skipped-line warnings.
     extra.update(rmruns.runs_status(root, cfg, found["trunk"]))
+    # Work-in-progress limit (plan 40): only present when settings.wipLimit is set.
+    wip = rmowners.wip(counts["lanes"]["inFlight"], cfg)
+    if wip:
+        extra["wip"] = wip
     out = {"project": cfg["project"], "currentVersion": cfg["currentVersion"],
            "versionComplete": _version_complete(cur_items, progress),
            "counts": counts, "items": items,
@@ -479,7 +491,41 @@ def status(root: Path, worktrees: bool = False) -> dict:
            "forecast": rmforecast.forecast(root, cfg, progress), **extra}
     if worktrees:
         out["worktrees"] = worktree_payload(root, out, cfg)
+    if conflicts:
+        out["conflicts"] = conflicts_payload(root, out, cfg,
+                                             trunk_sha=found.get("trunkSha"))
     return out
+
+
+# --- branch conflict risk (plan 41) ----------------------------------------
+def conflicts_payload(root: Path, st: dict, cfg: dict | None = None,
+                      trunk_sha: str | None = None) -> dict:
+    """Conflict risk across the open item branches of a status payload `st`
+    already in hand: every not-done item whose branch carries unmerged work
+    (rmconflicts.overlaps), using the branch tips in `st`. Without `trunk_sha`
+    the trunk tip comes from the cached ref scan (one for-each-ref); every
+    diff and merge-tree is cached on shas, so unchanged refs cost nothing
+    more. Never raises."""
+    try:
+        if trunk_sha is None:
+            cfg = cfg if cfg is not None else read_config(root)
+            integ = (cfg.get("settings") or {}).get("integrationBranch") or None
+            scanned = rmbranches._scan_cached(Path(root), None, integ)
+            trunk_sha = scanned[1].get("trunkSha") if scanned else None
+    except Exception:  # noqa: BLE001 — status must survive any git surprise
+        trunk_sha = None
+    cands = []
+    for it in st.get("items") or []:
+        b = it.get("branch")
+        if it.get("lane") == "done" or not _branch_has_work(b) or not b.get("sha"):
+            continue
+        cands.append({"id": it["id"], "displayId": it.get("displayId"),
+                      "title": it.get("title"), "branch": b["name"],
+                      "sha": b["sha"], "landedIn": b.get("landedIn")})
+    try:
+        return rmconflicts.overlaps(root, trunk_sha, cands)
+    except Exception:  # noqa: BLE001 — status must survive any git surprise
+        return rmconflicts.overlaps(root, None, [])
 
 
 # --- worktree map (plan 36) ------------------------------------------------
@@ -639,13 +685,16 @@ def warn_incomplete_deps(root: Path, plan_id: int, force: bool = False) -> list[
 
 
 def next_item(root: Path, version: str | None = None,
-              force: bool = False, quiet: bool = False) -> dict | None:
+              force: bool = False, quiet: bool = False,
+              owner: str | None = None) -> dict | None:
     """Pick the next unfinished item in `version` (default: currentVersion).
 
     Order: explicit `order` field, then id. Skips items whose `dependsOn` targets are
-    not 100% complete (unless force=True). Prints skipped blocked items to stderr
-    unless quiet=True. Returns an enriched status row, or None if every item is done
-    / only blocked remain.
+    not 100% complete (unless force=True), and items held by another owner (plan
+    40; `owner` defaults to rmowners.default_owner — force does not override a
+    hold). Prints skipped items, and the settings.wipLimit warning, to stderr
+    unless quiet=True. Returns an enriched
+    status row, or None if every item is done / only blocked or held remain.
     """
     st = status(root)
     ver = _norm_version(version or st["currentVersion"])
@@ -660,19 +709,30 @@ def next_item(root: Path, version: str | None = None,
     candidates.sort(key=lambda i: (
         (0, overdue(i)) if i["lane"] == "waiting" else (1, 0),
         i.get("order", i["id"]), i["id"]))
+    me = rmowners.clean_owner(owner) or rmowners.default_owner(root)
+    ttl = rmowners.claim_ttl_hours(read_config(root))
+    over = rmowners.wip_warning(st.get("wip"))
+    if over and not quiet:
+        print(f"warning: {over}", file=sys.stderr)
     skipped = []
     for item in candidates:
         blocked = item.get("blockedBy") or []
         if blocked and not force:
-            skipped.append((item["displayId"], blocked))
+            skipped.append((item["displayId"], f"blocked by {blocked}"))
+            continue
+        held = rmowners.held_by_other(item.get("claim"), me, ttl)
+        if held:
+            a = rmowners.age(item.get("claim"))
+            skipped.append((item["displayId"],
+                            f"held by {held}" + (f", {a}" if a else "")))
             continue
         if skipped and not quiet:
-            for sid, deps in skipped:
-                print(f"skipping {sid} (blocked by {deps})", file=sys.stderr)
+            for sid, why in skipped:
+                print(f"skipping {sid} ({why})", file=sys.stderr)
         return item
     if skipped and not quiet:
-        for sid, deps in skipped:
-            print(f"skipping {sid} (blocked by {deps})", file=sys.stderr)
+        for sid, why in skipped:
+            print(f"skipping {sid} ({why})", file=sys.stderr)
         print(f"no unblocked unfinished items in v{ver}", file=sys.stderr)
         return None
     return None

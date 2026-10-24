@@ -42,7 +42,11 @@ def wait_marker(until: str | None, reason: str | None) -> str:
 # `claim_landed_sha` is the commit it landed in (set by `claim --landed <sha>`).
 CLAIM_STAGES = ("review", "fixing", "gate-ready", "gating", "blocked", "landed")
 CLAIM_VERDICTS = ("CONFIRMED", "PARTIAL", "REFUTED")
-CLAIM_FIELDS = ("stage", "verdict", "note", "branch", "landed_sha", "updated")
+# `owner` / `refreshed` (plan 40): who holds the item and when they last
+# refreshed the claim (UTC ISO timestamp) — see rmlib/owners.py. An owner-only
+# claim (no stage) holds the item while it builds in its derived lane.
+CLAIM_FIELDS = ("stage", "verdict", "note", "branch", "landed_sha", "updated",
+                "owner", "refreshed")
 CLAIM_PREFIX = "claim_"
 
 # Numbered slot reservations (plan 33): `slot_<kind>: 0269_name[, 0270_name2]`,
@@ -65,6 +69,14 @@ RULING_RE = re.compile(
     r"^(\s*)(?:[-*+]\s+)?\*\*(?:([A-Za-z][\w-]*)\s+)?[Rr]ulings?\b([^*]*?)"
     r"(?::\*\*|\*\*:)\s*(.*)$")
 _DATE_RE = re.compile(r"\b(\d{4}-\d{2}-\d{2})\b")
+
+# Bug routing (plan 47): `roadmap.py bug --found-in <in-flight id>` appends a
+# `Fix:` step to that plan and one bullet per bug under FOUND_HEADING. A bug in
+# shipped work is a new `bug` item instead, linked both ways by flat frontmatter
+# keys: `foundIn: <origin id>` on the bug plan, `bugsFound: <id>[, <id>]` on the
+# origin plan.
+FOUND_HEADING = "## 🐞 Found during build"
+FOUND_SECTION_KEY = "found during build"  # _norm_name of the heading text
 _LIST_MARKER_RE = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s")
 
 # Parse results are cached by (path, mtime, size). A short CLI run barely touches
@@ -109,8 +121,10 @@ def parse_plan(path: Path) -> dict:
                 text_, until, reason = split_wait_marker(text_)
                 waiting[len(steps) + 1] = {"until": until, "reason": reason}
             steps.append((sm.group(2).lower() == "x", text_))
+    body = text[m.end():] if m else text
     result = {"meta": meta, "steps": steps, "waiting": waiting,
-              "rulings": parse_rulings(text[m.end():] if m else text)}
+              "rulings": parse_rulings(body),
+              "foundDuringBuild": parse_found(body)}
     if key is not None:
         _CACHE[str(path)] = (key, result)
     return result
@@ -170,6 +184,33 @@ def parse_rulings(body: str) -> list[dict]:
     return out
 
 
+def parse_found(body: str) -> list[str]:
+    """Bullet texts under the plan's `## 🐞 Found during build` section (plan 47),
+    in file order. Fenced code and HTML comments are skipped."""
+    out, in_fence, inside = [], False, False
+    for line in _strip_comments(body.splitlines()):
+        if _is_fence(line):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        hm = _HEADING_RE.match(line)
+        if hm:
+            if len(hm.group(1)) <= 2:
+                inside = _norm_name(hm.group(2)) == FOUND_SECTION_KEY
+            continue
+        bm = re.match(r"^[-*+]\s+(.+)$", line) if inside else None
+        if bm:
+            out.append(bm.group(1).strip())
+    return out
+
+
+def meta_ids(meta: dict, key: str) -> list[int]:
+    """Integer ids from a comma-separated frontmatter value (`bugsFound: 7, 9`);
+    non-numeric tokens are ignored."""
+    return [int(t) for t in re.findall(r"\d+", str(meta.get(key) or ""))]
+
+
 def needs_approval(plan: dict) -> bool:
     """A plan declaring `approval: required` in frontmatter with no approval
     ruling yet. `plan` is a parse_plan() result."""
@@ -193,11 +234,11 @@ def waiting_steps(path: Path) -> list[dict]:
 
 def read_claim(path: Path) -> dict | None:
     """The plan's in-flight claim as {stage, verdict, note, branch, landed_sha,
-    updated} (absent fields are None), or None when the plan carries no claim
-    (no `claim_stage`).
+    updated, owner, refreshed} (absent fields are None), or None when the plan
+    carries no claim (neither `claim_stage` nor `claim_owner`).
     Values are returned as written; lane derivation decides what to trust."""
     meta = parse_plan(path)["meta"]
-    if not meta.get(CLAIM_PREFIX + "stage"):
+    if not (meta.get(CLAIM_PREFIX + "stage") or meta.get(CLAIM_PREFIX + "owner")):
         return None
     return {f: (meta.get(CLAIM_PREFIX + f) or None) for f in CLAIM_FIELDS}
 

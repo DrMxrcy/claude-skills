@@ -10,6 +10,7 @@ from rmlib.sync import (
     format_due, next_item, roadmap_health, status)
 from rmlib.incubator import (
     incubator_file, list_incubator_bullets)
+from rmlib import owners as rmowners
 
 
 def _git_head(root: Path) -> str | None:
@@ -113,7 +114,8 @@ def orient(root: Path) -> dict | None:
     steps_done = sum(i["done"] for i in in_ver)
     steps_total = sum(i["total"] for i in in_ver)
     items_done = sum(1 for i in in_ver if i["pct"] == 100)
-    nxt = next_item(root, version=ver, quiet=True)
+    owner = rmowners.default_owner(root)
+    nxt = next_item(root, version=ver, quiet=True, owner=owner)
     installed = get_version()
     recorded = cfg.get("skillVersion") or "unknown"
     payload = {
@@ -141,6 +143,12 @@ def orient(root: Path) -> dict | None:
         "gitDirty": _git_dirty(root),
     }
     payload.update(_git_state(root))
+    # Claim owners (plan 40): who this session is and what it holds.
+    payload["owner"] = owner
+    payload["held"] = _own_holds(st["items"], owner,
+                                 rmowners.claim_ttl_hours(cfg))
+    if st.get("wip"):                       # settings.wipLimit set
+        payload["wip"] = st["wip"]
     # ROADMAP.md size (plan 39): orient is the once-per-session place to say it.
     payload["health"] = roadmap_health(root)
     # settings.buildRoles: free-form per-role model/agent names, surfaced only when set
@@ -149,6 +157,20 @@ def orient(root: Path) -> dict | None:
     if isinstance(roles, dict) and roles:
         payload["buildRoles"] = roles
     return payload
+
+
+def _own_holds(items: list[dict], owner: str | None, ttl: float) -> list[dict]:
+    """Unfinished items whose claim `owner` currently holds (plan 40)."""
+    out = []
+    for it in items:
+        claim = it.get("claim")
+        if it.get("lane") == "done" or not rmowners.same_owner(
+                rmowners.holder(claim, ttl), owner):
+            continue
+        out.append({"id": it["id"], "displayId": it["displayId"],
+                    "title": it["title"], "lane": it.get("lane"),
+                    "age": rmowners.age(claim)})
+    return out
 
 
 def format_orient(payload: dict, handoff: bool = False) -> str:
@@ -185,6 +207,13 @@ def format_orient(payload: dict, handoff: bool = False) -> str:
             f"ship it now with: roadmap.py release --version <next> --with-waiting)")
     else:
         lines.append("Next: (none — current version complete or all remaining items blocked)")
+    held = payload.get("held") or []
+    if held:
+        lines.append(f"Held by you ({payload.get('owner')}): " + " · ".join(
+            f"{h['displayId']} {h['title']} ({h['lane']})" for h in held))
+    over = rmowners.wip_warning(payload.get("wip"))
+    if over:
+        lines.append(f"⚠ {over}")
     if payload.get("drift"):
         lines.append(payload["drift"])
     if payload.get("branch"):

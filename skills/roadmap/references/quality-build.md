@@ -54,6 +54,7 @@ Steps tick on trunk only after the merge gate, so a long review or gate would ot
 | Integration branch merged into trunk | `python3 "$RM" check --landed` (review the list), then `check --landed --yes --evidence "<gate result>"` |
 
 - Claims live in plan frontmatter (`claim_*` keys, see `state-model.md`). `claim <id> --clear` drops one.
+- **Parallel sessions:** every claim records its owner (`$ROADMAP_OWNER`, else the git user name). Set `ROADMAP_OWNER` per session when several share one git identity, and open the item with `claim <id> --owner <you>` before building so other sessions' `next` skips it. A claim held by someone else is refused unless `--take`; holds expire after `settings.claimTtlHours` (12). `settings.wipLimit` warns in `status`/`next`/`orient` when too much is in flight.
 - Ticking the final step on trunk (step 5 below) removes the claim automatically.
 - Numbered sequences (`settings.slots`): before a builder generates a migration (or any numbered file), the parent runs `slot <id> --kind <kind> --name <slug>` and passes the printed number into the brief, so parallel items never pick the same "next" number. Commit the reservation with the plan.
 - `status --in-flight` lists claimed or branch-backed items. The dashboard shows each lane, branch, and commit count.

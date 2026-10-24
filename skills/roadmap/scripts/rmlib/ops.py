@@ -17,16 +17,20 @@ from rmlib.parse import (
     STEP_RE, WAIT_BOX, _HEADING_RE, _is_fence, _norm_name, _plan_path, count_progress,
     parse_plan, read_claim, required_sections, split_wait_marker, template_stubs,
     wait_marker)
+from rmlib.parse import FOUND_HEADING, FOUND_SECTION_KEY, meta_ids  # plan 47
 from rmlib.changelog import (
     demote_tells, item_audience, lint_note, status_tells)
 from rmlib.sync import (
     _branch_has_work, status, sync, uncut_complete_version)
+from rmlib.sync import is_in_flight  # plan 47
 from rmlib import branches as rmbranches
+from rmlib import owners as rmowners
 from rmlib.report import (
     _record_last_seen_sha)
 from rmlib.incubator import (
     INCUBATOR_BULLET_RE, MD_LINK_RE, _incubator_stub, _strip_incubator_placeholder,
     incubator_file, list_incubator_bullets)
+from rmlib.incubator import bug_tells  # plan 47
 
 
 def _auto_release_mode(cfg: dict) -> str:
@@ -218,13 +222,24 @@ def _apply_claim(text: str, claim: dict | None) -> str:
     return "---\n" + "\n".join(keep) + "\n---\n" + text[m.end():]
 
 
+_KEEP = object()     # _prepare_claim: leave owner/refreshed as they are
+
+
 def _prepare_claim(root: Path, plan_id: int, stage: str | None = None,
                    verdict: str | None = None, note: str | None = None,
                    branch: str | None = None,
-                   landed_sha: str | None = None) -> tuple[Path, str, dict]:
+                   landed_sha: str | None = None, owner=_KEEP,
+                   take: bool = False, explicit_owner: bool = False,
+                   ttl_hours: float | None = None) -> tuple[Path, str, dict]:
     """Validate a claim update and return (plan path, new plan text, claim)
     without writing anything — the shared core of set_claim / set_claims, so a
-    multi-id claim can validate every item before touching any file."""
+    multi-id claim can validate every item before touching any file.
+
+    `owner` (plan 40): the claimant. A claim held by a different owner (see
+    rmlib/owners.py) is refused unless `take`; otherwise the owner is recorded
+    and `refreshed` restamped. The default `_KEEP` (claim --landed) neither
+    checks nor changes ownership. A new claim needs a stage, or an
+    `explicit_owner` (an owner-only claim that holds the item while it builds)."""
     if stage is not None:
         stage = stage.strip().lower()
         if stage == "building":
@@ -252,9 +267,19 @@ def _prepare_claim(root: Path, plan_id: int, stage: str | None = None,
         raise ValueError(f"#{plan_id} is done ({done}/{total} steps ticked on trunk) — "
                          f"a done item cannot be claimed")
     claim = read_claim(path) or {}
-    if stage is None and not claim:
+    if stage is None and not claim and not explicit_owner:
         raise ValueError(f"#{plan_id} has no claim yet — pass --stage "
-                         f"{{{','.join(CLAIM_STAGES)}}}")
+                         f"{{{','.join(CLAIM_STAGES)}}} (or --owner NAME to hold it "
+                         f"while it builds)")
+    if owner is not _KEEP:
+        owner = rmowners.clean_owner(owner)
+        if ttl_hours is None:
+            ttl_hours = rmowners.claim_ttl_hours(read_config(root))
+        other = rmowners.held_by_other(claim, owner, ttl_hours)
+        if other and not take:
+            raise ValueError(rmowners.held_message(plan_id, other, claim))
+        claim["owner"] = owner
+        claim["refreshed"] = rmowners.stamp() if owner else None
     if stage is not None:
         claim["stage"] = stage
     if verdict is not None:
@@ -274,16 +299,15 @@ def _prepare_claim(root: Path, plan_id: int, stage: str | None = None,
 
 def set_claim(root: Path, plan_id: int, stage: str | None = None,
               verdict: str | None = None, note: str | None = None,
-              branch: str | None = None) -> dict:
+              branch: str | None = None, owner: str | None = None,
+              take: bool = False) -> dict:
     """Record (or update in place) an item's in-flight claim: the build-loop stage
     and review verdict git cannot know. Fields not passed keep their prior values;
     `updated` is always restamped. An empty --note/--branch removes that field.
-    Refused on a done item — trunk ticks are the only source of done."""
-    path, text, claim = _prepare_claim(root, plan_id, stage=stage, verdict=verdict,
-                                       note=note, branch=branch)
-    atomic_write(path, text)
-    sync(root)
-    return claim
+    Refused on a done item — trunk ticks are the only source of done.
+    Ownership (plan 40): see set_claims."""
+    return set_claims(root, [plan_id], stage=stage, verdict=verdict, note=note,
+                      branch=branch, owner=owner, take=take)[plan_id]
 
 
 def _unique(ids) -> list[int]:
@@ -292,15 +316,27 @@ def _unique(ids) -> list[int]:
 
 def set_claims(root: Path, plan_ids, stage: str | None = None,
                verdict: str | None = None, note: str | None = None,
-               branch: str | None = None) -> dict[int, dict]:
+               branch: str | None = None, owner: str | None = None,
+               take: bool = False) -> dict[int, dict]:
     """set_claim for several items with the same options, all-or-nothing: every
     item is validated before any plan file is written, so one bad id (unknown,
-    missing plan, done, no claim and no --stage) changes none of them."""
+    missing plan, done, no claim and no --stage, held by another owner) changes
+    none of them.
+
+    Every claim records its owner (plan 40): `owner`, else
+    rmowners.default_owner ($ROADMAP_OWNER, git user name, agent name). An item
+    held by a different owner is refused unless `take`. An explicit `owner`
+    alone may open a claim (owner-only: it holds the item, lane stays derived)."""
     ids = _unique(plan_ids)
     if not ids:
         raise ValueError("claim needs at least one item id")
+    explicit = rmowners.clean_owner(owner) is not None
+    who = rmowners.clean_owner(owner) if explicit else rmowners.default_owner(root)
+    ttl = rmowners.claim_ttl_hours(read_config(root))
     prepared = [(pid, *_prepare_claim(root, pid, stage=stage, verdict=verdict,
-                                      note=note, branch=branch)) for pid in ids]
+                                      note=note, branch=branch, owner=who,
+                                      take=take, explicit_owner=explicit,
+                                      ttl_hours=ttl)) for pid in ids]
     for _, path, text, _ in prepared:
         atomic_write(path, text)
     sync(root)
@@ -432,21 +468,30 @@ def check_landed(root: Path, evidence: str | None = None,
     return out
 
 
-def clear_claim(root: Path, plan_id: int) -> bool:
+def clear_claim(root: Path, plan_id: int, owner: str | None = None,
+                take: bool = False) -> bool:
     """Remove an item's claim (its lane reverts to the derived one). Allowed on done
     items. Returns False when there was nothing to clear."""
-    return clear_claims(root, [plan_id])[plan_id]
+    return clear_claims(root, [plan_id], owner=owner, take=take)[plan_id]
 
 
-def clear_claims(root: Path, plan_ids) -> dict[int, bool]:
+def clear_claims(root: Path, plan_ids, owner: str | None = None,
+                 take: bool = False) -> dict[int, bool]:
     """clear_claim for several items, all-or-nothing: every id must resolve to an
-    existing plan file before any claim is removed. {id: cleared?}."""
+    existing plan file, and none may be held by another owner (plan 40; `take`
+    overrides), before any claim is removed. {id: cleared?}."""
     ids = _unique(plan_ids)
+    who = rmowners.clean_owner(owner) or rmowners.default_owner(root)
+    ttl = rmowners.claim_ttl_hours(read_config(root))
     paths = {}
     for pid in ids:
         path = _plan_path(root, pid)
         if not path.exists():
             raise ValueError(f"plan file for #{pid} is missing ({path.name})")
+        claim = read_claim(path)
+        other = None if take else rmowners.held_by_other(claim, who, ttl)
+        if other:
+            raise ValueError(rmowners.held_message(pid, other, claim))
         paths[pid] = path
     out = {}
     for pid, path in paths.items():
@@ -460,9 +505,11 @@ def clear_claims(root: Path, plan_ids) -> dict[int, bool]:
     return out
 
 
-def _ruling_insert_at(lines: list[str]) -> int | None:
+def _ruling_insert_at(lines: list[str],
+                      key: str = RULINGS_SECTION_KEY) -> int | None:
     """Index to insert a new ruling bullet at: just past the last non-blank line
-    of the plan's `## ... Rulings` section, or None when it has no such section.
+    of the plan's `## ... Rulings` section (or the `##` section whose normalized
+    heading is `key`), or None when it has no such section.
     Fenced code is never read as a heading."""
     in_fence, start = False, None
     for i, line in enumerate(lines):
@@ -478,7 +525,7 @@ def _ruling_insert_at(lines: list[str]) -> int | None:
             end = i
             break
         if start is None and len(hm.group(1)) == 2 \
-                and _norm_name(hm.group(2)) == RULINGS_SECTION_KEY:
+                and _norm_name(hm.group(2)) == key:
             start = i
     else:
         end = len(lines)
@@ -1146,14 +1193,15 @@ def release(root: Path, version: str, tag: bool = False, force: bool = False,
 
 
 def promote_idea(root: Path, *, match: str | None = None, index: int | None = None,
-                 type_: str = "feature", version: str | None = None,
+                 type_: str | None = None, version: str | None = None,
                  note: str = "", audience: str | None = None,
                  force: bool = False) -> Path:
     """Lift one Idea Incubator bullet into a tracked plan item and remove that bullet.
 
     Select by 1-based --index or by --match substring against the bullet title.
     Exactly one selector required when multiple bullets exist; a single bullet can be
-    promoted with no selector.
+    promoted with no selector. With no `type_`, a bullet that reads like a bug
+    report (incubator.bug_tells, plan 47) becomes a `bug` item, else a `feature`.
     """
     if match and index is not None:
         raise ValueError("pass only one of --match / --index")
@@ -1183,6 +1231,8 @@ def promote_idea(root: Path, *, match: str | None = None, index: int | None = No
             f"multiple incubator bullets — pass --index N or --match TEXT:\n{listing}")
 
     title = chosen["title"]
+    if type_ is None:
+        type_ = "bug" if bug_tells(title) else "feature"
     path = new_item(root, type_, title, version=version, note=note, audience=audience,
                     force=force)
 
@@ -1214,6 +1264,115 @@ def promote_idea(root: Path, *, match: str | None = None, index: int | None = No
         new_lines.append(line)
     atomic_write(rm, "".join(new_lines))
     return path
+
+
+# ---- bug routing (plan 47) ------------------------------------------------------
+def _upsert_meta(text: str, key: str, value: str) -> str:
+    """Plan `text` with frontmatter `key: value` set (replaced, else appended)."""
+    m = FRONTMATTER_RE.match(text)
+    if not m:
+        raise ValueError("plan file has no frontmatter block")
+    lines = [ln for ln in m.group(1).splitlines()
+             if ln.partition(":")[0].strip() != key]
+    return "---\n" + "\n".join(lines + [f"{key}: {value}"]) + "\n---\n" + text[m.end():]
+
+
+def _append_fix_step(text: str, title: str, target: str, observed: str) -> tuple[str, int]:
+    """Plan `text` with an unchecked `Step N: Fix: <title> -> target: <target>` after
+    its last checklist step (and that step's evidence/continuation lines), plus a
+    dated bullet under `## 🐞 Found during build` (created at the end when
+    missing). Returns (new text, N)."""
+    lines = text.splitlines()
+    last, n, in_fence = None, 0, False
+    for i, line in enumerate(lines):
+        if _is_fence(line):
+            in_fence = not in_fence
+            continue
+        if not in_fence and STEP_RE.match(line):
+            last, n = i, n + 1
+    n += 1
+    if last is None:
+        while lines and not lines[-1].strip():
+            lines.pop()
+        lines += ["", "## 🛠️ Checklist", f"- [ ] Step {n}: Fix: {title} -> target: {target}"]
+    else:
+        indent = len(lines[last]) - len(lines[last].lstrip())
+        at = last + 1
+        while at < len(lines) and lines[at].strip() \
+                and len(lines[at]) - len(lines[at].lstrip()) > indent \
+                and not STEP_RE.match(lines[at]):
+            at += 1
+        prefix = STEP_RE.match(lines[last]).group(1).lstrip()   # top level, same marker
+        lines.insert(at, f"{prefix}[ ] Step {n}: Fix: {title} -> target: {target}")
+    bullet = f"- Step {n}: {title} ({datetime.date.today().isoformat()})"
+    if observed:
+        bullet += f" — observed: {observed}"
+    at = _ruling_insert_at(lines, FOUND_SECTION_KEY)
+    if at is None:
+        while lines and not lines[-1].strip():
+            lines.pop()
+        lines += ["", FOUND_HEADING, "", bullet]
+    else:
+        lines.insert(at, bullet)
+    return "\n".join(lines) + "\n", n
+
+
+def file_bug(root: Path, title: str, found_in: int | None = None,
+             observed: str | None = None, version: str | None = None,
+             target: str | None = None) -> dict:
+    """Route a bug by where it lives (plan 47) — never into the Idea Incubator.
+
+    In-flight origin (`found_in` not done, with a branch or claim — or trunk-active,
+    some steps ticked): append `Step N: Fix: <title>` to its plan, note it under
+    `## 🐞 Found during build`, and set its claim stage to `fixing` (verdict and
+    other claim fields kept). A not-yet-started origin gets the step but no claim.
+    No new item either way.
+    Shipped origin (done) or no `found_in`: a new `bug` item through new_item (bug
+    template, id, config, ROADMAP.md row) in `version` or the current one, with
+    Observed pre-filled and `foundIn` / `bugsFound` frontmatter linking both plans.
+
+    Returns {"route": "fix-step"|"new-item", "id", "path", ...}."""
+    title = " ".join((title or "").split())
+    if not title:
+        raise ValueError("bug title must not be empty")
+    observed = " ".join((observed or "").split())
+    target = " ".join((target or "").split()) or "TBD"
+    origin = None
+    if found_in is not None:
+        origin = next((i for i in status(root)["items"] if i["id"] == found_in), None)
+        if origin is None:
+            raise ValueError(f"no item #{found_in} (--found-in)")
+        path = roadmap_dir(root) / origin["file"]
+        if not path.exists():
+            raise ValueError(f"plan file for #{found_in} is missing ({path.name})")
+    if origin is not None and origin["lane"] != "done":
+        text, n = _append_fix_step(path.read_text(encoding="utf-8"), title, target,
+                                   observed)
+        atomic_write(path, text)
+        claimed = is_in_flight(origin) or origin["status"] == "active"
+        if claimed:
+            set_claim(root, found_in, stage="fixing")      # also syncs
+        else:
+            sync(root)
+        return {"route": "fix-step", "id": found_in, "path": path, "step": n,
+                "claim": "fixing" if claimed else None,
+                "ignoredVersion": version if version else None}
+    path = new_item(root, "bug", title, version=version)
+    cfg = read_config(root)
+    new_id = cfg["nextId"] - 1
+    text = path.read_text(encoding="utf-8")
+    if observed:
+        text = re.sub(r"(?m)^(\s*[-*+]\s+\*\*Observed:\*\*)[ \t]*$",
+                      lambda m: f"{m.group(1)} {observed}", text, count=1)
+    if origin is not None:
+        text = _upsert_meta(text, "foundIn", str(found_in))
+        opath = roadmap_dir(root) / origin["file"]
+        otext = opath.read_text(encoding="utf-8")
+        ids = meta_ids(parse_plan(opath)["meta"], "bugsFound")
+        atomic_write(opath, _upsert_meta(otext, "bugsFound",
+                                         ", ".join(str(i) for i in _unique(ids + [new_id]))))
+    atomic_write(path, text)
+    return {"route": "new-item", "id": new_id, "path": path, "foundIn": found_in}
 
 
 def import_file(root: Path, src: Path) -> list[Path]:

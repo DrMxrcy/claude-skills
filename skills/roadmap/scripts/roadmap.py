@@ -22,7 +22,7 @@ from rmlib.sync import (  # noqa: E402
     roadmap_health, status, sync, uncut_complete_version,
     derive_lane, is_in_flight, lane_counts, lane_label,
     countdown, due_waiting, format_due,
-    format_worktrees, worktree_payload,
+    format_worktrees, worktree_payload, conflicts_payload,
     warn_incomplete_deps, MAX_ROADMAP_LINES,
     MAX_FREEFORM_LINES, MAX_FREEFORM_CHARS)
 
@@ -75,8 +75,12 @@ from rmlib.project import (  # noqa: E402
     init_project, upgrade)
 
 from rmlib import slots as rmslots  # noqa: E402  (plan 33: numbered slots)
+from rmlib.ops import file_bug  # noqa: E402  (plan 47: bug routing)
+from rmlib.incubator import bug_tells  # noqa: E402  (plan 47)
 from rmlib import forecast as rmforecast  # noqa: E402  (plan 44: version forecast)
+from rmlib import conflicts as rmconflicts  # noqa: E402  (plan 41: conflict risk)
 from rmlib import runs as rmruns  # noqa: E402  (plan 38: run log)
+from rmlib import owners as rmowners  # noqa: E402  (plan 40: claim owners, WIP limit)
 
 
 __all__ = [  # public facade: names re-exported for callers/tests/hooks (roadmap.X)
@@ -92,7 +96,7 @@ __all__ = [  # public facade: names re-exported for callers/tests/hooks (roadmap
     'render_region', 'roadmap_health', 'status', 'sync',
     'derive_lane', 'is_in_flight', 'lane_counts', 'lane_label',
     'countdown', 'due_waiting', 'format_due',
-    'format_worktrees', 'worktree_payload', 'uncut_complete_version', 'warn_incomplete_deps', 'MAX_ROADMAP_LINES', 'MAX_FREEFORM_LINES',
+    'format_worktrees', 'worktree_payload', 'conflicts_payload', 'uncut_complete_version', 'warn_incomplete_deps', 'MAX_ROADMAP_LINES', 'MAX_FREEFORM_LINES',
     'MAX_FREEFORM_CHARS', 'STEP_RE', '_is_fence', 'parse_plan',
     'count_progress', '_plan_path', 'CLAIM_STAGES', 'CLAIM_VERDICTS',
     'CLAIM_FIELDS', 'read_claim', 'needs_approval', 'parse_rulings',
@@ -118,7 +122,8 @@ __all__ = [  # public facade: names re-exported for callers/tests/hooks (roadmap
     '_git_head', '_record_last_seen_sha', 'drift_check', 'format_orient',
     'format_search', 'search',
     'handoff', 'orient', '_apply_rules_block', 'ensure_claude_md_rules',
-    'ensure_project_rules', 'init_project', 'upgrade', 'serve', 'main'
+    'ensure_project_rules', 'init_project', 'upgrade', 'serve', 'main',
+    'file_bug', 'bug_tells',   # plan 47
 ]
 
 
@@ -135,7 +140,8 @@ def _dashboard_api():
         list_incubator_bullets=list_incubator_bullets,
         discover_branches=rmbranches.discover,
         worktree_facts=rmbranches.worktree_facts,
-        worktree_payload=worktree_payload)
+        worktree_payload=worktree_payload,
+        conflicts_payload=conflicts_payload)
 
 
 def serve(root: Path, port: int | None = None, open_browser: bool = True,
@@ -341,6 +347,12 @@ def main(argv: list[str]) -> int:
                          help="branch override (default: the discovered branch)")
     p_claim.add_argument("--clear", action="store_true",
                          help="remove the claim (lane reverts to the derived one)")
+    p_claim.add_argument("--owner",
+                         help="who holds the item (default: $ROADMAP_OWNER, else the "
+                              "git user name, else the agent name); --owner alone "
+                              "opens an owner-only claim")
+    p_claim.add_argument("--take", action="store_true",
+                         help="take over (or clear) an item held by another owner")
     p_claim.add_argument("--landed", metavar="SHA",
                          help="move items whose branch tip SHA (a commit or branch, "
                               "e.g. the integration branch) contains to stage "
@@ -413,6 +425,10 @@ def main(argv: list[str]) -> int:
                       help="linked worktrees: branch, item and lane, dirty and "
                            "unmerged counts, claim stage, age, and which are safe "
                            "to remove (the command is printed, never run)")
+    p_st.add_argument("--conflicts", action="store_true",
+                      help="open item branches that change the same files, by "
+                           "risk (merge-tree check on git >= 2.38), and a "
+                           "suggested merge order; never touches a branch")
 
     p_search = sub.add_parser(
         "search", help="case-insensitive substring search across item titles/notes, "
@@ -456,7 +472,9 @@ def main(argv: list[str]) -> int:
     p_promote = sub.add_parser("promote", help="lift an Idea Incubator bullet into a plan")
     p_promote.add_argument("--match", help="substring match against incubator bullet title")
     p_promote.add_argument("--index", type=int, help="1-based index into incubator bullets")
-    p_promote.add_argument("--type", default="feature")
+    p_promote.add_argument("--type", default=None,
+                           help="item type (default: bug when the bullet reads like a "
+                                "bug report, else feature)")
     p_promote.add_argument("--version")
     p_promote.add_argument("--note", default="")
     p_promote.add_argument("--audience", choices=["public", "internal"])
@@ -504,6 +522,21 @@ def main(argv: list[str]) -> int:
     p_idea.add_argument("--body", help="long-form content -> .roadmap/notes/ file")
     p_idea.add_argument("--body-file", dest="body_file",
                         help="read long-form content from a file")
+    p_idea.add_argument("--force", action="store_true",
+                        help="park it even though the title reads like a bug report")
+
+    p_bug = sub.add_parser(
+        "bug", help="route a bug: a Fix step on an in-flight item's plan (--found-in), "
+                    "else a new bug item linked to its origin — never the incubator")
+    p_bug.add_argument("title")
+    p_bug.add_argument("--found-in", dest="found_in", metavar="ID",
+                       help=ID_HELP + " — the item the bug was found in")
+    p_bug.add_argument("--observed", help="what was observed (pre-fills Observed / "
+                                          "the Found during build note)")
+    p_bug.add_argument("--version", help="target version for a new bug item "
+                                         "(default: current; ignored for a Fix step)")
+    p_bug.add_argument("--target", help="files for the Fix step's '-> target:' "
+                                        "(default: TBD)")
 
     p_cl = sub.add_parser("changelog")
     p_cl.add_argument("--backfill", action="store_true")
@@ -588,10 +621,10 @@ def main(argv: list[str]) -> int:
             if args.clear and any(v is not None for v in
                                   (args.stage, args.verdict, args.note, args.branch,
                                    args.landed)):
-                p_claim.error("--clear takes no other options")
-            if args.landed is not None and any(
+                p_claim.error("--clear takes only --owner and --take")
+            if args.landed is not None and (args.take or any(
                     v is not None for v in (args.stage, args.verdict, args.note,
-                                            args.branch)):
+                                            args.branch, args.owner))):
                 p_claim.error("--landed takes no other options (the stage is 'landed')")
             plan_ids = [n for tok in args.ids for n in rids(tok)]
             if args.landed is not None:
@@ -610,12 +643,14 @@ def main(argv: list[str]) -> int:
             if not plan_ids:
                 p_claim.error("no item id given")
             if args.clear:
-                for plan_id, cleared in clear_claims(root, plan_ids).items():
+                for plan_id, cleared in clear_claims(root, plan_ids, owner=args.owner,
+                                                     take=args.take).items():
                     print(f"#{plan_id}: claim cleared" if cleared
                           else f"#{plan_id}: no claim to clear")
                 return 0
             claims = set_claims(root, plan_ids, stage=args.stage, verdict=args.verdict,
-                                note=args.note, branch=args.branch)
+                                note=args.note, branch=args.branch, owner=args.owner,
+                                take=args.take)
             for plan_id, c in claims.items():
                 print(f"#{plan_id}: " + " · ".join(f"{f}={c[f]}" for f in CLAIM_FIELDS
                                                     if c.get(f)))
@@ -669,8 +704,28 @@ def main(argv: list[str]) -> int:
             body = args.body
             if args.body_file:
                 body = Path(args.body_file).read_text(encoding="utf-8")
-            note = add_idea(root, args.title, body)
+            note = add_idea(root, args.title, body, force=args.force)
             print(f"Parked idea: {args.title}" + (f" (notes: {note})" if note else ""))
+            return 0
+        if args.command == "bug":
+            res = file_bug(root, args.title,
+                           found_in=rid(args.found_in) if args.found_in else None,
+                           observed=args.observed, version=args.version,
+                           target=args.target)
+            rel = res["path"].relative_to(root)
+            if res["route"] == "fix-step":
+                claim = (" · claim stage → fixing" if res["claim"]
+                         else " · not started, no claim set")
+                print(f"#{res['id']}: Step {res['step']} 'Fix: {args.title.strip()}' "
+                      f"appended to {rel}{claim} — no new item")
+                if res["ignoredVersion"]:
+                    print(f"note: --version {res['ignoredVersion']} ignored — the fix "
+                          f"ships with #{res['id']}", file=sys.stderr)
+            else:
+                link = f" (foundIn #{res['foundIn']}, linked both ways)" \
+                    if res["foundIn"] is not None else ""
+                print(f"#{res['id']}: new bug item{link}")
+                print(res["path"])
             return 0
         if args.command == "promote":
             path = promote_idea(root, match=args.match, index=args.index,
@@ -789,7 +844,13 @@ def main(argv: list[str]) -> int:
                 print(p)
             return 0
         if args.command == "status":
-            st = status(root, worktrees=args.worktrees)
+            st = status(root, worktrees=args.worktrees, conflicts=args.conflicts)
+            if args.conflicts:
+                if args.as_json:
+                    print(json.dumps({"conflicts": st["conflicts"]}, indent=2))
+                else:
+                    print(rmconflicts.format_conflicts(st["conflicts"]))
+                return 0
             if args.worktrees:
                 if args.as_json:
                     print(json.dumps({"worktrees": st["worktrees"]}, indent=2))
@@ -805,6 +866,9 @@ def main(argv: list[str]) -> int:
             if not args.as_json:
                 for w in st.get("runWarnings") or []:
                     print(f"warning: {w}", file=sys.stderr)
+                over = rmowners.wip_warning(st.get("wip"))      # plan 40
+                if over:
+                    print(f"warning: {over}", file=sys.stderr)
             if args.runs:
                 if args.as_json:
                     print(json.dumps({k: st.get(k) for k in

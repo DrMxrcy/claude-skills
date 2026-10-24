@@ -68,6 +68,7 @@ If the user message / `$ARGUMENTS` starts with one of these verbs, run that flow
 | `build` | Build the rest of the args (id / version / empty / flags) — same as `/roadmap-build` |
 | `plan` | Brainstorm remaining args into a tracked plan |
 | `idea` | Park remaining args in the Idea Incubator |
+| `bug` | Route a bug: `roadmap.py bug "<title>" [--found-in ID] [--observed TEXT]` — never the incubator |
 | `init` | Initialize / adopt |
 | `done` | Mark step/item done |
 | `remove` / `retarget` / `review` / `release` / `changelog` / `catchup` / `reevaluate` / `tidy` / `upgrade` | Follow that command's flow |
@@ -94,6 +95,7 @@ If there are no args on bare `/roadmap` in Claude/Grok, use **Phase routing** be
 
 - At the start of a session, run `roadmap.py orient` / `handoff` (or status) before writing code.
 - New features or found bugs become roadmap items (`/roadmap-plan`) before coding; park stray ideas in the Idea Incubator — nothing is built off-roadmap.
+- **Bugs never go in the incubator** (nothing tracks them there): `roadmap.py bug "<title>" --found-in <id> [--observed TEXT]`. Found during an in-flight item's build → a `Fix:` step on that plan (claim stage `fixing`), no new item; found in shipped work → a `bug` item linked to its origin. `idea` refuses titles that read like bug reports (`--force` overrides).
 - **Incubator hygiene — ROADMAP.md stays skimmable.** One bullet per parked idea, added via
   `roadmap.py idea --title "..."`. Long-form content — brainstorm output, deferred review
   findings, phase sketches, option analyses — goes to a linked `.roadmap/notes/` file
@@ -254,8 +256,9 @@ On invocation, detect state and pick a phase:
 Anywhere a command takes `--plan ID` (or an id list), the id may be `7`, `#7`, or its typed display id `FEAT-7` / `BUG-7` / `REF-7` / `CHORE-7` (case-insensitive; `ITEM-7` matches any type).
 - `init [--name N] [--adopt]` — scaffold (adopt = existing repo, non-destructive)
 - `new --type T --title "..." [--version V] [--note "..."] [--audience public|internal]` — scaffold + register a plan
-- `idea --title "..." [--body "..." | --body-file PATH]` — park an idea: one incubator bullet; a body becomes a linked `.roadmap/notes/` file
-- `promote [--match T | --index N] [--type T] …` — lift an incubator bullet into a tracked plan
+- `idea --title "..." [--body "..." | --body-file PATH] [--force]` — park an idea: one incubator bullet; a body becomes a linked `.roadmap/notes/` file. A title that reads like a bug report (crashes, broken, fails, doesn't work, wrong, missing from, clips, exception, returns 500, …) is refused with a `bug` suggestion; `--force` parks it anyway
+- `promote [--match T | --index N] [--type T] …` — lift an incubator bullet into a tracked plan (`--type` defaults to `bug` for a bullet that reads like a bug report, else `feature`)
+- `bug "<title>" [--found-in ID] [--observed TEXT] [--version X] [--target FILES]` — route a bug (plan 47): an origin that is not done gets `- [ ] Step N: Fix: <title> -> target: <FILES|TBD>` after its last step plus a dated bullet under `## 🐞 Found during build`, and its claim stage becomes `fixing` (verdict kept; a not-yet-started origin gets no claim) — no new item; a done origin or no `--found-in` files a new `bug` item (same path as `new --type bug`) with Observed pre-filled and `foundIn`/`bugsFound` frontmatter linking both plans
 - `note --plan ID --text "..." [--force]` — set an item's user-facing changelog line (lints public notes; refuses status-dump text on public items)
 - `ruling ID --text "..." [--by owner|NAME] [--approval]` — append a dated decision to the plan's `## ⚖️ Rulings` section (plan file only; never the changelog or ROADMAP.md); `--approval` marks an owner sign-off, which clears a plan's `approval: required` marker (see `references/state-model.md` → "Rulings")
 - `summary --version V --text "..." [--clear] [--force]` — set a version's public release-notes blurb; renders instead of item bullets in CHANGELOG.md (keep it stupid simple)
@@ -267,7 +270,7 @@ Anywhere a command takes `--plan ID` (or an id list), the id may be `7`, `#7`, o
   `check` refuse until you pass it. `check` also refuses while the plan's required sections
   (bug: Observed/Root Cause/Acceptance; others: Core objective/Acceptance —
   `settings.requiredSections`) are still template text; `--force` overrides and records it.
-- `next [--version V] [--force] [--json]` — next unfinished item (skips incomplete `dependsOn`)
+- `next [--version V] [--force] [--json]` — next unfinished item (skips incomplete `dependsOn`, and items held by another owner)
 - `deps-check --plan ID [--force]` — warn if dependencies are incomplete
 - `remove --plan ID` — archive a plan, drop it, demote it to the Idea Incubator
 - `depends --plan ID --on IDS [--clear]` — set dependency ordering (`next`/`build` honor it)
@@ -281,7 +284,7 @@ Anywhere a command takes `--plan ID` (or an id list), the id may be `7`, `#7`, o
 - `handoff --plan ID --resolve` — close the open decision for that plan
 - `orient` also reports the branch, dirty files and the last 5 commits (in handoff mode)
 - `drift-check` — nudge if commits landed without a check-off
-- `tidy [--json] [--externalize [PATH]]` — report-only free-form/incubator hygiene analysis (long bullets, nested blocks, dupes vs tracked items, stray prose, unfinished plans whose required sections are still template); `--externalize` moves the incubator into a linked external file (default `.roadmap/IDEAS.md`; `idea`/`promote`/`remove` follow via `settings.incubatorFile`); `/roadmap-tidy` applies the grooming + idea curation
+- `tidy [--json] [--externalize [PATH]]` — report-only free-form/incubator hygiene analysis (long bullets, nested blocks, dupes vs tracked items, bug-like bullets, stray prose, unfinished plans whose required sections are still template); `--externalize` moves the incubator into a linked external file (default `.roadmap/IDEAS.md`; `idea`/`promote`/`remove` follow via `settings.incubatorFile`); `/roadmap-tidy` applies the grooming + idea curation
 - `sync` — recompute progress + re-render ROADMAP.md **and both changelogs** (safe anytime)
 - `upgrade` — refresh this project's `CLAUDE.md` + `AGENTS.md` rules to the installed skill version
 - `changelog [--internal] [--backfill] [--json]` — print the public (or `--internal`) changelog + audit warnings; `--backfill` dates past versions from git tags; `--json` emits structured data (versions, dates, sections, pending flags) for in-app changelog screens / What's New popups
@@ -293,11 +296,12 @@ Anywhere a command takes `--plan ID` (or an id list), the id may be `7`, `#7`, o
   runs the release itself (target = the later version being started, else the lowest
   existing version above current; never invents a number), `"off"` disables the gate.
 - `claim ID [ID…] --stage {review,fixing,gate-ready,gating,blocked,landed} [--verdict V] [--note "..."] [--branch B]` (or `ID… --clear`) — record the in-flight build stage in plan frontmatter, several ids all-or-nothing; trunk checkboxes stay the only done source (see `references/state-model.md`)
+- `claim ID [ID…] [--owner NAME] [--take]` — every claim records its owner (default `$ROADMAP_OWNER`, else the git user name, else the agent name); an item held by another owner (refreshed within `settings.claimTtlHours`, default 12) is refused, naming the owner and age, unless `--take` (applies to `--clear` too); `--owner` alone opens an owner-only claim that holds the item while it builds. `next` skips held items; `orient` lists yours. `settings.wipLimit` makes `status`/`next`/`orient` warn when more items are in flight (see `references/state-model.md` → "Claim owners")
 - `claim [ID…] --landed SHA` — move items whose branch tip SHA (e.g. the integration branch) contains to `landed`, recording the sha
 - `check --landed [--evidence "..."] [--yes]` — dry-run list (or with `--yes`, tick every step) of `landed` items whose landing sha and branch tip trunk now contains; clears their claims
 - `slot ID --kind K [--name N] [--add]` (or `ID --kind K --release`, or `[ID] --check`) — reserve the next number of a numbered sequence from `settings.slots` (e.g. a DB migration) for an item and print it; `--check` exits 1 when a reservation clashes or is taken (merge gate; see `references/state-model.md` → "Numbered slots")
 - `run --kind gate|suite --label L --result pass|fail [--items IDS] [--branches B,B] [--duration 12m] [--log URL] [--failing "names"] [--shards "unit=pass,e2e=fail"] [--json]` — record a merge-gate or suite run in `.roadmap/runs.jsonl` (append-only, locked, trimmed to `settings.runsKeep`, default 200; `--log` must be http(s)). The merge gate records one per batch (see `references/quality-build.md` → "Merge gate")
-- `status [--type T] [--version V] [--status S] [--open] [--in-flight] [--slots] [--runs] [--worktrees] [--json]` — print current state (items grouped under a version header carrying its forecast — steps left, pace, finish date and range, target grade — see `settings.forecastDays` / `versionTargets` in the state model; shows lane, branch, and `blocked by […]` when deps incomplete; `--slots` prints slot reservations and their match state instead; `--runs` prints recorded runs newest first plus trunk health); `--worktrees` prints the linked-worktree table — dirty and unmerged counts, item, lane, stage, age — and the `git worktree remove` command for each safe one, never running it; all given filters must match, and they narrow the item list only; `--json` also includes `counts` (`byType`/`byStatus`/`byVersion`) computed across all items regardless of filters
+- `status [--type T] [--version V] [--status S] [--open] [--in-flight] [--slots] [--runs] [--worktrees] [--conflicts] [--json]` — print current state (items grouped under a version header carrying its forecast — steps left, pace, finish date and range, target grade — see `settings.forecastDays` / `versionTargets` in the state model; shows lane, branch, and `blocked by […]` when deps incomplete; `--slots` prints slot reservations and their match state instead; `--runs` prints recorded runs newest first plus trunk health); `--worktrees` prints the linked-worktree table — dirty and unmerged counts, item, lane, stage, age — and the `git worktree remove` command for each safe one, never running it; `--conflicts` lists open item branches that change the same files, by risk (high = `git merge-tree` finds a conflict, medium = file overlap only, low = merges cleanly), with a suggested merge order, never touching a branch; all given filters must match, and they narrow the item list only; `--json` also includes `counts` (`byType`/`byStatus`/`byVersion`) computed across all items regardless of filters
 - `search <text> [--json]` — case-insensitive substring search across item titles, item note lines, plan bodies and the Idea Incubator (linked `.roadmap/notes/` files are not scanned)
 - `import PATH` — extract checklist lines from a file into a plan
 

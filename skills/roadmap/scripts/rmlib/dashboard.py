@@ -137,6 +137,18 @@ def _safe_worktrees(rm, root: Path, st: dict) -> dict | None:
         return None
 
 
+def _safe_conflicts(rm, root: Path, st: dict) -> dict | None:
+    """Branch conflict risk (plan 41) for the trunk view's status `st`; None
+    without the hook or on any failure (the panel simply does not render)."""
+    fn = getattr(rm, "conflicts_payload", None)
+    if fn is None:
+        return None
+    try:
+        return fn(root, st)
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def _safe_status(rm, root: Path) -> dict:
     try:
         return rm.status(root)
@@ -287,7 +299,8 @@ def _item_detail(rm, root: Path, item_id: int) -> dict:
             detail["blockedBy"] = list(row.get("blockedBy") or [])
             detail["needsApproval"] = bool(row.get("needsApproval"))
             detail["waitingSteps"] = list(row.get("waitingSteps") or [])
-            for k in ("displayId", "pct", "done", "total"):
+            for k in ("displayId", "pct", "done", "total",
+                      "foundIn", "bugsFound", "foundDuringBuild"):   # plan 47
                 detail[k] = row.get(k)
             if row.get("branch"):
                 detail["branch"] = {
@@ -413,7 +426,9 @@ def _merge_status(statuses: list[dict], roots_meta: list[dict]) -> dict:
     if statuses and "forecast" in statuses[_trunk_root(statuses, roots_meta)]:
         out["forecast"] = statuses[_trunk_root(statuses, roots_meta)]["forecast"]
     # The run log (plan 38) is trunk truth too: its runs and trunk health.
-    for key in ("runs", "trunkHealth", "runWarnings"):
+    # The WIP limit (plan 40) is a trunk setting; the page compares it with
+    # the in-flight count it shows.
+    for key in ("runs", "trunkHealth", "runWarnings", "wip"):
         if statuses and key in statuses[_trunk_root(statuses, roots_meta)]:
             out[key] = statuses[_trunk_root(statuses, roots_meta)][key]
     return out
@@ -486,6 +501,9 @@ class _Broadcaster:
         wt = _safe_worktrees(self.rm, self._wt_root, stats[trunk])
         if wt is not None:
             out["worktrees"] = wt
+        cf = _safe_conflicts(self.rm, self._wt_root, stats[trunk])
+        if cf is not None:
+            out["conflicts"] = cf
         return json.dumps(out)
 
     def start(self) -> None:
