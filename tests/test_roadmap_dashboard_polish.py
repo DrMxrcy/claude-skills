@@ -304,3 +304,99 @@ def test_notifications_only_after_page_opt_in(dashboard):
     hook = js[js.index("PAYLOAD_HOOKS.push((P, restarted)"):]
     assert hook.index("if(P.scanning) return;") < hook.index("shouldNotify(")
     assert "document.title = titleFor(" in js
+
+
+# ---- step 4: light/dark theme tokens, contrast, toggle ---------------------
+
+def _tokens(block):
+    import re
+    return dict(re.findall(r"--([\w-]+):\s*(#[0-9a-fA-F]{6})\b", block))
+
+
+def _block(css, selector):
+    a = css.index(selector)
+    a = css.index("{", a) + 1
+    return css[a:css.index("}", a)]
+
+
+def _themes(dashboard):
+    body = dashboard._dashboard_html()
+    css = body[body.index("<style>"):body.index("</style>")]
+    light = _tokens(_block(css, ":root {"))
+    dark = _tokens(_block(css, ':root[data-theme="dark"] {'))
+    auto_dark = _tokens(_block(css, ':root:not([data-theme="light"]) {'))
+    return css, light, dark, auto_dark
+
+
+def _lum(h):
+    r, g, b = (int(h[i:i + 2], 16) / 255 for i in (1, 3, 5))
+    f = lambda c: c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+    return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b)
+
+
+def _ratio(a, b):
+    hi, lo = sorted((_lum(a), _lum(b)), reverse=True)
+    return (hi + 0.05) / (lo + 0.05)
+
+
+def _mix(fg, bg, pct):
+    return "#" + "".join("%02x" % round(int(fg[i:i + 2], 16) * pct
+                                        + int(bg[i:i + 2], 16) * (1 - pct))
+                         for i in (1, 3, 5))
+
+
+def test_theme_tokens_light_base_dark_by_preference_and_choice(dashboard):
+    css, light, dark, auto_dark = _themes(dashboard)
+    assert "@media (prefers-color-scheme: dark)" in css
+    assert dark == auto_dark                      # same dark either way
+    assert set(light) == set(dark) and light != dark
+    assert _lum(light["bg"]) > 0.5 > _lum(dark["bg"])
+    # no hard-coded colour outside the token blocks
+    import re
+    rules = css
+    for sel in (":root {", ':root:not([data-theme="light"]) {',
+                ':root[data-theme="dark"] {'):
+        rules = rules.replace(_block(css, sel), "")
+    assert not re.findall(r"#[0-9a-fA-F]{3,8}\b|rgba?\(", rules)
+
+
+def test_lane_badges_meet_4_5_contrast_in_both_themes(dashboard):
+    import re
+    css, light, dark, _ = _themes(dashboard)
+    lanes = dict(re.findall(r"\.lg-(\w+) \{ --lc:var\(--([\w-]+)\); \}", css))
+    assert set(lanes) == {"done", "gate", "review", "hold", "build", "plan", "wait"}
+    # the plan lane's badge text is --muted, not its (non-text) dot colour
+    assert ".lane.lg-plan { color:var(--muted); }" in css
+    text = {g: ("muted" if g == "plan" else tok) for g, tok in lanes.items()}
+    tint = int(re.search(r"\.lane \{[^}]*color-mix\(in srgb, var\(--lc\) (\d+)%,"
+                         r" transparent\)", css).group(1)) / 100
+    bad = []
+    for name, t in (("light", light), ("dark", dark)):
+        bg = t["bg"]
+        for group, tok in text.items():
+            fg = t[tok]
+            badge_bg = _mix(t[lanes[group]], bg, tint)
+            for where, against in (("page", bg), ("badge", badge_bg)):
+                r = _ratio(fg, against)
+                if r < 4.5:
+                    bad.append(f"{name} {group} on {where}: {r:.2f}")
+        # verdicts and body text too
+        for tok in ("fg", "muted", "accent", "done", "active", "blocked"):
+            if _ratio(t[tok], bg) < 4.5:
+                bad.append(f"{name} --{tok}: {_ratio(t[tok], bg):.2f}")
+    assert not bad, bad
+
+
+def test_theme_toggle_is_remembered_and_storage_safe(dashboard):
+    body, js = _script(dashboard)
+    assert 'id="themeBtn"' in body
+    head = body[:body.index("</head>")]
+    # applied before first paint, and storage failures are swallowed
+    assert 'localStorage.getItem("rm-theme")' in head and "catch(_){}" in head
+    assert head.index('localStorage.getItem("rm-theme")') < head.index("<style>")
+    assert 'store.set("rm-theme", THEME)' in js
+    assert 'THEMES = ["auto","light","dark"]' in js
+    # every other localStorage touch goes through the try/catch `store` helper
+    import re
+    raw = [m.start() for m in re.finditer(r"localStorage\.(get|set)Item", body)]
+    assert len(raw) == 3      # head theme read + store.get + store.set

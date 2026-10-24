@@ -4,13 +4,40 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>roadmap</title>
+<script>
+// plan 50: apply a remembered theme before first paint (storage may throw)
+try { const t = JSON.parse(localStorage.getItem("rm-theme"));
+  if(t === "light" || t === "dark") document.documentElement.dataset.theme = t; } catch(_){}
+</script>
 <link rel="icon" id="favicon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%230e1116'/%3E%3Crect x='3' y='4' width='10' height='2' rx='1' fill='%233fb950'/%3E%3Crect x='3' y='7' width='7' height='2' rx='1' fill='%23d29922'/%3E%3Crect x='3' y='10' width='4' height='2' rx='1' fill='%234b5563'/%3E%3C/svg%3E">
 <style>
+  /* Theme tokens (plan 50): every colour on the page is one of these. Light
+     is the base; dark follows prefers-color-scheme unless the viewer picked a
+     theme (html[data-theme], remembered in localStorage). Lane colours keep
+     4.5:1 against the background and their 14% badge tint in both themes —
+     tests/test_roadmap_dashboard_polish.py checks the values below. */
   :root {
+    color-scheme:light;
+    --bg:#ffffff; --line:#d0d7de; --fg:#1f2328; --muted:#59636e;
+    --bar:#eef1f4; --done:#116329; --active:#7d4e00; --blocked:#a40e26;
+    --todo:#8c959f; --accent:#0550ae; --build:#0f5d63; --gate:#6639ba;
+    --wait:#99286e; --hover:rgba(0,0,0,.03);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+    color-scheme:dark;
     --bg:#0e1116; --line:#232a34; --fg:#e6edf3; --muted:#8b98a5;
     --bar:#242c38; --done:#3fb950; --active:#d29922; --blocked:#f85149;
     --todo:#4b5563; --accent:#58a6ff; --build:#39c5cf; --gate:#a371f7;
-    --wait:#db61a2;
+    --wait:#db61a2; --hover:rgba(255,255,255,.02);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme:dark;
+    --bg:#0e1116; --line:#232a34; --fg:#e6edf3; --muted:#8b98a5;
+    --bar:#242c38; --done:#3fb950; --active:#d29922; --blocked:#f85149;
+    --todo:#4b5563; --accent:#58a6ff; --build:#39c5cf; --gate:#a371f7;
+    --wait:#db61a2; --hover:rgba(255,255,255,.02);
   }
   * { box-sizing:border-box; }
   /* #app sets display:flex, which outranks the UA rule for [hidden] — without
@@ -71,7 +98,7 @@
   .item-wrap { border-top:1px solid var(--line); }
   .item { display:grid; grid-template-columns:14px 1fr auto;
     gap:10px; align-items:start; padding:7px 0; cursor:pointer; }
-  .item:hover { background:rgba(255,255,255,.02); }
+  .item:hover { background:var(--hover); }
   .icaret { color:var(--muted); flex:none; font-size:10px; width:10px;
     display:inline-block; }
   .steps { padding:2px 0 12px 26px; display:flex; flex-direction:column;
@@ -380,6 +407,7 @@
         <span id="stamp" title="when the data last changed"></span>
         <button type="button" class="hbtn" id="refreshBtn" title="reload the data now">refresh</button>
         <button type="button" class="hbtn" id="notifyBtn" aria-pressed="false"></button>
+        <button type="button" class="hbtn" id="themeBtn"></button>
       </span>
     </div>
     <div class="hbar"><i id="hbarfill"></i></div>
@@ -1176,6 +1204,23 @@ document.getElementById("refreshBtn").onclick = () => {
   if(DOWN || DOWN_T || !es || es.readyState !== 1) retryNow();
   getJSON("/api/status").then(P => onPayload(P)).catch(() => {});
 };
+// ---- theme toggle (plan 50): auto (follow the OS) -> light -> dark --------
+const THEMES = ["auto","light","dark"];
+let THEME = (t => THEMES.includes(t) ? t : "auto")(store.get("rm-theme", "auto"));
+function applyTheme(){
+  const root = document.documentElement;
+  if(THEME === "auto") delete root.dataset.theme; else root.dataset.theme = THEME;
+  const b = document.getElementById("themeBtn");
+  b.textContent = "theme: "+THEME;
+  b.title = THEME === "auto" ? "following the system theme — click for light"
+    : "click for "+THEMES[(THEMES.indexOf(THEME)+1) % THEMES.length];
+}
+document.getElementById("themeBtn").onclick = () => {
+  THEME = THEMES[(THEMES.indexOf(THEME)+1) % THEMES.length];
+  store.set("rm-theme", THEME);
+  applyTheme();
+};
+applyTheme();
 // ---- tab title, favicon dot, opt-in notifications (plan 50) -------------
 // The count is the server's `attention` list for the trunk view — the same
 // checks `roadmap digest` lists under "Needs attention" (REFUTED verdicts,
