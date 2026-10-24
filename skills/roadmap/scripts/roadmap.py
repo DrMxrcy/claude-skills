@@ -22,6 +22,7 @@ from rmlib.sync import (  # noqa: E402
     roadmap_health, status, sync, uncut_complete_version,
     derive_lane, is_in_flight, lane_counts, lane_label,
     format_worktrees, worktree_payload, conflicts_payload,
+    scope_drift_payload, format_scope_drift,
     warn_incomplete_deps, MAX_ROADMAP_LINES,
     MAX_FREEFORM_LINES, MAX_FREEFORM_CHARS)
 
@@ -93,7 +94,7 @@ __all__ = [  # public facade: names re-exported for callers/tests/hooks (roadmap
     '_progress_map', '_version_complete', 'incomplete_deps', 'next_item',
     'render_region', 'roadmap_health', 'status', 'sync',
     'derive_lane', 'is_in_flight', 'lane_counts', 'lane_label',
-    'format_worktrees', 'worktree_payload', 'conflicts_payload', 'uncut_complete_version', 'warn_incomplete_deps', 'MAX_ROADMAP_LINES', 'MAX_FREEFORM_LINES',
+    'format_worktrees', 'worktree_payload', 'conflicts_payload', 'scope_drift_payload', 'format_scope_drift', 'uncut_complete_version', 'warn_incomplete_deps', 'MAX_ROADMAP_LINES', 'MAX_FREEFORM_LINES',
     'MAX_FREEFORM_CHARS', 'STEP_RE', '_is_fence', 'parse_plan',
     'count_progress', '_plan_path', 'CLAIM_STAGES', 'CLAIM_VERDICTS',
     'CLAIM_FIELDS', 'read_claim', 'needs_approval', 'parse_rulings', 'set_claim', 'clear_claim', 'set_claims',
@@ -137,7 +138,8 @@ def _dashboard_api():
         discover_branches=rmbranches.discover,
         worktree_facts=rmbranches.worktree_facts,
         worktree_payload=worktree_payload,
-        conflicts_payload=conflicts_payload)
+        conflicts_payload=conflicts_payload,
+        scope_drift_payload=scope_drift_payload)
 
 
 def serve(root: Path, port: int | None = None, open_browser: bool = True,
@@ -411,6 +413,11 @@ def main(argv: list[str]) -> int:
                       help="open item branches that change the same files, by "
                            "risk (merge-tree check on git >= 2.38), and a "
                            "suggested merge order; never touches a branch")
+    p_st.add_argument("--drift", action="store_true",
+                      help="open item branches changing files their plan does "
+                           "not declare (Files to create/modify, -> target:); "
+                           "tests, lockfiles and .roadmap/ are always allowed "
+                           "(settings.scopeAllow)")
 
     p_search = sub.add_parser(
         "search", help="case-insensitive substring search across item titles/notes, "
@@ -796,7 +803,14 @@ def main(argv: list[str]) -> int:
                 print(p)
             return 0
         if args.command == "status":
-            st = status(root, worktrees=args.worktrees, conflicts=args.conflicts)
+            st = status(root, worktrees=args.worktrees, conflicts=args.conflicts,
+                        drift=args.drift)
+            if args.drift:
+                if args.as_json:
+                    print(json.dumps({"scopeDrift": st["scopeDrift"]}, indent=2))
+                else:
+                    print(format_scope_drift(st["scopeDrift"]))
+                return 0
             if args.conflicts:
                 if args.as_json:
                     print(json.dumps({"conflicts": st["conflicts"]}, indent=2))

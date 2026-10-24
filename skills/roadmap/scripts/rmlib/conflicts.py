@@ -37,6 +37,8 @@ _FILES: dict[tuple[str, str, str], tuple[str, ...]] = {}
 # (root, sha, sha) sorted -> conflicted paths (empty = merges cleanly)
 _PAIRS: dict[tuple[str, str, str], tuple[str, ...]] = {}
 _MT: dict[str, bool] = {}  # "supported" -> git merge-tree --write-tree available
+# (root, branch tip, integration tip) -> fork sha ("" = none found)  (plan 42)
+_FORKS: dict[tuple[str, str, str], str] = {}
 
 
 def _run(root: Path, *args: str) -> tuple[int, str] | None:
@@ -112,6 +114,87 @@ def changed_files(root: Path, branch: str, trunk: str | None = None,
     if not frm or not tip:
         return None
     return changed_files_at(Path(root), frm, tip)
+
+
+def _landed_fork(root: Path, tip: str, integ_tip: str) -> str | None:
+    """Where a branch landed in an integration branch forked from it: the
+    merge base of `tip` with the integration commit just before the one that
+    brought `tip` in (the oldest first-parent descendant of `tip`). None when
+    it was fast-forwarded in (no such merge) or on git trouble. Cached on the
+    two tips: two git calls, once."""
+    key = (_key(root), tip, integ_tip)
+    with _LOCK:
+        hit = _FORKS.get(key)
+    if hit is not None:
+        return hit or None
+    fork = ""
+    res = _run(root, "rev-list", "--first-parent", "--ancestry-path",
+               "--reverse", f"{tip}..{integ_tip}")
+    first = res[1].split("\n", 1)[0].strip() if res and res[0] == 0 else ""
+    if first:
+        mb = _run(root, "merge-base", tip, f"{first}^1")
+        if mb and mb[0] == 0 and mb[1].strip() != tip:
+            fork = mb[1].strip()
+    if res is not None:
+        _put(_FORKS, key, fork)
+    return fork or None
+
+
+def work_base(root: Path, branch: str, trunk: str | None = None,
+              integration=None) -> dict | None:
+    """What `branch`'s own work should be diffed from (plan 42), so work it
+    only carries because it was cut from an integration branch is not
+    counted as its own: {"kind", "ref", "sha"} where kind is
+      trunk        the trunk (the usual case; also integration branches)
+      integration  a branch cut from (or synced with) integration branch
+                   `ref`, not merged into it: diff from their merge base
+      fork         a branch already landed in integration branch `ref` after
+                   being cut from it: diff from the fork commit `sha`
+    Decided from the cached ref scan (shared commits), plus two cached git
+    calls for a landed branch. None when the branch or trunk is unknown."""
+    scanned = rmbranches._scan_cached(Path(root), trunk, integration)
+    if scanned is None:
+        return None
+    resolved, data = scanned
+    by = {b["name"]: b for b in data["branches"]}
+    b = by.get(branch)
+    if b is None or not data.get("trunkSha"):
+        return None
+    base = {"kind": "trunk", "ref": resolved, "sha": data["trunkSha"]}
+    integs = [n for n in data.get("integrations") or () if n in by]
+    if not integs or branch in integs or b.get("merged"):
+        return base
+    reach = {n: {c["full"] for c in by[n].get("commits") or ()} for n in integs}
+    into = b.get("landedIn")
+    if into in reach:
+        fork = _landed_fork(Path(root), b["sha"], by[into]["sha"])
+        if fork and fork in reach[into]:
+            return {"kind": "fork", "ref": into, "sha": fork}
+        return base
+    own = {c["full"] for c in b.get("commits") or ()}
+    best = max(integs, key=lambda n: (len(own & reach[n]), by[n]["date"]))
+    if own & reach[best]:
+        return {"kind": "integration", "ref": best, "sha": by[best]["sha"]}
+    return base
+
+
+def own_changed_files(root: Path, branch: str, trunk: str | None = None,
+                      integration=None) -> tuple[list[str] | None, dict | None]:
+    """(files `branch` itself changes, the work_base used) — changed_files
+    from the right base: trunk, or the integration branch it was cut from,
+    or its fork commit when already landed there. (None, None) when unknown."""
+    wb = work_base(root, branch, trunk, integration)
+    if wb is None:
+        return None, None
+    if wb["kind"] == "fork":
+        scanned = rmbranches._scan_cached(Path(root), trunk, integration)
+        tip = next((b["sha"] for b in scanned[1]["branches"]
+                    if b["name"] == branch), None) if scanned else None
+        files = changed_files_at(Path(root), wb["sha"], tip) if tip else None
+    else:
+        files = changed_files(root, branch, trunk, integration,
+                              base=wb["ref"] if wb["kind"] == "integration" else None)
+    return files, (wb if files is not None else None)
 
 
 def merge_conflicts(root: Path, sha_a: str, sha_b: str) -> list[str] | None:

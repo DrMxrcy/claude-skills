@@ -11,7 +11,8 @@ from rmlib.core import (
     atomic_write, derive_status, display_id, read_config, roadmap_dir,
     write_config)
 from rmlib.parse import (
-    CLAIM_STAGES, count_progress, meta_ids, needs_approval, parse_plan, read_claim)
+    CLAIM_STAGES, count_progress, meta_ids, needs_approval, off_plan, parse_plan,
+    read_claim, scope_allow)
 from rmlib import branches as rmbranches
 from rmlib import slots as rmslots
 from rmlib import forecast as rmforecast
@@ -348,11 +349,14 @@ def _discover(root: Path, cfg: dict) -> dict:
         return {"trunk": None, "items": {}, "other": []}
 
 
-def status(root: Path, worktrees: bool = False, conflicts: bool = False) -> dict:
+def status(root: Path, worktrees: bool = False, conflicts: bool = False,
+           drift: bool = False) -> dict:
     """Status payload. `worktrees=True` adds the worktree map (plan 36) —
     opt-in because it costs one `git status` per linked worktree.
     `conflicts=True` adds branch conflict risk (plan 41) — opt-in because a
-    cold cache costs one `git diff` per branch and one merge-tree per pair."""
+    cold cache costs one `git diff` per branch and one merge-tree per pair.
+    `drift=True` adds scope drift (plan 42): top-level `scopeDrift`, and
+    `offPlan` on each item row it checked — opt-in for the same diff cost."""
     cfg = read_config(root)
     by_id = {i["id"]: i for i in cfg["items"]}
     # Full progress map first — blockedBy for early ids must see later deps' progress.
@@ -421,7 +425,138 @@ def status(root: Path, worktrees: bool = False, conflicts: bool = False) -> dict
     if conflicts:
         out["conflicts"] = conflicts_payload(root, out, cfg,
                                              trunk_sha=found.get("trunkSha"))
+    if drift:
+        out["scopeDrift"] = scope_drift_payload(root, out, cfg)
+        by_item = out["scopeDrift"]["byItem"]
+        for row in items:
+            if row["id"] in by_item:
+                row["offPlan"] = by_item[row["id"]]
     return out
+
+
+# --- scope drift per branch (plan 42) --------------------------------------
+DRIFT_SHOWN = 10          # off-plan files listed per item in the text report
+
+
+def _declared(root: Path, item: dict) -> list[str]:
+    path = roadmap_dir(root) / item["file"]
+    try:
+        return list(parse_plan(path).get("declaredPaths") or []) \
+            if path.exists() else []
+    except (OSError, UnicodeDecodeError):
+        return []
+
+
+def scope_drift_payload(root: Path, st: dict, cfg: dict | None = None) -> dict:
+    """Off-plan files on every open item branch of a status payload `st`
+    (not done, carrying unmerged work): the files the branch itself changes
+    (rmconflicts.own_changed_files — vs trunk, or vs the integration branch it
+    was cut from) that neither its plan's declared paths nor the allow list
+    (settings.scopeAllow + defaults) cover. Items sharing a branch are one
+    entry judged against all their plans; an integration branch also counts
+    the plans of the items landed in it. Returns
+      {checked, flagged, noScope: [ids], unknown: [branches], allow,
+       items: [{id, displayId, title, branch, items, base, declared,
+                changed, offPlan, offPlanCount, noScope}],
+       byItem: {id: offPlan list, or None when its entry has no declared scope}}
+    items sort off-plan first (most files first), then no declared scope,
+    then clean. Never raises."""
+    out = {"checked": 0, "flagged": 0, "noScope": [], "unknown": [],
+           "allow": [], "items": [], "byItem": {}}
+    try:
+        cfg = cfg if cfg is not None else read_config(root)
+    except Exception:  # noqa: BLE001 — status must survive any surprise
+        return out
+    settings = cfg.get("settings") or {}
+    integ = settings.get("integrationBranch") or None
+    allow = scope_allow(settings)
+    out["allow"] = allow
+    nodes: dict[str, dict] = {}
+    landed_in: dict[str, list[dict]] = {}
+    for it in sorted(st.get("items") or [], key=lambda i: i["id"]):
+        b = it.get("branch")
+        if it.get("lane") == "done" or not _branch_has_work(b) or not b.get("sha"):
+            continue
+        if b.get("landedIn"):
+            landed_in.setdefault(b["landedIn"], []).append(it)
+        n = nodes.get(b["name"])
+        if n is None:
+            nodes[b["name"]] = {"lead": it, "members": [it]}
+        else:
+            n["members"].append(it)
+    entries = []
+    for name, n in nodes.items():
+        lead = n["lead"]
+        try:
+            files, wb = rmconflicts.own_changed_files(root, name, None, integ)
+        except Exception:  # noqa: BLE001
+            files, wb = None, None
+        if files is None:
+            out["unknown"].append(name)
+            continue
+        plans = n["members"] + [x for x in landed_in.get(name, [])
+                                if x not in n["members"]]
+        declared = list(dict.fromkeys(p for x in plans for p in _declared(root, x)))
+        no_scope = not declared
+        flagged = [] if no_scope else off_plan(files, declared, allow)
+        entries.append({
+            "id": lead["id"], "displayId": lead.get("displayId"),
+            "title": lead.get("title"), "branch": name,
+            "items": [m["id"] for m in n["members"]],
+            "base": ({"kind": wb["kind"], "ref": wb["ref"], "sha": wb["sha"]}
+                     if wb else None),
+            "declared": declared, "changed": len(files),
+            "offPlan": flagged, "offPlanCount": len(flagged),
+            "noScope": no_scope})
+    entries.sort(key=lambda e: (0 if e["offPlanCount"] else
+                                1 if e["noScope"] else 2,
+                                -e["offPlanCount"], e["id"]))
+    for e in entries:
+        for i in e["items"]:
+            out["byItem"][i] = None if e["noScope"] else list(e["offPlan"])
+    out["checked"] = len(entries)
+    out["flagged"] = sum(1 for e in entries if e["offPlanCount"])
+    out["noScope"] = [i for e in entries if e["noScope"] for i in e["items"]]
+    out["items"] = entries
+    return out
+
+
+def format_scope_drift(rep: dict | None, shown: int = DRIFT_SHOWN) -> str:
+    """Terminal text for `status --drift`: a summary line, then each item
+    branch with off-plan files (first `shown`), then the ones with no
+    declared scope, then the clean ones on one line."""
+    rep = rep or {}
+    entries = rep.get("items") or []
+    lines = [f"scope drift: {rep.get('checked', 0)} open item branches · "
+             f"{rep.get('flagged', 0)} off-plan · "
+             f"{sum(1 for e in entries if e['noScope'])} no declared scope"]
+
+    def tag(e: dict) -> str:
+        more = len(e.get("items") or []) - 1
+        base = e.get("base") or {}
+        since = (f", vs {base['ref']}" if base.get("kind") == "integration" else
+                 f", since {base['sha'][:7]} on {base['ref']}"
+                 if base.get("kind") == "fork" else "")
+        return (f"{e.get('displayId') or '#' + str(e['id'])}"
+                f"{f' +{more}' if more > 0 else ''} {e.get('title') or ''}"
+                f" ({e['branch']}{since})")
+
+    for e in entries:
+        if e["offPlanCount"]:
+            more = e["offPlanCount"] - shown
+            files = ", ".join(e["offPlan"][:shown]) + (
+                f", +{more} more" if more > 0 else "")
+            lines.append(f"  {tag(e)} · {e['offPlanCount']} off-plan of "
+                         f"{e['changed']} changed: {files}")
+        elif e["noScope"]:
+            lines.append(f"  {tag(e)} · no declared scope ({e['changed']} changed)")
+    clean = [e for e in entries if not e["offPlanCount"] and not e["noScope"]]
+    if clean:
+        lines.append("  within plan: " + ", ".join(
+            e.get("displayId") or "#" + str(e["id"]) for e in clean))
+    if rep.get("unknown"):
+        lines.append(f"  unreadable: {', '.join(rep['unknown'])}")
+    return "\n".join(lines)
 
 
 # --- branch conflict risk (plan 41) ----------------------------------------
