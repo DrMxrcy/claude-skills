@@ -3280,7 +3280,7 @@ def test_status_lane_for_each_derivation(roadmap, branches, repo, monkeypatch):
     assert st["counts"]["byLane"] == {"done": 1, "building": 2, "gate-ready": 1,
                                       "stale": 1, "planned": 2, "active": 1}
     assert st["counts"]["lanes"] == {"done": 1, "inFlight": 5, "active": 1,
-                                     "planned": 1}
+                                     "planned": 1, "waiting": 0}
 
 
 def test_status_fresh_branch_at_trunk_tip_is_not_building(roadmap, branches, repo,

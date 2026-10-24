@@ -278,7 +278,14 @@ def _item_detail(rm, root: Path, item_id: int) -> dict:
                   "notes": notes,
                   "dependsOn": list(item.get("dependsOn") or []),
                   "blockedBy": [],
-                  "steps": [{"done": d, "text": t} for d, t in plan["steps"]],
+                  "steps": [{"done": d, "text": t,
+                             **({"waiting": plan["waiting"][n]}
+                                if n in (plan.get("waiting") or {}) else {})}
+                            for n, (d, t) in enumerate(plan["steps"], 1)],
+                  # follow-up links (plan 46), both directions
+                  "followUpOf": item.get("followUpOf"),
+                  "followUps": list(item.get("followUps") or []),
+                  "waitingSteps": [],
                   "lane": None, "claim": None, "branch": None,
                   "rulings": list(plan.get("rulings") or []),
                   "needsApproval": False}
@@ -291,6 +298,7 @@ def _item_detail(rm, root: Path, item_id: int) -> dict:
             detail["lane"], detail["claim"] = row.get("lane"), row.get("claim")
             detail["blockedBy"] = list(row.get("blockedBy") or [])
             detail["needsApproval"] = bool(row.get("needsApproval"))
+            detail["waitingSteps"] = list(row.get("waitingSteps") or [])
             for k in ("displayId", "pct", "done", "total",
                       "foundIn", "bugsFound", "foundDuringBuild"):   # plan 47
                 detail[k] = row.get(k)

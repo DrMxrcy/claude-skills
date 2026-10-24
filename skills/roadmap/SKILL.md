@@ -276,7 +276,8 @@ Anywhere a command takes `--plan ID` (or an id list), the id may be `7`, `#7`, o
 - `depends --plan ID --on IDS [--clear]` — set dependency ordering (`next`/`build` honor it)
 - `reorder --version V --order IDS` — set display/build order within a version
 - `merge --into KEEP --from IDS` — fold duplicate items into one keeper
-- `retarget --to V (--from VERS | --plan IDS)` — re-stamp items onto another version
+- `retarget --to V (--from VERS | --plan IDS)` — re-stamp items onto another version; `retarget ID --version V --split` keeps the ticked steps (the item completes where it is) and moves only the open ones into a linked follow-up item in V
+- `wait ID --step N --until DATE|7d [--reason R]` (or `--clear`) — mark a step that can only be verified after time passes (soak, propagation); never done, lane `waiting` once the rest is ticked, due steps listed first by `orient`/`next`/`status`; tick it with `check --step N` once verified
 - `orient [--json] [--hook]` — session orientation (project, progress, next item, drift)
 - `handoff [--json]` — multi-coder switch brief (orient + git dirty + checklist)
 - `handoff --plan ID --pending "<decision>"` — record an open decision in `.roadmap/notes/<id>-handoff.md`; a plain `handoff` refuses while it is open
@@ -287,7 +288,7 @@ Anywhere a command takes `--plan ID` (or an id list), the id may be `7`, `#7`, o
 - `sync` — recompute progress + re-render ROADMAP.md **and both changelogs** (safe anytime)
 - `upgrade` — refresh this project's `CLAUDE.md` + `AGENTS.md` rules to the installed skill version
 - `changelog [--internal] [--backfill] [--json]` — print the public (or `--internal`) changelog + audit warnings; `--backfill` dates past versions from git tags; `--json` emits structured data (versions, dates, sections, pending flags) for in-app changelog screens / What's New popups
-- `release --version V [--tag] [--force]` — bump version (optional; changelog is automatic).
+- `release --version V [--tag] [--force] [--with-waiting]` — bump version (optional; changelog is automatic). `--with-waiting` ships items whose only open steps are waiting steps and moves those steps into linked follow-up items in V.
   The CLI watches for a finished-but-uncut version: when every item in the current version
   is 100%, `check`/`next`/`orient` print a release nudge, and starting work on a later
   version (`new`/`promote` targeting it) triggers the gate too. `settings.autoRelease` in

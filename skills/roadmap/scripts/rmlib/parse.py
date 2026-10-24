@@ -6,8 +6,32 @@ from pathlib import Path
 from rmlib.core import read_config, roadmap_dir
 
 
-STEP_RE = re.compile(r"^(\s*[-*]\s+)\[( |x|X)\](.*)$")
+STEP_RE = re.compile(r"^(\s*[-*]\s+)\[( |x|X|~)\](.*)$")
 FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---\n", re.DOTALL)
+
+# Waiting steps (plan 46): `- [~] Step 3: text (waiting until 2026-10-30: soak)` —
+# built, but only verifiable after time passes. A waiting step is NEVER done: it
+# parses as (False, text) in `steps` like an unticked one, so every progress count,
+# changelog and gate reads it as open; its date/reason live in `waiting`. The marker
+# is stripped from the step text. `[~]` without a marker is waiting with no date.
+WAIT_BOX = "~"
+WAIT_RE = re.compile(r"\s*\(waiting until (\d{4}-\d{2}-\d{2})(?::\s*(.*?))?\)\s*$")
+
+
+def split_wait_marker(text: str) -> tuple[str, str | None, str | None]:
+    """(step text without the wait marker, until date or None, reason or None)."""
+    wm = WAIT_RE.search(text)
+    if not wm:
+        return text, None, None
+    return text[:wm.start()].rstrip(), wm.group(1), (wm.group(2) or "").strip() or None
+
+
+def wait_marker(until: str | None, reason: str | None) -> str:
+    """The ` (waiting until DATE[: reason])` suffix `wait` appends to a step."""
+    if not until:
+        return ""
+    return f" (waiting until {until}" + (f": {reason}" if reason else "") + ")"
+
 
 # In-flight claim (plan 30): what git cannot know about an item — its review/gate
 # stage and verdict — recorded by `roadmap.py claim`. Stored as FLAT `claim_<field>`
@@ -82,7 +106,7 @@ def parse_plan(path: Path) -> dict:
             if ":" in line:
                 k, _, v = line.partition(":")
                 meta[k.strip()] = v.strip()
-    steps = []
+    steps, waiting = [], {}
     in_fence = False
     for line in text.splitlines():
         if _is_fence(line):
@@ -92,9 +116,14 @@ def parse_plan(path: Path) -> dict:
             continue
         sm = STEP_RE.match(line)
         if sm:
-            steps.append((sm.group(2).lower() == "x", sm.group(3).strip()))
+            text_ = sm.group(3).strip()
+            if sm.group(2) == WAIT_BOX:
+                text_, until, reason = split_wait_marker(text_)
+                waiting[len(steps) + 1] = {"until": until, "reason": reason}
+            steps.append((sm.group(2).lower() == "x", text_))
     body = text[m.end():] if m else text
-    result = {"meta": meta, "steps": steps, "rulings": parse_rulings(body),
+    result = {"meta": meta, "steps": steps, "waiting": waiting,
+              "rulings": parse_rulings(body),
               "foundDuringBuild": parse_found(body)}
     if key is not None:
         _CACHE[str(path)] = (key, result)
@@ -193,6 +222,14 @@ def needs_approval(plan: dict) -> bool:
 def count_progress(path: Path) -> tuple[int, int]:
     steps = parse_plan(path)["steps"]
     return sum(1 for done, _ in steps if done), len(steps)
+
+
+def waiting_steps(path: Path) -> list[dict]:
+    """The plan's waiting steps (plan 46) as [{step, text, until, reason}], in
+    order; `step` is 1-based like `check --step`."""
+    plan = parse_plan(path)
+    return [{"step": n, "text": plan["steps"][n - 1][1], **w}
+            for n, w in sorted((plan.get("waiting") or {}).items())]
 
 
 def read_claim(path: Path) -> dict | None:
