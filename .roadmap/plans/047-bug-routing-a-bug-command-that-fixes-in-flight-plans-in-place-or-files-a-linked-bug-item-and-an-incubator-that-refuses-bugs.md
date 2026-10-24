@@ -3,7 +3,7 @@ id: 47
 title: Bug routing: a bug command that fixes in-flight plans in place or files a linked bug item, and an incubator that refuses bugs
 type: feature
 version: 0.21.0
-status: planned
+status: done
 created: 2026-10-23
 ---
 
@@ -33,7 +33,11 @@ created: 2026-10-23
 - **Fails if:** a bug for an in-flight item creates a separate item, or ordinary feature ideas are refused (test a set of 20 real incubator bullets from this repo and statewide-app: zero false refusals for non-bugs).
 
 ## 🚶 Step-by-Step Checklist
-- [ ] Step 1: `bug` command with in-flight vs shipped routing, step append, foundIn links -> target: roadmap.py, rmlib/ops.py, tests
-- [ ] Step 2: idea refusal heuristics with `--force`, tidy report, promote default -> target: rmlib/incubator.py, tests
-- [ ] Step 3: rules block line and docs -> target: rmlib/core.py, references/state-model.md, SKILL.md
-- [ ] Step 4: payload and dashboard display -> target: rmlib/sync.py, rmlib/dashboard.html, tests
+- [x] Step 1: `bug` command with in-flight vs shipped routing, step append, foundIn links -> target: roadmap.py, rmlib/ops.py, tests
+  > evidence: 0ca9170 f8afcc2 b571684; 0 false refusals on 372 non-bug titles + 44 statewide ideas; merged 3ae1a72; 574 passed in 165.88s (0:02:45); reviews skipped at owner request (2026-10-24)
+- [x] Step 2: idea refusal heuristics with `--force`, tidy report, promote default -> target: rmlib/incubator.py, tests
+  > evidence: 0ca9170 f8afcc2 b571684; 0 false refusals on 372 non-bug titles + 44 statewide ideas; merged 3ae1a72; 574 passed in 165.88s (0:02:45); reviews skipped at owner request (2026-10-24)
+- [x] Step 3: rules block line and docs -> target: rmlib/core.py, references/state-model.md, SKILL.md
+  > evidence: 0ca9170 f8afcc2 b571684; 0 false refusals on 372 non-bug titles + 44 statewide ideas; merged 3ae1a72; 574 passed in 165.88s (0:02:45); reviews skipped at owner request (2026-10-24)
+- [x] Step 4: payload and dashboard display -> target: rmlib/sync.py, rmlib/dashboard.html, tests
+  > evidence: 0ca9170 f8afcc2 b571684; 0 false refusals on 372 non-bug titles + 44 statewide ideas; merged 3ae1a72; 574 passed in 165.88s (0:02:45); reviews skipped at owner request (2026-10-24)
