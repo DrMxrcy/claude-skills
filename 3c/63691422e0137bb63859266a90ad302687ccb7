@@ -1,0 +1,27 @@
+.roadmap/config.json
+  s_fbae122c7a65de::t_b5ac075b65611e 533
+.roadmap/plans/045-digest-what-landed-moved-stalled-and-got-blocked-since-a-given-time.md
+  s_fbae122c7a65de::t_091f208066d970 6,34-41
+CHANGELOG.internal.md
+  s_fbae122c7a65de::t_6e2cc038677e60 20
+CHANGELOG.md
+  s_fbae122c7a65de::t_e6a053dd28a653 18
+ROADMAP.md
+  s_fbae122c7a65de::t_326282b96e39bd 34,48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3c63691422e0137bb63859266a90ad302687ccb7",
+  "prompts": {},
+  "sessions": {
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "unknown"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
