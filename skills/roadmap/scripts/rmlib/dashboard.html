@@ -339,12 +339,37 @@
     .wtr { grid-template-columns:1fr auto; }
     .wtr.wth { display:none; }
   }
+  /* ---- all-projects home (plan 48): #/projects, #/p/<slug>/... ---------- */
+  #homelink { color:var(--muted); font-size:12px; text-decoration:none; }
+  #homelink:hover { color:var(--fg); }
+  #projects { display:grid; gap:14px;
+    grid-template-columns:repeat(auto-fill, minmax(min(100%, 280px), 1fr)); }
+  #projects > .empty { grid-column:1 / -1; }
+  .pcard { display:flex; flex-direction:column; gap:8px; min-width:0;
+    padding:12px 14px; border:1px solid var(--line); border-radius:8px;
+    color:var(--fg); text-decoration:none; }
+  a.pcard:hover { border-color:var(--accent); }
+  .pcard.gone { opacity:.45; }
+  .pcard .ph { display:flex; align-items:baseline; gap:8px; min-width:0; }
+  .pcard .pn { font-weight:600; overflow:hidden; text-overflow:ellipsis;
+    white-space:nowrap; }
+  .pcard .pv { color:var(--accent); font-size:12px; }
+  .pcard .pp { margin-left:auto; color:var(--muted); font-size:12px; }
+  .pcard .pbar { height:4px; background:var(--bar); border-radius:2px; overflow:hidden; }
+  .pcard .pbar > i { display:block; height:100%; background:var(--done); }
+  .pcard .pc { display:flex; gap:12px; flex-wrap:wrap; color:var(--muted); font-size:12px; }
+  .pcard .pc .hot { color:var(--fg); }
+  .pcard .pa { color:var(--blocked); font-size:12px; }
+  .pcard .pf { display:flex; gap:8px; color:var(--muted); font-size:11px; min-width:0; }
+  .pcard .pf .path { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pcard .pf .age { margin-left:auto; white-space:nowrap; }
 </style>
 </head>
 <body>
 <header>
   <div class="wrap">
     <div class="hrow">
+      <a id="homelink" href="#/projects" hidden>← all projects</a>
       <h1><span id="stale" title="live"></span><span id="project">roadmap</span>
         <span class="ver" id="cver"></span></h1>
       <select id="rootsel" autocomplete="off" hidden></select>
@@ -372,6 +397,7 @@
   <div id="changelog" hidden></div>
   <div id="digest" hidden></div>
   <div id="page" hidden></div>
+  <div id="projects" hidden></div>
 </main>
 <script>
 // All text goes in via textContent (attributes via properties) — never parsed
@@ -583,7 +609,7 @@ function itemRow(it){
   if(fly) row.appendChild(flightLine(it));
   // The whole row opens the plan page; the title is a real link, so
   // middle-click / copy-link / open-in-new-tab work too.
-  row.onclick = e => { if(!e.target.closest("a")) location.hash = href; };
+  row.onclick = e => { if(!e.target.closest("a")) location.hash = R(href); };
   wrap.appendChild(row);
   return wrap;
 }
@@ -1068,7 +1094,11 @@ document.getElementById("collapseAll").onclick = () => {
 // open, in place, keeping the route and the scroll position.
 let es;
 function connect(){
-  es = new EventSource("/events");
+  if(ALLMODE && PROJ == null) return;               // plan 48: home has no stream
+  if(es && es.url && es.rmApi === API() && es.readyState !== 2) return;
+  if(es) es.close();
+  es = new EventSource(API()+"/events");
+  es.rmApi = API();
   es.onmessage = ev => { try { LASTP = JSON.parse(ev.data);
     render(view(LASTP)); stale(false); refreshRoute(); } catch(_){} };
   es.onerror = () => stale(true);
@@ -1103,6 +1133,7 @@ try { history.scrollRestoration = "manual"; } catch(_){}
 function parseRoute(h){
   const parts = String(h||"").replace(/^#\/?/, "").split("/");
   const head = parts[0] || "";
+  if(head === "projects" && ALLMODE) return {name:"projects"};   // plan 48
   if(head === "plan" && /^\d+$/.test(parts[1]||"")) return {name:"plan", id:+parts[1]};
   if(head === "idea" && /^\d+$/.test(parts[1]||"")) return {name:"idea", n:+parts[1]};
   if(head === "notes" && parts.length > 1){
@@ -1123,6 +1154,7 @@ const tabOf = r => r.name === "plan" ? "roadmap" : r.name === "idea" ? "ideas"
 // assigned as href (anything else renders as plain text).
 const SAFE_HREF = /^(https?:\/\/[^\s]+|#\/[^\s]*)$/i;
 function link(href, text, cls){
+  href = R(href);   // plan 48: #/p/<slug> prefix under serve --all
   if(!SAFE_HREF.test(String(href||""))) return txt("span", cls||null, text);
   const a = txt("a", cls||null, text);
   a.href = href;
@@ -1134,7 +1166,7 @@ function renderTabs(){
   const cur = tabOf(ROUTE);
   document.getElementById("tabs").replaceChildren(...TABS.map(([id,label])=>{
     const a = el("a","tab"+(id===cur?" on":""));
-    a.href = id === "roadmap" ? "#/" : "#/"+id;
+    a.href = R(id === "roadmap" ? "#/" : "#/"+id);
     a.appendChild(document.createTextNode(label));
     if(TABCOUNTS[id] != null) a.appendChild(txt("span","n", TABCOUNTS[id]));
     return a;
@@ -1142,7 +1174,7 @@ function renderTabs(){
 }
 
 function showPane(name){
-  for(const id of [...LISTS, "page"])
+  for(const id of [...LISTS, "page", "projects"])
     (id === "page" ? document.getElementById("page") : paneOf(id)).hidden = id !== name;
   document.getElementById("rmctrls").hidden = name !== "roadmap";
 }
@@ -1150,8 +1182,9 @@ function showPane(name){
 function onRoute(){
   const leaving = ROUTE;
   if(LISTS.includes(leaving.name)) SCROLL[leaving.name] = window.scrollY;
-  ROUTE = parseRoute(location.hash);
+  ROUTE = parseRoute(enterProject(location.hash));   // plan 48
   renderTabs();
+  if(ROUTE.name === "projects"){ showHome(); return; }
   if(LISTS.includes(ROUTE.name)){
     showPane(ROUTE.name);
     if(ROUTE.name === "roadmap" && LAST) render(LAST);
@@ -1168,7 +1201,7 @@ function onRoute(){
   }
 }
 window.addEventListener("hashchange", () => {
-  PREV_HASH = ROUTE.name === "notes" ? PREV_HASH : routeHash(ROUTE);
+  PREV_HASH = ROUTE.name === "notes" ? PREV_HASH : R(routeHash(ROUTE));
   onRoute();
 });
 function routeHash(r){
@@ -1209,7 +1242,7 @@ function renderPage(inPlace){
   });
 }
 
-const getJSON = url => fetch(url, {cache:"no-store"}).then(r => r.json());
+const getJSON = url => fetch(API()+url, {cache:"no-store"}).then(r => r.json());
 
 function crumb(backHref, backLabel, path){
   const c = el("div","crumb");
@@ -1602,7 +1635,7 @@ function digestNodes(d, since){
     if(o === since) opt.selected = true;
     sel.appendChild(opt);
   }
-  sel.addEventListener("change", () => { location.hash = "#/digest/"+sel.value; });
+  sel.addEventListener("change", () => { location.hash = R("#/digest/"+sel.value); });
   head.appendChild(sel);
   if(d.since) head.appendChild(txt("span","srcfile",
     "since "+String(d.since).replace("T"," ").slice(0,16)+"Z"
@@ -1638,6 +1671,107 @@ function loadDigest(after){
     if(!after) window.scrollTo(0, y);
   }).catch(()=>pane.replaceChildren(txt("div","empty","failed to load digest")))
     .finally(()=>{ if(after) after(); });
+}
+
+// ---- all-projects home (plan 48) ----------------------------------------------
+// Under `serve --all` the page opens on #/projects: one card per registered
+// project. Opening one routes #/p/<slug>/<any normal route>; every in-app link
+// goes through R() so it keeps the prefix, and every fetch/stream goes to the
+// server's /p/<slug>/ mount via API(). In a single-project dashboard ALLMODE is
+// false and both are identities, so nothing changes there.
+const ALLMODE = (document.querySelector('meta[name="roadmap-mode"]') || {}).content === "all";
+let PROJ = null;            // slug of the open project (serve --all only)
+let HOME_TIMER = null;
+const API = () => PROJ == null ? "" : "/p/" + encodeURIComponent(PROJ);
+const R = h => (ALLMODE && PROJ != null && /^#\//.test(h||"")
+  && !/^#\/(p\/|projects$)/.test(h)) ? "#/p/" + encodeURIComponent(PROJ) + h.slice(1) : h;
+// "#/p/<slug>/plan/3" -> {slug, hash:"#/plan/3"}; anything else is the home.
+function projOf(h){
+  const m = String(h||"").match(/^#\/?p\/([^/]+)(\/.*)?$/);
+  if(!m) return {slug:null, hash:"#/projects"};
+  try { return {slug: decodeURIComponent(m[1]), hash: "#" + (m[2] || "/")}; }
+  catch(_){ return {slug:null, hash:"#/projects"}; }
+}
+function enterProject(h){
+  if(!ALLMODE) return h;
+  const p = projOf(h);
+  if(p.slug !== PROJ) switchProject(p.slug);
+  return p.hash;
+}
+function switchProject(slug){
+  if(es){ es.close(); es = null; }
+  PROJ = slug; LASTP = null; LAST = null; VIEW = DEFAULT_VIEW; PREV_HASH = "";
+  for(const o of [TABCOUNTS, SCROLL]) for(const k of Object.keys(o)) delete o[k];
+  document.getElementById("homelink").hidden = slug == null;
+  document.getElementById("app").replaceChildren(txt("div","empty","connecting…"));
+  document.getElementById("page").replaceChildren();
+  for(const id of ["ideas","changelog","digest"]) paneOf(id).replaceChildren();
+  for(const id of ["cver","overall"]) document.getElementById(id).textContent = "";
+  document.getElementById("project").textContent = slug == null ? "all projects" : slug;
+  document.getElementById("counts").replaceChildren();
+  document.getElementById("hbarfill").style.width = "0%";
+  document.getElementById("rootsel").hidden = true;
+  if(slug != null) connect();
+}
+function showHome(){
+  showPane("projects");
+  document.getElementById("tabs").replaceChildren();
+  document.getElementById("project").textContent = "all projects";
+  window.scrollTo(0, 0);
+  loadHome();
+  if(!HOME_TIMER)   // the server recomputes a card at most every 10 s anyway
+    HOME_TIMER = setInterval(() => { if(ROUTE.name === "projects") loadHome(); }, 10000);
+}
+const homeSort = (a, b) => (a.exists === false) - (b.exists === false)
+  || String(b.lastActivity||"").localeCompare(String(a.lastActivity||""))
+  || String(a.name||"").localeCompare(String(b.name||""));
+function homeCard(c){
+  const gone = c.exists === false;
+  const card = el(gone ? "div" : "a", "pcard" + (gone ? " gone" : ""));
+  if(!gone) card.href = "#/p/" + encodeURIComponent(c.slug) + "/";
+  card.title = c.path || "";
+  const head = el("div","ph");
+  head.appendChild(txt("span","pn", c.project || c.name || c.slug));
+  if(c.version) head.appendChild(txt("span","pv", "v"+c.version));
+  if(!gone && c.total) head.appendChild(txt("span","pp", c.pct+"% ("+c.done+"/"+c.total+")"));
+  card.appendChild(head);
+  if(gone){
+    card.appendChild(txt("div","pa", "path missing — hide it with: roadmap.py projects --forget "+c.slug));
+  } else {
+    const bar = el("div","pbar"), fill = el("i");
+    fill.style.width = (c.pct || 0) + "%";
+    bar.appendChild(fill); card.appendChild(bar);
+    const counts = el("div","pc");
+    const n = (v, label) => counts.appendChild(txt("span", v ? "hot" : null, v+" "+label));
+    n(c.items || 0, "items"); n(c.inFlight || 0, "in flight");
+    n(c.blocked || 0, "blocked"); n(c.waiting || 0, "waiting");
+    card.appendChild(counts);
+    for(const a of (c.alerts || [])) card.appendChild(txt("div","pa "+(a.kind||""), "⚠ "+a.text));
+    if(c.error) card.appendChild(txt("div","pa", c.error));
+  }
+  const foot = el("div","pf");
+  foot.appendChild(txt("span","path", c.path || ""));
+  const when = age(c.lastActivity || c.lastSeen);
+  if(when) foot.appendChild(txt("span","age", when));
+  card.appendChild(foot);
+  return card;
+}
+function homeNodes(d){
+  const cards = (d && d.projects) || [];
+  if(!cards.length) return [txt("div","empty",
+    "no projects registered yet — run roadmap.py status in a project to add it here")];
+  return [...cards].sort(homeSort).map(homeCard);
+}
+function loadHome(){
+  const pane = document.getElementById("projects");
+  getJSON("/api/projects").then(d => {
+    if(ROUTE.name !== "projects") return;
+    const n = ((d && d.projects) || []).length;
+    document.getElementById("overall").textContent = n + " project" + (n === 1 ? "" : "s");
+    pane.replaceChildren(...homeNodes(d));
+    stale(false);
+  }).catch(() => { stale(true);
+    if(!pane.childNodes.length) pane.replaceChildren(txt("div","empty","failed to load projects")); });
 }
 
 onRoute();

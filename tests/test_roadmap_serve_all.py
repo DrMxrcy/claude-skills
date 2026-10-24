@@ -268,3 +268,94 @@ def test_second_serve_all_points_at_running_one(roadmap, dashboard, monkeypatch,
     rc = dashboard.serve_all(roadmap._dashboard_api(), open_browser=False)
     assert rc == 0
     assert "roadmap home already running" in capsys.readouterr().out
+
+
+# --- the page: home cards and #/p/<slug>/ routing (step 3) -------------------
+
+_DOM = r"""
+class Node { constructor(tag){ this.tag=tag; this.kids=[]; this.className="";
+  this._t=""; this.href=""; this.title=""; this.style={}; }
+  appendChild(c){ this.kids.push(c); return c; }
+  set textContent(s){ this._t=String(s); this.kids=[]; }
+  get textContent(){ return this._t + this.kids.map(k=>k.textContent).join(""); } }
+const el = (tag,cls) => { const e=new Node(tag); if(cls) e.className=cls; return e; };
+const txt = (tag,cls,s) => { const e=el(tag,cls); e.textContent=s; return e; };
+const age = iso => iso ? "2h ago" : "";
+const document = {querySelector: () => ({content: "all"})};
+"""
+
+
+def _run_page_js(dashboard, tmp_path, tail):
+    import shutil
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node not installed")
+    body = dashboard._dashboard_html()
+    start = body.index("const ALLMODE")
+    end = body.index("function loadHome", start)
+    js = tmp_path / "home.js"
+    js.write_text(_DOM + body[start:end] + tail)
+    return json.loads(subprocess.run([node, str(js)], capture_output=True, text=True,
+                                     check=True).stdout)
+
+
+def test_page_routes_and_prefixes(dashboard, tmp_path):
+    res = _run_page_js(dashboard, tmp_path, """
+const out = {};
+out.home = [projOf(""), projOf("#/"), projOf("#/projects"), projOf("#/plan/3")];
+out.proj = [projOf("#/p/alpha/plan/3"), projOf("#/p/alpha"), projOf("#/p/my%20app/notes/.roadmap/notes/x.md"),
+            projOf("#/p/%E0%A4%A/"), projOf("#/p/alpha/digest/1w")];
+out.noProj = [R("#/plan/3"), API()];
+PROJ = "alpha";
+out.withProj = [R("#/plan/3"), R("#/"), R("#/ideas"), R("#/projects"),
+                R("#/p/alpha/plan/3"), R("https://x.test/a"), API()];
+console.log(JSON.stringify(out));
+""")
+    home = {"slug": None, "hash": "#/projects"}
+    assert res["home"] == [home] * 4
+    assert res["proj"] == [
+        {"slug": "alpha", "hash": "#/plan/3"}, {"slug": "alpha", "hash": "#/"},
+        {"slug": "my app", "hash": "#/notes/.roadmap/notes/x.md"}, home,
+        {"slug": "alpha", "hash": "#/digest/1w"}]
+    assert res["noProj"] == ["#/plan/3", ""]
+    assert res["withProj"] == ["#/p/alpha/plan/3", "#/p/alpha/", "#/p/alpha/ideas",
+                               "#/projects", "#/p/alpha/plan/3", "https://x.test/a",
+                               "/p/alpha"]
+
+
+def test_page_home_cards(dashboard, tmp_path):
+    res = _run_page_js(dashboard, tmp_path, """
+const d = {projects: [
+  {slug:"gone", name:"Gone", path:"/old/gone", exists:false, lastSeen:"2026-01-01T00:00:00Z"},
+  {slug:"alpha", name:"Alpha", project:"Alpha", path:"/w/alpha", exists:true, version:"1.2.0",
+   items:3, done:2, total:4, pct:50, inFlight:1, blocked:0, waiting:0,
+   lastActivity:"2026-10-01T00:00:00Z", alerts:[{kind:"trunk", text:"trunk suite failing"}]},
+  {slug:"beta", name:"Beta", project:"Beta", path:"/w/beta", exists:true, version:"0.1.0",
+   items:1, done:0, total:2, pct:0, inFlight:0, blocked:0, waiting:0,
+   lastActivity:"2026-10-20T00:00:00Z", alerts:[]}]};
+const cards = homeNodes(d);
+console.log(JSON.stringify({
+  order: cards.map(c => c.kids[0].kids[0].textContent),
+  tags: cards.map(c => [c.tag, c.className, c.href]),
+  alpha: cards[1].textContent, gone: cards[2].textContent,
+  empty: homeNodes({projects: []})[0].textContent}));
+""")
+    assert res["order"] == ["Beta", "Alpha", "Gone"]     # recent first, missing last
+    assert res["tags"] == [["a", "pcard", "#/p/beta/"], ["a", "pcard", "#/p/alpha/"],
+                           ["div", "pcard gone", ""]]
+    assert "v1.2.0" in res["alpha"] and "50% (2/4)" in res["alpha"]
+    assert "1 in flight" in res["alpha"] and "trunk suite failing" in res["alpha"]
+    assert "projects --forget gone" in res["gone"]
+    assert "no projects registered" in res["empty"]
+
+
+def test_page_hooks_present(dashboard):
+    body = dashboard._dashboard_html()
+    assert '<meta name="roadmap-mode" content="project">' in body
+    for hook in ('<div id="projects" hidden>', 'id="homelink"',
+                 "parseRoute(enterProject(location.hash))",
+                 'if(ROUTE.name === "projects"){ showHome(); return; }',
+                 "href = R(href)", "fetch(API()+url", 'new EventSource(API()+"/events")',
+                 'location.hash = R(href)', 'location.hash = R("#/digest/"'):
+        assert hook in body, hook
+    assert ".innerHTML" not in body
