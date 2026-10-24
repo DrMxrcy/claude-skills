@@ -1,0 +1,27 @@
+.roadmap/config.json
+  s_fbae122c7a65de::t_c2779fec0e0efc 525
+.roadmap/plans/046-waiting-steps-and-split-retarget-time-gated-checks-no-longer-hold-up-a-release-or-drag-the-whole-feature-to-the-next-version.md
+  s_fbae122c7a65de::t_d4cf540fd7b3fd 6,35-46
+CHANGELOG.internal.md
+  s_fbae122c7a65de::t_29347df469dc89 21
+CHANGELOG.md
+  s_fbae122c7a65de::t_f071fc64f1b2a4 19
+ROADMAP.md
+  s_fbae122c7a65de::t_6c634213d0de1c 33,48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "387dac4177688356806400c1fb7cd8760d54b70a",
+  "prompts": {},
+  "sessions": {
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
