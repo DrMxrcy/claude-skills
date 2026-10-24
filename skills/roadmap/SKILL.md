@@ -61,7 +61,7 @@ If the user message / `$ARGUMENTS` starts with one of these verbs, run that flow
 | First token | Do this |
 |---|---|
 | `status` | `roadmap.py status` (+ summarize) |
-| `serve` | `roadmap.py serve` — local live web dashboard (SSE push, read-only; one per project); `serve --all` (the default outside any project) — one home page for every registered project |
+| `serve` | `roadmap.py serve` — local live web dashboard (SSE push, read-only; one per project): full-text search, version pages, dependency graph, keyboard shortcuts (`?`) and a `Ctrl/⌘ K` palette, copy-command buttons on plan pages; `serve --all` (the default outside any project) — one home page for every registered project |
 | `projects` | `roadmap.py projects [--forget NAME] [--json]` — list / prune the per-user project registry `serve --all` shows |
 | `sync` | `roadmap.py sync` |
 | `next` | Build the lowest-id unfinished item in the **current** version (same as `/roadmap-next`) |

@@ -152,7 +152,10 @@ def _dashboard_api():
         digest=rmdigest.digest, digest_sections=rmdigest.sections,   # plan 45
         default_owner=rmowners.default_owner,
         attention=rmdigest.attention,   # plan 50: tab-title / favicon count
-        registry_entries=rmregistry.entries)   # plan 48: serve --all
+        registry_entries=rmregistry.entries,   # plan 48: serve --all
+        # plan 49: full-text search + version-page changelog preview
+        search=search, render_public_changelog=render_public_changelog,
+        render_internal_changelog=render_internal_changelog)
 
 
 def serve(root: Path, port: int | None = None, open_browser: bool = True,

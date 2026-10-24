@@ -23,6 +23,7 @@ try { const t = JSON.parse(localStorage.getItem("rm-theme"));
     --bar:#eef1f4; --done:#116329; --active:#7d4e00; --blocked:#a40e26;
     --todo:#8c959f; --accent:#0550ae; --build:#0f5d63; --gate:#6639ba;
     --wait:#99286e; --hover:rgba(0,0,0,.03);
+    --overlay:rgba(31,35,40,.35); --shadow:rgba(31,35,40,.18);
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
@@ -31,6 +32,7 @@ try { const t = JSON.parse(localStorage.getItem("rm-theme"));
     --bar:#242c38; --done:#3fb950; --active:#d29922; --blocked:#f85149;
     --todo:#4b5563; --accent:#58a6ff; --build:#39c5cf; --gate:#a371f7;
     --wait:#db61a2; --hover:rgba(255,255,255,.02);
+    --overlay:rgba(0,0,0,.55); --shadow:rgba(0,0,0,.5);
     }
   }
   :root[data-theme="dark"] {
@@ -39,6 +41,7 @@ try { const t = JSON.parse(localStorage.getItem("rm-theme"));
     --bar:#242c38; --done:#3fb950; --active:#d29922; --blocked:#f85149;
     --todo:#4b5563; --accent:#58a6ff; --build:#39c5cf; --gate:#a371f7;
     --wait:#db61a2; --hover:rgba(255,255,255,.02);
+    --overlay:rgba(0,0,0,.55); --shadow:rgba(0,0,0,.5);
   }
   * { box-sizing:border-box; }
   /* #app sets display:flex, which outranks the UA rule for [hidden] — without
@@ -374,6 +377,78 @@ try { const t = JSON.parse(localStorage.getItem("rm-theme"));
     text-transform:uppercase; font-size:11px; }
   .grow .glabel { font-weight:600; overflow-wrap:anywhere; }
   .grow a { text-decoration:none; } .grow a:hover { text-decoration:underline; }
+  /* ---- navigation (plan 49): search, versions, graph, keys, copy ------- */
+  .fts { background:var(--bar); border:1px solid var(--line); color:var(--fg);
+    border-radius:6px; padding:5px 9px; font:inherit; font-size:13px; width:100%; }
+  .hitgrp { border-top:1px solid var(--line); padding:8px 0; display:flex;
+    flex-direction:column; gap:3px; min-width:0; }
+  .hitgrp .hh { display:flex; gap:8px; align-items:baseline; flex-wrap:wrap; }
+  .hitgrp .hh a { text-decoration:none; } .hitgrp .hh a:hover { text-decoration:underline; }
+  .hit { display:flex; gap:10px; font-size:12px; align-items:baseline; min-width:0; }
+  .hit .hl { color:var(--muted); flex:none; min-width:56px; }
+  .hit .hs { overflow-wrap:anywhere; min-width:0; }
+  mark { background:color-mix(in srgb, var(--active) 35%, transparent);
+    color:var(--fg); border-radius:2px; }
+  .kbsel { outline:1px solid var(--accent); outline-offset:2px; border-radius:4px; }
+  .ver-head .vlink { font-size:11px; color:var(--muted); text-decoration:none; }
+  .ver-head .vlink:hover { color:var(--fg); text-decoration:underline; }
+  .vrow { display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:10px;
+    align-items:center; border-top:1px solid var(--line); padding:7px 0; font-size:13px; }
+  .vrow a { text-decoration:none; } .vrow a:hover { text-decoration:underline; }
+  .vrow .vfc, .vrow .muted { color:var(--muted); font-size:12px; }
+  .lanegrp h4 { margin:8px 0 2px; font-size:12px; font-weight:600;
+    display:flex; gap:8px; align-items:center; }
+  .clprev h4 { margin:0 0 2px; font-size:12px; color:var(--muted); font-weight:600; }
+  .cmds { display:flex; flex-direction:column; gap:6px; font-size:12px;
+    border:1px dashed var(--line); border-radius:6px; padding:8px 10px; }
+  .cmds h4 { margin:0; font-size:12px; color:var(--muted); font-weight:600; }
+  .cmd { display:flex; gap:8px; align-items:center; flex-wrap:wrap; min-width:0; }
+  .cmd .why { color:var(--muted); flex:1 1 100%; }
+  .cmd code { background:var(--bar); border-radius:4px; padding:2px 6px; flex:1 1 0;
+    min-width:0; overflow-wrap:anywhere; user-select:all; color:var(--fg); }
+  .copy { background:var(--bar); border:1px solid var(--line); color:var(--fg);
+    border-radius:6px; padding:2px 9px; font:inherit; font-size:11px; cursor:pointer;
+    flex:none; }
+  .copy:hover { border-color:var(--accent); }
+  .copy.ok { color:var(--done); border-color:var(--done); }
+  .graph { overflow:auto; max-width:100%; border-top:1px solid var(--line);
+    padding-top:8px; -webkit-overflow-scrolling:touch; }
+  .graph svg { display:block; }
+  .gnode { cursor:pointer; outline:none; }
+  .gnode rect { fill:color-mix(in srgb, var(--lc, var(--todo)) 14%, var(--bg));
+    stroke:var(--lc, var(--todo)); stroke-width:1.2; }
+  .gnode.blocked rect { stroke:var(--blocked); stroke-dasharray:4 3; stroke-width:1.6; }
+  .gnode.ctx rect { opacity:.55; }
+  .gnode:hover rect, .gnode:focus rect, .gnode.kbsel rect { stroke-width:2.6; }
+  .gnode text { fill:var(--fg); font:11px ui-monospace,SFMono-Regular,Menlo,monospace; }
+  .gnode text.gid { fill:var(--muted); }
+  .gedge { fill:none; stroke:var(--muted); stroke-width:1.2; opacity:.7; }
+  .gedge.blocking { stroke:var(--blocked); stroke-width:1.8; opacity:1; }
+  .garrow { fill:var(--muted); } .garrow.blocking { fill:var(--blocked); }
+  .glegend { display:flex; gap:6px 16px; flex-wrap:wrap; align-items:center;
+    font-size:12px; color:var(--muted); }
+  .overlay { position:fixed; inset:0; z-index:20; background:var(--overlay);
+    display:flex; justify-content:center; align-items:flex-start; padding:10vh 16px 16px; }
+  .ovbox { background:var(--bg); border:1px solid var(--line); border-radius:8px;
+    width:min(560px, 100%); max-height:76vh; display:flex; flex-direction:column;
+    overflow:hidden; box-shadow:0 12px 40px var(--shadow); }
+  .ovbox .fts { border:0; border-bottom:1px solid var(--line); border-radius:0;
+    padding:10px 12px; font-size:14px; }
+  .pal-list { overflow-y:auto; padding:4px 0; }
+  .pal-row { display:flex; gap:10px; align-items:baseline; padding:6px 12px;
+    cursor:pointer; font-size:13px; min-width:0; }
+  .pal-row .pk { color:var(--muted); font-size:11px; flex:none; min-width:46px; }
+  .pal-row .pl { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; }
+  .pal-row .ps { color:var(--muted); font-size:11px; flex:none; }
+  .pal-row.on { background:var(--bar); }
+  .sheet { padding:12px 14px; display:grid; grid-template-columns:auto 1fr;
+    gap:6px 16px; font-size:13px; overflow-y:auto; }
+  .sheet h4 { grid-column:1 / -1; margin:0 0 4px; font-size:13px; }
+  .sheet kbd { border:1px solid var(--line); border-radius:4px; padding:0 5px;
+    background:var(--bar); font:inherit; font-size:12px; white-space:nowrap; }
+  .sheet .muted { grid-column:1 / -1; color:var(--muted); font-size:12px; }
+  .tabs { flex-wrap:wrap; }
+  .tab.kb { margin-left:auto; }
   /* ---- lane board (plan 37): #/board, one column per lane --------------- */
   body.on-board main, body.on-board header .wrap { max-width:1600px; }
   body.on-board #expandAll, body.on-board #collapseAll { display:none; }
@@ -516,7 +591,7 @@ try { const t = JSON.parse(localStorage.getItem("rm-theme"));
     <div class="tabs" id="tabs"></div>
     <div class="counts" id="rmctrls">
       <div class="ctrls">
-        <input id="search" type="search" autocomplete="off" placeholder="filter items, #id or branch…">
+        <input id="search" type="search" autocomplete="off" placeholder="filter items · Enter: full-text">
         <span class="filters">
           <label title="hide done items"><input type="checkbox" id="openOnly"> open only</label>
           <select id="laneFilter" title="show one lane"></select>
@@ -842,6 +917,9 @@ function verSection(v, items, cur){
   const head = el("div","ver-head");
   head.appendChild(txt("span","chev","▾"));
   head.appendChild(txt("h2",null,"v"+v+(v===cur?" · current":"")));
+  const vl = link("#/version/"+v, "page →", "vlink");   // plan 49
+  vl.onclick = e => e.stopPropagation();
+  head.appendChild(vl);
   const fc = ((LAST && LAST.forecast) || {})[v];
   if(fc) head.appendChild(forecastTag(fc));
   head.appendChild(txt("span","vpct",
@@ -1523,6 +1601,10 @@ document.getElementById("search").addEventListener("input", e => {
   QUERY = e.target.value.trim().toLowerCase();
   if(LAST) render(LAST);
 });
+// Enter runs the full-text search (plan 49): plan bodies, notes, ideas.
+document.getElementById("search").addEventListener("keydown", e => {
+  if(e.key === "Enter" && e.target.value.trim()) location.hash = R(searchHref(e.target.value));
+});
 document.getElementById("openOnly").addEventListener("change", e => {
   FILT.open = e.target.checked; saveFilt();
   if(LAST) render(LAST);
@@ -1748,7 +1830,8 @@ setInterval(() => { if(LAST && ["roadmap","board"].includes(ROUTE.name)) render(
 //   #/plan/<id>  #/idea/<n>  #/notes/<root-relative .md path>   full pages
 // The route lives only in the URL; nothing about it is stored.
 const TABS = [["roadmap","Roadmap"],["board","Board"],["ideas","Ideas"],["changelog","Changelog"],
-  ["digest","Digest"]];
+  ["digest","Digest"],
+  ["versions","Versions"],["graph","Graph"]];   // plan 49 pages
 const TABCOUNTS = {};
 const LISTS = ["roadmap","board","ideas","changelog","digest"];
 const DIGEST_SINCE = ["3h","1d","3d","1w","2w","last"];
@@ -1771,13 +1854,23 @@ function parseRoute(h){
     return {name:"notes", path:p};
   }
   if(head === "ideas" || head === "changelog" || head === "board") return {name:head};
+  // plan 49: #/search/<q>
+  if(head === "search"){
+    let q = parts.slice(1).join("/");
+    try { q = decodeURIComponent(q); } catch(_){ q = ""; }
+    return {name:"search", q};
+  }
+  // plan 49: #/versions, #/version/<v>, #/graph
+  if(head === "versions" || head === "graph") return {name:head};
+  if(head === "version" && /^[\w.+-]{1,64}$/.test(parts[1]||""))
+    return {name:"version", v:parts[1]};
   if(head === "digest")
     return {name:"digest", since: DIGEST_SINCE.includes(parts[1]) ? parts[1] : "1d"};
   return {name:"roadmap"};
 }
 const noteHref = p => "#/notes/" + encodeURIComponent(p).replace(/%2F/g, "/");
 const tabOf = r => r.name === "plan" ? "roadmap" : r.name === "idea" ? "ideas"
-  : LISTS.includes(r.name) ? r.name : "";
+  : LISTS.includes(r.name) ? r.name : NAV_TAB[r.name] || "";
 
 // An in-app link: text only, and only an http(s) URL or a #/ route is ever
 // assigned as href (anything else renders as plain text).
@@ -1799,7 +1892,7 @@ function renderTabs(){
     a.appendChild(document.createTextNode(label));
     if(TABCOUNTS[id] != null) a.appendChild(txt("span","n", TABCOUNTS[id]));
     return a;
-  }));
+  }), paletteTab());   // plan 49
 }
 
 function showPane(name){
@@ -1815,9 +1908,12 @@ function onRoute(){
   if(LISTS.includes(leaving.name)) SCROLL[leaving.name] = window.scrollY;
   ROUTE = parseRoute(enterProject(location.hash));   // plan 48
   renderTabs();
+  KSEL_IDX = -1;   // plan 49: j/k selection starts over on every route
   if(ROUTE.name === "projects"){ showHome(); return; }
   if(LISTS.includes(ROUTE.name)){
     showPane(ROUTE.name);
+    if(FOCUS_SEARCH && ROUTE.name === "roadmap"){ FOCUS_SEARCH = false;
+      document.getElementById("search").focus(); }
     if((ROUTE.name === "roadmap" || ROUTE.name === "board") && LAST) render(LAST);
     const y = SCROLL[ROUTE.name] || 0;
     const done = () => window.scrollTo(0, y);
@@ -1838,7 +1934,9 @@ window.addEventListener("hashchange", () => {
 function routeHash(r){
   return r.name === "plan" ? "#/plan/"+r.id : r.name === "idea" ? "#/idea/"+r.n
     : r.name === "notes" ? noteHref(r.path) : r.name === "roadmap" ? "#/"
-    : r.name === "digest" ? "#/digest/"+r.since : "#/"+r.name;
+    : r.name === "digest" ? "#/digest/"+r.since
+    : r.name === "search" ? searchHref(r.q)
+    : r.name === "version" ? "#/version/"+r.v : "#/"+r.name;
 }
 
 // Re-render the open route after an SSE payload or a view switch.
@@ -1860,7 +1958,12 @@ function renderPage(inPlace){
   // A deep link loads before the first SSE payload; which checkout to read
   // depends on it, so wait — connect()'s first message re-renders the route.
   if(!LASTP) return;
+  // Never swap the page out from under someone typing in it (plan 49).
+  if(inPlace && pane.contains(document.activeElement)
+     && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return;
   const build = r.name === "plan" ? planPage(r) : r.name === "idea" ? ideaPage(r)
+    : r.name === "search" ? searchPage(r) : r.name === "version" ? versionPage(r)
+    : r.name === "versions" ? versionsPage() : r.name === "graph" ? graphPage()
     : notePage(r);
   build.then(nodes => {
     if(seq !== PAGE_SEQ) return;
@@ -1980,6 +2083,10 @@ function planPage(r){
     if(d.notes && d.notes.length)
       fact(facts, "notes", ...d.notes.map(n => link(noteHref(n), n)));
     if(facts.childNodes.length) out.push(facts);
+    // plan 49: the likely next CLI actions, as text to copy
+    const cmds = cmdBlock("next actions — copy into a terminal", planCommands(d, row,
+      {slots: LAST && LAST.slots, trunk: trunkName()}));
+    if(cmds) out.push(cmds);
 
     if(b){
       const box = el("div","commits");
@@ -2429,6 +2536,641 @@ function loadHome(){
     stale(false);
   }).catch(() => { stale(true);
     if(!pane.childNodes.length) pane.replaceChildren(txt("div","empty","failed to load projects")); });
+}
+
+// ---- navigation (plan 49) -------------------------------------------------
+// Full-text search page (#/search/<q>): /api/search runs the CLI search over
+// titles, item notes, plan bodies, ideas and notes files; hits are grouped
+// by the page they open, the match highlighted with a <mark> text node.
+const searchHref = q => "#/search/" + encodeURIComponent(String(q||"").trim());
+const SNIPS_SHOWN = 5;
+function hl(parent, s, m){
+  s = String(s||"");
+  if(!Array.isArray(m) || !(m[0] >= 0) || !(m[1] > m[0]) || m[1] > s.length){
+    parent.appendChild(document.createTextNode(s)); return parent; }
+  parent.appendChild(document.createTextNode(s.slice(0, m[0])));
+  parent.appendChild(txt("mark", null, s.slice(m[0], m[1])));
+  parent.appendChild(document.createTextNode(s.slice(m[1])));
+  return parent;
+}
+// Group hits by target page, in first-hit order: plan, idea, note, other.
+function groupHits(hits){
+  const groups = [], at = {};
+  for(const h of (hits||[])){
+    const key = h.id != null ? "p"+h.id : h.idea != null ? "i"+h.idea
+      : h.path ? "n"+h.path : "x"+h.ref;
+    if(!(key in at)){
+      const href = h.id != null ? "#/plan/"+h.id : h.idea != null ? "#/idea/"+h.idea
+        : h.path ? noteHref(h.path) : "";
+      at[key] = groups.length;
+      groups.push({key, href, id:h.id, idea:h.idea, path:h.path, title:h.title,
+        kind:h.kind, hits:[]});
+    }
+    groups[at[key]].hits.push(h);
+  }
+  return groups;
+}
+function searchNodes(d, q, items){
+  const box = el("div","phead");
+  const inp = el("input","fts");
+  inp.type = "search"; inp.value = q; inp.placeholder = "search plans, notes, ideas…";
+  inp.autocomplete = "off";
+  inp.addEventListener("keydown", e => {
+    if(e.key === "Enter" && inp.value.trim()) location.hash = R(searchHref(inp.value)); });
+  box.appendChild(inp);
+  const out = [crumb("#/", "roadmap", ""), box];
+  if(!q){ out.push(txt("div","srcfile","type a word and press Enter")); return out; }
+  if(d.error){ out.push(txt("div","empty", d.error)); return out; }
+  const groups = groupHits(d.hits);
+  out.push(txt("div","srcfile", (d.total||0)+" match"+(d.total === 1 ? "" : "es")
+    +" in "+groups.length+" place"+(groups.length === 1 ? "" : "s")+" for “"+q+"”"
+    +(d.truncated ? " — first "+(d.hits||[]).length+" shown" : "")));
+  if(!groups.length) out.push(txt("div","empty","nothing matches “"+q+"”"));
+  const byId = {};
+  for(const it of (items||[])) byId[it.id] = it;
+  for(const g of groups){
+    const grp = el("div","hitgrp");
+    const hh = el("div","hh");
+    const it = g.id != null ? byId[g.id] : null;
+    const label = g.id != null ? ((it && it.displayId) || "#"+g.id)+" "+(g.title || (it && it.title) || "")
+      : g.idea != null ? "idea "+g.idea : g.path || g.key.slice(1);
+    hh.appendChild(link(g.href, label));
+    hh.appendChild(txt("span","badge", g.id != null ? "plan" : g.kind));
+    grp.appendChild(hh);
+    for(const h of g.hits.slice(0, SNIPS_SHOWN)){
+      const row = el("div","hit");
+      row.appendChild(txt("span","hl", h.kind === "item" ? (h.field || "item")
+        : h.line != null ? "line "+h.line : h.kind));
+      row.appendChild(hl(el("span","hs"), h.snippet, h.match));
+      grp.appendChild(row);
+    }
+    if(g.hits.length > SNIPS_SHOWN)
+      grp.appendChild(txt("div","srcfile", "+"+(g.hits.length-SNIPS_SHOWN)+" more in here"));
+    out.push(grp);
+  }
+  return out;
+}
+function searchPage(r){
+  if(!r.q) return Promise.resolve(searchNodes({hits:[], total:0}, "", []));
+  return getJSON("/api/search?q="+encodeURIComponent(r.q)+"&"+rootParam())
+    .then(d => searchNodes(d, r.q, (LAST && LAST.items) || []));
+}
+
+// Copy-command buttons: the exact text shown is what gets copied. The page
+// never runs anything — commands go to the clipboard for a terminal.
+const CLI = "roadmap.py";
+const sh = s => /^[\w@%+=:,.\/-]+$/.test(String(s)) ? String(s)
+  : "'"+String(s).replace(/'/g, "'\\''")+"'";
+function copyText(s, btn){
+  const ok = () => { btn.textContent = "copied"; btn.classList.add("ok");
+    setTimeout(() => { btn.textContent = "copy"; btn.classList.remove("ok"); }, 1200); };
+  const fallback = () => {   // no clipboard API: select the shown text instead
+    try { const r = document.createRange(); r.selectNodeContents(btn.previousSibling);
+      const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+      if(document.execCommand("copy")) ok(); else btn.textContent = "select + copy";
+    } catch(_){ btn.textContent = "select + copy"; } };
+  if(navigator.clipboard && navigator.clipboard.writeText)
+    navigator.clipboard.writeText(s).then(ok, fallback);
+  else fallback();
+}
+function cmdBlock(title, cmds){
+  if(!cmds.length) return null;
+  const box = el("section","cmds");
+  box.appendChild(txt("h4",null, title));
+  for(const c of cmds){
+    const row = el("div","cmd");
+    if(c.why) row.appendChild(txt("span","why", c.why));
+    row.appendChild(txt("code",null, c.cmd));
+    const b = txt("button","copy","copy");
+    b.type = "button"; b.title = "copy: "+c.cmd;
+    b.addEventListener("click", () => copyText(c.cmd, b));
+    row.appendChild(b);
+    box.appendChild(row);
+  }
+  return box;
+}
+function versionCommands(v, items){
+  const open = (items||[]).some(it => laneOf(it) !== "done");
+  const waiting = (items||[]).some(it => laneOf(it) === "waiting");
+  const out = [];
+  if(open) out.push({why:"next unblocked item in this version",
+    cmd:CLI+" next --version "+sh(v)});
+  out.push({why: open ? "release (refuses while items are open)" : "release this version",
+    cmd:CLI+" release --version "+sh(v)});
+  if(waiting) out.push({why:"release, moving waiting steps into follow-ups",
+    cmd:CLI+" release --version "+sh(v)+" --with-waiting"});
+  return out;
+}
+
+// Version pages: #/versions (index, from the streamed status) and
+// #/version/<v> (items by lane, forecast, changelog preview, release command).
+const NAV_TAB = {versions:"versions", version:"versions", graph:"graph"};
+const vkeyOf = v => String(v).split(".").map(n => parseInt(n,10)||0);
+function vcmpDesc(a, b){
+  const A = vkeyOf(a), B = vkeyOf(b);
+  for(let i = 0; i < Math.max(A.length, B.length); i++){
+    const d = (B[i]||0)-(A[i]||0); if(d) return d; }
+  return 0;
+}
+function versionRows(items, cur, forecast){
+  const by = {};
+  for(const it of (items||[])) (by[it.version] ||= []).push(it);
+  return Object.keys(by).sort(vcmpDesc).map(v => {
+    const its = by[v];
+    const done = its.reduce((a,i)=>a+(i.done||0),0), total = its.reduce((a,i)=>a+(i.total||0),0);
+    return {v, n:its.length, done, total, pct: total ? Math.round(100*done/total) : 0,
+      open: its.filter(i => laneOf(i) !== "done").length, current: v === cur,
+      forecast: (forecast||{})[v] || null};
+  });
+}
+function versionsPage(){
+  const d = LAST || {};
+  const out = [crumb("#/", "roadmap", "")];
+  const rows = versionRows(d.items, d.currentVersion, d.forecast);
+  if(!rows.length){ out.push(txt("div","empty","no versions yet")); return Promise.resolve(out); }
+  for(const r of rows){
+    const row = el("div","vrow");
+    const t = el("span","title");
+    t.appendChild(link("#/version/"+r.v, "v"+r.v+(r.current ? " · current" : "")));
+    t.appendChild(txt("span","muted", r.n+" item"+(r.n === 1 ? "" : "s")
+      +(r.open ? " · "+r.open+" open" : " · all done")));
+    if(r.forecast) t.appendChild(forecastTag(r.forecast));
+    row.appendChild(t);
+    const bar = el("span","bar"), fill = el("i"); fill.style.width = r.pct+"%";
+    bar.appendChild(fill); row.appendChild(bar);
+    row.appendChild(txt("span","frac", r.pct+"% · "+r.done+"/"+r.total));
+    out.push(row);
+  }
+  return Promise.resolve(out);
+}
+function versionNodes(d){
+  const out = [crumb("#/versions", "versions", "")];
+  if(d.error){ out.push(txt("div","empty", d.error)); return out; }
+  const items = d.items || [];
+  const head = el("div","phead");
+  const h = el("h2");
+  h.appendChild(txt("span",null, "v"+d.version));
+  if(d.version === d.currentVersion) h.appendChild(txt("span","num","current"));
+  head.appendChild(h);
+  const meta = el("div","pmeta");
+  const pct = d.total ? Math.round(100*d.done/d.total) : 0;
+  const bar = el("span","bar"), fill = el("i"); fill.style.width = pct+"%";
+  bar.appendChild(fill); meta.appendChild(bar);
+  meta.appendChild(txt("span","frac", pct+"% · "+(d.done||0)+"/"+(d.total||0)));
+  meta.appendChild(txt("span","badge", items.length+" item"+(items.length === 1 ? "" : "s")));
+  if(d.date) meta.appendChild(txt("span","badge", "released "+d.date));
+  if(d.forecast) meta.appendChild(forecastTag(d.forecast));
+  head.appendChild(meta);
+  if(d.forecast){ const b = burnDown(d.forecast); if(b) head.appendChild(b); }
+  out.push(head);
+  const cmds = cmdBlock("commands to copy", versionCommands(d.version, items));
+  if(cmds) out.push(cmds);
+  const by = {};
+  for(const it of items) (by[laneOf(it)] ||= []).push(it);
+  const lanes = [...LANES.filter(l => by[l]), ...Object.keys(by).filter(l => !LANES.includes(l))];
+  for(const l of lanes){
+    const g = el("section","lanegrp");
+    const h4 = el("h4");
+    h4.appendChild(txt("span","lane lg-"+(LANE_GROUP[l]||"plan"), l));
+    h4.appendChild(txt("span","muted", String(by[l].length)));
+    g.appendChild(h4);
+    for(const it of by[l].sort((a,b) => a.id-b.id)) g.appendChild(itemRow(it));
+    out.push(g);
+  }
+  const prev = (title, body, none) => {
+    const box = el("section","clprev");
+    box.appendChild(txt("h4",null, title));
+    box.appendChild(body ? md(body, "") : txt("div","srcfile", none));
+    return box;
+  };
+  out.push(prev("changelog preview — public (CHANGELOG.md)", d.public,
+    d.summary ? "" : "nothing public in this version — it rolls up as behind-the-scenes work"));
+  out.push(prev("changelog preview — internal (CHANGELOG.internal.md)", d.internal,
+    "no internal entries"));
+  if(d.changelogError) out.push(txt("div","srcfile", "changelog: "+d.changelogError));
+  return out;
+}
+function versionPage(r){
+  return getJSON("/api/version?v="+encodeURIComponent(r.v)+"&"+rootParam())
+    .then(versionNodes);
+}
+
+// Dependency graph (#/graph): dependsOn edges among the open versions'
+// items, laid out in layers left to right (a dependency sits left of what
+// needs it), computed here — no library. Nodes take their lane colour; an
+// edge whose dependency is unfinished, into an unfinished item, is a
+// blocking link and draws red, and a blocked item gets a dashed red border.
+// Only items with an edge are drawn; done dependencies outside the open
+// versions appear faded for context. Click (or Enter on) a node opens it.
+const GRAPH = {NW:176, NH:40, GX:56, GY:14, PAD:8};
+function graphModel(items){
+  const all = items || [], byId = {};
+  for(const it of all) byId[it.id] = it;
+  const openV = new Set(all.filter(i => laneOf(i) !== "done").map(i => i.version));
+  const scope = new Set(all.filter(i => openV.has(i.version)).map(i => i.id));
+  const deps = id => ((byId[id] && byId[id].dependsOn) || []).filter(d => byId[d] && d !== id);
+  const edges = [], used = new Set();
+  for(const id of [...scope].sort((a,b) => a-b)) for(const d of deps(id)){
+    const blocking = laneOf(byId[d]) !== "done" && laneOf(byId[id]) !== "done";
+    edges.push({from:d, to:id, blocking}); used.add(d); used.add(id);
+  }
+  // Longest-path layering; a cycle (the CLI refuses them, but files can be
+  // hand-edited) is cut where it is met instead of recursing forever.
+  const layer = {}, onPath = new Set();
+  const L = id => {
+    if(id in layer) return layer[id];
+    if(onPath.has(id)) return -1;
+    onPath.add(id);
+    let l = 0;
+    for(const d of deps(id)) if(used.has(d)) l = Math.max(l, L(d)+1);
+    onPath.delete(id);
+    return layer[id] = l;
+  };
+  const ids = [...used].sort((a,b) => a-b);
+  ids.forEach(L);
+  const cols = [];
+  for(const id of ids) (cols[layer[id]] ||= []).push(id);
+  // Order each column by the mean row of its dependencies (barycentre), so
+  // edges run mostly straight; ties keep id order.
+  const row = {};
+  cols.forEach((col, c) => {
+    if(c) col.sort((a,b) => {
+      const bc = id => { const ps = deps(id).filter(d => d in row);
+        return ps.length ? ps.reduce((s,d) => s+row[d], 0)/ps.length : Infinity; };
+      return (bc(a)-bc(b)) || (a-b);
+    });
+    col.forEach((id, r) => { row[id] = r; });
+  });
+  const {NW, NH, GX, GY, PAD} = GRAPH;
+  const nodes = ids.map(id => {
+    const it = byId[id];
+    return {id, x: PAD + layer[id]*(NW+GX), y: PAD + row[id]*(NH+GY), layer: layer[id],
+      label: it.displayId || "#"+id, title: it.title || "", version: it.version,
+      lane: laneOf(it), cls: "lg-"+(LANE_GROUP[laneOf(it)] || "plan"),
+      blocked: !!(it.blockedBy && it.blockedBy.length), context: !scope.has(id)};
+  });
+  const at = {};
+  for(const n of nodes) at[n.id] = n;
+  for(const e of edges){
+    const a = at[e.from], b = at[e.to];
+    e.x1 = a.x + NW; e.y1 = a.y + NH/2; e.x2 = b.x; e.y2 = b.y + NH/2;
+  }
+  const rows = Math.max(0, ...cols.map(c => c.length));
+  return {nodes, edges, width: PAD*2 + cols.length*(NW+GX) - (cols.length ? GX : 0),
+    height: PAD*2 + rows*(NH+GY) - (rows ? GY : 0),
+    loose: [...scope].filter(id => !used.has(id) && laneOf(byId[id]) !== "done").length,
+    versions: [...openV].sort(vcmpDesc)};
+}
+function graphSvg(m){
+  const NS = "http://www.w3.org/2000/svg", {NW, NH} = GRAPH;
+  const mk = (tag, attrs, cls) => { const e = document.createElementNS(NS, tag);
+    for(const k in attrs) e.setAttribute(k, attrs[k]); if(cls) e.setAttribute("class", cls);
+    return e; };
+  const svg = mk("svg", {width:m.width, height:m.height, viewBox:"0 0 "+m.width+" "+m.height,
+    role:"img"});
+  svg.setAttribute("aria-label", "dependency graph: "+m.nodes.length+" items, "
+    +m.edges.length+" dependencies");
+  const defs = mk("defs", {});
+  for(const k of ["", "blocking"]){
+    const mark = mk("marker", {id:"garrow"+(k ? "-"+k : ""), viewBox:"0 0 8 8", refX:"8",
+      refY:"4", markerWidth:"7", markerHeight:"7", orient:"auto"});
+    mark.appendChild(mk("path", {d:"M0,0 L8,4 L0,8 z"}, "garrow"+(k ? " "+k : "")));
+    defs.appendChild(mark);
+  }
+  svg.appendChild(defs);
+  for(const e of m.edges){
+    const mx = (e.x1 + e.x2)/2;
+    const p = mk("path", {d:"M"+e.x1+","+e.y1+" C"+mx+","+e.y1+" "+mx+","+e.y2+" "+e.x2+","+e.y2,
+      "marker-end":"url(#garrow"+(e.blocking ? "-blocking" : "")+")"},
+      "gedge"+(e.blocking ? " blocking" : ""));
+    p.setAttribute("data-from", e.from); p.setAttribute("data-to", e.to);
+    svg.appendChild(p);
+  }
+  const clip = (s, n) => s.length > n ? s.slice(0, n-1)+"…" : s;
+  for(const n of m.nodes){
+    const g = mk("g", {transform:"translate("+n.x+","+n.y+")", tabindex:"0", role:"link"},
+      "gnode "+n.cls+(n.blocked ? " blocked" : "")+(n.context ? " ctx" : ""));
+    g.setAttribute("aria-label", n.label+" "+n.title);
+    g.setAttribute("data-id", n.id);
+    const tip = mk("title", {}); tip.textContent = n.label+" "+n.title+" · v"+n.version
+      +" · "+n.lane+(n.blocked ? " · blocked" : "");
+    g.appendChild(tip);
+    g.appendChild(mk("rect", {width:NW, height:NH, rx:"6"}));
+    const t1 = mk("text", {x:"8", y:"15"}, "gid"); t1.textContent = n.label+" · "+n.lane;
+    const t2 = mk("text", {x:"8", y:"31"}); t2.textContent = clip(n.title, 24);
+    g.append(t1, t2);
+    const open = () => { location.hash = R("#/plan/"+n.id); };
+    g.addEventListener("click", open);
+    g.addEventListener("keydown", ev => { if(ev.key === "Enter"){ ev.preventDefault(); open(); } });
+    svg.appendChild(g);
+  }
+  return svg;
+}
+function graphNodes(items){
+  const out = [crumb("#/", "roadmap", "")];
+  const m = graphModel(items);
+  const leg = el("div","glegend");
+  leg.appendChild(txt("span",null, m.versions.length
+    ? "open versions: "+m.versions.map(v => "v"+v).join(", ") : "no open versions"));
+  leg.appendChild(txt("span",null, m.nodes.length+" items · "+m.edges.length+" dependencies"
+    +(m.edges.some(e => e.blocking) ? " · "+m.edges.filter(e => e.blocking).length+" blocking (red)" : "")));
+  if(m.loose) leg.appendChild(txt("span",null, "+"+m.loose+" open item"
+    +(m.loose === 1 ? "" : "s")+" with no dependencies (not drawn)"));
+  out.push(leg);
+  if(!m.edges.length){ out.push(txt("div","empty","no dependencies between open items")); return out; }
+  const box = el("div","graph");
+  box.appendChild(graphSvg(m));
+  out.push(box);
+  return out;
+}
+function graphPage(){ return Promise.resolve(graphNodes((LAST && LAST.items) || [])); }
+
+// Plan page copy buttons: the likely next CLI actions for the item in view,
+// chosen from its lane, open steps, claim owner, slots and rulings.
+const trunkName = () => ((LASTP && (LASTP.statuses||[])[trunkIdx(LASTP)]) || {}).trunk || "main";
+function planCommands(d, row, ctx){
+  const N = d.id, out = [], lane = laneOf(row || d), c = d.claim || {};
+  const clip = (s, n) => { s = String(s||""); return s.length > n ? s.slice(0, n-1)+"…" : s; };
+  const take = c.owner && d.me && c.owner !== d.me ? " --take" : "";
+  const ev = ' --evidence "<verify command + result>"';
+  if(lane !== "done"){
+    out.push({why:"what to build next", cmd:CLI+" next"});
+    const steps = (d.steps||[]).map((s, i) => ({...s, n:i+1}));
+    const due = steps.filter(s => !s.done && s.waiting && (daysLeft(s.waiting) ?? 1) <= 0);
+    for(const s of due) out.push({why:"waiting step "+s.n+" is due — tick it once verified",
+      cmd:CLI+" check --plan "+N+" --step "+s.n+ev});
+    const open = steps.find(s => !s.done && !s.waiting);
+    if(open){
+      out.push({why:"tick step "+open.n+": "+clip(open.text, 70),
+        cmd:CLI+" check --plan "+N+" --step "+open.n+ev});
+      out.push({why:"step "+open.n+" built but needs time (soak, review)",
+        cmd:CLI+" wait "+N+" --step "+open.n+' --until 7d --reason "<what>"'});
+    }
+    const claim = (why, args) => out.push({why, cmd:CLI+" claim "+N+" "+args+take});
+    if(lane === "review"){
+      claim("review passed", "--stage gate-ready --verdict CONFIRMED");
+      claim("review found problems", "--stage fixing --verdict PARTIAL");
+    } else if(lane === "fixing") claim("fixes done — back to review", "--stage review");
+    else if(lane === "gate-ready") claim("merge gate started", "--stage gating");
+    else if(lane === "gating") claim("gate merged into "+(ctx.trunk||"main")+" — record the landing",
+      "--landed "+sh(ctx.trunk||"main"));
+    else if(lane === "landed"){
+      out.push({why:"preview ticking landed items trunk now contains", cmd:CLI+" check --landed"});
+      out.push({why:"tick them", cmd:CLI+" check --landed --yes"});
+    } else if(lane !== "waiting") claim("hand to review", "--stage review");
+    if(c.owner && take) out.push({why:"held by "+c.owner+" — the claim commands above take it over",
+      cmd:CLI+" claim "+N+" --owner "+sh(d.me)+" --take"});
+    // Acceptance ledger (plan 43): the first criterion not yet met.
+    const acc = ((d.acceptance && d.acceptance.bullets) || [])
+      .find(b => b.kind !== "guard" && b.state !== "met");
+    if(acc){
+      out.push({why:"acceptance "+acc.n+(acc.state === "failed" ? " (failed)" : "")+": "
+        +clip(acc.text, 70), cmd:CLI+" accept "+N+" --line "+acc.n+ev});
+      out.push({why:"list the acceptance ledger", cmd:CLI+" accept "+N});
+    }
+    for(const k of ((ctx.slots && ctx.slots.kinds) || [])){
+      const held = (k.reservations||[]).some(r => r.plan === N);
+      out.push(held ? {why:"check its "+k.kind+" number for clashes", cmd:CLI+" slot "+N+" --check"}
+        : {why:"reserve the next "+k.kind+" number", cmd:CLI+" slot "+N+" --kind "+sh(k.kind)});
+    }
+  }
+  if(d.needsApproval) out.push({why:"sign off (approval required)",
+    cmd:CLI+" ruling "+N+' --text "<sign-off>" --approval'});
+  out.push({why:"record a decision", cmd:CLI+" ruling "+N+' --text "<decision>"'});
+  out.push({why:"file a bug found in this item", cmd:CLI+' bug "<title>" --found-in '+N});
+  return out;
+}
+
+// ---- keyboard layer (plan 49) ---------------------------------------------
+//   /  search   g l|b|i|c|g|v  go to list/board/ideas/changelog/graph/versions
+//   j k  move through rows   Enter  open   Esc  back   ?  this sheet
+//   Ctrl/Cmd+K  command palette
+// Single keys are inert while typing in a field (or with a modifier held);
+// the Ctrl/Cmd+K chord is the one shortcut that works from anywhere.
+const GO = {l:"#/", b:"#/board", i:"#/ideas", c:"#/changelog", g:"#/graph", v:"#/versions"};
+const SHORTCUTS = [["/","search (Enter on the list filter: full-text)"],
+  ["g l","go to the roadmap list"], ["g b","go to the lane board"], ["g i","go to ideas"], ["g c","go to changelog"],
+  ["g g","go to the dependency graph"], ["g v","go to versions"],
+  ["j / k","next / previous row"], ["Enter","open the selected row"],
+  ["Esc","back"], ["?","show / hide this sheet"], ["Ctrl/⌘ K","jump to any plan, idea, version or page"]];
+const NAV_ROWS = ".item, .bcard, .idea, .hitgrp, .vrow, .gnode, .dgsec > div, .rel";
+let KSEL_IDX = -1, FOCUS_SEARCH = false, G_PENDING = 0;
+const NAV_STACK = [];
+function isTyping(t){
+  if(!t || !t.tagName) return false;
+  if(t.isContentEditable) return true;
+  if(t.tagName === "TEXTAREA" || t.tagName === "SELECT") return true;
+  return t.tagName === "INPUT"
+    && !/^(checkbox|radio|button|submit|reset|range|color|file)$/i.test(t.type || "");
+}
+// Pure: the action for one key event. st = {typing, mod, palette, pending}.
+function keyAction(key, st){
+  if(st.palette) return {act:"palette"};
+  if(st.typing || st.mod) return null;
+  if(st.pending) return GO[key] ? {act:"go", href:GO[key]} : {act:"cancel"};
+  switch(key){
+    case "/": return {act:"search"};
+    case "g": return {act:"pending"};
+    case "j": return {act:"move", by:1};
+    case "k": return {act:"move", by:-1};
+    case "Enter": return {act:"open"};
+    case "Escape": return {act:"back"};
+    case "?": return {act:"help"};
+  }
+  return null;
+}
+function visiblePane(){
+  for(const id of ["app","board","ideas","changelog","digest","page"]){
+    const p = document.getElementById(id); if(p && !p.hidden) return p; }
+  return document.body;
+}
+function navRows(){
+  return [...visiblePane().querySelectorAll(NAV_ROWS)].filter(r => r.getClientRects().length);
+}
+function moveSel(by){
+  const rows = navRows();
+  if(!rows.length) return;
+  const cur = rows.findIndex(r => r.classList.contains("kbsel"));
+  const from = cur >= 0 ? cur : Math.min(KSEL_IDX, rows.length-1);
+  const i = from < 0 ? (by > 0 ? 0 : rows.length-1)
+    : Math.max(0, Math.min(rows.length-1, from+by));
+  for(const r of rows) r.classList.remove("kbsel");
+  rows[i].classList.add("kbsel");
+  KSEL_IDX = i;
+  if(rows[i].classList.contains("gnode")) rows[i].focus();
+  rows[i].scrollIntoView({block:"nearest"});
+}
+function openRow(row){
+  const a = row.matches("a[href]") ? row : row.querySelector("a[href]");
+  const h = a && a.getAttribute("href");
+  if(h && /^#\//.test(h)) location.hash = R(h);
+  else if(a) a.click();
+  else row.dispatchEvent(new MouseEvent("click", {bubbles:true}));
+}
+function goBack(){
+  if(NAV_STACK.length > 1){ history.back(); return; }
+  const up = ROUTE.name === "version" ? "#/versions" : ROUTE.name === "roadmap" ? "" : "#/";
+  if(up) location.hash = R(up);
+}
+function focusSearch(){
+  const f = document.querySelector("#page:not([hidden]) .fts");
+  if(f){ f.focus(); f.select(); return; }
+  const s = document.getElementById("search");
+  if(!document.getElementById("rmctrls").hidden){ s.focus(); s.select(); return; }
+  FOCUS_SEARCH = true;
+  location.hash = R("#/");
+}
+window.addEventListener("hashchange", () => {
+  const h = location.hash || "#/";
+  if(NAV_STACK.length > 1 && NAV_STACK[NAV_STACK.length-2] === h) NAV_STACK.pop();
+  else NAV_STACK.push(h);
+});
+NAV_STACK.push(location.hash || "#/");
+document.addEventListener("keydown", e => {
+  const chord = (e.ctrlKey || e.metaKey) && !e.altKey && (e.key === "k" || e.key === "K");
+  if(e.isComposing) return;
+  if(SHEET && !chord && (e.key === "Escape" || e.key === "?")){
+    e.preventDefault(); toggleSheet(false); return; }
+  const a = keyAction(e.key, {palette: chord, typing: isTyping(e.target),
+    mod: e.ctrlKey || e.metaKey || e.altKey, pending: G_PENDING > Date.now()});
+  if(!a) return;
+  if(a.act !== "pending") G_PENDING = 0;
+  if(a.act === "open"){
+    // Enter belongs to a focused link/button/node; rows only when nothing is.
+    const t = e.target;
+    if(t && t.closest && t.closest("a, button, [tabindex], summary")) return;
+    const row = navRows().find(r => r.classList.contains("kbsel"));
+    if(!row) return;
+    e.preventDefault(); openRow(row); return;
+  }
+  e.preventDefault();
+  if(a.act === "palette") togglePalette();
+  else if(a.act === "search") focusSearch();
+  else if(a.act === "pending") G_PENDING = Date.now() + 1500;
+  else if(a.act === "go") location.hash = R(a.href);
+  else if(a.act === "move") moveSel(a.by);
+  else if(a.act === "back") goBack();
+  else if(a.act === "help") toggleSheet(true);
+});
+
+// Shortcut sheet (?)
+let SHEET = null;
+function toggleSheet(on){
+  if(SHEET){ SHEET.remove(); SHEET = null; }
+  if(!on) return;
+  const ov = el("div","overlay"), box = el("div","ovbox"), g = el("div","sheet");
+  g.appendChild(txt("h4",null,"keyboard shortcuts"));
+  for(const [k, what] of SHORTCUTS){ g.appendChild(txt("kbd",null,k)); g.appendChild(txt("span",null,what)); }
+  g.appendChild(txt("div","muted","Single keys do nothing while you type in a field. Esc or ? closes this."));
+  box.appendChild(g); ov.appendChild(box);
+  ov.addEventListener("click", e => { if(e.target === ov) toggleSheet(false); });
+  document.body.appendChild(ov);
+  SHEET = ov;
+}
+
+// Command palette (Ctrl/Cmd+K): jump to any plan, idea, version or page by
+// fuzzy name. Entries come from the streamed status; ideas are fetched once
+// per opening. Results are text nodes; choosing one only changes the route.
+const PAGES = [["#/","Roadmap list"],["#/board","Lane board"],["#/ideas","Ideas"],["#/changelog","Changelog"],
+  ["#/digest/1d","Digest"],["#/versions","Versions"],["#/graph","Dependency graph"]];
+const PAL_SHOWN = 40;
+// Pure: score `s` against query `q` (higher is better, -1 = no match). Every
+// space-separated token must match, as a substring (best: early, at a word
+// start) or else as an in-order subsequence (weaker, rewards runs).
+function fuzzy(q, s){
+  s = String(s||"").toLowerCase();
+  let total = 0;
+  for(const t of String(q||"").toLowerCase().split(/\s+/).filter(Boolean)){
+    const at = s.indexOf(t);
+    if(at >= 0){ total += 100 - Math.min(at, 40) + (at === 0 || /\W/.test(s[at-1]) ? 20 : 0); continue; }
+    let i = 0, run = 0, sc = 0;
+    for(const ch of t){
+      const j = s.indexOf(ch, i);
+      if(j < 0) return -1;
+      run = j === i ? run+1 : 0; sc += 1 + run*2; i = j+1;
+    }
+    total += sc;
+  }
+  return total;
+}
+function paletteEntries(items, ideas){
+  const out = PAGES.map(([href, label]) => ({kind:"page", label, href, sub:""}));
+  for(const r of versionRows(items, LAST && LAST.currentVersion, {}))
+    out.push({kind:"version", label:"v"+r.v, href:"#/version/"+r.v,
+      sub: r.pct+"%"+(r.current ? " · current" : "")});
+  for(const it of [...(items||[])].sort((a,b) => b.id-a.id))
+    out.push({kind:"plan", label:(it.displayId || "#"+it.id)+" #"+it.id+" "+(it.title||""),
+      href:"#/plan/"+it.id, sub:"v"+it.version+" · "+laneOf(it)});
+  for(const b of (ideas||[]))
+    out.push({kind:"idea", label:b.title || b.body || "", href:"#/idea/"+b.index, sub:"idea "+b.index});
+  return out;
+}
+function paletteRank(q, entries){
+  if(!String(q||"").trim()) return entries.slice(0, PAL_SHOWN);
+  return entries.map((e, i) => ({e, i, s: fuzzy(q, e.label)}))
+    .filter(x => x.s >= 0).sort((a,b) => (b.s-a.s) || (a.i-b.i))
+    .slice(0, PAL_SHOWN).map(x => x.e);
+}
+let PAL = null;
+function togglePalette(){
+  if(PAL){ closePalette(); return; }
+  const ov = el("div","overlay"), box = el("div","ovbox");
+  const inp = el("input","fts");
+  inp.type = "search"; inp.autocomplete = "off";
+  inp.placeholder = "jump to a plan, idea, version or page…";
+  inp.setAttribute("aria-label", "command palette");
+  const list = el("div","pal-list");
+  box.append(inp, list); ov.appendChild(box);
+  const st = {entries: paletteEntries((LAST && LAST.items) || [], []), shown: [], on: 0};
+  const draw = () => {
+    const q = inp.value.trim();
+    st.shown = paletteRank(q, st.entries);
+    if(q) st.shown.push({kind:"search", label:"search everything for “"+q+"”",
+      href: searchHref(q), sub:"full-text"});
+    st.on = Math.min(st.on, Math.max(0, st.shown.length-1));
+    list.replaceChildren(...st.shown.map((x, i) => {
+      const r = el("div","pal-row"+(i === st.on ? " on" : ""));
+      r.append(txt("span","pk", x.kind), txt("span","pl", x.label), txt("span","ps", x.sub));
+      r.addEventListener("click", () => choose(i));
+      return r;
+    }));
+    if(!st.shown.length) list.appendChild(txt("div","empty","no match"));
+  };
+  const choose = i => { const x = st.shown[i]; if(!x) return; closePalette(); location.hash = R(x.href); };
+  inp.addEventListener("input", () => { st.on = 0; draw(); });
+  inp.addEventListener("keydown", e => {
+    if(e.key === "ArrowDown" || e.key === "ArrowUp"){
+      e.preventDefault();
+      st.on = Math.max(0, Math.min(st.shown.length-1, st.on + (e.key === "ArrowDown" ? 1 : -1)));
+      draw();
+      const on = list.querySelector(".on"); if(on) on.scrollIntoView({block:"nearest"});
+    } else if(e.key === "Enter"){ e.preventDefault(); choose(st.on); }
+    else if(e.key === "Escape"){ e.preventDefault(); closePalette(); }
+  });
+  ov.addEventListener("click", e => { if(e.target === ov) closePalette(); });
+  document.body.appendChild(ov);
+  PAL = {ov, back: document.activeElement};
+  draw();
+  inp.focus();
+  getJSON("/api/ideas?"+rootParam()).then(d => {
+    if(!PAL || PAL.ov !== ov) return;
+    st.entries = paletteEntries((LAST && LAST.items) || [], d.bullets || []);
+    draw();
+  }).catch(() => {});
+}
+function closePalette(){
+  if(!PAL) return;
+  PAL.ov.remove();
+  const back = PAL.back; PAL = null;
+  if(back && back.focus && back !== document.body) try { back.focus(); } catch(_){}
+}
+function paletteTab(){
+  const t = txt("span","tab kb", /Mac|iPhone|iPad/.test(navigator.platform||"") ? "⌘K" : "Ctrl K");
+  t.title = "jump to anything (Ctrl/⌘ K) · ? for all shortcuts";
+  t.setAttribute("role","button"); t.tabIndex = 0;
+  t.addEventListener("click", togglePalette);
+  t.addEventListener("keydown", e => { if(e.key === "Enter"){ e.preventDefault(); togglePalette(); } });
+  return t;
 }
 
 onRoute();

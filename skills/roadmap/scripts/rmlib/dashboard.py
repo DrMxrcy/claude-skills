@@ -349,6 +349,13 @@ def _item_detail(rm, root: Path, item_id: int) -> dict:
             for k in ("displayId", "pct", "done", "total",
                       "foundIn", "bugsFound", "foundDuringBuild"):   # plan 47
                 detail[k] = row.get(k)
+            # plan 49: who `claim` would default to, so the page's copy
+            # buttons add --take only when someone else holds the item.
+            owner_fn = getattr(rm, "default_owner", None)
+            try:
+                detail["me"] = owner_fn(root) if owner_fn else None
+            except Exception:  # noqa: BLE001 — a git hiccup must not break the page
+                detail["me"] = None
             if row.get("branch"):
                 detail["branch"] = {
                     **row["branch"],
@@ -413,6 +420,136 @@ def _digest(rm, root: Path, since: str) -> dict:
         return {"error": str(e), "since": since, "options": list(DIGEST_SINCE)}
     return {**d, "sections": rm.digest_sections(d), "sinceArg": since,
             "options": list(DIGEST_SINCE)}
+
+
+# ---- full-text search (plan 49) ---------------------------------------------
+SEARCH_MAX_Q = 200      # longer queries are refused
+SEARCH_MAX_HITS = 300   # hits returned; `truncated` says when more matched
+SNIPPET_CTX = 70        # characters kept either side of the match
+
+
+def _snippet(text: str, needle: str) -> tuple[str, list[int] | None]:
+    """A window of `text` around the first case-insensitive match of `needle`,
+    with ellipses where it was cut, plus the match's [start, end] inside the
+    returned snippet (None when the needle does not occur, e.g. whitespace
+    collapsed away). The page highlights it with text nodes only."""
+    at = text.lower().find(needle.lower())
+    if at < 0:
+        return (text if len(text) <= 2 * SNIPPET_CTX else text[:2 * SNIPPET_CTX] + "…",
+                None)
+    lo, hi = max(0, at - SNIPPET_CTX), min(len(text), at + len(needle) + SNIPPET_CTX)
+    pre, post = ("…" if lo else ""), ("…" if hi < len(text) else "")
+    start = len(pre) + at - lo
+    return pre + text[lo:hi] + post, [start, start + len(needle)]
+
+
+def _search(rm, root: Path, q: str) -> dict:
+    """Dashboard full-text search: the CLI `search` (item titles/notes, plan
+    bodies, incubator bullets) plus `.roadmap/notes/*.md`, each hit resolved to
+    the dashboard page it opens — `id` (plan page), `idea` (incubator index as
+    /api/ideas numbers it) or `path` (note page) — with a snippet around the
+    match. Files are only reported when /api/note would serve them (no symlink
+    escapes). Read-only."""
+    q = (q or "").strip()
+    if not q:
+        return {"q": q, "hits": [], "error": "empty query"}
+    if len(q) > SEARCH_MAX_Q:
+        return {"q": q[:SEARCH_MAX_Q], "hits": [], "error": "query too long"}
+    fn = getattr(rm, "search", None)
+    if fn is None:
+        return {"q": q, "hits": [], "error": "search unavailable"}
+    try:
+        cfg = rm.read_config(root)
+        raw = fn(root, q, notes=True)
+        idea_of = {b["lineNo"]: i
+                   for i, b in enumerate(rm.list_incubator_bullets(root), 1)}
+    except (ValueError, FileNotFoundError, OSError) as e:
+        return {"q": q, "hits": [], "error": str(e)}
+    items = {i["id"]: i for i in cfg.get("items", [])}
+    by_file = {}
+    for it in items.values():
+        try:
+            by_file[(rm.roadmap_dir(root) / it["file"]).relative_to(root).as_posix()] = it
+        except (ValueError, KeyError):
+            pass
+    ok_files: dict[str, bool] = {}
+    hits = []
+    for h in raw:
+        out = {"kind": h["kind"], "ref": h.get("ref"), "line": h.get("line")}
+        if h["kind"] == "item":
+            it = items.get(h.get("id"))
+            out.update(id=h.get("id"), field=h.get("field"),
+                       title=(it or {}).get("title"))
+        elif h["kind"] in ("plan", "note"):
+            f = h.get("file") or ""
+            if f not in ok_files:
+                ok_files[f] = _doc_path(rm, root, f)[0] == 200
+            if not ok_files[f]:
+                continue
+            out["path"] = f
+            it = by_file.get(f) if h["kind"] == "plan" else None
+            if it is not None:
+                out.update(id=it["id"], title=it.get("title"))
+        elif h["kind"] == "idea":
+            out["idea"] = idea_of.get(h.get("line"))
+        if out.get("id") is not None:
+            it = items.get(out["id"]) or {}
+            out["version"] = it.get("version")
+            out["type"] = it.get("type")
+        out["snippet"], out["match"] = _snippet(h.get("text") or "", q)
+        hits.append(out)
+    return {"q": q, "hits": hits[:SEARCH_MAX_HITS], "total": len(hits),
+            "truncated": len(hits) > SEARCH_MAX_HITS}
+
+
+# ---- version page (plan 49) -------------------------------------------------
+
+def _changelog_block(md: str, version: str) -> str | None:
+    """The `## v<version>` section of a rendered changelog (header included),
+    or None when the version has no section there."""
+    out: list[str] | None = None
+    for line in md.splitlines():
+        if line.startswith("## "):
+            if out is not None:
+                break
+            if line == f"## v{version}" or line.startswith(f"## v{version} "):
+                out = [line]
+        elif out is not None:
+            out.append(line)
+    return "\n".join(out).strip() if out else None
+
+
+def _version_page(rm, root: Path, v: str) -> dict:
+    """Version page data: its items (status rows, so lanes and the branch
+    overlay match the list), the forecast, and the unreleased changelog preview
+    — the version's section of the public and internal renderers. Read-only:
+    the renderers build text, nothing is written."""
+    v = (v or "").strip().removeprefix("v")
+    if not v or len(v) > 64:
+        return {"version": v, "error": "missing version"}
+    try:
+        st = rm.status(root)
+        cfg = rm.read_config(root)
+    except (ValueError, FileNotFoundError, OSError) as e:
+        return {"version": v, "error": str(e)}
+    items = [i for i in st.get("items", []) if i.get("version") == v]
+    if not items:
+        return {"version": v, "error": f"no items target v{v}"}
+    out = {"version": v, "currentVersion": st.get("currentVersion"),
+           "items": items, "forecast": (st.get("forecast") or {}).get(v),
+           "date": (cfg.get("versionDates") or {}).get(v),
+           "summary": (cfg.get("releaseNotes") or {}).get(v),
+           "done": sum(i.get("done", 0) for i in items),
+           "total": sum(i.get("total", 0) for i in items),
+           "public": None, "internal": None}
+    try:
+        if getattr(rm, "render_public_changelog", None):
+            out["public"] = _changelog_block(rm.render_public_changelog(root)[0], v)
+        if getattr(rm, "render_internal_changelog", None):
+            out["internal"] = _changelog_block(rm.render_internal_changelog(root), v)
+    except (ValueError, FileNotFoundError, OSError, KeyError) as e:
+        out["changelogError"] = str(e)
+    return out
 
 
 def _discover_roots(rm, root: Path) -> list[tuple[Path, str | None]]:
@@ -816,6 +953,14 @@ def serve(rm, root: Path, port: int | None = None,
             elif path == "/api/digest":
                 since = (urllib.parse.parse_qs(query).get("since") or ["1d"])[0]
                 self._send(200, json.dumps(_digest(rm, rroot, since)).encode("utf-8"),
+                           "application/json")
+            elif path == "/api/search":   # plan 49: full-text search
+                q = (urllib.parse.parse_qs(query).get("q") or [""])[0]
+                self._send(200, json.dumps(_search(rm, rroot, q)).encode("utf-8"),
+                           "application/json")
+            elif path == "/api/version":   # plan 49: version page
+                v = (urllib.parse.parse_qs(query).get("v") or [""])[0]
+                self._send(200, json.dumps(_version_page(rm, rroot, v)).encode("utf-8"),
                            "application/json")
             elif path == "/api/changelog":
                 try:
