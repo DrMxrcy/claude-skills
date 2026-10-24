@@ -270,3 +270,48 @@ def test_bad_since_is_an_error(roadmap, repo, monkeypatch, capsys):
     assert roadmap.main(["digest", "--since", "soon"]) == 1
     assert "bad --since" in capsys.readouterr().err
 
+
+# --- step 3: orient prints a short digest since the last session ---------------
+
+def test_orient_prints_short_digest_and_restamps(roadmap, repo, monkeypatch, capsys):
+    _fixture(roadmap, repo, monkeypatch)
+    roadmap.set_claim(repo, 5, stage="fixing", verdict="REFUTED")
+    capsys.readouterr()
+    assert roadmap.main(["orient"]) == 0                  # first session: 1d fallback
+    out = capsys.readouterr().out
+    lines = [l for l in out.splitlines()
+             if l.startswith(("Since ", "⚠ Needs attention", "Details: roadmap.py digest"))]
+    assert len(lines) == 3, out
+    assert lines[0].startswith("Since 1d (no previous run): 1 completed")
+    assert "1 stale/blocked" in lines[0] and "claims moved" in lines[0]
+    assert "FEAT-5 Item 5 — verdict REFUTED" in lines[1]
+    assert lines[2].startswith("Details: roadmap.py digest --since 20")
+    assert rmdigest.read_stamp(repo, "orient", "t") is not None
+    assert rmdigest.read_stamp(repo, "digest", "t") is None     # separate keys
+    # Next session: nothing moved since, so one line; attention still shows.
+    assert roadmap.main(["orient", "--json"]) == 0
+    dg = json.loads(capsys.readouterr().out)["digest"]
+    assert dg["label"] == "last session" and dg["summary"] == ""
+    assert any("REFUTED" in a for a in dg["attention"])
+    # The uncommitted claim on item 5 was seen last session: it does not repeat.
+    assert "005-item-5.md" in _git(repo, "status", "--porcelain")
+
+
+def test_orient_quiet_session_is_one_line(roadmap, repo, monkeypatch, capsys):
+    _setup(roadmap, repo, monkeypatch, n=1)
+    _commit(repo, "init", when=_now() - datetime.timedelta(days=3))
+    rmdigest.write_stamp(repo, "orient", "t", _now() - datetime.timedelta(hours=5))
+    capsys.readouterr()
+    assert roadmap.main(["orient"]) == 0
+    out = capsys.readouterr().out
+    assert "Since last session (5h ago): no roadmap changes" in out
+    assert "Details: roadmap.py digest" not in out
+
+
+def test_orient_outside_git_and_handoff_have_no_digest(roadmap, tmp_path, monkeypatch,
+                                                       capsys):
+    _setup(roadmap, tmp_path, monkeypatch, n=1)
+    capsys.readouterr()
+    assert roadmap.main(["orient", "--json"]) == 0
+    assert "digest" not in json.loads(capsys.readouterr().out)
+    assert "digest" not in roadmap.handoff(tmp_path)

@@ -728,6 +728,11 @@ def main(argv: list[str]) -> int:
             payload = orient(root)
             if payload is None:
                 return 0
+            # Plan 45: what changed since this owner's previous orient (stamped
+            # in the git dir, never in the tree); absent outside git.
+            dg = rmdigest.orient_digest(root, rmowners.default_owner(root))
+            if dg is not None:
+                payload["digest"] = dg
             text = format_orient(payload)
             if args.hook:
                 # Claude Code SessionStart: inject as additionalContext

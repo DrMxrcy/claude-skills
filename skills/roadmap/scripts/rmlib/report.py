@@ -11,6 +11,7 @@ from rmlib.sync import (
 from rmlib.incubator import (
     incubator_file, list_incubator_bullets)
 from rmlib import owners as rmowners
+from rmlib import digest as rmdigest
 
 
 def _git_head(root: Path) -> str | None:
@@ -204,6 +205,7 @@ def format_orient(payload: dict, handoff: bool = False) -> str:
     over = rmowners.wip_warning(payload.get("wip"))
     if over:
         lines.append(f"⚠ {over}")
+    lines.extend(rmdigest.orient_lines(payload.get("digest")))   # plan 45
     if payload.get("drift"):
         lines.append(payload["drift"])
     if payload.get("branch"):
