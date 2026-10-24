@@ -3,7 +3,7 @@ id: 46
 title: Waiting steps and split retarget: time-gated checks no longer hold up a release or drag the whole feature to the next version
 type: feature
 version: 0.21.0
-status: planned
+status: done
 created: 2026-10-23
 ---
 
@@ -32,9 +32,15 @@ created: 2026-10-23
 - **Fails if:** a waiting step ever counts as done, or plain `retarget` changes behaviour.
 
 ## 🚶 Step-by-Step Checklist
-- [ ] Step 1: `[~]` waiting step format, `wait` and `wait --clear`, check on a waiting step -> target: rmlib/parse.py, rmlib/ops.py, roadmap.py, tests
-- [ ] Step 2: `waiting` lane, progress counts, due reminders in orient, next and status -> target: rmlib/sync.py, orient code, tests
-- [ ] Step 3: follow-up item creation with two-way links -> target: rmlib/ops.py, tests
-- [ ] Step 4: `release --with-waiting` and `retarget --split` -> target: release code, roadmap.py, tests
-- [ ] Step 5: dashboard countdown, plan-page highlight, follow-up links -> target: rmlib/dashboard.html, tests
-- [ ] Step 6: docs -> target: references/state-model.md, SKILL.md
+- [x] Step 1: `[~]` waiting step format, `wait` and `wait --clear`, check on a waiting step -> target: rmlib/parse.py, rmlib/ops.py, roadmap.py, tests
+  > evidence: 787edb7 + waiting lane, follow-ups, release --with-waiting, retarget --split, dashboard, docs; merge-main 0a7d437 647 passed; merged 6d7d52f; 647 passed in 326.67s (0:05:26); reviews skipped at owner request (2026-10-24)
+- [x] Step 2: `waiting` lane, progress counts, due reminders in orient, next and status -> target: rmlib/sync.py, orient code, tests
+  > evidence: 787edb7 + waiting lane, follow-ups, release --with-waiting, retarget --split, dashboard, docs; merge-main 0a7d437 647 passed; merged 6d7d52f; 647 passed in 326.67s (0:05:26); reviews skipped at owner request (2026-10-24)
+- [x] Step 3: follow-up item creation with two-way links -> target: rmlib/ops.py, tests
+  > evidence: 787edb7 + waiting lane, follow-ups, release --with-waiting, retarget --split, dashboard, docs; merge-main 0a7d437 647 passed; merged 6d7d52f; 647 passed in 326.67s (0:05:26); reviews skipped at owner request (2026-10-24)
+- [x] Step 4: `release --with-waiting` and `retarget --split` -> target: release code, roadmap.py, tests
+  > evidence: 787edb7 + waiting lane, follow-ups, release --with-waiting, retarget --split, dashboard, docs; merge-main 0a7d437 647 passed; merged 6d7d52f; 647 passed in 326.67s (0:05:26); reviews skipped at owner request (2026-10-24)
+- [x] Step 5: dashboard countdown, plan-page highlight, follow-up links -> target: rmlib/dashboard.html, tests
+  > evidence: 787edb7 + waiting lane, follow-ups, release --with-waiting, retarget --split, dashboard, docs; merge-main 0a7d437 647 passed; merged 6d7d52f; 647 passed in 326.67s (0:05:26); reviews skipped at owner request (2026-10-24)
+- [x] Step 6: docs -> target: references/state-model.md, SKILL.md
+  > evidence: 787edb7 + waiting lane, follow-ups, release --with-waiting, retarget --split, dashboard, docs; merge-main 0a7d437 647 passed; merged 6d7d52f; 647 passed in 326.67s (0:05:26); reviews skipped at owner request (2026-10-24)
