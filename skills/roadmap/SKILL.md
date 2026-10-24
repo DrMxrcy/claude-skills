@@ -269,7 +269,14 @@ Anywhere a command takes `--plan ID` (or an id list), the id may be `7`, `#7`, o
   `settings.requireEvidence: true` in `.roadmap/config.json` (default `false`) makes a bare
   `check` refuse until you pass it. `check` also refuses while the plan's required sections
   (bug: Observed/Root Cause/Acceptance; others: Core objective/Acceptance —
-  `settings.requiredSections`) are still template text; `--force` overrides and records it.
+  `settings.requiredSections`) are still template text, and — with `settings.requireAcceptance`
+  on — when the check would complete the item while a ✅ Acceptance criterion is not marked
+  met (the refusal lists them); `--force` overrides either gate and records it.
+- `accept ID [--line N --evidence "..." [--fail]] [--json]` — the acceptance ledger: bare `accept ID`
+  lists the ✅ Acceptance bullets with their number and state (open / met / failed / guard);
+  `--line N --evidence` marks bullet N met (`--fail` failed) as a dated `> accepted:` / `> failed:`
+  sub-line under it, replacing an earlier marker. `Fails if:` guards are never marked. The spec
+  review marks each criterion it finds MET.
 - `next [--version V] [--force] [--json]` — next unfinished item (skips incomplete `dependsOn`, and items held by another owner)
 - `deps-check --plan ID [--force]` — warn if dependencies are incomplete
 - `remove --plan ID` — archive a plan, drop it, demote it to the Idea Incubator
