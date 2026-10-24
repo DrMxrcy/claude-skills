@@ -355,6 +355,8 @@
   .bmeta .bname { color:var(--fg); overflow-wrap:anywhere; }
   .bmeta .sha { color:var(--accent); }
   .bmeta .owner { color:var(--fg); }
+  .bmeta .acc-open { color:var(--active); border-color:var(--active); }
+  .bmeta .acc-fail { color:var(--blocked); border-color:var(--blocked); font-weight:600; }
   .bnote { color:var(--muted); overflow-wrap:anywhere; }
   .bfoot { display:flex; gap:6px; flex-wrap:wrap; align-items:center;
     border-top:1px solid var(--line); padding-top:5px; cursor:default; }
@@ -1133,9 +1135,120 @@ function boardCard(it, d){
   const t = el("div","bt");
   t.appendChild(link(href, it.title || ""));
   card.appendChild(t);
+  const c = it.claim || {}, b = it.branch || {};
+  const meta = [];
+  const bname = b.name || c.branch;
+  if(bname) meta.push(txt("span","bname", bname));
+  const sha = boardSha(it);
+  if(sha) meta.push(txt("span","sha", sha));
+  if(c.verdict) meta.push(txt("span","verdict "+c.verdict, c.verdict));
+  if(c.owner) meta.push(txt("span","owner", "owner "+c.owner));
+  if(laneOf(it) === "waiting") meta.push(laneBadge(it));   // countdown (plan 46)
+  meta.push(...boardSlots(it, d));                         // reservations (plan 33)
+  const acc = boardAccept(it);                             // ledger (plan 43)
+  if(acc) meta.push(acc);
+  if(it.foundIn != null) meta.push(txt("span","badge", "from #"+it.foundIn));
+  if(it.blockedBy && it.blockedBy.length) meta.push(txt("span","blockedby",
+    "blocked by "+it.blockedBy.map(x => "#"+x).join(",")));
+  if(meta.length){ const m = el("div","bmeta"); m.append(...meta); card.appendChild(m); }
+  // Last claim note and how long ago the claim was refreshed (or restamped).
+  const ago = age(c.refreshed || c.updated);
+  if(c.note || ago){
+    const n = el("div","bnote");
+    if(c.note) n.appendChild(txt("span",null, c.note));
+    if(ago) n.appendChild(txt("span","bage", (c.note ? " · " : "")+"claimed "+ago));
+    card.appendChild(n);
+  }
+  const moves = boardMoves(it);
+  if(moves.length) card.appendChild(boardFoot(it, moves));
   card.onclick = e => {
     if(!(e.target.closest && e.target.closest("a, .bfoot"))) location.hash = href; };
   return card;
+}
+
+// Short sha: the landing commit once landed (claim --landed), else the tip.
+function boardSha(it){
+  const c = it.claim || {}, b = it.branch || {};
+  if(laneOf(it) === "landed" && c.landed_sha) return String(c.landed_sha).slice(0,7);
+  return b.lastCommit || (b.sha ? String(b.sha).slice(0,7) : "");
+}
+function boardSlots(it, d){
+  const out = [];
+  for(const k of ((d && d.slots && d.slots.kinds) || []))
+    for(const r of (k.reservations || [])) if(r.plan === it.id){
+      const s = txt("span","slot st-"+r.state, k.kind+" "+((r.numbers||[]).join(",") || r.value));
+      s.title = [r.value, r.state+(r.detail ? ": "+r.detail : "")].filter(Boolean).join(" — ");
+      out.push(s);
+    }
+  return out;
+}
+// "m/t accepted" when the payload carries an acceptance ledger {met, failed, total}.
+function boardAccept(it){
+  const a = it.acceptance;
+  if(!a || !a.total) return null;
+  const cls = a.failed ? " acc-fail" : a.met === a.total ? " appr" : a.met ? " acc-open" : "";
+  const s = txt("span","badge"+cls, (a.met||0)+"/"+a.total+" accepted");
+  if(a.failed) s.title = a.failed+" failed";
+  return s;
+}
+
+// Mirrors rmlib/parse.py CLAIM_STAGES (a test keeps the two equal).
+const BOARD_STAGES = ["review","fixing","gate-ready","gating","blocked","landed"];
+const BOARD_NEXT = {planned:"review", active:"review", building:"review", stale:"review",
+  fixing:"review", "gate-ready":"gating", gating:"landed"};
+// The `roadmap.py claim` lines that move a card, the likely next move first.
+// Done and waiting items get none (a waiting item outranks any claim).
+function boardMoves(it){
+  const lane = laneOf(it), c = it.claim || {};
+  if(!Number.isInteger(it.id) || lane === "done" || lane === "waiting") return [];
+  const out = [];
+  const add = (label, ...args) => { const cmd = ["roadmap.py claim", it.id, ...args].join(" ");
+    if(!out.some(m => m.cmd === cmd)) out.push({label, cmd}); };
+  if(lane === "review"){
+    if(c.verdict === "CONFIRMED") add("→ gate-ready", "--stage gate-ready");
+    else if(c.verdict) add("→ fixing", "--stage fixing");
+    else add("→ gate-ready, CONFIRMED", "--stage gate-ready --verdict CONFIRMED");
+  } else if(lane === "blocked" && c.stage) add("unblock (clear claim)", "--clear");
+  else if(BOARD_NEXT[lane]) add("→ "+BOARD_NEXT[lane], "--stage "+BOARD_NEXT[lane]);
+  for(const s of BOARD_STAGES) if(s !== lane && s !== c.stage) add("→ "+s, "--stage "+s);
+  if(c.stage || c.owner) add("clear claim", "--clear");
+  return out;
+}
+
+// Pick a move, see exactly what will be copied, copy it. Never runs anything.
+const BOARD_PICK = {};                 // id -> chosen line, kept across refreshes
+function boardFoot(it, moves){
+  const foot = el("div","bfoot");
+  const sel = el("select","bmove");
+  sel.title = "which claim line to copy";
+  for(const m of moves){ const o = txt("option",null, m.label); o.value = m.cmd; sel.appendChild(o); }
+  const want = BOARD_PICK[it.id];
+  sel.value = moves.some(m => m.cmd === want) ? want : moves[0].cmd;
+  const code = txt("code","bcmd", sel.value);
+  const btn = txt("button","bcopy","copy");
+  btn.type = "button";
+  btn.title = "copy, then run it in a terminal — the board is read-only";
+  sel.addEventListener("change", () => { BOARD_PICK[it.id] = sel.value;
+    code.textContent = sel.value; });
+  btn.addEventListener("click", () => boardCopy(code.textContent, btn, code));
+  foot.append(sel, btn, code);
+  return foot;
+}
+function boardCopy(s, btn, code){
+  const show = ok => {
+    btn.textContent = ok ? "copied" : "press ⌘C / Ctrl+C";
+    if(!ok) try { const r = document.createRange(); r.selectNodeContents(code);
+      const w = window.getSelection(); w.removeAllRanges(); w.addRange(r); } catch(_){}
+    setTimeout(() => { btn.textContent = "copy"; }, 1500);
+  };
+  const legacy = () => { let ok = false;
+    try { const ta = el("textarea"); ta.value = s; ta.setAttribute("readonly", "");
+      ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select(); ok = document.execCommand("copy");
+      ta.remove(); } catch(_){}
+    show(ok); };
+  try { navigator.clipboard.writeText(s).then(() => show(true), legacy); }
+  catch(_){ legacy(); }
 }
 
 function boardColumn(col, d){

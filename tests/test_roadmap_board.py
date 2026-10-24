@@ -128,3 +128,180 @@ def test_dashboard_html_has_board_route_and_tab(dashboard):
         assert hook in body, hook
     assert ".innerHTML" not in body and "insertAdjacentHTML" not in body
     assert "outerHTML" not in body
+
+
+# --- cards and copy commands (step 2) --------------------------------------
+
+def _git(repo, *args):
+    subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True)
+
+
+@pytest.fixture
+def proj(roadmap, repo, monkeypatch):
+    """Item 1 on `roadmap/1` (two tagged commits ahead of main), item 2 untouched."""
+    import importlib
+    monkeypatch.chdir(repo)
+    monkeypatch.setenv("ROADMAP_OWNER", "alice")
+    _git(repo, "symbolic-ref", "HEAD", "refs/heads/main")
+    _git(repo, "commit", "--allow-empty", "-qm", "init")
+    roadmap.main(["init", "--name", "Demo"])
+    roadmap.main(["new", "--type", "feature", "--title", "First thing"])
+    roadmap.main(["new", "--type", "bug", "--title", "Second thing"])
+    importlib.import_module("rmlib.branches")._CACHE.clear()
+    _git(repo, "checkout", "-qb", "roadmap/1")
+    for msg in ("build a (plan 1)", "build b (plan 1)"):
+        _git(repo, "commit", "--allow-empty", "-qm", msg)
+    _git(repo, "checkout", "-q", "main")
+    return roadmap, repo
+
+
+def _status(roadmap, repo):
+    import importlib
+    importlib.import_module("rmlib.branches")._CACHE.clear()
+    return roadmap.status(repo)
+
+
+def _card(dashboard, tmp_path, status, item_id):
+    return _run(dashboard, tmp_path, f"""
+const d = {json.dumps(status)};
+const it = d.items.find(i => i.id === {item_id});
+const c = boardCard(it, d);
+const one = cls => (c.find(cls)[0] || {{textContent:null}}).textContent;
+console.log(JSON.stringify({{text: c.textContent, num: one("num"), bname: one("bname"),
+  sha: one("sha"), verdict: one("verdict"), owner: one("owner"), note: one("bnote"),
+  cmd: one("bcmd"), opts: c.find("bmove").flatMap(s => s.kids.map(o => o.value)),
+  badges: c.find("badge").map(b => b.textContent), href: c.find("bt")[0].kids[0].href}}));
+""")
+
+
+def test_card_fields_match_api_status(dashboard, proj, tmp_path):
+    roadmap, repo = proj
+    roadmap.main(["claim", "1", "--stage", "review", "--verdict", "PARTIAL",
+                  "--note", "<b>fix</b> the & edge"])
+    st = _status(roadmap, repo)
+    it = next(i for i in st["items"] if i["id"] == 1)
+    card = _card(dashboard, tmp_path, st, 1)
+    assert card["num"] == it["displayId"]
+    assert card["bname"] == it["branch"]["name"] == "roadmap/1"
+    assert card["sha"] == it["branch"]["lastCommit"] == it["branch"]["sha"][:7]
+    assert card["verdict"] == it["claim"]["verdict"] == "PARTIAL"
+    assert card["owner"] == "owner " + it["claim"]["owner"] == "owner alice"
+    assert card["note"].startswith("<b>fix</b> the & edge · claimed ")  # text, not HTML
+    assert card["href"] == "#/plan/1"
+    assert card["badges"][:2] == ["feature", "v" + it["version"]]
+    # review with a PARTIAL verdict: the suggested move is back to fixing
+    assert card["cmd"] == "roadmap.py claim 1 --stage fixing"
+
+
+def test_card_badges_slot_waiting_acceptance_found_in(dashboard, tmp_path):
+    item = _item(7, "waiting", foundIn=3, acceptance={"met": 2, "failed": 0, "total": 5},
+                 waitingSteps=[{"step": 2, "text": "soak", "until": "2000-01-01"}])
+    d = {"items": [item], "slots": {"kinds": [{"kind": "migration", "reservations": [
+        {"plan": 7, "numbers": ["0269"], "value": "0269_x", "state": "ok",
+         "detail": "free"}]}]}}
+    card = _card(dashboard, tmp_path, d, 7)
+    assert "waiting · " in card["text"] and "overdue" in card["text"]
+    assert "migration 0269" in card["text"]
+    assert "2/5 accepted" in card["badges"] and "from #3" in card["badges"]
+    assert card["cmd"] is None and card["opts"] == []     # waiting: no claim move
+
+
+def test_board_moves_cover_every_lane(dashboard, tmp_path):
+    rows = [_item(1, "building"), _item(2, "review", claim={"stage": "review"}),
+            _item(3, "review", claim={"stage": "review", "verdict": "CONFIRMED"}),
+            _item(4, "fixing", claim={"stage": "fixing"}),
+            _item(5, "gate-ready", claim={"stage": "gate-ready"}),
+            _item(6, "gating", claim={"stage": "gating"}),
+            _item(7, "blocked", claim={"stage": "blocked"}),
+            _item(8, "done"), _item(9, "stale")]
+    res = _run(dashboard, tmp_path, f"""
+console.log(JSON.stringify({json.dumps(rows)}.map(i => boardMoves(i).map(m => m.cmd))));
+""")
+    first = [m[0] if m else None for m in res]
+    assert first == ["roadmap.py claim 1 --stage review",
+                     "roadmap.py claim 2 --stage gate-ready --verdict CONFIRMED",
+                     "roadmap.py claim 3 --stage gate-ready",
+                     "roadmap.py claim 4 --stage review",
+                     "roadmap.py claim 5 --stage gating",
+                     "roadmap.py claim 6 --stage landed",
+                     "roadmap.py claim 7 --clear",
+                     None,
+                     "roadmap.py claim 9 --stage review"]
+    for moves in res:
+        assert len(moves) == len(set(moves))
+    # never offers the stage the card is already in
+    assert not any("--stage fixing" in m for m in res[3])
+
+
+def test_board_stages_mirror_cli(dashboard, tmp_path, roadmap):
+    from rmlib.parse import CLAIM_STAGES
+    assert _run(dashboard, tmp_path, "console.log(JSON.stringify(BOARD_STAGES));") \
+        == list(CLAIM_STAGES)
+
+
+def test_copied_claim_lines_run_and_move_the_card(dashboard, proj, tmp_path):
+    """Following the suggested line from each column walks the item through
+    the pipeline; every alternative line from one card is a valid claim too."""
+    roadmap, repo = proj
+
+    def moves(item_id):
+        st = _status(roadmap, repo)
+        return st, _run(dashboard, tmp_path, f"""
+const d = {json.dumps(st)};
+console.log(JSON.stringify(boardMoves(d.items.find(i => i.id === {item_id}))));
+""")
+
+    def run(cmd):
+        argv = shlex.split(cmd)
+        assert argv[:2] == ["roadmap.py", "claim"]
+        roadmap.main(argv[1:])
+
+    lane = lambda: next(i for i in _status(roadmap, repo)["items"] if i["id"] == 1)["lane"]
+    assert lane() == "building"
+    for expect in ("review", "gate-ready", "gating", "landed"):
+        _, ms = moves(1)
+        run(ms[0]["cmd"])
+        assert lane() == expect, ms[0]
+    _, ms = moves(1)
+    for m in ms:                            # each alternative from 'landed'
+        run(m["cmd"])
+        target = m["cmd"].split("--stage ")[1] if "--stage" in m["cmd"] else "building"
+        assert lane() == target, m
+        roadmap.main(["claim", "1", "--stage", "landed"])
+
+
+def test_no_endpoint_accepts_writes(roadmap, repo, monkeypatch, dashboard):
+    import http.server
+    import threading
+    import time
+    monkeypatch.chdir(repo)
+    roadmap.main(["init", "--name", "Demo"])
+    roadmap.main(["new", "--type", "feature", "--title", "First thing"])
+    holder = {}
+    orig = http.server.ThreadingHTTPServer
+
+    class Capturing(orig):
+        def __init__(self, *a, **k):
+            super().__init__(*a, **k)
+            holder["srv"] = self
+
+    monkeypatch.setattr(http.server, "ThreadingHTTPServer", Capturing)
+    threading.Thread(target=lambda: roadmap.serve(repo, port=None, open_browser=False),
+                     daemon=True).start()
+    for _ in range(100):
+        if "srv" in holder:
+            break
+        time.sleep(0.02)
+    base = f"http://127.0.0.1:{holder['srv'].server_address[1]}"
+    try:
+        for method in ("POST", "PUT", "PATCH", "DELETE"):
+            for path in ("/", "/api/status", "/api/item?id=1", "/api/claim"):
+                req = urllib.request.Request(base + path, data=b"{}", method=method)
+                with pytest.raises(urllib.error.HTTPError) as e:
+                    urllib.request.urlopen(req, timeout=3)
+                assert e.value.code == 501, (method, path)
+    finally:
+        holder["srv"].shutdown()
+    src = (dashboard.__file__)
+    handlers = [ln.strip() for ln in open(src) if ln.strip().startswith("def do_")]
+    assert [h.split("(")[0] for h in handlers] == ["def do_GET"]
