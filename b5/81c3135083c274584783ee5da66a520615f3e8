@@ -1,0 +1,27 @@
+install.sh
+  s_fbae122c7a65de::t_adda4bb17fae0c 711-713,723-756,758
+skills/roadmap/README.md
+  s_fbae122c7a65de::t_1b34d5f79f549a 77
+skills/roadmap/SKILL.md
+  s_fbae122c7a65de::t_23a6a68f93394c 64-65,307-308
+skills/roadmap/references/state-model.md
+  s_fbae122c7a65de::t_f176deaec7be14 110-114
+tests/test_install.py
+  s_fbae122c7a65de::t_6d9b4d825dbcc7 286-322
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b581c3135083c274584783ee5da66a520615f3e8",
+  "prompts": {},
+  "sessions": {
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
