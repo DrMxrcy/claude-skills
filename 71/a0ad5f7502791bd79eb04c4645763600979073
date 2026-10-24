@@ -1,0 +1,27 @@
+.roadmap/config.json
+  s_0d994e3368ddf8::t_18e4434e41f59c 554,562-563
+.roadmap/plans/053-waits-in-hours-and-open-ended-waits-on-a-person-wait-until-24h-and-wait-on.md
+  s_0d994e3368ddf8::t_8d97d3f26d4ebd 6,34-39
+CHANGELOG.internal.md
+  s_0d994e3368ddf8::t_b92dabefabda02 5,26
+CHANGELOG.md
+  s_0d994e3368ddf8::t_bc163f76ca533b 3,24
+ROADMAP.md
+  s_0d994e3368ddf8::t_ce3625185c6214 35,55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "71a0ad5f7502791bd79eb04c4645763600979073",
+  "prompts": {},
+  "sessions": {
+    "s_0d994e3368ddf8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1e59e42f-734a-4197-96a1-8f7a72731de8",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
