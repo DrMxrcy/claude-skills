@@ -1,0 +1,21 @@
+.gitignore
+  s_0d994e3368ddf8::t_197b3f661c597c 13-15
+agy-plugin/plugins/roadmap/rules/AGENTS.md
+  s_0d994e3368ddf8::t_6c153bdbca7ffa 8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0f2ede83053acc3a1469fb2446053f40017f7ace",
+  "prompts": {},
+  "sessions": {
+    "s_0d994e3368ddf8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1e59e42f-734a-4197-96a1-8f7a72731de8",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
