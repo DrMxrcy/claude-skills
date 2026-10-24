@@ -40,7 +40,7 @@ from rmlib.ops import (  # noqa: E402
     import_file, merge_items, new_item,
     promote_idea, release, release_gate, remove_item, reorder, retarget,
     set_audience, set_claim, set_claims, set_depends, set_note, set_release_summary,
-    parse_until, wait_step)
+    create_follow_up, parse_until, wait_step)
 
 
 from rmlib.incubator import (  # noqa: E402
@@ -96,7 +96,7 @@ __all__ = [  # public facade: names re-exported for callers/tests/hooks (roadmap
     'MAX_FREEFORM_CHARS', 'STEP_RE', '_is_fence', 'parse_plan',
     'count_progress', '_plan_path', 'CLAIM_STAGES', 'CLAIM_VERDICTS',
     'CLAIM_FIELDS', 'read_claim', 'needs_approval', 'parse_rulings',
-    'waiting_steps', 'parse_until', 'wait_step', 'set_claim', 'clear_claim', 'set_claims',
+    'waiting_steps', 'create_follow_up', 'parse_until', 'wait_step', 'set_claim', 'clear_claim', 'set_claims',
     'clear_claims', 'claim_landed', 'check_landed', 'add_ruling', 'TEMPLATE_BY_TYPE',
     '_incomplete_items', '_refuse_status_note', 'backfill_changelog',
     'check_step', 'import_file', 'merge_items', 'new_item', 'promote_idea',
@@ -389,6 +389,9 @@ def main(argv: list[str]) -> int:
     p_rel.add_argument("--version", required=True)
     p_rel.add_argument("--tag", action="store_true")
     p_rel.add_argument("--force", action="store_true")
+    p_rel.add_argument("--with-waiting", action="store_true", dest="with_waiting",
+                       help="ship items whose only open steps are waiting steps; each "
+                            "waiting step moves into a linked follow-up item in --version")
 
     p_st = sub.add_parser("status")
     p_st.add_argument("--json", action="store_true", dest="as_json")
@@ -511,9 +514,15 @@ def main(argv: list[str]) -> int:
                            "(for in-app changelog screens / What's New popups)")
 
     p_rt = sub.add_parser("retarget")
-    p_rt.add_argument("--to", required=True)
+    p_rt.add_argument("ids", nargs="*", metavar="id",
+                      help=ID_HELP + " (same as --plan)")
+    p_rt.add_argument("--to", "--version", dest="to", required=True)
     p_rt.add_argument("--from", dest="from_versions", default="")
     p_rt.add_argument("--plan", dest="plan_ids", default="", help=IDS_HELP)
+    p_rt.add_argument("--split", action="store_true",
+                      help="keep the ticked steps in the item's version (it completes "
+                           "there) and move only the open steps into a new linked "
+                           "follow-up item in --to")
 
     args = parser.parse_args(argv)
     root = find_root(Path.cwd())
@@ -620,7 +629,8 @@ def main(argv: list[str]) -> int:
         if args.command == "run":
             return _run_cmd(root, args, rids)
         if args.command == "release":
-            release(root, args.version, tag=args.tag, force=args.force)
+            release(root, args.version, tag=args.tag, force=args.force,
+                    with_waiting=args.with_waiting)
             return 0
         if args.command == "sync":
             sync(root)
@@ -750,9 +760,14 @@ def main(argv: list[str]) -> int:
                 print(f"#{plan_id}: ok" + (" (force)" if args.force and blocked else ""))
             return 0
         if args.command == "retarget":
-            retarget(root, args.to,
-                     from_versions=[v for v in args.from_versions.split(",") if v.strip()] or None,
-                     plan_ids=rids(args.plan_ids) or None)
+            ids = [*rids(args.plan_ids), *(n for tok in args.ids for n in rids(tok))]
+            made = retarget(
+                root, args.to,
+                from_versions=[v for v in args.from_versions.split(",") if v.strip()] or None,
+                plan_ids=ids or None, split=args.split)
+            for fu in made:
+                print(f"#{fu['followUpOf']}: open steps → follow-up #{fu['id']} "
+                      f"in v{fu['version']} (.roadmap/{fu['file']})")
             return 0
         if args.command == "changelog":
             if args.backfill:

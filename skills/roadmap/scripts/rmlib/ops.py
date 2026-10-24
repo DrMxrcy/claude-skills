@@ -768,14 +768,21 @@ def remove_item(root: Path, plan_id: int) -> None:
 
 
 def retarget(root: Path, to: str, from_versions: list[str] | None = None,
-             plan_ids: list[int] | None = None) -> None:
+             plan_ids: list[int] | None = None, split: bool = False) -> list[dict]:
     """Re-stamp existing items onto version `to`. Select either by source versions
     (`from_versions`) or by item ids (`plan_ids`) — exactly one. Used to consolidate work
     spread across versions (e.g. fold v1.0.0–v1.6.0 into a single v1.0.0 on a release branch).
-    Leaves currentVersion untouched; the git branch is the caller's workflow."""
+    Leaves currentVersion untouched; the git branch is the caller's workflow.
+
+    `split` (plan 46, ids only): instead of moving the item, keep its ticked steps
+    where they are — the item completes in its own version — and move every open
+    step (waiting ones included) into a new linked follow-up item in `to`.
+    Returns the follow-up items created (empty for a plain retarget)."""
     if bool(from_versions) == bool(plan_ids):
         raise ValueError("pass exactly one of from_versions / plan_ids")
     to = _norm_version(to)
+    if split:
+        return _split_retarget(root, to, from_versions, plan_ids)
     cfg = read_config(root)
     by_id = {i["id"]: i for i in cfg["items"]}
     if plan_ids:
@@ -798,6 +805,36 @@ def retarget(root: Path, to: str, from_versions: list[str] | None = None,
             _set_frontmatter(path, "version", to)
     write_config(root, cfg)
     sync(root)
+    return []
+
+
+def _split_retarget(root: Path, to: str, from_versions: list[str] | None,
+                    plan_ids: list[int] | None) -> list[dict]:
+    if from_versions:
+        raise ValueError("--split works on item ids (--plan), not --from versions")
+    by_id = {i["id"]: i for i in read_config(root)["items"]}
+    plans = []
+    for pid in dict.fromkeys(plan_ids):       # validate all before writing any
+        if pid not in by_id:
+            raise ValueError(f"no plan with id {pid}")
+        path = roadmap_dir(root) / by_id[pid]["file"]
+        steps = parse_plan(path)["steps"] if path.exists() else []
+        open_ = [n for n, (done, _) in enumerate(steps, 1) if not done]
+        if not open_:
+            raise ValueError(f"#{pid} has no open steps — nothing to split off")
+        if len(open_) == len(steps):
+            raise ValueError(f"#{pid} has no ticked steps — nothing would stay in "
+                             f"v{by_id[pid]['version']}; use a plain retarget")
+        plans.append((pid, open_))
+    made = []
+    for pid, open_ in plans:
+        made.append(create_follow_up(
+            root, pid, open_, to,
+            why=(f"#{pid} was split by `retarget --split`: its ticked steps complete "
+                 f"it in v{by_id[pid]['version']}, the open ones moved here"),
+            suffix="remaining steps"))
+    sync(root)
+    return made
 
 
 def reorder(root: Path, version: str, ids: list[int]) -> None:
@@ -861,6 +898,123 @@ def merge_items(root: Path, keep_id: int, source_ids: list[int]) -> None:
     sync(root)
 
 
+# ---- follow-up items (plan 46) ------------------------------------------------
+# A follow-up item carries steps split off an item — waiting steps when a version
+# ships `release --with-waiting`, or every open step on `retarget --split` — so
+# the original completes in its version and only the leftover work moves. Linked
+# both ways: config `followUpOf` / `followUps` (+ `follow_up_of` / `follow_ups`
+# frontmatter), and each moved step leaves a `↪ Moved to follow-up #N` line.
+_EVIDENCE_LINE_RE = re.compile(r"^\s*>\s*evidence:")
+_STEP_NO_RE = re.compile(r"^Step\s+\d+\s*:", re.IGNORECASE)
+
+
+def _put_frontmatter(text: str, key: str, value: str) -> str:
+    """`text` with frontmatter `key` set to `value` (replaced, else appended)."""
+    m = FRONTMATTER_RE.match(text)
+    if not m:
+        return text
+    lines = [ln for ln in m.group(1).splitlines()
+             if ln.partition(":")[0].strip() != key]
+    return "---\n" + "\n".join([*lines, f"{key}: {value}"]) + "\n---\n" + text[m.end():]
+
+
+def _follow_up_body(item_id: int, title: str, type_: str, version: str, src: dict,
+                    why: str, steps: list[str]) -> str:
+    src_link = f"[plan]({Path(src['file']).name})"
+    lines = [
+        "---", f"id: {item_id}", f"title: {title}", f"type: {type_}",
+        f"version: {version}", "status: planned",
+        f"created: {datetime.date.today().isoformat()}", f"follow_up_of: {src['id']}",
+        "---", "", f"# Plan {item_id}: {title}",
+        f"> Type: {type_} · Target: v{version} · Follow-up of #{src['id']}", "",
+        "## 🎯 Target Scope & Boundaries",
+        f"- **Core objective:** {why}. Finish the step(s) carried over from "
+        f"#{src['id']} {src['title']} ({src_link}); that plan's spec defines them.",
+    ]
+    if type_ == "bug":               # keep the bug template gate satisfied
+        lines += [f"- **Observed:** carried over from #{src['id']} — see its {src_link}.",
+                  "", "## 🩺 Root Cause",
+                  f"- **Culprit:** identified in #{src['id']} — see its {src_link}."]
+    lines += [
+        "- **Out of scope:** anything #" + str(src["id"]) + " already shipped.", "",
+        "## ✅ Acceptance",
+        f"- **Passes when:** every step below is verified as #{src['id']}'s plan "
+        f"specifies.",
+        "- **Fails if:** a step is ticked before its verification actually ran.", "",
+        "## 🚶 Step-by-Step Checklist", *steps]
+    return "\n".join(lines) + "\n"
+
+
+def create_follow_up(root: Path, plan_id: int, steps: list[int], version: str,
+                     why: str, suffix: str) -> dict:
+    """Move checklist `steps` (1-based) of item `plan_id` into a new follow-up
+    item `Follow-up: <title> — <suffix>` in `version`. Each moved step (with its
+    evidence lines, waiting marker kept) is renumbered in the new plan; the
+    original keeps a `↪ Moved to follow-up #N` line in its place. Writes both
+    plans and the config; the caller syncs. Returns the new config item."""
+    cfg = read_config(root)
+    by_id = {i["id"]: i for i in cfg["items"]}
+    if plan_id not in by_id:
+        raise ValueError(f"no plan with id {plan_id}")
+    src = by_id[plan_id]
+    src_path = roadmap_dir(root) / src["file"]
+    wanted = set(steps)
+    if not wanted:
+        raise ValueError("no steps to move into a follow-up")
+    version = _norm_version(version)
+    new_id = cfg["nextId"]
+    title = f"Follow-up: {src['title']} — {suffix}"
+    slug = slugify(title)
+    fname = f"plans/{new_id:03d}-{slug}.md"
+    out, moved, n, in_fence, carrying = [], [], 0, False, False
+    for line in src_path.read_text(encoding="utf-8").splitlines():
+        if _is_fence(line):
+            in_fence = not in_fence
+        sm = None if in_fence or _is_fence(line) else STEP_RE.match(line)
+        if sm:
+            n += 1
+            carrying = n in wanted
+            if carrying:
+                if sm.group(2).lower() == "x":
+                    raise ValueError(f"plan {plan_id} step {n} is checked — only open "
+                                     f"steps move to a follow-up")
+                body = sm.group(3).strip()
+                plain = split_wait_marker(body)[0] if sm.group(2) == WAIT_BOX else body
+                k = len([m for m in moved if STEP_RE.match(m)]) + 1
+                numbered = _STEP_NO_RE.sub(f"Step {k}:", body, count=1) \
+                    if _STEP_NO_RE.match(body) else f"Step {k}: {body}"
+                moved.append(f"- [{sm.group(2)}] {numbered}")
+                out.append(f"{sm.group(1)}↪ Moved to follow-up #{new_id} "
+                           f"(v{version}): {plain}")
+                continue
+        elif carrying and _EVIDENCE_LINE_RE.match(line):
+            moved.append(line)
+            continue
+        elif carrying and line.strip():
+            carrying = False
+        out.append(line)
+    missing = sorted(wanted - set(range(1, n + 1)))
+    if missing:
+        raise ValueError(f"plan {plan_id} has no step(s) {missing} (1..{n})")
+    src_text = "\n".join(out) + "\n"
+    left = [m.group(2) for m in map(STEP_RE.match, out) if m]
+    if left and all(b.lower() == "x" for b in left):
+        src_text = _apply_claim(src_text, None)   # original is done: claim ends
+    follow_ups = [*(src.get("followUps") or []), new_id]
+    src_text = _put_frontmatter(src_text, "follow_ups",
+                                ", ".join(str(x) for x in follow_ups))
+    atomic_write(roadmap_dir(root) / fname, _follow_up_body(
+        new_id, title, src["type"], version, src, why, moved))
+    atomic_write(src_path, src_text)
+    src["followUps"] = follow_ups
+    item = {"id": new_id, "slug": slug, "title": title, "type": src["type"],
+            "version": version, "file": fname, "followUpOf": plan_id}
+    cfg["items"].append(item)
+    cfg["nextId"] = new_id + 1
+    write_config(root, cfg)
+    return item
+
+
 def _incomplete_items(root: Path, version: str) -> list[dict]:
     out = []
     for item in read_config(root)["items"]:
@@ -907,16 +1061,74 @@ def _own_source_version_file(root: Path) -> Path | None:
     return skill / "VERSION"
 
 
-def release(root: Path, version: str, tag: bool = False, force: bool = False) -> None:
+def _waiting_only(root: Path, items: list[dict]) -> tuple[list, list]:
+    """Split incomplete `items` into (waiting-only, other). Waiting-only: at least
+    one step ticked and every open step is a waiting step (plan 46) — the work
+    shipped, only time-gated verification is left. Entries are (item, open step
+    numbers, {step: waiting info})."""
+    waiting, other = [], []
+    for item in items:
+        path = roadmap_dir(root) / item["file"]
+        plan = parse_plan(path) if path.exists() else {"steps": [], "waiting": {}}
+        waits = plan.get("waiting") or {}
+        open_ = [n for n, (done, _) in enumerate(plan["steps"], 1) if not done]
+        if open_ and len(open_) < len(plan["steps"]) and all(n in waits for n in open_):
+            waiting.append((item, open_, waits))
+        else:
+            other.append(item)
+    return waiting, other
+
+
+def _wait_desc(item: dict, open_: list[int], waits: dict) -> str:
+    return ", ".join(
+        f"#{item['id']} step {n}" + (f" (waiting until {waits[n]['until']}"
+                                     + (f": {waits[n]['reason']}" if waits[n].get("reason")
+                                        else "") + ")" if waits[n].get("until") else "")
+        for n in open_)
+
+
+def release(root: Path, version: str, tag: bool = False, force: bool = False,
+            with_waiting: bool = False) -> list[dict]:
+    """Cut the current version and make `version` current. `with_waiting` (plan
+    46): items whose only open steps are waiting steps ship as complete — each
+    one's waiting steps move into a linked follow-up item in `version`. Returns
+    the follow-up items created."""
     version = _norm_version(version)
     cfg = read_config(root)
     outgoing = cfg["currentVersion"]
     incomplete = _incomplete_items(root, outgoing)
-    if incomplete and not force:
-        names = ", ".join(f"#{i['id']} {i['title']}" for i in incomplete)
+    waiting, other = _waiting_only(root, incomplete)
+    hint = ""
+    if waiting:
+        hint = (f" Waiting steps: {'; '.join(_wait_desc(*w) for w in waiting)} — ship "
+                f"them as follow-ups in v{version} with --with-waiting.")
+    if other and not force:
+        names = ", ".join(f"#{i['id']} {i['title']}" for i in other)
         raise ValueError(
             f"v{outgoing} still has incomplete items: {names}. "
-            f"Finish them (see /roadmap-review) or pass --force.")
+            f"Finish them (see /roadmap-review) or pass --force.{hint}")
+    if waiting and not with_waiting and not force:
+        raise ValueError(
+            f"v{outgoing} is done except for waiting steps: "
+            f"{'; '.join(_wait_desc(*w) for w in waiting)}. Release with --with-waiting "
+            f"to ship those items now and move each waiting step into a follow-up "
+            f"item in v{version}, or verify and check them first.")
+    made = []
+    if with_waiting:
+        for item, open_, waits in waiting:
+            reason = next((waits[n]["reason"] for n in open_ if waits[n].get("reason")),
+                          None) or "wait"
+            fu = create_follow_up(
+                root, item["id"], open_, version,
+                why=(f"v{outgoing} shipped #{item['id']} with these step(s) still "
+                     f"waiting on time-gated verification"),
+                suffix=f"verify after {reason}")
+            made.append(fu)
+            print(f"#{item['id']}: shipped in v{outgoing}; "
+                  f"{_wait_desc(item, open_, waits)} → follow-up #{fu['id']} in v{version}")
+        if made:
+            sync(root)              # originals are complete now: date the version
+            cfg = read_config(root)
     cfg["currentVersion"] = version
     write_config(root, cfg)
     sync(root)
@@ -930,6 +1142,7 @@ def release(root: Path, version: str, tag: bool = False, force: bool = False) ->
         if result.returncode != 0:
             print(f"Warning: 'git tag v{version}' failed (exit {result.returncode}); "
                   "version recorded in config but not tagged.", file=sys.stderr)
+    return made
 
 
 def promote_idea(root: Path, *, match: str | None = None, index: int | None = None,

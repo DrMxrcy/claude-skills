@@ -10,6 +10,7 @@
     --bg:#0e1116; --line:#232a34; --fg:#e6edf3; --muted:#8b98a5;
     --bar:#242c38; --done:#3fb950; --active:#d29922; --blocked:#f85149;
     --todo:#4b5563; --accent:#58a6ff; --build:#39c5cf; --gate:#a371f7;
+    --wait:#db61a2;
   }
   * { box-sizing:border-box; }
   /* #app sets display:flex, which outranks the UA rule for [hidden] — without
@@ -130,6 +131,11 @@
   .lg-hold { --lc:var(--blocked); }
   .lg-build { --lc:var(--build); }
   .lg-plan { --lc:var(--todo); }
+  .lg-wait { --lc:var(--wait); }
+  /* waiting steps (plan 46): built, verified only after a date */
+  .md li.task.waiting > .box { color:var(--wait); }
+  .md li.task.waiting > .tbody > .ttext { color:var(--wait); }
+  .lane.due { font-weight:600; }
   .dot[class*="lg-"], .chip .cdot[class*="lg-"] { background:var(--lc); }
   .lane { font-size:10px; border-radius:4px; padding:1px 6px; flex:none;
     color:var(--lc); border:1px solid var(--lc); white-space:nowrap;
@@ -351,15 +357,30 @@ const store = {
 // Lanes (plan 30): derived per item by the CLI; the dashboard only colours
 // and filters them. Group -> one colour family.
 const LANES = ["building","review","fixing","gate-ready","gating","landed","blocked",
-  "stale","active","planned","done"];
+  "stale","waiting","active","planned","done"];
 const LANE_GROUP = {done:"done", gating:"gate", "gate-ready":"gate", landed:"done",
   review:"review", fixing:"review", blocked:"hold", stale:"hold",
-  building:"build", active:"build", planned:"plan"};
+  building:"build", active:"build", planned:"plan", waiting:"wait"};
 const laneOf = it => it.lane || (it.status === "done" || it.pct === 100
   ? "done" : (it.status || "planned"));
 const lg = it => "lg-" + (LANE_GROUP[laneOf(it)] || "plan");
-// Same predicate as the CLI's is_in_flight: not done, and a branch or claim.
-const inFlight = it => laneOf(it) !== "done" && !!(it.branch || it.claim);
+// Same predicate as the CLI's is_in_flight: not done (or parked waiting on a
+// date, plan 46), and a branch or claim.
+const inFlight = it => !["done","waiting"].includes(laneOf(it))
+  && !!(it.branch || it.claim);
+// Waiting steps (plan 46): days until the step's date, counted from the
+// browser's today so a long-open page stays right; null when undated.
+const daysLeft = w => {
+  if(!w || !/^\d{4}-\d{2}-\d{2}$/.test(w.until||"")) return null;
+  const [y,m,d] = w.until.split("-").map(Number), t = new Date();
+  return Math.round((Date.UTC(y,m-1,d)
+    - Date.UTC(t.getFullYear(), t.getMonth(), t.getDate())) / 864e5);
+};
+const countdown = n => n == null ? "no date" : n > 0 ? n+"d left"
+  : n === 0 ? "due" : (-n)+"d overdue";
+// The soonest wait on an item decides its badge.
+const nextWait = it => (it.waitingSteps||[]).map(daysLeft)
+  .reduce((a,n) => n == null ? a : a == null ? n : Math.min(a,n), null);
 // Default: the current version is expanded, all others collapsed. `prefs` holds
 // only the versions the user explicitly toggled, so it overrides the default and
 // auto-advance still opens whatever the new current version is.
@@ -462,7 +483,17 @@ function syncLaneSel(items){
 }
 
 function laneBadge(it){
-  const b = txt("span","lane "+lg(it), laneOf(it));
+  const lane = laneOf(it);
+  if(lane === "waiting"){
+    const n = nextWait(it);
+    const b = txt("span","lane "+lg(it)+(n != null && n <= 0 ? " due" : ""),
+      "waiting · "+countdown(n));
+    b.title = (it.waitingSteps||[]).map(w => "step "+w.step+": "+w.text
+      +(w.until ? " — until "+w.until : "")+(w.reason ? " ("+w.reason+")" : ""))
+      .join("\n");
+    return b;
+  }
+  const b = txt("span","lane "+lg(it), lane);
   const c = it.claim;
   if(c && (c.note || c.updated))
     b.title = [c.note, c.updated && "claimed "+c.updated].filter(Boolean).join(" · ");
@@ -509,7 +540,7 @@ function itemRow(it){
       "blocked by "+it.blockedBy.map(x=>"#"+x).join(",")));
   row.appendChild(title);
   const right = el("span","right");
-  if(fly) right.appendChild(laneBadge(it));
+  if(fly || laneOf(it) === "waiting") right.appendChild(laneBadge(it));
   right.appendChild(progressBar(it, fly));
   right.appendChild(txt("span","frac", (it.done||0)+"/"+(it.total||0)));
   row.appendChild(right);
@@ -851,9 +882,10 @@ function render(d){
   };
   // done / in-flight / active / planned: every item in exactly one bucket
   // (mirrors the CLI's lane_counts; computed here so every view gets it).
-  const k = {done:0, fly:0, active:0, planned:0};
+  const k = {done:0, fly:0, active:0, planned:0, waiting:0};
   for(const it of items){
     if(laneOf(it) === "done") k.done++;
+    else if(laneOf(it) === "waiting") k.waiting++;
     else if(inFlight(it)) k.fly++;
     else if(it.status === "active") k.active++;
     else k.planned++;
@@ -865,6 +897,7 @@ function render(d){
     chip(k.fly, "in flight", "lg-build"),
     chip(k.active, "active", "active"),
     chip(k.planned, "planned", null),
+    ...(k.waiting ? [chip(k.waiting, "waiting", "lg-wait")] : []),
     ...(nblocked ? [chip(nblocked, "blocked", "blocked")] : []));
   const app = document.getElementById("app");
   const others = Array.isArray(d.otherBranches) ? d.otherBranches : [];
@@ -1124,6 +1157,15 @@ function planPage(r){
     }
     const planLinks = ids => (ids||[]).map(x => link("#/plan/"+x, "#"+x));
     fact(facts, "depends on", ...planLinks(d.dependsOn));
+    // Follow-ups (plan 46): linked both ways.
+    if(d.followUpOf) fact(facts, "follow-up of", ...planLinks([d.followUpOf]));
+    fact(facts, "follow-ups", ...planLinks(d.followUps));
+    for(const w of (d.waitingSteps||[])){
+      const n = daysLeft(w);
+      fact(facts, "waiting", txt("span","lane lg-wait"+(n != null && n <= 0 ? " due" : ""),
+        countdown(n)), "step "+w.step+": "+w.text,
+        w.until ? "until "+w.until : "", w.reason || "");
+    }
     if(d.blockedBy && d.blockedBy.length){
       const s = el("span","blk");
       s.appendChild(document.createTextNode("blocked by "));
@@ -1273,11 +1315,11 @@ function md(src, path){
         top = {indent, list}; stack.push(top);
       }
       const li = el("li");
-      const task = m[3].match(/^\[([ xX])\]\s*(.*)$/);
+      const task = m[3].match(/^\[([ xX~])\]\s*(.*)$/);
       if(task){
-        const done = task[1] !== " ";
-        li.className = "task" + (done ? " done" : "");
-        li.appendChild(txt("span","box", done ? "✓" : "○"));
+        const done = /[xX]/.test(task[1]), wait = task[1] === "~";
+        li.className = "task" + (done ? " done" : "") + (wait ? " waiting" : "");
+        li.appendChild(txt("span","box", done ? "✓" : wait ? "⏳" : "○"));
         const body = el("span","tbody"), t = el("span","ttext");
         inline(t, task[2], path); body.appendChild(t); li.appendChild(body);
       } else inline(li, m[3], path);

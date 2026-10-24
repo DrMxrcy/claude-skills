@@ -242,3 +242,214 @@ def test_orient_suggests_with_waiting_when_only_waits_remain(roadmap, repo):
     payload = roadmap.orient(repo)
     assert payload["waitingOnly"] and payload["next"] is None
     assert "--with-waiting" in roadmap.format_orient(payload)
+
+
+# ---- step 3: follow-up items with two-way links -----------------------------
+
+def test_follow_up_moves_steps_with_two_way_links(roadmap, repo, template_gate):
+    roadmap.init_project(repo, "P")
+    src = _item(roadmap, repo, steps=4, title="Soak me")
+    roadmap.check_step(repo, 1, 1, force=True)
+    roadmap.wait_step(repo, 1, 3, until="2030-01-02", reason="soak")
+    src.write_text(src.read_text().replace(
+        "(waiting until 2030-01-02: soak)",
+        "(waiting until 2030-01-02: soak)\n  > evidence: deployed (2026-10-01)"))
+    item = roadmap.create_follow_up(repo, 1, [3, 4], "0.0.2", why="split for test",
+                                    suffix="verify after soak")
+    roadmap.sync(repo)
+    cfg = roadmap.read_config(repo)
+    assert item == {"id": 2, "slug": item["slug"], "type": "feature", "version": "0.0.2",
+                    "title": "Follow-up: Soak me — verify after soak",
+                    "file": f"plans/002-{item['slug']}.md", "followUpOf": 1}
+    assert cfg["nextId"] == 3 and cfg["items"][0]["followUps"] == [2]
+    src_text = src.read_text()
+    assert "follow_ups: 2" in src_text
+    assert "- ↪ Moved to follow-up #2 (v0.0.2): Step 3: do thing 3\n" in src_text
+    assert "- ↪ Moved to follow-up #2 (v0.0.2): Step 4: do thing 4\n" in src_text
+    assert "evidence: deployed" not in src_text
+    assert roadmap.count_progress(src) == (1, 2)
+    fu = repo / ".roadmap" / item["file"]
+    fu_text = fu.read_text()
+    assert "follow_up_of: 1" in fu_text and "Follow-up of #1" in fu_text
+    assert "- [~] Step 1: do thing 3 (waiting until 2030-01-02: soak)\n" \
+           "  > evidence: deployed (2026-10-01)\n- [ ] Step 2: do thing 4\n" in fu_text
+    assert roadmap.parse_plan(fu)["waiting"] == {1: {"until": "2030-01-02",
+                                                      "reason": "soak"}}
+    # the follow-up passes the template gate: it can be checked without --force
+    roadmap.check_step(repo, 2, 2)
+    row = {i["id"]: i for i in roadmap.status(repo)["items"]}
+    assert row[2]["followUpOf"] == 1 and row[1]["followUps"] == [2]
+    assert "**#2 Follow-up: Soak me — verify after soak**" in (repo / "ROADMAP.md").read_text()
+
+
+def test_follow_up_of_a_bug_passes_the_bug_gate(roadmap, repo, template_gate):
+    roadmap.init_project(repo, "P")
+    _item(roadmap, repo, type_="bug")
+    item = roadmap.create_follow_up(repo, 1, [2], "0.0.2", why="w", suffix="s")
+    roadmap.sync(repo)
+    roadmap.check_step(repo, item["id"], 1)
+
+
+def test_follow_up_refuses_checked_or_missing_steps(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    _item(roadmap, repo)
+    roadmap.check_step(repo, 1, 1)
+    with pytest.raises(ValueError, match="is checked"):
+        roadmap.create_follow_up(repo, 1, [1], "0.0.2", why="w", suffix="s")
+    with pytest.raises(ValueError, match="no step"):
+        roadmap.create_follow_up(repo, 1, [7], "0.0.2", why="w", suffix="s")
+    assert roadmap.read_config(repo)["nextId"] == 2           # nothing written
+    assert len(list((repo / ".roadmap/plans").glob("*.md"))) == 1
+
+
+# ---- step 4: release --with-waiting and retarget --split ---------------------
+
+def test_release_refuses_waiting_steps_naming_them(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    _waiting_item(roadmap, repo, days=7)
+    with pytest.raises(ValueError) as exc:
+        roadmap.release(repo, "0.0.2")
+    msg = str(exc.value)
+    assert f"#1 step 3 (waiting until {_iso(7)}: soak)" in msg and "--with-waiting" in msg
+    assert roadmap.read_config(repo)["currentVersion"] == "0.0.1"
+
+
+def test_release_names_waits_beside_other_incomplete_items(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    _waiting_item(roadmap, repo)
+    _item(roadmap, repo, title="Open")
+    with pytest.raises(ValueError, match=r"incomplete items: #2 Open.*#1 step 3"):
+        roadmap.release(repo, "0.0.2", with_waiting=True)
+    assert roadmap.read_config(repo)["nextId"] == 3          # nothing split off
+
+
+def test_release_with_waiting_ships_and_creates_follow_up(roadmap, repo, capsys):
+    roadmap.init_project(repo, "P")
+    _waiting_item(roadmap, repo, days=7, title="Payments")
+    made = roadmap.release(repo, "0.0.2", with_waiting=True)
+    assert [m["id"] for m in made] == [2]
+    cfg = roadmap.read_config(repo)
+    assert cfg["currentVersion"] == "0.0.2" and "0.0.1" in cfg["versionDates"]
+    fu = cfg["items"][1]
+    assert (fu["title"], fu["version"], fu["followUpOf"]) == \
+        ("Follow-up: Payments — verify after soak", "0.0.2", 1)
+    assert cfg["items"][0]["followUps"] == [2]
+    assert roadmap.count_progress(_plan(repo, 1)) == (2, 2)
+    fu_path = _plan(repo, 2)
+    assert f"- [~] Step 1: do thing 3 (waiting until {_iso(7)}: soak)" in fu_path.read_text()
+    st = {i["id"]: i for i in roadmap.status(repo)["items"]}
+    assert st[1]["lane"] == "done" and st[2]["waiting"] == 1
+    internal = (repo / "CHANGELOG.internal.md").read_text()
+    v1 = internal.split("## v0.0.1")[1]
+    assert "- Payments" in v1 and "(pending)" not in v1 and "in progress" not in v1
+    assert "#1: shipped in v0.0.1; #1 step 3" in capsys.readouterr().out
+
+
+def test_release_with_waiting_leaves_all_waiting_item_alone(roadmap, repo):
+    """An item with nothing ticked has shipped nothing: it is not waiting-only."""
+    roadmap.init_project(repo, "P")
+    _item(roadmap, repo, steps=1)
+    roadmap.wait_step(repo, 1, 1, until="1d")
+    with pytest.raises(ValueError, match="incomplete items: #1"):
+        roadmap.release(repo, "0.0.2", with_waiting=True)
+
+
+def test_release_force_without_flag_is_unchanged(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    _waiting_item(roadmap, repo)
+    assert roadmap.release(repo, "0.0.2", force=True) == []
+    cfg = roadmap.read_config(repo)
+    assert cfg["currentVersion"] == "0.0.2" and len(cfg["items"]) == 1
+
+
+def test_retarget_split_keeps_ticked_steps_and_moves_open_ones(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    _item(roadmap, repo, steps=6, title="Nine")
+    for n in (1, 2, 4, 5):
+        roadmap.check_step(repo, 1, n)
+    roadmap.wait_step(repo, 1, 6, until="2030-01-01", reason="soak")
+    roadmap.set_claim(repo, 1, stage="review")
+    made = roadmap.retarget(repo, "0.0.3", plan_ids=[1], split=True)
+    cfg = roadmap.read_config(repo)
+    src, fu = cfg["items"]
+    assert [m["id"] for m in made] == [2]
+    assert src["version"] == "0.0.1" and fu["version"] == "0.0.3"
+    assert (fu["title"], fu["followUpOf"], src["followUps"]) == \
+        ("Follow-up: Nine — remaining steps", 1, [2])
+    assert roadmap.count_progress(_plan(repo, 1)) == (4, 4)
+    fu_text = _plan(repo, 2).read_text()
+    assert "- [ ] Step 1: do thing 3\n- [~] Step 2: do thing 6 (waiting until " \
+           "2030-01-01: soak)\n" in fu_text
+    assert roadmap.count_progress(_plan(repo, 2)) == (0, 2)
+    st = {i["id"]: i for i in roadmap.status(repo)["items"]}
+    assert st[1]["lane"] == "done" and st[1]["claim"] is None
+
+
+def test_retarget_split_refusals(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    _item(roadmap, repo)
+    with pytest.raises(ValueError, match="no ticked steps"):
+        roadmap.retarget(repo, "0.0.2", plan_ids=[1], split=True)
+    roadmap.check_step(repo, 1, None, all_done=True)
+    with pytest.raises(ValueError, match="no open steps"):
+        roadmap.retarget(repo, "0.0.2", plan_ids=[1], split=True)
+    with pytest.raises(ValueError, match="item ids"):
+        roadmap.retarget(repo, "0.0.2", from_versions=["0.0.1"], split=True)
+
+
+def test_plain_retarget_unchanged(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    _item(roadmap, repo)
+    roadmap.check_step(repo, 1, 1)
+    assert roadmap.retarget(repo, "0.0.2", plan_ids=[1]) == []
+    cfg = roadmap.read_config(repo)
+    assert len(cfg["items"]) == 1 and cfg["items"][0]["version"] == "0.0.2"
+    assert roadmap.count_progress(_plan(repo)) == (1, 3)
+
+
+def test_cli_release_with_waiting_and_retarget_split(roadmap, repo, monkeypatch, capsys):
+    monkeypatch.chdir(repo)
+    roadmap.init_project(repo, "P")
+    _waiting_item(roadmap, repo)
+    assert roadmap.main(["release", "--version", "0.0.2"]) == 1
+    assert "--with-waiting" in capsys.readouterr().err
+    assert roadmap.main(["release", "--version", "0.0.2", "--with-waiting"]) == 0
+    assert "follow-up #2 in v0.0.2" in capsys.readouterr().out
+    _item(roadmap, repo, title="Nine", version="0.0.2")
+    roadmap.check_step(repo, 3, 1)
+    assert roadmap.main(["retarget", "3", "--version", "0.0.3", "--split"]) == 0
+    assert "#3: open steps → follow-up #4 in v0.0.3" in capsys.readouterr().out
+    assert roadmap.main(["retarget", "--plan", "4", "--to", "0.0.4"]) == 0
+    assert roadmap.read_config(repo)["items"][3]["version"] == "0.0.4"
+
+
+# ---- step 5: dashboard countdown, plan-page highlight, follow-up links -------
+
+def test_dashboard_item_detail_carries_waits_and_follow_up_links(roadmap, repo, dashboard):
+    roadmap.init_project(repo, "P")
+    _waiting_item(roadmap, repo, days=4, title="Payments")
+    d = dashboard._item_detail(roadmap._dashboard_api(), repo, 1)
+    assert d["steps"][2] == {"done": False, "text": "Step 3: do thing 3",
+                             "waiting": {"until": _iso(4), "reason": "soak"}}
+    assert "waiting" not in d["steps"][0]
+    assert d["lane"] == "waiting"
+    assert d["waitingSteps"][0]["daysLeft"] == 4
+    assert (d["followUpOf"], d["followUps"]) == (None, [])
+    roadmap.release(repo, "0.0.2", with_waiting=True)
+    src = dashboard._item_detail(roadmap._dashboard_api(), repo, 1)
+    fu = dashboard._item_detail(roadmap._dashboard_api(), repo, 2)
+    assert src["followUps"] == [2] and fu["followUpOf"] == 1
+    assert fu["waitingSteps"][0]["until"] == _iso(4)
+
+
+def test_dashboard_html_has_waiting_hooks(dashboard):
+    body = dashboard._dashboard_html()
+    for hook in ('"waiting"', 'waiting:"wait"', ".lg-wait", "--wait:",
+                 "function laneBadge", "const countdown", "const daysLeft",
+                 "it.waitingSteps", "d.waitingSteps", '"follow-up of"',
+                 '"follow-ups"', "d.followUpOf", "d.followUps",
+                 "[ xX~]", "li.task.waiting", '"waiting · "+countdown'):
+        assert hook in body, hook
+    assert ".innerHTML" not in body and "insertAdjacentHTML" not in body
+    # the board/lane filter lists the waiting lane
+    assert '"stale","waiting","active"' in body
