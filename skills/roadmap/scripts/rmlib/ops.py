@@ -1280,12 +1280,15 @@ def release(root: Path, version: str, tag: bool = False, force: bool = False,
     if with_waiting:
         for item, open_, waits in waiting:
             reason = next((waits[n]["reason"] for n in open_ if waits[n].get("reason")),
-                          None) or "wait"
+                          None)
+            who = next((waits[n]["on"] for n in open_ if waits[n].get("on")), None)
             fu = create_follow_up(
                 root, item["id"], open_, version,
                 why=(f"v{outgoing} shipped #{item['id']} with these step(s) still "
-                     f"waiting on time-gated verification"),
-                suffix=f"verify after {reason}")
+                     f"waiting on time-gated verification"
+                     + (f" or on {who}" if who else "")),       # plan 53: --on waits
+                suffix=f"verify after {reason or 'wait'}" if reason or not who
+                else f"awaiting {who}")
             made.append(fu)
             print(f"#{item['id']}: shipped in v{outgoing}; "
                   f"{_wait_desc(item, open_, waits)} → follow-up #{fu['id']} in v{version}")

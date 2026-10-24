@@ -321,3 +321,108 @@ def test_cli_wait_on(roadmap, repo, monkeypatch, capsys):
     roadmap.main(["status", "--json"])
     st = json.loads(capsys.readouterr().out)
     assert st["waitingOn"][0]["on"] == "dispatch team"
+
+
+# ---- step 3: follow-ups carry --on waits, dashboard badge and board ----------
+
+def test_release_with_waiting_carries_on_wait_into_follow_up(roadmap, repo, capsys):
+    roadmap.init_project(repo, "P")
+    _awaiting_item(roadmap, repo, since_days=4, title="Dispatch", reason=None)
+    marker = f"(waiting on: dispatch team; since: {_iso(-4)})"
+    with pytest.raises(ValueError, match="#1 step 3 \\(awaiting dispatch team\\)"):
+        roadmap.release(repo, "0.0.2")
+    made = roadmap.release(repo, "0.0.2", with_waiting=True)
+    assert [(m["id"], m["title"], m["version"]) for m in made] == \
+        [(2, "Follow-up: Dispatch — awaiting dispatch team", "0.0.2")]
+    assert "→ follow-up #2 in v0.0.2" in capsys.readouterr().out
+    fu = _plan(repo, 2).read_text()
+    assert f"- [~] Step 1: do thing 3 {marker}\n" in fu
+    assert "or on dispatch team" in fu
+    w = roadmap.parse_plan(_plan(repo, 2))["waiting"][1]
+    assert (w["on"], w["since"], w["until"]) == ("dispatch team", _iso(-4), None)
+    st = roadmap.status(repo)
+    assert st["items"][0]["lane"] == "done"
+    assert [(d["id"], d["step"], d["waitingDays"]) for d in st["waitingOn"]] == [(2, 1, 4)]
+    roadmap.check_step(repo, 2, 1, evidence="dispatch team signed off")
+    assert roadmap.status(repo)["items"][1]["lane"] == "done"
+
+
+def test_retarget_split_and_merge_carry_on_waits(roadmap, repo):
+    roadmap.init_project(repo, "P")
+    _item(roadmap, repo, title="A")
+    roadmap.check_step(repo, 1, 1)
+    roadmap.wait_step(repo, 1, 3, until="2030-01-01", on="QA", reason="sign-off")
+    made = roadmap.retarget(repo, "0.0.2", plan_ids=[1], split=True)
+    fu = _plan(repo, made[0]["id"]).read_text()
+    assert (f"- [~] Step 2: do thing 3 (waiting until 2030-01-01; on: QA; since: "
+            f"{_iso(0)}: sign-off)") in fu
+    _item(roadmap, repo, title="B")
+    roadmap.wait_step(repo, 3, 1, on="ops")
+    roadmap.merge_items(repo, 2, [3])
+    assert f"- [~] Step 1: do thing 1 (waiting on: ops; since: {_iso(0)})" \
+        in _plan(repo, 2).read_text()
+
+
+def test_dashboard_detail_carries_on_and_since(roadmap, repo, dashboard):
+    roadmap.init_project(repo, "P")
+    _awaiting_item(roadmap, repo, since_days=3)
+    d = dashboard._item_detail(roadmap._dashboard_api(), repo, 1)
+    assert d["steps"][2]["waiting"] == {"until": None, "reason": "user testing",
+                                        "on": "dispatch team", "since": _iso(-3)}
+    assert d["lane"] == "waiting"
+    assert (d["waitingSteps"][0]["on"], d["waitingSteps"][0]["waitingDays"]) == \
+        ("dispatch team", 3)
+
+
+def test_dashboard_html_has_awaiting_hooks(dashboard):
+    body = dashboard._dashboard_html()
+    for hook in ("const hoursLeft", "const openEnded", "const awaitText",
+                 '"awaiting "+w.on', "const waitText", 'h+"h left"',
+                 '"waiting · "+countdown'):
+        assert hook in body, hook
+    assert ".innerHTML" not in body and "insertAdjacentHTML" not in body
+
+
+@pytest.mark.skipif(__import__("shutil").which("node") is None,
+                    reason="node not installed")
+def test_dashboard_wait_helpers_in_node(dashboard, tmp_path):
+    import re
+    import subprocess
+    js = "\n".join(re.findall(r"<script>(.*?)</script>", dashboard._dashboard_html(), re.S))
+    a = js.index("// <plan53-pure>")
+    block = js[a:js.index("// </plan53-pure>", a)]
+    at = lambda h: _at(h)
+    harness = block + f"""
+const assert = require("assert");
+// plan 46 date waits read as before
+assert.strictEqual(daysLeft({{until: "{_iso(4)}"}}), 4);
+assert.strictEqual(countdown(4), "4d left");
+assert.strictEqual(countdown(0), "due");
+assert.strictEqual(countdown(-2), "2d overdue");
+assert.strictEqual(countdown(null), "no date");
+assert.strictEqual(hoursLeft({{until: "{_iso(4)}"}}), null);
+// plan 53 hour waits
+const soon = {{until: "{at(5.5)}"}}, late = {{until: "{at(-3.5)}"}}, far = {{until: "{at(80)}"}};
+assert.strictEqual(hoursLeft(soon), 6);
+assert.strictEqual(waitText(soon), "6h left");
+assert.strictEqual(daysLeft(soon), 1);
+assert.strictEqual(hoursLeft(late), -3);
+assert.strictEqual(daysLeft(late), 0);
+assert.strictEqual(waitText(late), "3h overdue");
+assert.strictEqual(waitText(far), "3d left");
+// open-ended waits on someone
+const open = {{on: "dispatch team", since: "{_iso(-3)}"}};
+assert.ok(openEnded(open) && !openEnded({{on: "x", until: "{_iso(1)}"}}));
+assert.strictEqual(daysLeft(open), null);
+assert.strictEqual(waitText(open), "awaiting dispatch team · 3d");
+assert.strictEqual(waitText({{until: "{_iso(2)}", on: "QA"}}), "2d left · awaiting QA");
+// badge pick: the soonest dated wait, else the longest-open wait on someone
+assert.strictEqual(nextWait({{waitingSteps: [far, late, open]}}), late);
+assert.strictEqual(nextWait({{waitingSteps: [open, {{on: "QA", since: "{_iso(-9)}"}}]}}).on, "QA");
+assert.strictEqual(nextWait({{waitingSteps: []}}), null);
+console.log("ok");
+"""
+    f = tmp_path / "t.js"
+    f.write_text(harness)
+    r = subprocess.run(["node", str(f)], capture_output=True, text=True)
+    assert r.returncode == 0 and r.stdout.strip() == "ok", r.stderr

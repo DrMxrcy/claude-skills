@@ -639,19 +639,55 @@ const lg = it => "lg-" + (LANE_GROUP[laneOf(it)] || "plan");
 // date, plan 46), and a branch or claim.
 const inFlight = it => !["done","waiting"].includes(laneOf(it))
   && !!(it.branch || it.claim);
+// <plan53-pure> DOM-free wait helpers; tests run this block in node.
 // Waiting steps (plan 46): days until the step's date, counted from the
 // browser's today so a long-open page stays right; null when undated.
-const daysLeft = w => {
-  if(!w || !/^\d{4}-\d{2}-\d{2}$/.test(w.until||"")) return null;
-  const [y,m,d] = w.until.split("-").map(Number), t = new Date();
+const dayDiff = iso => {
+  const [y,m,d] = iso.split("-").map(Number), t = new Date();
   return Math.round((Date.UTC(y,m-1,d)
     - Date.UTC(t.getFullYear(), t.getMonth(), t.getDate())) / 864e5);
 };
-const countdown = n => n == null ? "no date" : n > 0 ? n+"d left"
+// Plan 53: a wait given in hours is due at a UTC time (2026-10-25T14:00Z).
+// Hours round up while time remains (never "0h left"); 0 for the first hour
+// past due; daysLeft follows them like the CLI's wait_left.
+const AT_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}Z$/;
+const hoursLeft = w => {
+  if(!w || !AT_RE.test(w.until||"")) return null;
+  const s = (Date.parse(w.until.replace("Z", ":00Z")) - Date.now()) / 1000;
+  return s > 0 ? Math.ceil(s / 3600) : (Math.trunc(s / 3600) || 0);
+};
+const daysLeft = w => {
+  const h = hoursLeft(w);
+  if(h != null) return h > 0 ? Math.max(1, Math.floor(h / 24)) : (-Math.floor(-h / 24) || 0);
+  if(!w || !/^\d{4}-\d{2}-\d{2}$/.test(w.until||"")) return null;
+  return dayDiff(w.until);
+};
+const countdown = (n, h) => h != null && Math.abs(h) < 48
+  ? (h > 0 ? h+"h left" : h === 0 ? "due" : (-h)+"h overdue")
+  : n == null ? "no date" : n > 0 ? n+"d left"
   : n === 0 ? "due" : (-n)+"d overdue";
-// The soonest wait on an item decides its badge.
-const nextWait = it => (it.waitingSteps||[]).map(daysLeft)
-  .reduce((a,n) => n == null ? a : a == null ? n : Math.min(a,n), null);
+// Plan 53: an open-ended wait on someone (`wait --on`, no date) is never due;
+// its badge counts the days since it began: "awaiting dispatch team · 3d".
+const openEnded = w => !!(w && w.on && !w.until);
+const waitingDays = w => w && /^\d{4}-\d{2}-\d{2}$/.test(w.since||"")
+  ? -dayDiff(w.since) : null;
+const awaitText = w => "awaiting "+w.on
+  + (waitingDays(w) != null ? " · "+waitingDays(w)+"d" : "");
+const waitText = w => openEnded(w) ? awaitText(w)
+  : countdown(daysLeft(w), hoursLeft(w)) + (w && w.on ? " · awaiting "+w.on : "");
+// The soonest dated wait on an item decides its badge (hours break day ties);
+// with none dated, its longest-open wait on someone does.
+const nextWait = it => {
+  const ws = it.waitingSteps||[];
+  const key = w => { const h = hoursLeft(w), n = daysLeft(w);
+    return h != null ? h : n != null ? n * 24 : null; };
+  const dated = ws.filter(w => key(w) != null).sort((a,b) => key(a) - key(b));
+  if(dated.length) return dated[0];
+  const open = ws.filter(openEnded)
+    .sort((a,b) => (waitingDays(b) ?? 0) - (waitingDays(a) ?? 0));
+  return open[0] || ws[0] || null;
+};
+// </plan53-pure>
 // Default: the current version is expanded, all others collapsed. `prefs` holds
 // only the versions the user explicitly toggled, so it overrides the default and
 // auto-advance still opens whatever the new current version is.
@@ -766,11 +802,14 @@ function syncLaneSel(items){
 function laneBadge(it){
   const lane = laneOf(it);
   if(lane === "waiting"){
-    const n = nextWait(it);
+    const w = nextWait(it), n = daysLeft(w);
     const b = txt("span","lane "+lg(it)+(n != null && n <= 0 ? " due" : ""),
-      "waiting · "+countdown(n));
+      openEnded(w) ? awaitText(w)                      // plan 53: on someone
+        : "waiting · "+countdown(n, hoursLeft(w))+(w && w.on ? " · "+w.on : ""));
     b.title = (it.waitingSteps||[]).map(w => "step "+w.step+": "+w.text
-      +(w.until ? " — until "+w.until : "")+(w.reason ? " ("+w.reason+")" : ""))
+      +(w.until ? " — until "+w.until : "")
+      +(w.on ? " — awaiting "+w.on+(w.since ? " since "+w.since : "") : "")
+      +(w.reason ? " ("+w.reason+")" : ""))
       .join("\n");
     return b;
   }
@@ -2071,8 +2110,9 @@ function planPage(r){
     for(const w of (d.waitingSteps||[])){
       const n = daysLeft(w);
       fact(facts, "waiting", txt("span","lane lg-wait"+(n != null && n <= 0 ? " due" : ""),
-        countdown(n)), "step "+w.step+": "+w.text,
-        w.until ? "until "+w.until : "", w.reason || "");
+        waitText(w)), "step "+w.step+": "+w.text,
+        w.until ? "until "+w.until : "",
+        w.on && w.since ? "since "+w.since : "", w.reason || "");
     }
     // Bug routing (plan 47): a bug's origin and an origin's filed bugs.
     if(row.foundIn != null) fact(facts, "found in", ...planLinks([row.foundIn]));
