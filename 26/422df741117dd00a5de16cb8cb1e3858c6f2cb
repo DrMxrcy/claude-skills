@@ -1,0 +1,27 @@
+.roadmap/config.json
+  s_fbae122c7a65de::t_57a08aa9cca31a 533
+.roadmap/plans/037-dashboard-lane-board-columns-per-lane-with-cards-for-branch-sha-verdict-and-last-note-plus-verdict-and-branch-filter-chips.md
+  s_fbae122c7a65de::t_a24c7945628f69 6,31-36
+CHANGELOG.internal.md
+  s_fbae122c7a65de::t_0fa3f74491f1b0 13
+CHANGELOG.md
+  s_fbae122c7a65de::t_754ac837ee3d7e 11
+ROADMAP.md
+  s_fbae122c7a65de::t_c412671f4e98a5 34,40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "26422df741117dd00a5de16cb8cb1e3858c6f2cb",
+  "prompts": {},
+  "sessions": {
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
