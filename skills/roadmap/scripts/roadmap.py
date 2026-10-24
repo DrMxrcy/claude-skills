@@ -21,6 +21,7 @@ from rmlib.sync import (  # noqa: E402
     _version_complete, incomplete_deps, next_item, render_region,
     roadmap_health, status, sync, uncut_complete_version,
     derive_lane, is_in_flight, lane_counts, lane_label,
+    countdown, due_waiting, format_due,
     format_worktrees, worktree_payload,
     warn_incomplete_deps, MAX_ROADMAP_LINES,
     MAX_FREEFORM_LINES, MAX_FREEFORM_CHARS)
@@ -90,6 +91,7 @@ __all__ = [  # public facade: names re-exported for callers/tests/hooks (roadmap
     '_progress_map', '_version_complete', 'incomplete_deps', 'next_item',
     'render_region', 'roadmap_health', 'status', 'sync',
     'derive_lane', 'is_in_flight', 'lane_counts', 'lane_label',
+    'countdown', 'due_waiting', 'format_due',
     'format_worktrees', 'worktree_payload', 'uncut_complete_version', 'warn_incomplete_deps', 'MAX_ROADMAP_LINES', 'MAX_FREEFORM_LINES',
     'MAX_FREEFORM_CHARS', 'STEP_RE', '_is_fence', 'parse_plan',
     'count_progress', '_plan_path', 'CLAIM_STAGES', 'CLAIM_VERDICTS',
@@ -669,13 +671,17 @@ def main(argv: list[str]) -> int:
             return 0
         if args.command == "next":
             item = next_item(root, version=args.version, force=args.force)
+            due = due_waiting(status(root)["items"])   # plan 46: due waits first
+            if not args.as_json:
+                for line in format_due(due):
+                    print(line)
             if item is None:
                 print("No unfinished unblocked items.")
                 if not args.version:
                     release_gate(root)
                 return 0
             if args.as_json:
-                print(json.dumps(item, indent=2))
+                print(json.dumps({**item, "waitingDue": due}, indent=2))
             else:
                 print(f"{item['displayId']} {item['title']} [{item['type']}] "
                       f"v{item['version']} — {item['pct']}% "
@@ -805,8 +811,12 @@ def main(argv: list[str]) -> int:
             else:
                 lc = st["counts"]["lanes"]
                 active = f" · {lc['active']} active" if lc["active"] else ""
+                waiting = f" · {lc['waiting']} waiting" if lc.get("waiting") else ""
                 print(f"{st['project']} — v{st['currentVersion']} · {lc['done']} done"
-                      f" · {lc['inFlight']} in-flight{active} · {lc['planned']} planned")
+                      f" · {lc['inFlight']} in-flight{active} · {lc['planned']} planned"
+                      f"{waiting}")
+                for line in format_due(st.get("waitingDue") or []):   # plan 46
+                    print(line)
                 # Items grouped under a version header carrying its forecast (plan 44).
                 groups: dict[str, list] = {}
                 for it in st["items"]:
@@ -817,7 +827,8 @@ def main(argv: list[str]) -> int:
                     for it in its:
                         block = (f" blocked by {it['blockedBy']}"
                                  if it.get("blockedBy") else "")
-                        lane = f" — {lane_label(it)}" if is_in_flight(it) else ""
+                        lane = (f" — {lane_label(it)}"
+                                if is_in_flight(it) or it["lane"] == "waiting" else "")
                         print(f"  {it['displayId']} {it['title']} [{it['type']}] "
                               f"{it['pct']}% ({it['status']}){lane}{block}")
             return 0
