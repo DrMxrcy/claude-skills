@@ -1,0 +1,19 @@
+.roadmap/plans/053-waits-in-hours-and-open-ended-waits-on-a-person-wait-until-24h-and-wait-on.md
+  s_fbae122c7a65de::t_878843e9ad52a7 14-20,23,26-31,34-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "72bffeadc8ae97a58e5465b6da9f374c9a2978c5",
+  "prompts": {},
+  "sessions": {
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
