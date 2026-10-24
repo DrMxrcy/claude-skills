@@ -340,6 +340,27 @@
   mark { background:color-mix(in srgb, var(--active) 35%, transparent);
     color:var(--fg); border-radius:2px; }
   .kbsel { outline:1px solid var(--accent); outline-offset:2px; border-radius:4px; }
+  .ver-head .vlink { font-size:11px; color:var(--muted); text-decoration:none; }
+  .ver-head .vlink:hover { color:var(--fg); text-decoration:underline; }
+  .vrow { display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:10px;
+    align-items:center; border-top:1px solid var(--line); padding:7px 0; font-size:13px; }
+  .vrow a { text-decoration:none; } .vrow a:hover { text-decoration:underline; }
+  .vrow .vfc, .vrow .muted { color:var(--muted); font-size:12px; }
+  .lanegrp h4 { margin:8px 0 2px; font-size:12px; font-weight:600;
+    display:flex; gap:8px; align-items:center; }
+  .clprev h4 { margin:0 0 2px; font-size:12px; color:var(--muted); font-weight:600; }
+  .cmds { display:flex; flex-direction:column; gap:6px; font-size:12px;
+    border:1px dashed var(--line); border-radius:6px; padding:8px 10px; }
+  .cmds h4 { margin:0; font-size:12px; color:var(--muted); font-weight:600; }
+  .cmd { display:flex; gap:8px; align-items:center; flex-wrap:wrap; min-width:0; }
+  .cmd .why { color:var(--muted); flex:1 1 100%; }
+  .cmd code { background:var(--bar); border-radius:4px; padding:2px 6px; flex:1 1 0;
+    min-width:0; overflow-wrap:anywhere; user-select:all; color:var(--fg); }
+  .copy { background:var(--bar); border:1px solid var(--line); color:var(--fg);
+    border-radius:6px; padding:2px 9px; font:inherit; font-size:11px; cursor:pointer;
+    flex:none; }
+  .copy:hover { border-color:var(--accent); }
+  .copy.ok { color:var(--done); border-color:var(--done); }
   @media (max-width:640px) {
     header, main { padding-left:16px; padding-right:16px; }
     .facts { grid-template-columns:1fr; }
@@ -655,6 +676,9 @@ function verSection(v, items, cur){
   const head = el("div","ver-head");
   head.appendChild(txt("span","chev","▾"));
   head.appendChild(txt("h2",null,"v"+v+(v===cur?" · current":"")));
+  const vl = link("#/version/"+v, "page →", "vlink");   // plan 49
+  vl.onclick = e => e.stopPropagation();
+  head.appendChild(vl);
   const fc = ((LAST && LAST.forecast) || {})[v];
   if(fc) head.appendChild(forecastTag(fc));
   head.appendChild(txt("span","vpct",
@@ -1105,7 +1129,8 @@ setInterval(() => { if(LAST && ROUTE.name === "roadmap") render(LAST); }, 60000)
 //   #/plan/<id>  #/idea/<n>  #/notes/<root-relative .md path>   full pages
 // The route lives only in the URL; nothing about it is stored.
 const TABS = [["roadmap","Roadmap"],["ideas","Ideas"],["changelog","Changelog"],
-  ["digest","Digest"]];
+  ["digest","Digest"],
+  ["versions","Versions"],["graph","Graph"]];   // plan 49 pages
 const TABCOUNTS = {};
 const LISTS = ["roadmap","ideas","changelog","digest"];
 const DIGEST_SINCE = ["3h","1d","3d","1w","2w","last"];
@@ -1133,13 +1158,17 @@ function parseRoute(h){
     try { q = decodeURIComponent(q); } catch(_){ q = ""; }
     return {name:"search", q};
   }
+  // plan 49: #/versions, #/version/<v>, #/graph
+  if(head === "versions" || head === "graph") return {name:head};
+  if(head === "version" && /^[\w.+-]{1,64}$/.test(parts[1]||""))
+    return {name:"version", v:parts[1]};
   if(head === "digest")
     return {name:"digest", since: DIGEST_SINCE.includes(parts[1]) ? parts[1] : "1d"};
   return {name:"roadmap"};
 }
 const noteHref = p => "#/notes/" + encodeURIComponent(p).replace(/%2F/g, "/");
 const tabOf = r => r.name === "plan" ? "roadmap" : r.name === "idea" ? "ideas"
-  : LISTS.includes(r.name) ? r.name : "";
+  : LISTS.includes(r.name) ? r.name : NAV_TAB[r.name] || "";
 
 // An in-app link: text only, and only an http(s) URL or a #/ route is ever
 // assigned as href (anything else renders as plain text).
@@ -1197,7 +1226,8 @@ function routeHash(r){
   return r.name === "plan" ? "#/plan/"+r.id : r.name === "idea" ? "#/idea/"+r.n
     : r.name === "notes" ? noteHref(r.path) : r.name === "roadmap" ? "#/"
     : r.name === "digest" ? "#/digest/"+r.since
-    : r.name === "search" ? searchHref(r.q) : "#/"+r.name;
+    : r.name === "search" ? searchHref(r.q)
+    : r.name === "version" ? "#/version/"+r.v : "#/"+r.name;
 }
 
 // Re-render the open route after an SSE payload or a view switch.
@@ -1223,7 +1253,9 @@ function renderPage(inPlace){
   if(inPlace && pane.contains(document.activeElement)
      && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return;
   const build = r.name === "plan" ? planPage(r) : r.name === "idea" ? ideaPage(r)
-    : r.name === "search" ? searchPage(r) : notePage(r);
+    : r.name === "search" ? searchPage(r) : r.name === "version" ? versionPage(r)
+    : r.name === "versions" ? versionsPage() : r.name === "graph" ? graphPage()
+    : notePage(r);
   build.then(nodes => {
     if(seq !== PAGE_SEQ) return;
     const y = window.scrollY;
@@ -1743,6 +1775,149 @@ function searchPage(r){
   return getJSON("/api/search?q="+encodeURIComponent(r.q)+"&"+rootParam())
     .then(d => searchNodes(d, r.q, (LAST && LAST.items) || []));
 }
+
+// Copy-command buttons: the exact text shown is what gets copied. The page
+// never runs anything — commands go to the clipboard for a terminal.
+const CLI = "roadmap.py";
+const sh = s => /^[\w@%+=:,.\/-]+$/.test(String(s)) ? String(s)
+  : "'"+String(s).replace(/'/g, "'\\''")+"'";
+function copyText(s, btn){
+  const ok = () => { btn.textContent = "copied"; btn.classList.add("ok");
+    setTimeout(() => { btn.textContent = "copy"; btn.classList.remove("ok"); }, 1200); };
+  const fallback = () => {   // no clipboard API: select the shown text instead
+    try { const r = document.createRange(); r.selectNodeContents(btn.previousSibling);
+      const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+      if(document.execCommand("copy")) ok(); else btn.textContent = "select + copy";
+    } catch(_){ btn.textContent = "select + copy"; } };
+  if(navigator.clipboard && navigator.clipboard.writeText)
+    navigator.clipboard.writeText(s).then(ok, fallback);
+  else fallback();
+}
+function cmdBlock(title, cmds){
+  if(!cmds.length) return null;
+  const box = el("section","cmds");
+  box.appendChild(txt("h4",null, title));
+  for(const c of cmds){
+    const row = el("div","cmd");
+    if(c.why) row.appendChild(txt("span","why", c.why));
+    row.appendChild(txt("code",null, c.cmd));
+    const b = txt("button","copy","copy");
+    b.type = "button"; b.title = "copy: "+c.cmd;
+    b.addEventListener("click", () => copyText(c.cmd, b));
+    row.appendChild(b);
+    box.appendChild(row);
+  }
+  return box;
+}
+function versionCommands(v, items){
+  const open = (items||[]).some(it => laneOf(it) !== "done");
+  const waiting = (items||[]).some(it => laneOf(it) === "waiting");
+  const out = [];
+  if(open) out.push({why:"next unblocked item in this version",
+    cmd:CLI+" next --version "+sh(v)});
+  out.push({why: open ? "release (refuses while items are open)" : "release this version",
+    cmd:CLI+" release --version "+sh(v)});
+  if(waiting) out.push({why:"release, moving waiting steps into follow-ups",
+    cmd:CLI+" release --version "+sh(v)+" --with-waiting"});
+  return out;
+}
+
+// Version pages: #/versions (index, from the streamed status) and
+// #/version/<v> (items by lane, forecast, changelog preview, release command).
+const NAV_TAB = {versions:"versions", version:"versions", graph:"graph"};
+const vkeyOf = v => String(v).split(".").map(n => parseInt(n,10)||0);
+function vcmpDesc(a, b){
+  const A = vkeyOf(a), B = vkeyOf(b);
+  for(let i = 0; i < Math.max(A.length, B.length); i++){
+    const d = (B[i]||0)-(A[i]||0); if(d) return d; }
+  return 0;
+}
+function versionRows(items, cur, forecast){
+  const by = {};
+  for(const it of (items||[])) (by[it.version] ||= []).push(it);
+  return Object.keys(by).sort(vcmpDesc).map(v => {
+    const its = by[v];
+    const done = its.reduce((a,i)=>a+(i.done||0),0), total = its.reduce((a,i)=>a+(i.total||0),0);
+    return {v, n:its.length, done, total, pct: total ? Math.round(100*done/total) : 0,
+      open: its.filter(i => laneOf(i) !== "done").length, current: v === cur,
+      forecast: (forecast||{})[v] || null};
+  });
+}
+function versionsPage(){
+  const d = LAST || {};
+  const out = [crumb("#/", "roadmap", "")];
+  const rows = versionRows(d.items, d.currentVersion, d.forecast);
+  if(!rows.length){ out.push(txt("div","empty","no versions yet")); return Promise.resolve(out); }
+  for(const r of rows){
+    const row = el("div","vrow");
+    const t = el("span","title");
+    t.appendChild(link("#/version/"+r.v, "v"+r.v+(r.current ? " · current" : "")));
+    t.appendChild(txt("span","muted", r.n+" item"+(r.n === 1 ? "" : "s")
+      +(r.open ? " · "+r.open+" open" : " · all done")));
+    if(r.forecast) t.appendChild(forecastTag(r.forecast));
+    row.appendChild(t);
+    const bar = el("span","bar"), fill = el("i"); fill.style.width = r.pct+"%";
+    bar.appendChild(fill); row.appendChild(bar);
+    row.appendChild(txt("span","frac", r.pct+"% · "+r.done+"/"+r.total));
+    out.push(row);
+  }
+  return Promise.resolve(out);
+}
+function versionNodes(d){
+  const out = [crumb("#/versions", "versions", "")];
+  if(d.error){ out.push(txt("div","empty", d.error)); return out; }
+  const items = d.items || [];
+  const head = el("div","phead");
+  const h = el("h2");
+  h.appendChild(txt("span",null, "v"+d.version));
+  if(d.version === d.currentVersion) h.appendChild(txt("span","num","current"));
+  head.appendChild(h);
+  const meta = el("div","pmeta");
+  const pct = d.total ? Math.round(100*d.done/d.total) : 0;
+  const bar = el("span","bar"), fill = el("i"); fill.style.width = pct+"%";
+  bar.appendChild(fill); meta.appendChild(bar);
+  meta.appendChild(txt("span","frac", pct+"% · "+(d.done||0)+"/"+(d.total||0)));
+  meta.appendChild(txt("span","badge", items.length+" item"+(items.length === 1 ? "" : "s")));
+  if(d.date) meta.appendChild(txt("span","badge", "released "+d.date));
+  if(d.forecast) meta.appendChild(forecastTag(d.forecast));
+  head.appendChild(meta);
+  if(d.forecast){ const b = burnDown(d.forecast); if(b) head.appendChild(b); }
+  out.push(head);
+  const cmds = cmdBlock("commands to copy", versionCommands(d.version, items));
+  if(cmds) out.push(cmds);
+  const by = {};
+  for(const it of items) (by[laneOf(it)] ||= []).push(it);
+  const lanes = [...LANES.filter(l => by[l]), ...Object.keys(by).filter(l => !LANES.includes(l))];
+  for(const l of lanes){
+    const g = el("section","lanegrp");
+    const h4 = el("h4");
+    h4.appendChild(txt("span","lane lg-"+(LANE_GROUP[l]||"plan"), l));
+    h4.appendChild(txt("span","muted", String(by[l].length)));
+    g.appendChild(h4);
+    for(const it of by[l].sort((a,b) => a.id-b.id)) g.appendChild(itemRow(it));
+    out.push(g);
+  }
+  const prev = (title, body, none) => {
+    const box = el("section","clprev");
+    box.appendChild(txt("h4",null, title));
+    box.appendChild(body ? md(body, "") : txt("div","srcfile", none));
+    return box;
+  };
+  out.push(prev("changelog preview — public (CHANGELOG.md)", d.public,
+    d.summary ? "" : "nothing public in this version — it rolls up as behind-the-scenes work"));
+  out.push(prev("changelog preview — internal (CHANGELOG.internal.md)", d.internal,
+    "no internal entries"));
+  if(d.changelogError) out.push(txt("div","srcfile", "changelog: "+d.changelogError));
+  return out;
+}
+function versionPage(r){
+  return getJSON("/api/version?v="+encodeURIComponent(r.v)+"&"+rootParam())
+    .then(versionNodes);
+}
+
+// Dependency graph page (#/graph) — step 3.
+function graphPage(){ return Promise.resolve([crumb("#/", "roadmap", ""),
+  txt("div","empty","dependency graph — coming next")]); }
 
 onRoute();
 connect();

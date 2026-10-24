@@ -176,3 +176,98 @@ console.log(JSON.stringify({
     assert r["rows"] == [2, 1, 1]
     assert r["marks"] == ["frob"] * 4
     assert r["emptyLen"] == 3 and r["emptyHint"] == "type a word and press Enter"
+
+
+# --- step 2: version pages ---------------------------------------------------
+
+def test_changelog_block_slices_one_version(dashboard):
+    md = ("# Changelog\n\n## v0.2.10 — (in progress)\n\n- ten\n\n"
+          "## v0.2.1 — 2026-01-02\n\n### ✨ New\n- one\n\n## v0.1.0\n\n- old\n")
+    assert dashboard._changelog_block(md, "0.2.1") == \
+        "## v0.2.1 — 2026-01-02\n\n### ✨ New\n- one"
+    assert dashboard._changelog_block(md, "0.2.10").endswith("- ten")
+    assert dashboard._changelog_block(md, "0.1.0") == "## v0.1.0\n\n- old"
+    assert dashboard._changelog_block(md, "0.3.0") is None
+
+
+def test_api_version_lists_items_and_changelog_preview(served):
+    base, roadmap, repo = served
+    roadmap.main(["new", "--type", "bug", "--title", "Second thing"])
+    assert roadmap.main(["audience", "--plan", "1", "--to", "public"]) == 0
+    assert roadmap.main(["note", "--plan", "1", "--text", "Shiny new thing"]) == 0
+    v = roadmap.status(repo)["items"][0]["version"]
+    code, d = srv._get_json(base + "/api/version?v=" + v)
+    assert code == 200 and d["version"] == v and "error" not in d
+    assert [i["id"] for i in d["items"]] == [1, 2]
+    assert all(i.get("lane") for i in d["items"])
+    assert d["total"] >= 2 and d["done"] == 0
+    assert d["public"].startswith("## v" + v) and "(pending) Shiny new thing" in d["public"]
+    assert "Second thing" not in d["public"]
+    assert "Shiny new thing" in d["internal"] and "Second thing" in d["internal"]
+    # a leading "v" is tolerated
+    assert srv._get_json(base + "/api/version?v=v" + v)[1]["version"] == v
+
+
+def test_api_version_unknown_and_missing(served):
+    base, _, _ = served
+    assert srv._get_json(base + "/api/version?v=9.9.9")[1]["error"] == "no items target v9.9.9"
+    assert srv._get_json(base + "/api/version")[1]["error"] == "missing version"
+
+
+def test_dashboard_version_page_hooks(dashboard):
+    body = _body(dashboard)
+    for hook in ('["versions","Versions"]', 'head === "version"', "function versionPage",
+                 "/api/version?v=", 'r.name === "version" ? versionPage(r)',
+                 '"#/version/"+v', "versionsPage()", "function cmdBlock",
+                 "navigator.clipboard"):
+        assert hook in body, hook
+
+
+_VERSION_STUBS = r"""
+const LANES = ["building","review","fixing","gate-ready","gating","landed","blocked",
+  "stale","waiting","active","planned","done"];
+const LANE_GROUP = {done:"done", review:"review", planned:"plan", waiting:"wait"};
+const laneOf = it => it.lane || "planned";
+const forecastTag = f => txt("span","vfc","forecast "+f.date);
+const burnDown = f => null;
+const itemRow = it => { const w = el("div","item-wrap"); w.appendChild(txt("div","item", "#"+it.id)); return w; };
+const md = (s, p) => txt("div","md", s);
+const getJSON = () => Promise.resolve({});
+const rootParam = () => "root=0";
+let LAST = null;
+"""
+
+
+def test_dashboard_version_nodes_group_by_lane(dashboard, tmp_path):
+    body = _body(dashboard)
+    js = _DOM + _VERSION_STUBS + _slice(body, "// Copy-command buttons", "function versionPage") + r"""
+const d = {version:"0.21.0", currentVersion:"0.21.0", done:3, total:8,
+  forecast:{date:"2026-11-02"}, items:[
+    {id:3, version:"0.21.0", lane:"review", done:1, total:2},
+    {id:1, version:"0.21.0", lane:"done", done:2, total:2},
+    {id:2, version:"0.21.0", lane:"review", done:0, total:2},
+    {id:4, version:"0.21.0", lane:"waiting", done:0, total:2}],
+  public:"## v0.21.0 — (in progress)\n\n- (pending) x", internal:null};
+const out = versionNodes(d);
+const groups = out.filter(n => n.className === "lanegrp").map(g =>
+  [g.kids[0].kids[0].textContent, g.kids.slice(1).map(k => k.textContent)]);
+const cmds = find({kids:out}, n => n.tag === "code").map(n => n.textContent);
+const prev = out.filter(n => n.className === "clprev").map(n => n.textContent);
+const rows = versionRows([{version:"0.9.0", done:1, total:1, lane:"done"},
+  {version:"0.10.0", done:0, total:2}, {version:"0.10.0", done:1, total:2}], "0.10.0", {});
+console.log(JSON.stringify({groups, cmds, prev, head: out[1].textContent,
+  rows: rows.map(r => [r.v, r.n, r.pct, r.open, r.current]),
+  err: versionNodes({error:"no items target v1"}).map(n => n.textContent),
+  quoted: sh("a b'c"), plain: sh("0.21.0")}));
+"""
+    r = _node(tmp_path, "ver.js", js)
+    assert r["groups"] == [["review", ["#2", "#3"]], ["waiting", ["#4"]], ["done", ["#1"]]]
+    assert r["cmds"] == ["roadmap.py next --version 0.21.0",
+                         "roadmap.py release --version 0.21.0",
+                         "roadmap.py release --version 0.21.0 --with-waiting"]
+    assert r["prev"][0].startswith("changelog preview — public") and "(pending) x" in r["prev"][0]
+    assert r["prev"][1].endswith("no internal entries")
+    assert r["head"].startswith("v0.21.0current") and "38% · 3/8" in r["head"]
+    assert r["rows"] == [["0.10.0", 2, 25, 2, True], ["0.9.0", 1, 100, 0, False]]
+    assert r["err"] == ["← versions", "no items target v1"]
+    assert r["quoted"] == "'a b'\\''c'" and r["plain"] == "0.21.0"

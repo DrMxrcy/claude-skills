@@ -448,6 +448,56 @@ def _search(rm, root: Path, q: str) -> dict:
             "truncated": len(hits) > SEARCH_MAX_HITS}
 
 
+# ---- version page (plan 49) -------------------------------------------------
+
+def _changelog_block(md: str, version: str) -> str | None:
+    """The `## v<version>` section of a rendered changelog (header included),
+    or None when the version has no section there."""
+    out: list[str] | None = None
+    for line in md.splitlines():
+        if line.startswith("## "):
+            if out is not None:
+                break
+            if line == f"## v{version}" or line.startswith(f"## v{version} "):
+                out = [line]
+        elif out is not None:
+            out.append(line)
+    return "\n".join(out).strip() if out else None
+
+
+def _version_page(rm, root: Path, v: str) -> dict:
+    """Version page data: its items (status rows, so lanes and the branch
+    overlay match the list), the forecast, and the unreleased changelog preview
+    — the version's section of the public and internal renderers. Read-only:
+    the renderers build text, nothing is written."""
+    v = (v or "").strip().removeprefix("v")
+    if not v or len(v) > 64:
+        return {"version": v, "error": "missing version"}
+    try:
+        st = rm.status(root)
+        cfg = rm.read_config(root)
+    except (ValueError, FileNotFoundError, OSError) as e:
+        return {"version": v, "error": str(e)}
+    items = [i for i in st.get("items", []) if i.get("version") == v]
+    if not items:
+        return {"version": v, "error": f"no items target v{v}"}
+    out = {"version": v, "currentVersion": st.get("currentVersion"),
+           "items": items, "forecast": (st.get("forecast") or {}).get(v),
+           "date": (cfg.get("versionDates") or {}).get(v),
+           "summary": (cfg.get("releaseNotes") or {}).get(v),
+           "done": sum(i.get("done", 0) for i in items),
+           "total": sum(i.get("total", 0) for i in items),
+           "public": None, "internal": None}
+    try:
+        if getattr(rm, "render_public_changelog", None):
+            out["public"] = _changelog_block(rm.render_public_changelog(root)[0], v)
+        if getattr(rm, "render_internal_changelog", None):
+            out["internal"] = _changelog_block(rm.render_internal_changelog(root), v)
+    except (ValueError, FileNotFoundError, OSError, KeyError) as e:
+        out["changelogError"] = str(e)
+    return out
+
+
 def _discover_roots(rm, root: Path) -> list[tuple[Path, str | None]]:
     """All git checkouts of this repo (main + linked worktrees) that have a
     `.roadmap/`, as (path, branch) with the main checkout first. Outside git,
@@ -760,6 +810,10 @@ def serve(rm, root: Path, port: int | None = None,
             elif path == "/api/search":   # plan 49: full-text search
                 q = (urllib.parse.parse_qs(query).get("q") or [""])[0]
                 self._send(200, json.dumps(_search(rm, rroot, q)).encode("utf-8"),
+                           "application/json")
+            elif path == "/api/version":   # plan 49: version page
+                v = (urllib.parse.parse_qs(query).get("v") or [""])[0]
+                self._send(200, json.dumps(_version_page(rm, rroot, v)).encode("utf-8"),
                            "application/json")
             elif path == "/api/changelog":
                 try:
