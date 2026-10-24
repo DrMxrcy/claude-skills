@@ -271,3 +271,96 @@ console.log(JSON.stringify({groups, cmds, prev, head: out[1].textContent,
     assert r["rows"] == [["0.10.0", 2, 25, 2, True], ["0.9.0", 1, 100, 0, False]]
     assert r["err"] == ["← versions", "no items target v1"]
     assert r["quoted"] == "'a b'\\''c'" and r["plain"] == "0.21.0"
+
+
+# --- step 3: dependency graph ------------------------------------------------
+
+_GRAPH_STUBS = r"""
+const LANE_GROUP = {done:"done", review:"review", planned:"plan", building:"build", blocked:"hold"};
+const laneOf = it => it.lane || "planned";
+const vkeyOf = v => String(v).split(".").map(n => parseInt(n,10)||0);
+function vcmpDesc(a, b){ const A = vkeyOf(a), B = vkeyOf(b);
+  for(let i = 0; i < Math.max(A.length, B.length); i++){ const d = (B[i]||0)-(A[i]||0); if(d) return d; }
+  return 0; }
+let LAST = null;
+const location = {hash:""};
+"""
+
+
+def _graph_js(body):
+    return _DOM + _GRAPH_STUBS + _slice(body, "const GRAPH = {", "function graphPage()")
+
+
+def test_dashboard_graph_model_matches_depends_on(dashboard, tmp_path):
+    js = _graph_js(_body(dashboard)) + r"""
+const items = [
+  {id:1, version:"0.1.0", lane:"done", title:"old base"},
+  {id:2, version:"0.2.0", lane:"building", title:"core", dependsOn:[1]},
+  {id:3, version:"0.2.0", lane:"planned", title:"ui", dependsOn:[2], blockedBy:[2]},
+  {id:4, version:"0.2.0", lane:"planned", title:"docs", dependsOn:[2,3], blockedBy:[2,3]},
+  {id:5, version:"0.2.0", lane:"planned", title:"loose"},
+  {id:6, version:"0.2.0", lane:"done", title:"done dep"},
+  {id:7, version:"0.2.0", lane:"review", title:"after done", dependsOn:[6]},
+  {id:8, version:"0.3.0", lane:"planned", title:"cyc a", dependsOn:[9]},
+  {id:9, version:"0.3.0", lane:"planned", title:"cyc b", dependsOn:[8]}];
+const m = graphModel(items);
+const nodes = m.nodes.map(n => [n.id, n.layer, n.cls, n.blocked, n.context]);
+const edges = m.edges.map(e => [e.from, e.to, e.blocking, e.x1 < e.x2]);
+const svg = graphSvg(m);
+const gs = svg.kids.filter(k => k.tag === "g");
+const ps = svg.kids.filter(k => k.tag === "path");
+console.log(JSON.stringify({nodes, edges, loose:m.loose, versions:m.versions,
+  w:m.width > 0, h:m.height > 0,
+  svgNodes: gs.map(g => [g.attrs["data-id"], g.attrs["class"], g.attrs.tabindex]),
+  svgEdges: ps.map(p => [p.attrs["data-from"], p.attrs["data-to"], p.attrs["class"]]),
+  label: gs[0].kids.filter(k => k.tag === "text").map(k => k.textContent),
+  empty: graphNodes([{id:1, version:"1", lane:"planned"}]).map(n => n.textContent)}));
+"""
+    r = _node(tmp_path, "graph.js", js)
+    # Every dependsOn link of an open-version item is one edge, left to right.
+    # A hand-edited cycle (8 <-> 9) is cut, not looped: 9 lands left of 8.
+    assert sorted(r["edges"]) == sorted([
+        [1, 2, False, True], [2, 3, True, True], [2, 4, True, True],
+        [3, 4, True, True], [6, 7, False, True], [9, 8, True, True],
+        [8, 9, True, False]])
+    layers = {n[0]: n[1] for n in r["nodes"]}
+    assert layers[1] == 0 and layers[2] == 1 and layers[3] == 2 and layers[4] == 3
+    assert layers[6] == 0 and layers[7] == 1
+    by = {n[0]: n for n in r["nodes"]}
+    assert 5 not in by and r["loose"] == 1          # no edges: not drawn, counted
+    assert by[1][4] is True and by[2][4] is False    # done dep in an older version: context
+    assert by[3][3] is True and by[3][2] == "lg-plan" and by[2][2] == "lg-build"
+    assert r["versions"] == ["0.3.0", "0.2.0"]
+    assert r["w"] and r["h"]
+    assert [n[0] for n in r["svgNodes"]] == [str(n[0]) for n in r["nodes"]]
+    assert ["3", "gnode lg-plan blocked", "0"] in r["svgNodes"]
+    assert ["2", "3", "gedge blocking"] in r["svgEdges"] and ["1", "2", "gedge"] in r["svgEdges"]
+    assert r["label"] == ["#1 · done", "old base"]
+    assert r["empty"][-1] == "no dependencies between open items"
+
+
+def test_dashboard_graph_node_click_opens_plan(dashboard, tmp_path):
+    js = _graph_js(_body(dashboard)).replace(
+        "  addEventListener(){}",
+        "  addEventListener(t,f){ (this.ev ||= {})[t] = f; }") + r"""
+const m = graphModel([{id:2, version:"1", lane:"planned", title:"a"},
+                      {id:3, version:"1", lane:"planned", title:"b", dependsOn:[2]}]);
+const g = graphSvg(m).kids.filter(k => k.tag === "g")[1];
+g.ev.click();
+const a = location.hash;
+location.hash = "";
+let prevented = false;
+g.ev.keydown({key:"Enter", preventDefault(){ prevented = true; }});
+console.log(JSON.stringify([a, location.hash, prevented, g.attrs.role]));
+"""
+    assert _node(tmp_path, "gclick.js", js) == ["#/plan/3", "#/plan/3", True, "link"]
+
+
+def test_dashboard_graph_page_hooks(dashboard):
+    body = _body(dashboard)
+    for hook in ('["graph","Graph"]', 'head === "graph"', 'r.name === "graph" ? graphPage()',
+                 "function graphModel", "function graphSvg", "createElementNS(NS, tag)",
+                 ".graph { overflow:auto; max-width:100%;"):
+        assert hook in body, hook
+    # the graph is drawn in-page: no chart/graph library is loaded
+    assert "<script src" not in body

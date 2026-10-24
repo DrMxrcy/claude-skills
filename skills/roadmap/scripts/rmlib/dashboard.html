@@ -361,6 +361,22 @@
     flex:none; }
   .copy:hover { border-color:var(--accent); }
   .copy.ok { color:var(--done); border-color:var(--done); }
+  .graph { overflow:auto; max-width:100%; border-top:1px solid var(--line);
+    padding-top:8px; -webkit-overflow-scrolling:touch; }
+  .graph svg { display:block; }
+  .gnode { cursor:pointer; outline:none; }
+  .gnode rect { fill:color-mix(in srgb, var(--lc, var(--todo)) 14%, var(--bg));
+    stroke:var(--lc, var(--todo)); stroke-width:1.2; }
+  .gnode.blocked rect { stroke:var(--blocked); stroke-dasharray:4 3; stroke-width:1.6; }
+  .gnode.ctx rect { opacity:.55; }
+  .gnode:hover rect, .gnode:focus rect, .gnode.kbsel rect { stroke-width:2.6; }
+  .gnode text { fill:var(--fg); font:11px ui-monospace,SFMono-Regular,Menlo,monospace; }
+  .gnode text.gid { fill:var(--muted); }
+  .gedge { fill:none; stroke:var(--muted); stroke-width:1.2; opacity:.7; }
+  .gedge.blocking { stroke:var(--blocked); stroke-width:1.8; opacity:1; }
+  .garrow { fill:var(--muted); } .garrow.blocking { fill:var(--blocked); }
+  .glegend { display:flex; gap:8px; flex-wrap:wrap; align-items:center;
+    font-size:12px; color:var(--muted); }
   @media (max-width:640px) {
     header, main { padding-left:16px; padding-right:16px; }
     .facts { grid-template-columns:1fr; }
@@ -1915,9 +1931,135 @@ function versionPage(r){
     .then(versionNodes);
 }
 
-// Dependency graph page (#/graph) — step 3.
-function graphPage(){ return Promise.resolve([crumb("#/", "roadmap", ""),
-  txt("div","empty","dependency graph — coming next")]); }
+// Dependency graph (#/graph): dependsOn edges among the open versions'
+// items, laid out in layers left to right (a dependency sits left of what
+// needs it), computed here — no library. Nodes take their lane colour; an
+// edge whose dependency is unfinished, into an unfinished item, is a
+// blocking link and draws red, and a blocked item gets a dashed red border.
+// Only items with an edge are drawn; done dependencies outside the open
+// versions appear faded for context. Click (or Enter on) a node opens it.
+const GRAPH = {NW:176, NH:40, GX:56, GY:14, PAD:8};
+function graphModel(items){
+  const all = items || [], byId = {};
+  for(const it of all) byId[it.id] = it;
+  const openV = new Set(all.filter(i => laneOf(i) !== "done").map(i => i.version));
+  const scope = new Set(all.filter(i => openV.has(i.version)).map(i => i.id));
+  const deps = id => ((byId[id] && byId[id].dependsOn) || []).filter(d => byId[d] && d !== id);
+  const edges = [], used = new Set();
+  for(const id of [...scope].sort((a,b) => a-b)) for(const d of deps(id)){
+    const blocking = laneOf(byId[d]) !== "done" && laneOf(byId[id]) !== "done";
+    edges.push({from:d, to:id, blocking}); used.add(d); used.add(id);
+  }
+  // Longest-path layering; a cycle (the CLI refuses them, but files can be
+  // hand-edited) is cut where it is met instead of recursing forever.
+  const layer = {}, onPath = new Set();
+  const L = id => {
+    if(id in layer) return layer[id];
+    if(onPath.has(id)) return -1;
+    onPath.add(id);
+    let l = 0;
+    for(const d of deps(id)) if(used.has(d)) l = Math.max(l, L(d)+1);
+    onPath.delete(id);
+    return layer[id] = l;
+  };
+  const ids = [...used].sort((a,b) => a-b);
+  ids.forEach(L);
+  const cols = [];
+  for(const id of ids) (cols[layer[id]] ||= []).push(id);
+  // Order each column by the mean row of its dependencies (barycentre), so
+  // edges run mostly straight; ties keep id order.
+  const row = {};
+  cols.forEach((col, c) => {
+    if(c) col.sort((a,b) => {
+      const bc = id => { const ps = deps(id).filter(d => d in row);
+        return ps.length ? ps.reduce((s,d) => s+row[d], 0)/ps.length : Infinity; };
+      return (bc(a)-bc(b)) || (a-b);
+    });
+    col.forEach((id, r) => { row[id] = r; });
+  });
+  const {NW, NH, GX, GY, PAD} = GRAPH;
+  const nodes = ids.map(id => {
+    const it = byId[id];
+    return {id, x: PAD + layer[id]*(NW+GX), y: PAD + row[id]*(NH+GY), layer: layer[id],
+      label: it.displayId || "#"+id, title: it.title || "", version: it.version,
+      lane: laneOf(it), cls: "lg-"+(LANE_GROUP[laneOf(it)] || "plan"),
+      blocked: !!(it.blockedBy && it.blockedBy.length), context: !scope.has(id)};
+  });
+  const at = {};
+  for(const n of nodes) at[n.id] = n;
+  for(const e of edges){
+    const a = at[e.from], b = at[e.to];
+    e.x1 = a.x + NW; e.y1 = a.y + NH/2; e.x2 = b.x; e.y2 = b.y + NH/2;
+  }
+  const rows = Math.max(0, ...cols.map(c => c.length));
+  return {nodes, edges, width: PAD*2 + cols.length*(NW+GX) - (cols.length ? GX : 0),
+    height: PAD*2 + rows*(NH+GY) - (rows ? GY : 0),
+    loose: [...scope].filter(id => !used.has(id) && laneOf(byId[id]) !== "done").length,
+    versions: [...openV].sort(vcmpDesc)};
+}
+function graphSvg(m){
+  const NS = "http://www.w3.org/2000/svg", {NW, NH} = GRAPH;
+  const mk = (tag, attrs, cls) => { const e = document.createElementNS(NS, tag);
+    for(const k in attrs) e.setAttribute(k, attrs[k]); if(cls) e.setAttribute("class", cls);
+    return e; };
+  const svg = mk("svg", {width:m.width, height:m.height, viewBox:"0 0 "+m.width+" "+m.height,
+    role:"img"});
+  svg.setAttribute("aria-label", "dependency graph: "+m.nodes.length+" items, "
+    +m.edges.length+" dependencies");
+  const defs = mk("defs", {});
+  for(const k of ["", "blocking"]){
+    const mark = mk("marker", {id:"garrow"+(k ? "-"+k : ""), viewBox:"0 0 8 8", refX:"8",
+      refY:"4", markerWidth:"7", markerHeight:"7", orient:"auto"});
+    mark.appendChild(mk("path", {d:"M0,0 L8,4 L0,8 z"}, "garrow"+(k ? " "+k : "")));
+    defs.appendChild(mark);
+  }
+  svg.appendChild(defs);
+  for(const e of m.edges){
+    const mx = (e.x1 + e.x2)/2;
+    const p = mk("path", {d:"M"+e.x1+","+e.y1+" C"+mx+","+e.y1+" "+mx+","+e.y2+" "+e.x2+","+e.y2,
+      "marker-end":"url(#garrow"+(e.blocking ? "-blocking" : "")+")"},
+      "gedge"+(e.blocking ? " blocking" : ""));
+    p.setAttribute("data-from", e.from); p.setAttribute("data-to", e.to);
+    svg.appendChild(p);
+  }
+  const clip = (s, n) => s.length > n ? s.slice(0, n-1)+"…" : s;
+  for(const n of m.nodes){
+    const g = mk("g", {transform:"translate("+n.x+","+n.y+")", tabindex:"0", role:"link"},
+      "gnode "+n.cls+(n.blocked ? " blocked" : "")+(n.context ? " ctx" : ""));
+    g.setAttribute("aria-label", n.label+" "+n.title);
+    g.setAttribute("data-id", n.id);
+    const tip = mk("title", {}); tip.textContent = n.label+" "+n.title+" · v"+n.version
+      +" · "+n.lane+(n.blocked ? " · blocked" : "");
+    g.appendChild(tip);
+    g.appendChild(mk("rect", {width:NW, height:NH, rx:"6"}));
+    const t1 = mk("text", {x:"8", y:"15"}, "gid"); t1.textContent = n.label+" · "+n.lane;
+    const t2 = mk("text", {x:"8", y:"31"}); t2.textContent = clip(n.title, 24);
+    g.append(t1, t2);
+    const open = () => { location.hash = "#/plan/"+n.id; };
+    g.addEventListener("click", open);
+    g.addEventListener("keydown", ev => { if(ev.key === "Enter"){ ev.preventDefault(); open(); } });
+    svg.appendChild(g);
+  }
+  return svg;
+}
+function graphNodes(items){
+  const out = [crumb("#/", "roadmap", "")];
+  const m = graphModel(items);
+  const leg = el("div","glegend");
+  leg.appendChild(txt("span",null, m.versions.length
+    ? "open versions: "+m.versions.map(v => "v"+v).join(", ") : "no open versions"));
+  leg.appendChild(txt("span",null, m.nodes.length+" items · "+m.edges.length+" dependencies"
+    +(m.edges.some(e => e.blocking) ? " · "+m.edges.filter(e => e.blocking).length+" blocking (red)" : "")));
+  if(m.loose) leg.appendChild(txt("span",null, "+"+m.loose+" open item"
+    +(m.loose === 1 ? "" : "s")+" with no dependencies (not drawn)"));
+  out.push(leg);
+  if(!m.edges.length){ out.push(txt("div","empty","no dependencies between open items")); return out; }
+  const box = el("div","graph");
+  box.appendChild(graphSvg(m));
+  out.push(box);
+  return out;
+}
+function graphPage(){ return Promise.resolve(graphNodes((LAST && LAST.items) || [])); }
 
 onRoute();
 connect();
