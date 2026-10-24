@@ -62,6 +62,13 @@ def ensure_project_rules(root: Path, files: tuple[str, ...] = RULES_FILES) -> li
     return written
 
 
+# Settings a brand-new project starts with. requireAcceptance (plan 43) is on for
+# new projects only: an existing config.json is never rewritten by init/upgrade, so
+# projects created before the acceptance ledger keep checking as they always have.
+NEW_PROJECT_SETTINGS = {"autoCommit": True, "gitTagOnRelease": False,
+                        "requireAcceptance": True}
+
+
 def init_project(root: Path, name: str, adopt: bool = False, claude_md: bool = True) -> dict:
     rd = roadmap_dir(root)
     (rd / "plans").mkdir(parents=True, exist_ok=True)
@@ -70,7 +77,7 @@ def init_project(root: Path, name: str, adopt: bool = False, claude_md: bool = T
     else:
         version = _norm_version(detect_version(root) if adopt else "0.0.1")
         cfg = {"project": name, "currentVersion": version, "nextId": 1,
-               "items": [], "settings": {"autoCommit": True, "gitTagOnRelease": False}}
+               "items": [], "settings": dict(NEW_PROJECT_SETTINGS)}
         write_config(root, cfg)
     roadmap_md = root / "ROADMAP.md"
     if not roadmap_md.exists():

@@ -65,3 +65,26 @@ def _no_owner_env(monkeypatch):
 def template_gate(monkeypatch):
     """Re-enable the shipped required-sections defaults for this test."""
     monkeypatch.setattr(_rmparse, "DEFAULT_REQUIRED_SECTIONS", dict(_DEFAULT_REQUIRED))
+
+
+# The plan-43 acceptance gate is on for projects created by `init`. Most tests
+# complete items on freshly initialised projects without marking acceptance, so
+# new projects start without it here; tests that exercise it request
+# `acceptance_gate` (or set settings.requireAcceptance themselves). Subprocess CLI
+# tests don't see this patch — they mark bullets, pass --force, or turn it off.
+import rmlib.project as _rmproject  # noqa: E402
+
+_NEW_SETTINGS = dict(_rmproject.NEW_PROJECT_SETTINGS)
+
+
+@pytest.fixture(autouse=True)
+def _no_acceptance_gate(monkeypatch):
+    monkeypatch.setattr(_rmproject, "NEW_PROJECT_SETTINGS",
+                        {k: v for k, v in _NEW_SETTINGS.items()
+                         if k != "requireAcceptance"})
+
+
+@pytest.fixture
+def acceptance_gate(monkeypatch):
+    """Restore the shipped new-project settings (requireAcceptance on)."""
+    monkeypatch.setattr(_rmproject, "NEW_PROJECT_SETTINGS", dict(_NEW_SETTINGS))

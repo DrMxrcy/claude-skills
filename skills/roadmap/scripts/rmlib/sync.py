@@ -13,6 +13,7 @@ from rmlib.core import (
 from rmlib.parse import (
     CLAIM_STAGES, count_progress, meta_ids, needs_approval, parse_plan, read_claim,
     waiting_steps)
+from rmlib.parse import acceptance_summary  # plan 43
 from rmlib import branches as rmbranches
 from rmlib import slots as rmslots
 from rmlib import forecast as rmforecast
@@ -459,7 +460,9 @@ def status(root: Path, worktrees: bool = False, conflicts: bool = False) -> dict
                # Bug routing (plan 47): origin link, back-links, in-place fixes.
                "foundIn": next(iter(meta_ids(plan.get("meta") or {}, "foundIn")), None),
                "bugsFound": meta_ids(plan.get("meta") or {}, "bugsFound"),
-               "foundDuringBuild": list(plan.get("foundDuringBuild") or [])}
+               "foundDuringBuild": list(plan.get("foundDuringBuild") or []),
+               # Acceptance ledger (plan 43): {met, failed, total} over criteria.
+               "acceptance": acceptance_summary(plan.get("acceptance") or [])}
         items.append(row)
     cur_items = [i for i in cfg["items"] if i["version"] == cfg["currentVersion"]]
     # Counts cover every item — callers may filter `items`, the summary stays global.

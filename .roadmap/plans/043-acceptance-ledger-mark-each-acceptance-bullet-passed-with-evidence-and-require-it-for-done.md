@@ -3,7 +3,7 @@ id: 43
 title: Acceptance ledger: mark each acceptance bullet passed with evidence, and require it for done
 type: feature
 version: 0.21.0
-status: planned
+status: done
 created: 2026-10-23
 ---
 
@@ -29,7 +29,11 @@ created: 2026-10-23
 - **Fails if:** existing projects get the gate without opting in.
 
 ## 🚶 Step-by-Step Checklist
-- [ ] Step 1: acceptance parsing and `accept` command -> target: rmlib/parse.py, rmlib/ops.py, roadmap.py, tests
-- [ ] Step 2: completion gate behind `requireAcceptance`, `--force` -> target: rmlib/ops.py, rmlib/project.py, tests
-- [ ] Step 3: payload and dashboard display -> target: rmlib/sync.py, rmlib/dashboard.html, tests
-- [ ] Step 4: docs: spec review marks acceptance bullets -> target: references/quality-build.md, SKILL.md
+- [x] Step 1: acceptance parsing and `accept` command -> target: rmlib/parse.py, rmlib/ops.py, roadmap.py, tests
+  > evidence: 250b375 5e3946c b091231 d3d069d + merges 51319cb e1e85c4; acceptance tests; merged ac3bbf9; 702 passed in 178.48s (0:02:58); reviews skipped at owner request (2026-10-24)
+- [x] Step 2: completion gate behind `requireAcceptance`, `--force` -> target: rmlib/ops.py, rmlib/project.py, tests
+  > evidence: 250b375 5e3946c b091231 d3d069d + merges 51319cb e1e85c4; acceptance tests; merged ac3bbf9; 702 passed in 178.48s (0:02:58); reviews skipped at owner request (2026-10-24)
+- [x] Step 3: payload and dashboard display -> target: rmlib/sync.py, rmlib/dashboard.html, tests
+  > evidence: 250b375 5e3946c b091231 d3d069d + merges 51319cb e1e85c4; acceptance tests; merged ac3bbf9; 702 passed in 178.48s (0:02:58); reviews skipped at owner request (2026-10-24)
+- [x] Step 4: docs: spec review marks acceptance bullets -> target: references/quality-build.md, SKILL.md
+  > evidence: 250b375 5e3946c b091231 d3d069d + merges 51319cb e1e85c4; acceptance tests; merged ac3bbf9; 702 passed in 178.48s (0:02:58); reviews skipped at owner request (2026-10-24)

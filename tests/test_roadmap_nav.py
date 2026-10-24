@@ -373,7 +373,7 @@ def test_dashboard_key_actions(dashboard, tmp_path):
         + _slice(_body(dashboard), "function isTyping", "function visiblePane") + r"""
 const free = {typing:false, mod:false, palette:false, pending:false};
 const keys = ["/","g","j","k","Enter","Escape","?","x"];
-const go = ["l","i","c","g","v","x"].map(k => keyAction(k, {...free, pending:true}));
+const go = ["l","b","i","c","g","v","x"].map(k => keyAction(k, {...free, pending:true}));
 const typing = keys.map(k => keyAction(k, {...free, typing:true}));
 const mod = keys.map(k => keyAction(k, {...free, mod:true}));
 const pal = [keyAction("k", {...free, palette:true}), keyAction("k", {...free, palette:true, typing:true})];
@@ -388,7 +388,7 @@ console.log(JSON.stringify({free: keys.map(k => keyAction(k, free)), go, typing,
                          {"act": "move", "by": -1}, {"act": "open"}, {"act": "back"},
                          {"act": "help"}, None]
     assert r["go"] == [{"act": "go", "href": h} for h in
-                       ("#/", "#/ideas", "#/changelog", "#/graph", "#/versions")] + [{"act": "cancel"}]
+                       ("#/", "#/board", "#/ideas", "#/changelog", "#/graph", "#/versions")] + [{"act": "cancel"}]
     # shortcuts do nothing while typing in an input, or with a modifier held
     assert r["typing"] == [None] * 8 and r["mod"] == [None] * 8
     assert r["pal"] == [{"act": "palette"}, {"act": "palette"}]
@@ -426,7 +426,7 @@ console.log(JSON.stringify({
     assert r["digest"] == "#/plan/45" and r["id"] == "#/plan/12" and r["disp"] == "#/plan/12"
     assert r["sub"] == "#/plan/12"                 # subsequence: "chnglg aud"
     assert r["ver"] == "#/version/0.20.0" and r["idea"] == "#/idea/2"
-    assert r["page"] == "#/ideas" and r["none"] == 0 and r["all"] == 6 + 2 + 3 + 1
+    assert r["page"] == "#/ideas" and r["none"] == 0 and r["all"] == 7 + 2 + 3 + 1
     assert r["fz"] == [True, -1]
 
 
@@ -493,10 +493,18 @@ def test_plan_copy_commands_by_lane_are_valid_cli(dashboard, roadmap, tmp_path, 
         [{"id": 9, "steps": steps, "needsApproval": True}, {"lane": "building"},
          {"slots": slots}],
         [{"id": 7, "steps": [{"done": True, "text": "x"}]}, {"lane": "done"}, {}],
+        [{"id": 5, "steps": steps, "acceptance": {"bullets": [
+            {"n": 1, "kind": "criterion", "state": "met", "text": "a"},
+            {"n": 2, "kind": "guard", "state": None, "text": "writes"},
+            {"n": 3, "kind": "criterion", "state": "failed", "text": "search works"}]}},
+         {"lane": "building"}, {}],
     ]
     out = _plan_cmds(dashboard, tmp_path, cases)
     cmds = [[c["cmd"] for c in case] for case in out]
-    planned, review, fixing, gready, gating, landed, building, done = cmds
+    planned, review, fixing, gready, gating, landed, building, done, accepting = cmds
+    assert 'roadmap.py accept 5 --line 3 --evidence "<verify command + result>"' in accepting
+    assert "roadmap.py accept 5" in accepting
+    assert "acceptance 3 (failed): search works" in [c["why"] for c in out[8]]
     assert planned == [
         "roadmap.py next",
         'roadmap.py check --plan 7 --step 2 --evidence "<verify command + result>"',
