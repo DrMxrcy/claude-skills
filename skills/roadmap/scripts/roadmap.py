@@ -537,6 +537,9 @@ def main(argv: list[str]) -> int:
                                          "(default: current; ignored for a Fix step)")
     p_bug.add_argument("--target", help="files for the Fix step's '-> target:' "
                                         "(default: TBD)")
+    p_bug.add_argument("--owner", help="claimant for the fixing claim (default: as claim)")
+    p_bug.add_argument("--take", action="store_true",
+                       help="fix an in-flight item held by another owner anyway")
 
     p_cl = sub.add_parser("changelog")
     p_cl.add_argument("--backfill", action="store_true")
@@ -711,7 +714,7 @@ def main(argv: list[str]) -> int:
             res = file_bug(root, args.title,
                            found_in=rid(args.found_in) if args.found_in else None,
                            observed=args.observed, version=args.version,
-                           target=args.target)
+                           target=args.target, owner=args.owner, take=args.take)
             rel = res["path"].relative_to(root)
             if res["route"] == "fix-step":
                 claim = (" · claim stage → fixing" if res["claim"]

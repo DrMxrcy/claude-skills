@@ -1319,7 +1319,8 @@ def _append_fix_step(text: str, title: str, target: str, observed: str) -> tuple
 
 def file_bug(root: Path, title: str, found_in: int | None = None,
              observed: str | None = None, version: str | None = None,
-             target: str | None = None) -> dict:
+             target: str | None = None, owner: str | None = None,
+             take: bool = False) -> dict:
     """Route a bug by where it lives (plan 47) — never into the Idea Incubator.
 
     In-flight origin (`found_in` not done, with a branch or claim — or trunk-active,
@@ -1348,10 +1349,16 @@ def file_bug(root: Path, title: str, found_in: int | None = None,
     if origin is not None and origin["lane"] != "done":
         text, n = _append_fix_step(path.read_text(encoding="utf-8"), title, target,
                                    observed)
-        atomic_write(path, text)
         claimed = is_in_flight(origin) or origin["status"] == "active"
         if claimed:
-            set_claim(root, found_in, stage="fixing")      # also syncs
+            # bug 51: run the hold check before any write (set_claim re-checks)
+            explicit = rmowners.clean_owner(owner) is not None
+            who = rmowners.clean_owner(owner) if explicit else rmowners.default_owner(root)
+            _prepare_claim(root, found_in, stage="fixing", owner=who, take=take,
+                           explicit_owner=explicit)
+        atomic_write(path, text)
+        if claimed:
+            set_claim(root, found_in, stage="fixing", owner=owner, take=take)  # syncs
         else:
             sync(root)
         return {"route": "fix-step", "id": found_in, "path": path, "step": n,
