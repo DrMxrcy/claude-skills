@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.21.0 — (in progress)
+## v0.21.0 — 2026-10-24
 
 ### ✨ New
 - Move many items through review and merge in one command, and tick them off together once they reach main.
@@ -18,8 +18,8 @@
 - A short digest tells you what changed on the roadmap since you last looked.
 - Steps that need time to pass, like a week of monitoring, can wait without holding up a release.
 - Bugs always land in the right place: fixed inside the plan still being built, or tracked as their own item, never lost among ideas.
-- (pending) One dashboard page lists every project you use the roadmap in, with no setup.
-- (pending) Find anything fast: pages per version, a dependency map, search across every plan, and keyboard shortcuts.
+- One dashboard page lists every project you use the roadmap in, with no setup.
+- Find anything fast: pages per version, a dependency map, search across every plan, and keyboard shortcuts.
 - The dashboard reconnects on its own, flags problems in the browser tab, follows your light or dark setting, and opens faster.
 
 ### ⚡ Improved

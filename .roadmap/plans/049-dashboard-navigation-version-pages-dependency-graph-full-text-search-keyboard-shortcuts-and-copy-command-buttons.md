@@ -3,7 +3,7 @@ id: 49
 title: Dashboard navigation: version pages, dependency graph, full-text search, keyboard shortcuts and copy-command buttons
 type: feature
 version: 0.21.0
-status: planned
+status: done
 created: 2026-10-23
 ---
 
@@ -31,7 +31,11 @@ created: 2026-10-23
 - **Fails if:** any endpoint writes.
 
 ## 🚶 Step-by-Step Checklist
-- [ ] Step 1: `/api/search` and search results page -> target: rmlib/dashboard.py, rmlib/dashboard.html, tests
-- [ ] Step 2: version pages with changelog preview -> target: rmlib/dashboard.py, rmlib/dashboard.html, tests
-- [ ] Step 3: dependency graph page -> target: rmlib/dashboard.html, tests
-- [ ] Step 4: keyboard shortcuts, palette, copy-command buttons -> target: rmlib/dashboard.html, tests
+- [x] Step 1: `/api/search` and search results page -> target: rmlib/dashboard.py, rmlib/dashboard.html, tests
+  > evidence: b059501 6ebabab ef0d633 e840945 b3f3498 integrated da1e81e; merged a8eeb3b; 842 passed; Playwright single + serve --all 0 console errors; reviews skipped at owner request (2026-10-24)
+- [x] Step 2: version pages with changelog preview -> target: rmlib/dashboard.py, rmlib/dashboard.html, tests
+  > evidence: b059501 6ebabab ef0d633 e840945 b3f3498 integrated da1e81e; merged a8eeb3b; 842 passed; Playwright single + serve --all 0 console errors; reviews skipped at owner request (2026-10-24)
+- [x] Step 3: dependency graph page -> target: rmlib/dashboard.html, tests
+  > evidence: b059501 6ebabab ef0d633 e840945 b3f3498 integrated da1e81e; merged a8eeb3b; 842 passed; Playwright single + serve --all 0 console errors; reviews skipped at owner request (2026-10-24)
+- [x] Step 4: keyboard shortcuts, palette, copy-command buttons -> target: rmlib/dashboard.html, tests
+  > evidence: b059501 6ebabab ef0d633 e840945 b3f3498 integrated da1e81e; merged a8eeb3b; 842 passed; Playwright single + serve --all 0 console errors; reviews skipped at owner request (2026-10-24)

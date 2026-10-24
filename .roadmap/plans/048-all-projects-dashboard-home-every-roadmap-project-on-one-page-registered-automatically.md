@@ -3,7 +3,7 @@ id: 48
 title: All-projects dashboard home: every roadmap project on one page, registered automatically
 type: feature
 version: 0.21.0
-status: planned
+status: done
 created: 2026-10-23
 ---
 
@@ -31,7 +31,11 @@ created: 2026-10-23
 - **Fails if:** any command fails because the registry cannot be written.
 
 ## 🚶 Step-by-Step Checklist
-- [ ] Step 1: registry module and touch from CLI commands, `projects` command -> target: rmlib/registry.py, roadmap.py, tests
-- [ ] Step 2: multi-project server with lazy per-project broadcasters -> target: rmlib/dashboard.py, tests
-- [ ] Step 3: home page and per-project routing -> target: rmlib/dashboard.html, tests
-- [ ] Step 4: shim default and docs -> target: install.sh shim template, README, SKILL.md
+- [x] Step 1: registry module and touch from CLI commands, `projects` command -> target: rmlib/registry.py, roadmap.py, tests
+  > evidence: 10f0d8b ef26389 207fe92 1118fed b581c31 integrated 954d84a; merged a8eeb3b; 842 passed; Playwright single + serve --all 0 console errors; reviews skipped at owner request (2026-10-24)
+- [x] Step 2: multi-project server with lazy per-project broadcasters -> target: rmlib/dashboard.py, tests
+  > evidence: 10f0d8b ef26389 207fe92 1118fed b581c31 integrated 954d84a; merged a8eeb3b; 842 passed; Playwright single + serve --all 0 console errors; reviews skipped at owner request (2026-10-24)
+- [x] Step 3: home page and per-project routing -> target: rmlib/dashboard.html, tests
+  > evidence: 10f0d8b ef26389 207fe92 1118fed b581c31 integrated 954d84a; merged a8eeb3b; 842 passed; Playwright single + serve --all 0 console errors; reviews skipped at owner request (2026-10-24)
+- [x] Step 4: shim default and docs -> target: install.sh shim template, README, SKILL.md
+  > evidence: 10f0d8b ef26389 207fe92 1118fed b581c31 integrated 954d84a; merged a8eeb3b; 842 passed; Playwright single + serve --all 0 console errors; reviews skipped at owner request (2026-10-24)
