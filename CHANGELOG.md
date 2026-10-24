@@ -13,7 +13,7 @@
 - Each claimed item shows who is working on it, and the roadmap warns when too much is in flight at once.
 - See which in-flight branches touch the same files, so merge order can be planned before the gate.
 - (pending) Branches that wander outside their plan get flagged before review.
-- (pending) Every acceptance line gets its own pass mark and evidence, so done means every line was checked.
+- Every acceptance line gets its own pass mark and evidence, so done means every line was checked.
 - Each open version shows a forecast finish date based on how fast work has been moving.
 - A short digest tells you what changed on the roadmap since you last looked.
 - Steps that need time to pass, like a week of monitoring, can wait without holding up a release.
