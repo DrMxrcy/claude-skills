@@ -1,0 +1,21 @@
+.gitignore
+  s_fbae122c7a65de::t_aa72a49ec1a142 13-15
+agy-plugin/plugins/roadmap/rules/AGENTS.md
+  s_fbae122c7a65de::t_6f4ada211bed52 8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "764f13e58ff877497b7ae94f05bf722b8518016b",
+  "prompts": {},
+  "sessions": {
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
