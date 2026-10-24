@@ -1,0 +1,25 @@
+.roadmap/config.json
+  s_fbae122c7a65de::t_ff6490e74327aa 541
+.roadmap/plans/052-leftovers-note-error-suggests-a-missing-audience-flag-board-copy-commands-lack-the-project-under-serve-all-board-filters-shared-across-projects.md
+  s_fbae122c7a65de::t_d90a30c0b1f3e4 6,16-17,20-21,24-26,29-34
+CHANGELOG.internal.md
+  s_fbae122c7a65de::t_385b50bb239137 45
+ROADMAP.md
+  s_fbae122c7a65de::t_e4027e3c7e7ed8 24,30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8e143c2e0db9765c1e6dbc04ccfaf8ce6c038bdf",
+  "prompts": {},
+  "sessions": {
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
