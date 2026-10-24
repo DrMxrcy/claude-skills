@@ -3,7 +3,7 @@ id: 37
 title: Dashboard lane board: columns per lane with cards for branch, sha, verdict and last note, plus verdict and branch filter chips
 type: feature
 version: 0.21.0
-status: planned
+status: done
 created: 2026-10-23
 ---
 
@@ -28,6 +28,9 @@ created: 2026-10-23
 - **Fails if:** any HTTP endpoint accepts writes.
 
 ## 🚶 Step-by-Step Checklist
-- [ ] Step 1: board tab and columns from lanes -> target: rmlib/dashboard.html, tests
-- [ ] Step 2: cards with branch, sha, verdict, note, age, copy command -> target: rmlib/dashboard.html, tests
-- [ ] Step 3: shared filter chips -> target: rmlib/dashboard.html, tests
+- [x] Step 1: board tab and columns from lanes -> target: rmlib/dashboard.html, tests
+  > evidence: 5a3799a 0f170a5 3b3e42c c0ddb03; 14 board tests incl. node fake-DOM, copy commands drive real claims, no write endpoints; Playwright 1400px+390px; merged d584494; 682 passed in 253.13s (0:04:13); reviews skipped at owner request (2026-10-24)
+- [x] Step 2: cards with branch, sha, verdict, note, age, copy command -> target: rmlib/dashboard.html, tests
+  > evidence: 5a3799a 0f170a5 3b3e42c c0ddb03; 14 board tests incl. node fake-DOM, copy commands drive real claims, no write endpoints; Playwright 1400px+390px; merged d584494; 682 passed in 253.13s (0:04:13); reviews skipped at owner request (2026-10-24)
+- [x] Step 3: shared filter chips -> target: rmlib/dashboard.html, tests
+  > evidence: 5a3799a 0f170a5 3b3e42c c0ddb03; 14 board tests incl. node fake-DOM, copy commands drive real claims, no write endpoints; Playwright 1400px+390px; merged d584494; 682 passed in 253.13s (0:04:13); reviews skipped at owner request (2026-10-24)
