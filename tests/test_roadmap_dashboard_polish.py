@@ -241,3 +241,66 @@ def test_dashboard_script_parses(dashboard, tmp_path):
     f.write_text(js)
     r = subprocess.run(["node", "--check", str(f)], capture_output=True, text=True)
     assert r.returncode == 0, r.stderr
+
+
+# ---- step 3: tab title, favicon dot, opt-in notifications ------------------
+
+def _pure_block(js):
+    a = js.index("// <plan50-pure>")
+    return js[a:js.index("// </plan50-pure>", a)]
+
+
+@pytest.mark.skipif(__import__("shutil").which("node") is None,
+                    reason="node not installed")
+def test_title_favicon_and_notify_logic_in_node(dashboard, tmp_path):
+    import subprocess
+    _, js = _script(dashboard)
+    harness = _pure_block(js) + r"""
+const assert = require("assert");
+const one = {attention: [{kind: "refuted", id: 1, text: "#1 x — verdict REFUTED"}]};
+assert.strictEqual(attnCount(one), 1);
+assert.strictEqual(titleFor("Demo", attnCount(one)), "(1) Demo — roadmap");
+// resolving it clears both the count and the dot
+assert.strictEqual(titleFor("Demo", attnCount({attention: []})), "Demo — roadmap");
+assert.strictEqual(attnCount({}), 0);
+assert.strictEqual(titleFor(null, 0), "roadmap");
+const dot = decodeURIComponent(FAVICON(true)), plain = decodeURIComponent(FAVICON(false));
+assert.ok(dot.includes("<circle") && dot.includes("#f85149"));
+assert.ok(!plain.includes("<circle"));
+assert.ok(FAVICON(true).startsWith("data:image/svg+xml,"));
+// never without the page opt-in, even when the browser already granted it
+assert.strictEqual(shouldNotify(0, 1, false, "granted"), false);
+assert.strictEqual(shouldNotify(0, 1, undefined, "granted"), false);
+assert.strictEqual(shouldNotify(0, 1, true, "default"), false);
+assert.strictEqual(shouldNotify(0, 1, true, "denied"), false);
+// only on a rise against a settled baseline
+assert.strictEqual(shouldNotify(null, 3, true, "granted"), false);
+assert.strictEqual(shouldNotify(2, 2, true, "granted"), false);
+assert.strictEqual(shouldNotify(2, 1, true, "granted"), false);
+assert.strictEqual(shouldNotify(1, 2, true, "granted"), true);
+console.log("ok");
+"""
+    f = tmp_path / "t.js"
+    f.write_text(harness)
+    r = subprocess.run(["node", str(f)], capture_output=True, text=True)
+    assert r.returncode == 0 and r.stdout.strip() == "ok", r.stderr
+
+
+def test_notifications_only_after_page_opt_in(dashboard):
+    body, js = _script(dashboard)
+    assert 'id="favicon"' in body and 'id="notifyBtn"' in body
+    # exactly one place builds a notification, and it is only reached through
+    # shouldNotify(..., NOTIFY_ON, ...)
+    assert js.count("new Notification(") == 1
+    assert js.count("notifyRise(") == 2          # definition + one guarded call
+    assert "if(shouldNotify(ATTN_PREV, n, NOTIFY_ON, notifyPerm())) notifyRise(P, n);" in js
+    # permission is only requested from the opt-in button's click handler
+    assert js.count("requestPermission") == 1
+    click = js[js.index('getElementById("notifyBtn").onclick'):]
+    assert "requestPermission" in click[:click.index("syncNotifyBtn();\nfunction")]
+    # the opt-in defaults off and is only true when stored true
+    assert 'NOTIFY_ON = store.get("rm-notify", false) === true' in js
+    # mid-scan payloads never notify or settle the baseline
+    hook = js[js.index("PAYLOAD_HOOKS.push((P, restarted)"):]
+    assert hook.index("if(P.scanning) return;") < hook.index("shouldNotify(")
+    assert "document.title = titleFor(" in js

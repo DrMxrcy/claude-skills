@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>roadmap</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%230e1116'/%3E%3Crect x='3' y='4' width='10' height='2' rx='1' fill='%233fb950'/%3E%3Crect x='3' y='7' width='7' height='2' rx='1' fill='%23d29922'/%3E%3Crect x='3' y='10' width='4' height='2' rx='1' fill='%234b5563'/%3E%3C/svg%3E">
+<link rel="icon" id="favicon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%230e1116'/%3E%3Crect x='3' y='4' width='10' height='2' rx='1' fill='%233fb950'/%3E%3Crect x='3' y='7' width='7' height='2' rx='1' fill='%23d29922'/%3E%3Crect x='3' y='10' width='4' height='2' rx='1' fill='%234b5563'/%3E%3C/svg%3E">
 <style>
   :root {
     --bg:#0e1116; --line:#232a34; --fg:#e6edf3; --muted:#8b98a5;
@@ -344,6 +344,8 @@
   .hmeta { display:inline-flex; gap:8px; align-items:center; flex-wrap:wrap;
     color:var(--muted); font-size:12px; }
   .scanhint { color:var(--active); }
+  .attn { color:var(--blocked); font-weight:600; text-decoration:none; }
+  .attn:hover { text-decoration:underline; }
   @media (max-width:640px) {
     header, main { padding-left:16px; padding-right:16px; }
     .facts { grid-template-columns:1fr; }
@@ -374,8 +376,10 @@
       <span class="overall" id="overall"></span>
       <span class="hmeta" id="hmeta">
         <span class="scanhint" id="scanhint" hidden></span>
+        <a class="attn" id="attnlink" href="#/digest" hidden></a>
         <span id="stamp" title="when the data last changed"></span>
         <button type="button" class="hbtn" id="refreshBtn" title="reload the data now">refresh</button>
+        <button type="button" class="hbtn" id="notifyBtn" aria-pressed="false"></button>
       </span>
     </div>
     <div class="hbar"><i id="hbarfill"></i></div>
@@ -1172,6 +1176,79 @@ document.getElementById("refreshBtn").onclick = () => {
   if(DOWN || DOWN_T || !es || es.readyState !== 1) retryNow();
   getJSON("/api/status").then(P => onPayload(P)).catch(() => {});
 };
+// ---- tab title, favicon dot, opt-in notifications (plan 50) -------------
+// The count is the server's `attention` list for the trunk view — the same
+// checks `roadmap digest` lists under "Needs attention" (REFUTED verdicts,
+// blocked claims, slot clashes, overdue waiting steps, a failing trunk suite,
+// WIP over the limit, template stubs, high conflict risk).
+// <plan50-pure> DOM-free helpers; tests run this block in node.
+const attnCount = P => Array.isArray(P && P.attention) ? P.attention.length : 0;
+const titleFor = (project, n) => (n > 0 ? "("+n+") " : "")
+  + (project ? project+" — roadmap" : "roadmap");
+const FAVICON = (dot) => "data:image/svg+xml," + encodeURIComponent(
+  "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'>"
+  + "<rect width='16' height='16' rx='3' fill='#0e1116'/>"
+  + "<rect x='3' y='4' width='10' height='2' rx='1' fill='#3fb950'/>"
+  + "<rect x='3' y='7' width='7' height='2' rx='1' fill='#d29922'/>"
+  + "<rect x='3' y='10' width='4' height='2' rx='1' fill='#4b5563'/>"
+  + (dot ? "<circle cx='12' cy='12' r='4' fill='#f85149' stroke='#0e1116' stroke-width='1.5'/>" : "")
+  + "</svg>");
+// A notification only after the viewer opted in on this page (our own flag,
+// not just a browser permission granted earlier) and only when the count
+// rises against a settled baseline.
+const shouldNotify = (prev, n, optedIn, perm) => optedIn === true
+  && perm === "granted" && Number.isInteger(prev) && n > prev;
+// </plan50-pure>
+let ATTN_PREV = null;            // settled count to compare against; null = none yet
+let NOTIFY_ON = store.get("rm-notify", false) === true;
+const notifyPerm = () => { try { return Notification.permission; }
+  catch(_){ return "unsupported"; } };
+function syncNotifyBtn(){
+  const b = document.getElementById("notifyBtn"), perm = notifyPerm();
+  const on = NOTIFY_ON && perm === "granted";
+  b.textContent = perm === "unsupported" ? "alerts n/a"
+    : perm === "denied" ? "alerts blocked" : on ? "alerts on" : "alerts off";
+  b.setAttribute("aria-pressed", on ? "true" : "false");
+  b.title = perm === "unsupported" ? "this browser has no notifications"
+    : perm === "denied" ? "notifications are blocked for this page in the browser"
+    : on ? "notify when the attention count rises — click to stop"
+    : "notify me when the attention count rises";
+}
+document.getElementById("notifyBtn").onclick = () => {
+  const perm = notifyPerm();
+  if(perm === "unsupported" || perm === "denied"){ syncNotifyBtn(); return; }
+  if(NOTIFY_ON){ NOTIFY_ON = false; store.set("rm-notify", false); syncNotifyBtn(); return; }
+  // The only place permission is ever requested: this click.
+  const ask = perm === "granted" ? Promise.resolve("granted")
+    : Promise.resolve(Notification.requestPermission());
+  ask.then(p => { NOTIFY_ON = p === "granted"; store.set("rm-notify", NOTIFY_ON);
+    syncNotifyBtn(); }).catch(() => syncNotifyBtn());
+};
+syncNotifyBtn();
+function notifyRise(P, n){
+  const proj = projectOf(P);
+  const body = (P.attention || []).map(a => a.text).slice(0, 4).join("\n");
+  try { const note = new Notification(titleFor(proj, n), {body, tag:"roadmap-attention"});
+    note.onclick = () => { try { window.focus(); } catch(_){} location.hash = "#/digest"; };
+  } catch(_){}
+}
+const projectOf = P => ((P.statuses || [])[trunkIdx(P)] || {}).project
+  || (P.merged || {}).project || null;
+PAYLOAD_HOOKS.push((P, restarted) => {
+  const n = attnCount(P);
+  document.title = titleFor(projectOf(P), n);
+  document.getElementById("favicon").href = FAVICON(n > 0);
+  const a = document.getElementById("attnlink");
+  a.hidden = !n;
+  a.textContent = n ? "⚠ "+n+" need"+(n === 1 ? "s" : "")+" attention" : "";
+  a.title = (P.attention || []).map(x => x.text).join("\n");
+  if(restarted) ATTN_PREV = null;
+  // A mid-scan payload is incomplete (conflicts arrive with the full scan):
+  // never notify from it, never settle the baseline on it.
+  if(P.scanning) return;
+  if(shouldNotify(ATTN_PREV, n, NOTIFY_ON, notifyPerm())) notifyRise(P, n);
+  ATTN_PREV = n;
+});
 // Header meta: "scanning N worktrees" while the first scan runs, and when
 // the data last changed.
 const hhmm = ms => { const d = new Date(ms); return isNaN(d) ? "" :
