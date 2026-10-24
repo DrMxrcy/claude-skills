@@ -1,0 +1,27 @@
+.roadmap/config.json
+  s_fbae122c7a65de::t_b86cb40326bed9 525
+.roadmap/plans/041-branch-conflict-risk-show-which-open-branches-change-the-same-files.md
+  s_fbae122c7a65de::t_caafa7a9da07df 6,34-39
+CHANGELOG.internal.md
+  s_fbae122c7a65de::t_207f9d880ffe3c 16
+CHANGELOG.md
+  s_fbae122c7a65de::t_ecdc57a51246f0 14
+ROADMAP.md
+  s_fbae122c7a65de::t_6dd3ad64f89605 33,43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1ebe47dfb1567f427d9d703ac2838f0a11dff429",
+  "prompts": {},
+  "sessions": {
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "unknown"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
