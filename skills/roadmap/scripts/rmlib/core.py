@@ -56,6 +56,12 @@ def find_root(start: Path) -> Path:
     start = start.resolve()
     for d in [start, *start.parents]:
         if (d / ".roadmap").is_dir():
+            # The per-user project registry (plan 48) is ~/.roadmap too —
+            # never mistake it for a project rooted at $HOME.
+            if not (d / ".roadmap" / "config.json").exists():
+                from .registry import is_registry_dir
+                if is_registry_dir(d / ".roadmap"):
+                    continue
             return d
     for d in [start, *start.parents]:
         if (d / ".git").exists():

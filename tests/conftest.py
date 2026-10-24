@@ -65,3 +65,14 @@ def _no_owner_env(monkeypatch):
 def template_gate(monkeypatch):
     """Re-enable the shipped required-sections defaults for this test."""
     monkeypatch.setattr(_rmparse, "DEFAULT_REQUIRED_SECTIONS", dict(_DEFAULT_REQUIRED))
+
+
+@pytest.fixture(autouse=True)
+def _registry_home(tmp_path_factory, monkeypatch):
+    """Plan 48: orient/status/serve/check record the project in a per-user
+    registry (~/.roadmap/projects.json). Point it at a fresh temp dir for every
+    test (subprocess CLI runs inherit the env) so the suite never touches the
+    real one."""
+    home = tmp_path_factory.mktemp("roadmap-home")
+    monkeypatch.setenv("ROADMAP_HOME", str(home))
+    return home
