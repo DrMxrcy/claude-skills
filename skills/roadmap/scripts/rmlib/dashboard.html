@@ -124,6 +124,13 @@
     font-weight:600; }
   .rel .sec div { padding-left:14px; }
   .rel .pending { color:var(--active); }
+  /* digest page (plan 45): #/digest/<since> */
+  .dghead { display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding:8px 0; }
+  .dghead .srcfile { padding:0; }
+  .dgsec { border-top:1px solid var(--line); padding:8px 0; }
+  .dgsec h4 { margin:0 0 4px; font-size:12px; color:var(--muted); font-weight:600; }
+  .dgsec div { padding-left:14px; overflow-wrap:anywhere; }
+  .dgsec.attention h4 { color:var(--blocked); }
   /* ---- in-flight overlay (plan 30): one colour per lane group ---------- */
   .lg-done { --lc:var(--done); }
   .lg-gate { --lc:var(--gate); }
@@ -356,6 +363,7 @@
   <div id="app"><div class="empty">connecting…</div></div>
   <div id="ideas" hidden></div>
   <div id="changelog" hidden></div>
+  <div id="digest" hidden></div>
   <div id="page" hidden></div>
 </main>
 <script>
@@ -1043,11 +1051,14 @@ setInterval(() => { if(LAST && ROUTE.name === "roadmap") render(LAST); }, 60000)
 // ---- routes (plan 31) -------------------------------------------------
 // Hash routes, so deep links and Back work without any server change:
 //   #/  #/ideas  #/changelog          the three list tabs
+//   #/digest[/<since>]                what changed since 3h|1d|3d|1w|2w|last
 //   #/plan/<id>  #/idea/<n>  #/notes/<root-relative .md path>   full pages
 // The route lives only in the URL; nothing about it is stored.
-const TABS = [["roadmap","Roadmap"],["ideas","Ideas"],["changelog","Changelog"]];
+const TABS = [["roadmap","Roadmap"],["ideas","Ideas"],["changelog","Changelog"],
+  ["digest","Digest"]];
 const TABCOUNTS = {};
-const LISTS = ["roadmap","ideas","changelog"];
+const LISTS = ["roadmap","ideas","changelog","digest"];
+const DIGEST_SINCE = ["3h","1d","3d","1w","2w","last"];
 const paneOf = t => document.getElementById(t==="roadmap" ? "app" : t);
 const rootParam = () => "root=" + viewRoot(null);
 let ROUTE = {name:"roadmap"};
@@ -1066,6 +1077,8 @@ function parseRoute(h){
     return {name:"notes", path:p};
   }
   if(head === "ideas" || head === "changelog") return {name:head};
+  if(head === "digest")
+    return {name:"digest", since: DIGEST_SINCE.includes(parts[1]) ? parts[1] : "1d"};
   return {name:"roadmap"};
 }
 const noteHref = p => "#/notes/" + encodeURIComponent(p).replace(/%2F/g, "/");
@@ -1112,6 +1125,7 @@ function onRoute(){
     const done = () => window.scrollTo(0, y);
     if(ROUTE.name === "ideas") loadIdeas(done);
     else if(ROUTE.name === "changelog") loadChangelog(done);
+    else if(ROUTE.name === "digest") loadDigest(done);
     else done();
   } else {
     showPane("page");
@@ -1125,13 +1139,15 @@ window.addEventListener("hashchange", () => {
 });
 function routeHash(r){
   return r.name === "plan" ? "#/plan/"+r.id : r.name === "idea" ? "#/idea/"+r.n
-    : r.name === "notes" ? noteHref(r.path) : r.name === "roadmap" ? "#/" : "#/"+r.name;
+    : r.name === "notes" ? noteHref(r.path) : r.name === "roadmap" ? "#/"
+    : r.name === "digest" ? "#/digest/"+r.since : "#/"+r.name;
 }
 
 // Re-render the open route after an SSE payload or a view switch.
 function refreshRoute(){
   if(ROUTE.name === "ideas") loadIdeas();
   else if(ROUTE.name === "changelog") loadChangelog();
+  else if(ROUTE.name === "digest") loadDigest();
   else if(!LISTS.includes(ROUTE.name)) renderPage(true);
 }
 
@@ -1527,6 +1543,57 @@ function loadChangelog(after){
     }));
     if(!after) window.scrollTo(0, y);
   }).catch(()=>pane.replaceChildren(txt("div","empty","failed to load changelog")))
+    .finally(()=>{ if(after) after(); });
+}
+
+// ---- digest (plan 45) -----------------------------------------------------
+// The CLI digest for the viewed checkout; the selector rewrites the route, so
+// the window lives in the URL only. Rows arrive pre-formatted (rmdigest.sections).
+function digestNodes(d, since){
+  const head = el("div","dghead");
+  const sel = el("select");
+  sel.title = "show changes since";
+  for(const o of (d.options || DIGEST_SINCE)){
+    const opt = txt("option", null, o === "last" ? "since my last digest" : "last "+o);
+    opt.value = o;
+    if(o === since) opt.selected = true;
+    sel.appendChild(opt);
+  }
+  sel.addEventListener("change", () => { location.hash = "#/digest/"+sel.value; });
+  head.appendChild(sel);
+  if(d.since) head.appendChild(txt("span","srcfile",
+    "since "+String(d.since).replace("T"," ").slice(0,16)+"Z"
+    + (d.label ? " ("+d.label+")" : "")
+    + (d.baseline && d.baseline.sha ? " · baseline "+d.baseline.sha : "")));
+  const out = [head];
+  if(d.error){ out.push(txt("div","empty", d.error)); return out; }
+  if(d.git === false) out.push(txt("div","srcfile",
+    "not a git repo — only runs and attention can be reported"));
+  const secs = d.sections || [];
+  if(!secs.length) out.push(txt("div","empty","nothing changed in this window"));
+  for(const s of secs){
+    const box = el("div","dgsec "+s.key);
+    box.appendChild(txt("h4", null, s.title+" ("+s.rows.length+")"));
+    for(const r of s.rows){
+      const row = el("div");
+      row.appendChild(r.id != null ? link("#/plan/"+r.id, r.text) : txt("span",null,r.text));
+      box.appendChild(row);
+    }
+    out.push(box);
+  }
+  return out;
+}
+
+function loadDigest(after){
+  const pane = document.getElementById("digest");
+  const since = ROUTE.since || "1d";
+  getJSON("/api/digest?since="+encodeURIComponent(since)+"&"+rootParam()).then(d=>{
+    const att = (d.sections || []).find(s => s.key === "attention");
+    TABCOUNTS.digest = att ? att.rows.length : null; renderTabs();
+    const y = window.scrollY;
+    pane.replaceChildren(...digestNodes(d, since));
+    if(!after) window.scrollTo(0, y);
+  }).catch(()=>pane.replaceChildren(txt("div","empty","failed to load digest")))
     .finally(()=>{ if(after) after(); });
 }
 

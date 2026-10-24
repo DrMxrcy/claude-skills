@@ -22,6 +22,7 @@ Layer: rmcore + rmparse + rmsync + rmincubator + rmruns + rmslots + rmowners
 """
 from __future__ import annotations
 import datetime
+import hashlib
 import json
 import re
 import subprocess
@@ -150,10 +151,13 @@ def read_snapshot(root: Path, key: str = "digest",
     if not isinstance(snap, dict) or not isinstance(snap.get("items"), dict):
         return None
     try:
-        return {"items": {int(k): v for k, v in snap["items"].items()},
-                "ideas": list(snap.get("ideas") or [])}
+        items = {int(k): v for k, v in snap["items"].items()}
     except (TypeError, ValueError):
         return None
+    if not all(isinstance(v, dict) and isinstance(v.get("done"), list)
+               for v in items.values()):
+        return None                       # unknown shape: use the git baseline
+    return {"items": items, "ideas": list(snap.get("ideas") or [])}
 
 
 def write_stamp(root: Path, key: str = "digest", owner: str | None = None,
@@ -176,7 +180,7 @@ def write_stamp(root: Path, key: str = "digest", owner: str | None = None,
         else:
             entry.pop(key + "Snapshot", None)
         data[_stamp_key(root, owner)] = entry
-        atomic_write(path, json.dumps(data, indent=2, sort_keys=True) + "\n")
+        atomic_write(path, json.dumps(data, sort_keys=True, separators=(",", ":")) + "\n")
         return path
     except OSError:
         return None
@@ -269,8 +273,21 @@ def _bullets(text: str) -> list[str]:
     return out
 
 
+def _step_key(text: str) -> str:
+    """A short stable key for a step's text (snapshots stay small)."""
+    return hashlib.sha1(text.encode("utf-8")).hexdigest()[:10]
+
+
+def _item_state(steps, stage: str | None, verdict: str | None) -> dict:
+    """What a snapshot keeps per item: claim stage/verdict, whether every step
+    was ticked, and the keys of the ticked steps."""
+    return {"stage": stage, "verdict": verdict,
+            "allDone": bool(steps) and all(d for d, _ in steps),
+            "done": [_step_key(t) for d, t in steps if d]}
+
+
 def baseline(root: Path, sha: str) -> dict:
-    """{items: {id: {title, version, type, steps, stage, verdict}}, ideas}
+    """{items: {id: _item_state}, ideas: [bullet bodies]}
     as of commit `sha` (empty when .roadmap/ did not exist yet)."""
     root = Path(root)
     prefix = (_git_text(root, "rev-parse", "--show-prefix") or "").strip()
@@ -291,10 +308,8 @@ def baseline(root: Path, sha: str) -> dict:
     snap: dict[int, dict] = {}
     for i in items:
         meta, steps = _plan_text(texts.get(rm + (i.get("file") or ""), ""))
-        snap[i["id"]] = {"title": i.get("title"), "version": i.get("version"),
-                         "type": i.get("type"), "steps": steps,
-                         "stage": meta.get("claim_stage") or None,
-                         "verdict": meta.get("claim_verdict") or None}
+        snap[i["id"]] = _item_state(steps, meta.get("claim_stage") or None,
+                                    meta.get("claim_verdict") or None)
     return {"items": snap, "ideas": _bullets(texts.get(inc_rel or "", ""))}
 
 
@@ -345,8 +360,9 @@ def _att_trunk(ctx: dict) -> list[dict]:
     if health.get("green") is not False:
         return []
     bad = [s["shard"] for s in health.get("shards") or [] if s.get("result") == "fail"]
+    more = f" +{len(bad) - 4} more" if len(bad) > 4 else ""
     return [{"kind": "trunk", "text": "trunk suite failing"
-             + (f": {', '.join(bad)}" if bad else "")}]
+             + (f": {', '.join(bad[:4])}{more}" if bad else "")}]
 
 
 def _att_wip(ctx: dict) -> list[dict]:
@@ -411,16 +427,18 @@ def attention(root: Path, st: dict, cfg: dict | None = None) -> list[dict]:
 
 # ---- collect ---------------------------------------------------------------
 
-def _newly_ticked(then: list[tuple[bool, str]], now: list[tuple[bool, str]]) -> list[str]:
+def _newly_ticked(then_done: list[str], now: list[tuple[bool, str]]) -> list[str]:
     """Texts of steps ticked now that were not ticked at the baseline
-    (matched by text, so inserted or reordered steps do not count)."""
-    was = Counter(t for d, t in then if d)
+    (`then_done`: step keys; matched by text, so inserted or reordered steps
+    do not count)."""
+    was = Counter(then_done)
     out = []
     for done, text in now:
         if not done:
             continue
-        if was[text]:
-            was[text] -= 1
+        key = _step_key(text)
+        if was[key]:
+            was[key] -= 1
         else:
             out.append(text)
     return out
@@ -489,9 +507,7 @@ def collect(root: Path, since: datetime.datetime, *, now: datetime.datetime | No
         stage, verdict = claim.get("stage"), claim.get("verdict")
         path = roadmap_dir(root) / it["file"]
         now_steps = parse_plan(path)["steps"] if path.exists() else []
-        seen[it["id"]] = {"title": it.get("title"), "version": it.get("version"),
-                          "type": it.get("type"), "steps": [list(x) for x in now_steps],
-                          "stage": stage, "verdict": verdict}
+        seen[it["id"]] = _item_state(now_steps, stage, verdict)
         branch = it.get("branch") or {}
         last = _parse_iso(branch.get("lastDate"))
         if it.get("lane") == "stale" and last is not None and \
@@ -504,10 +520,9 @@ def collect(root: Path, since: datetime.datetime, *, now: datetime.datetime | No
         was = snap["items"].get(it["id"])
         if was is None:
             new_plans.append({**ref, "type": it.get("type"), "version": it.get("version")})
-        then_steps = (was or {}).get("steps") or []
-        if it.get("lane") == "done" and not (then_steps and all(d for d, _ in then_steps)):
+        if it.get("lane") == "done" and not (was or {}).get("allDone"):
             completed.append({**ref, "version": it.get("version")})
-        new = _newly_ticked(then_steps, now_steps)
+        new = _newly_ticked((was or {}).get("done") or [], now_steps)
         if new:
             ticked.append({**ref, "count": len(new), "steps": new,
                            "done": it.get("done"), "total": it.get("total")})
@@ -620,6 +635,21 @@ def format_digest(d: dict, md: bool = False) -> str:
     if not shown:
         lines += ([""] if md else []) + ["Nothing changed in the window."]
     return "\n".join(lines)
+
+
+def sections(d: dict) -> list[dict]:
+    """Non-empty sections as display rows — [{key, title, rows: [{id,
+    displayId, text}]}] — the dashboard digest page renders these as-is."""
+    out = []
+    for key, title in SECTIONS:
+        rows = d.get(key) or []
+        if rows:
+            out.append({"key": key, "title": title + (f": {_runs_tally(rows)}"
+                                                       if key == "runs" else ""),
+                        "rows": [{"id": r.get("id") if key != "runs" else None,
+                                  "displayId": r.get("displayId"),
+                                  "text": _row(key, r)} for r in rows]})
+    return out
 
 
 def summary_line(d: dict) -> str:

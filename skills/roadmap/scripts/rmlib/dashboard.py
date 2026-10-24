@@ -343,6 +343,23 @@ def _ideas(rm, root: Path) -> dict:
         return {"error": str(e), "bullets": []}
 
 
+DIGEST_SINCE = ("3h", "1d", "3d", "1w", "2w", "last")   # the page's selector
+
+
+def _digest(rm, root: Path, since: str) -> dict:
+    """Digest page data (plan 45): the CLI digest for one checkout plus its
+    display rows. Read-only — `last` reads this user's stamp but never moves
+    it. Conflicts are included: the broadcaster already computed them, so
+    their sha-keyed cache is warm."""
+    since = since if since in DIGEST_SINCE else "1d"
+    try:
+        d = rm.digest(root, since, conflicts=True, owner=rm.default_owner(root))
+    except (ValueError, FileNotFoundError, OSError) as e:
+        return {"error": str(e), "since": since, "options": list(DIGEST_SINCE)}
+    return {**d, "sections": rm.digest_sections(d), "sinceArg": since,
+            "options": list(DIGEST_SINCE)}
+
+
 def _discover_roots(rm, root: Path) -> list[tuple[Path, str | None]]:
     """All git checkouts of this repo (main + linked worktrees) that have a
     `.roadmap/`, as (path, branch) with the main checkout first. Outside git,
@@ -647,6 +664,10 @@ def serve(rm, root: Path, port: int | None = None,
                            "application/json")
             elif path == "/api/ideas":
                 self._send(200, json.dumps(_ideas(rm, rroot)).encode("utf-8"),
+                           "application/json")
+            elif path == "/api/digest":
+                since = (urllib.parse.parse_qs(query).get("since") or ["1d"])[0]
+                self._send(200, json.dumps(_digest(rm, rroot, since)).encode("utf-8"),
                            "application/json")
             elif path == "/api/changelog":
                 try:

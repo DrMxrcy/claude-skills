@@ -315,3 +315,88 @@ def test_orient_outside_git_and_handoff_have_no_digest(roadmap, tmp_path, monkey
     assert roadmap.main(["orient", "--json"]) == 0
     assert "digest" not in json.loads(capsys.readouterr().out)
     assert "digest" not in roadmap.handoff(tmp_path)
+
+
+# --- step 4: dashboard digest page --------------------------------------------
+
+def test_dashboard_digest_payload(roadmap, dashboard, repo, monkeypatch):
+    _fixture(roadmap, repo, monkeypatch)
+    d = dashboard._digest(roadmap._dashboard_api(), repo, "1d")
+    assert d["sinceArg"] == "1d" and d["options"][-1] == "last"
+    keys = {s["key"]: s for s in d["sections"]}
+    assert keys["completed"]["rows"] == [{"id": 2, "displayId": "FEAT-2",
+                                          "text": "FEAT-2 Item 2 (v0.0.1)"}]
+    assert keys["claims"]["rows"][0]["text"] == "FEAT-3 Item 3 — review → gate-ready"
+    assert dashboard._digest(roadmap._dashboard_api(), repo, "junk")["sinceArg"] == "1d"
+    # `last` reads the stamp but never moves it.
+    rmdigest.write_stamp(repo, "digest", "t", _now() - datetime.timedelta(hours=2))
+    before = (repo / ".git" / rmdigest.STAMP_FILE).read_text()
+    assert dashboard._digest(roadmap._dashboard_api(), repo, "last")["label"] == "last run"
+    assert (repo / ".git" / rmdigest.STAMP_FILE).read_text() == before
+    assert _git(repo, "status", "--porcelain") == ""
+
+
+def test_api_digest_endpoint(roadmap, repo, monkeypatch):
+    import test_roadmap_serve as srv
+    _fixture(roadmap, repo, monkeypatch)
+    base, stop = srv._start(roadmap, repo, monkeypatch)
+    try:
+        status, ctype, body = srv._get(base + "/api/digest?since=1d")
+        assert status == 200 and "application/json" in ctype
+        d = json.loads(body)
+        assert [s["key"] for s in d["sections"]][:2] == ["completed", "ticked"]
+        html = srv._get(base + "/")[2].decode()
+        assert "Digest" in html and "/api/digest?since=" in html
+    finally:
+        stop()
+
+
+_DOM = r"""
+class Node { constructor(tag){ this.tag=tag; this.kids=[]; this.className="";
+  this._t=""; this.href=""; this.value=""; this.selected=false; this.title=""; }
+  appendChild(c){ this.kids.push(c); return c; }
+  addEventListener(){}
+  set textContent(s){ this._t=String(s); this.kids=[]; }
+  get textContent(){ return this._t + this.kids.map(k=>k.textContent).join(""); } }
+const el = (tag,cls) => { const e=new Node(tag); if(cls) e.className=cls; return e; };
+const txt = (tag,cls,s) => { const e=el(tag,cls); e.textContent=s; return e; };
+const link = (href,text) => { const a=txt("a",null,text); a.href=href; return a; };
+const DIGEST_SINCE = ["3h","1d","3d","1w","2w","last"];
+"""
+
+
+def test_dashboard_digest_page_renders(dashboard, tmp_path):
+    import shutil
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node not installed")
+    body = dashboard._dashboard_html()
+    for hook in ('["digest","Digest"]', 'head === "digest"', "loadDigest(done)",
+                 'ROUTE.name === "digest") loadDigest()', '<div id="digest" hidden>'):
+        assert hook in body, hook
+    assert ".innerHTML" not in body
+    start = body.index("function digestNodes")
+    end = body.index("function loadDigest", start)
+    js = tmp_path / "dg.js"
+    js.write_text(_DOM + body[start:end] + """
+const d = {since:"2026-10-23T10:00:00Z", label:"1d", baseline:{sha:"abc1234"}, git:true,
+  options:DIGEST_SINCE, sections:[
+   {key:"completed", title:"Completed", rows:[{id:2, text:"FEAT-2 Item 2"}]},
+   {key:"runs", title:"Runs: 1 suite fail", rows:[{id:null, text:"suite FAIL unit"}]}]};
+const flat = n => [n.tag, n.className, n.href, n.textContent];
+const out = digestNodes(d, "1d");
+const empty = digestNodes({sections:[], since:"2026-10-23T10:00:00Z"}, "3h");
+console.log(JSON.stringify({
+  sel: out[0].kids[0].kids.filter(o=>o.selected).map(o=>o.value),
+  meta: out[0].kids[1].textContent,
+  secs: out.slice(1).map(s => [s.className, s.kids.map(k => k.kids.length ? flat(k.kids[0]) : k.textContent)]),
+  empty: empty[empty.length-1].textContent}));
+""")
+    res = json.loads(subprocess.run([node, str(js)], capture_output=True, text=True,
+                                    check=True).stdout)
+    assert res["sel"] == ["1d"]
+    assert res["meta"] == "since 2026-10-23 10:00Z (1d) · baseline abc1234"
+    assert res["secs"] == [
+        ["dgsec completed", ["Completed (1)", ["a", "", "#/plan/2", "FEAT-2 Item 2"]]],
+        ["dgsec runs", ["Runs: 1 suite fail (1)", ["span", "", "", "suite FAIL unit"]]]]
+    assert res["empty"] == "nothing changed in this window"

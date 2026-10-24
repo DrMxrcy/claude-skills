@@ -138,7 +138,9 @@ def _dashboard_api():
         discover_branches=rmbranches.discover,
         worktree_facts=rmbranches.worktree_facts,
         worktree_payload=worktree_payload,
-        conflicts_payload=conflicts_payload)
+        conflicts_payload=conflicts_payload,
+        digest=rmdigest.digest, digest_sections=rmdigest.sections,   # plan 45
+        default_owner=rmowners.default_owner)
 
 
 def serve(root: Path, port: int | None = None, open_browser: bool = True,
