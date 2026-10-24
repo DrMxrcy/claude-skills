@@ -1,0 +1,27 @@
+.roadmap/config.json
+  s_0d994e3368ddf8::t_f2f58f8df4a7f5 525
+.roadmap/plans/047-bug-routing-a-bug-command-that-fixes-in-flight-plans-in-place-or-files-a-linked-bug-item-and-an-incubator-that-refuses-bugs.md
+  s_0d994e3368ddf8::t_ceb69d401542a4 6,36-43
+CHANGELOG.internal.md
+  s_0d994e3368ddf8::t_a74817e26f77a3 22
+CHANGELOG.md
+  s_0d994e3368ddf8::t_dd0216e957078b 20
+ROADMAP.md
+  s_0d994e3368ddf8::t_1023e665b35566 33,49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "435c5eb78cf1b74e852977356a347f85db0bccc7",
+  "prompts": {},
+  "sessions": {
+    "s_0d994e3368ddf8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1e59e42f-734a-4197-96a1-8f7a72731de8",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
