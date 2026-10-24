@@ -17,6 +17,7 @@ from rmlib import slots as rmslots
 from rmlib import forecast as rmforecast
 from rmlib import runs as rmruns
 from rmlib import owners as rmowners
+from rmlib import conflicts as rmconflicts
 from rmlib.changelog import (
     render_internal_changelog, render_public_changelog)
 
@@ -347,9 +348,11 @@ def _discover(root: Path, cfg: dict) -> dict:
         return {"trunk": None, "items": {}, "other": []}
 
 
-def status(root: Path, worktrees: bool = False) -> dict:
+def status(root: Path, worktrees: bool = False, conflicts: bool = False) -> dict:
     """Status payload. `worktrees=True` adds the worktree map (plan 36) —
-    opt-in because it costs one `git status` per linked worktree."""
+    opt-in because it costs one `git status` per linked worktree.
+    `conflicts=True` adds branch conflict risk (plan 41) — opt-in because a
+    cold cache costs one `git diff` per branch and one merge-tree per pair."""
     cfg = read_config(root)
     by_id = {i["id"]: i for i in cfg["items"]}
     # Full progress map first — blockedBy for early ids must see later deps' progress.
@@ -415,7 +418,41 @@ def status(root: Path, worktrees: bool = False) -> dict:
            "forecast": rmforecast.forecast(root, cfg, progress), **extra}
     if worktrees:
         out["worktrees"] = worktree_payload(root, out, cfg)
+    if conflicts:
+        out["conflicts"] = conflicts_payload(root, out, cfg,
+                                             trunk_sha=found.get("trunkSha"))
     return out
+
+
+# --- branch conflict risk (plan 41) ----------------------------------------
+def conflicts_payload(root: Path, st: dict, cfg: dict | None = None,
+                      trunk_sha: str | None = None) -> dict:
+    """Conflict risk across the open item branches of a status payload `st`
+    already in hand: every not-done item whose branch carries unmerged work
+    (rmconflicts.overlaps), using the branch tips in `st`. Without `trunk_sha`
+    the trunk tip comes from the cached ref scan (one for-each-ref); every
+    diff and merge-tree is cached on shas, so unchanged refs cost nothing
+    more. Never raises."""
+    try:
+        if trunk_sha is None:
+            cfg = cfg if cfg is not None else read_config(root)
+            integ = (cfg.get("settings") or {}).get("integrationBranch") or None
+            scanned = rmbranches._scan_cached(Path(root), None, integ)
+            trunk_sha = scanned[1].get("trunkSha") if scanned else None
+    except Exception:  # noqa: BLE001 — status must survive any git surprise
+        trunk_sha = None
+    cands = []
+    for it in st.get("items") or []:
+        b = it.get("branch")
+        if it.get("lane") == "done" or not _branch_has_work(b) or not b.get("sha"):
+            continue
+        cands.append({"id": it["id"], "displayId": it.get("displayId"),
+                      "title": it.get("title"), "branch": b["name"],
+                      "sha": b["sha"], "landedIn": b.get("landedIn")})
+    try:
+        return rmconflicts.overlaps(root, trunk_sha, cands)
+    except Exception:  # noqa: BLE001 — status must survive any git surprise
+        return rmconflicts.overlaps(root, None, [])
 
 
 # --- worktree map (plan 36) ------------------------------------------------

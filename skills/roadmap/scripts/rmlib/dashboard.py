@@ -137,6 +137,18 @@ def _safe_worktrees(rm, root: Path, st: dict) -> dict | None:
         return None
 
 
+def _safe_conflicts(rm, root: Path, st: dict) -> dict | None:
+    """Branch conflict risk (plan 41) for the trunk view's status `st`; None
+    without the hook or on any failure (the panel simply does not render)."""
+    fn = getattr(rm, "conflicts_payload", None)
+    if fn is None:
+        return None
+    try:
+        return fn(root, st)
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def _safe_status(rm, root: Path) -> dict:
     try:
         return rm.status(root)
@@ -481,6 +493,9 @@ class _Broadcaster:
         wt = _safe_worktrees(self.rm, self._wt_root, stats[trunk])
         if wt is not None:
             out["worktrees"] = wt
+        cf = _safe_conflicts(self.rm, self._wt_root, stats[trunk])
+        if cf is not None:
+            out["conflicts"] = cf
         return json.dumps(out)
 
     def start(self) -> None:

@@ -330,7 +330,8 @@ def discover(root: Path, item_ids=None, trunk: str | None = None,
              integration=_FROM_SETTINGS) -> dict:
     """Map git branches and tagged commits to roadmap items.
 
-    Returns {"trunk": name|None, "items": {id: branchinfo}, "other": [branchinfo]}.
+    Returns {"trunk": name|None, "items": {id: branchinfo}, "other": [branchinfo]}
+    (plus "trunkSha", the trunk tip, when a trunk resolved).
     An item gets the branch named for it (settings.branchPattern, default
     `roadmap/{id}` or `roadmap/{id}-<suffix>`; unmerged and newest preferred),
     else the unmerged branch carrying the most `(plan N)`/`(bug N)` commits.
@@ -411,7 +412,8 @@ def discover(root: Path, item_ids=None, trunk: str | None = None,
         item = int(m.group(1)) if m and (allowed is None
                                          or int(m.group(1)) in allowed) else None
         other.append(_info(b, item, stale_days, now))
-    return {"trunk": resolved, "items": items, "other": other}
+    return {"trunk": resolved, "trunkSha": data.get("trunkSha"),  # plan 41
+            "items": items, "other": other}
 
 
 # --- containment checks for landed claims (plan 32) -----------------------
