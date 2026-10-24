@@ -21,7 +21,8 @@ from rmlib.sync import (  # noqa: E402
     _version_complete, incomplete_deps, next_item, render_region,
     roadmap_health, status, sync, uncut_complete_version,
     derive_lane, is_in_flight, lane_counts, lane_label,
-    countdown, due_waiting, format_due,
+    countdown, due_waiting, format_due, wait_left,
+    awaiting_label, awaiting_waits, format_awaiting, wait_nudge_days,
     format_worktrees, worktree_payload, conflicts_payload,
     scope_drift_payload, format_scope_drift,
     warn_incomplete_deps, MAX_ROADMAP_LINES,
@@ -99,7 +100,8 @@ __all__ = [  # public facade: names re-exported for callers/tests/hooks (roadmap
     '_progress_map', '_version_complete', 'incomplete_deps', 'next_item',
     'render_region', 'roadmap_health', 'status', 'sync',
     'derive_lane', 'is_in_flight', 'lane_counts', 'lane_label',
-    'countdown', 'due_waiting', 'format_due',
+    'countdown', 'due_waiting', 'format_due', 'wait_left',
+    'awaiting_label', 'awaiting_waits', 'format_awaiting', 'wait_nudge_days',
     'format_worktrees', 'worktree_payload', 'conflicts_payload', 'scope_drift_payload', 'format_scope_drift', 'uncut_complete_version', 'warn_incomplete_deps', 'MAX_ROADMAP_LINES', 'MAX_FREEFORM_LINES',
     'MAX_FREEFORM_CHARS', 'STEP_RE', '_is_fence', 'parse_plan',
     'count_progress', '_plan_path', 'CLAIM_STAGES', 'CLAIM_VERDICTS',
@@ -370,12 +372,16 @@ def main(argv: list[str]) -> int:
                          help="with --landed: apply instead of listing")
 
     p_wait = sub.add_parser(
-        "wait", help="mark a step as waiting on time (soak, propagation, review): "
-                     "not done, but the item reads `waiting` once its other steps "
-                     "are ticked; `check --step N` ticks it once verified")
+        "wait", help="mark a step as waiting on time (soak, propagation, review) or "
+                     "on a person (--on): not done, but the item reads `waiting` once "
+                     "its other steps are ticked; `check --step N` ticks it once verified")
     p_wait.add_argument("plan", help=ID_HELP)
     p_wait.add_argument("--step", type=int, required=True)
-    p_wait.add_argument("--until", help="due date: 2026-10-30, or relative 7d / 2w")
+    p_wait.add_argument("--until", help="due date: 2026-10-30, a UTC time "
+                                        "2026-10-30T14:00Z, or relative 24h / 7d / 2w")
+    p_wait.add_argument("--on", help="the person or team the step waits on (e.g. "
+                                     "\"dispatch team\"); without --until it has no due "
+                                     "date and is listed as awaiting them every day")
     p_wait.add_argument("--reason", help="what is being waited on (e.g. soak)")
     p_wait.add_argument("--clear", action="store_true",
                         help="end the wait: the step goes back to unticked")
@@ -713,17 +719,19 @@ def main(argv: list[str]) -> int:
                        tokens=args.tokens, force=args.force)
             return 0
         if args.command == "wait":
-            if args.clear and (args.until or args.reason):
-                p_wait.error("--clear takes no --until/--reason")
-            if not args.clear and not args.until:
-                p_wait.error("--until is required (or --clear)")
+            if args.clear and (args.until or args.reason or args.on):
+                p_wait.error("--clear takes no --until/--on/--reason")
+            if not args.clear and not args.until and not args.on:
+                p_wait.error("--until or --on is required (or --clear)")
             plan_id = rid(args.plan)
             w = wait_step(root, plan_id, args.step, until=args.until,
-                          reason=args.reason, clear=args.clear)
+                          reason=args.reason, clear=args.clear, on=args.on)
             if args.clear:
                 print(f"#{plan_id} step {w['step']}: no longer waiting")
             else:
-                print(f"#{plan_id} step {w['step']}: waiting until {w['until']}"
+                said = ([f"waiting until {w['until']}"] if w["until"] else []) + \
+                    ([f"awaiting {w['on']} since {w['since']}"] if w.get("on") else [])
+                print(f"#{plan_id} step {w['step']}: {', '.join(said)}"
                       + (f" ({w['reason']})" if w["reason"] else ""))
             return 0
         if args.command == "claim":
@@ -1024,6 +1032,8 @@ def main(argv: list[str]) -> int:
                       f" · {lc['inFlight']} in-flight{active} · {lc['planned']} planned"
                       f"{waiting}")
                 for line in format_due(st.get("waitingDue") or []):   # plan 46
+                    print(line)
+                for line in format_awaiting(st.get("waitingOn") or []):   # plan 53
                     print(line)
                 # Items grouped under a version header carrying its forecast (plan 44).
                 groups: dict[str, list] = {}

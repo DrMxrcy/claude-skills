@@ -3,6 +3,7 @@ auto-advance the current version, health checks, and dependency/next-item logic.
 Layer: rmcore + rmparse + rmchangelog + rmbranches (read-only git discovery)."""
 from __future__ import annotations
 import datetime
+import math
 import sys
 from collections import Counter
 from pathlib import Path
@@ -328,7 +329,13 @@ def lane_label(item: dict) -> str:
     parts = [lane]
     if lane == "waiting":                  # plan 46: `waiting · step 3 · 4d left`
         for w in item.get("waitingSteps") or []:
-            parts += [f"step {w['step']}", countdown(w.get("daysLeft"))]
+            parts.append(f"step {w['step']}")
+            if w.get("on") and not w.get("until"):     # plan 53: open-ended
+                parts.append(awaiting_label(w))
+                continue
+            parts.append(countdown(w.get("daysLeft"), w.get("hoursLeft")))
+            if w.get("on"):
+                parts.append(f"awaiting {w['on']}")
         return " · ".join(parts)
     branch, claim = item.get("branch"), item.get("claim") or {}
     if branch:
@@ -344,8 +351,14 @@ def lane_label(item: dict) -> str:
     return " · ".join(parts)
 
 
-def countdown(days_left: int | None) -> str:
-    """`4d left` / `due` / `2d overdue` for a waiting step (plan 46)."""
+def countdown(days_left: int | None, hours_left: int | None = None) -> str:
+    """`4d left` / `due` / `2d overdue` for a waiting step (plan 46). A wait due
+    at a time of day (plan 53, `hours_left` set) reads in hours while it is
+    under 2 days away or overdue: `5h left` / `due` / `3h overdue`."""
+    if hours_left is not None and abs(hours_left) < 48:
+        if hours_left > 0:
+            return f"{hours_left}h left"
+        return "due" if hours_left == 0 else f"{-hours_left}h overdue"
     if days_left is None:
         return "no date"
     if days_left > 0:
@@ -353,15 +366,73 @@ def countdown(days_left: int | None) -> str:
     return "due" if days_left == 0 else f"{-days_left}d overdue"
 
 
-def _waiting_rows(path: Path, today: datetime.date) -> list[dict]:
-    """waiting_steps() plus `daysLeft` (None when the step has no date)."""
+def wait_left(until: str | None, today: datetime.date,
+              now: datetime.datetime | None = None) -> tuple[int | None, int | None]:
+    """(daysLeft, hoursLeft) for a wait's `until`. A date (plan 46): whole days
+    from `today`, hoursLeft None. A UTC time `YYYY-MM-DDTHH:MMZ` (plan 53):
+    hoursLeft rounds up while time remains (`1h left`, never `0h left`) and is 0
+    for the first hour past due; daysLeft follows it — >= 1 until the time is
+    reached, 0 for the first day past it — so every `daysLeft <= 0` due check
+    holds for both kinds. (None, None) when there is no readable date."""
+    if not until:
+        return None, None
+    if "T" in until:
+        try:
+            due = datetime.datetime.strptime(until, "%Y-%m-%dT%H:%MZ").replace(
+                tzinfo=datetime.timezone.utc)
+        except ValueError:
+            return None, None
+        now = now or datetime.datetime.now(datetime.timezone.utc)
+        secs = (due - now).total_seconds()
+        hours = math.ceil(secs / 3600) if secs > 0 else int(secs / 3600)
+        days = max(1, hours // 24) if hours > 0 else -((-hours) // 24)
+        return days, hours
+    try:
+        return (datetime.date.fromisoformat(until) - today).days, None
+    except ValueError:
+        return None, None
+
+
+DEFAULT_WAIT_NUDGE_DAYS = 7
+
+
+def wait_nudge_days(cfg: dict) -> int:
+    """settings.waitNudgeDays (plan 53, default 7): an open-ended wait on
+    someone this many days old or older needs attention."""
+    try:
+        return int((cfg.get("settings") or {}).get("waitNudgeDays",
+                                                   DEFAULT_WAIT_NUDGE_DAYS))
+    except (TypeError, ValueError):
+        return DEFAULT_WAIT_NUDGE_DAYS
+
+
+def awaiting_label(w: dict) -> str:
+    """`awaiting dispatch team · 3d` — an open-ended wait's badge (plan 53)."""
+    days = w.get("waitingDays")
+    return f"awaiting {w.get('on')}" + (f" · {days}d" if isinstance(days, int) else "")
+
+
+def _days(n: int) -> str:
+    return f"{n} day{'' if n == 1 else 's'}"
+
+
+def _waiting_rows(path: Path, today: datetime.date,
+                  now: datetime.datetime | None = None) -> list[dict]:
+    """waiting_steps() plus `daysLeft` (None when the step has no date) and, for
+    a wait due at a time of day (plan 53), `hoursLeft`."""
     out = []
     for w in waiting_steps(path):
-        try:
-            left = (datetime.date.fromisoformat(w["until"]) - today).days
-        except (TypeError, ValueError):
-            left = None
-        out.append({**w, "daysLeft": left})
+        days, hours = wait_left(w.get("until"), today, now)
+        row = {**w, "daysLeft": days}
+        if hours is not None:
+            row["hoursLeft"] = hours
+        if w.get("on"):                     # plan 53: days since the wait began
+            try:
+                row["waitingDays"] = (today - datetime.date.fromisoformat(
+                    w.get("since") or "")).days
+            except ValueError:
+                row["waitingDays"] = None
+        out.append(row)
     return out
 
 
@@ -373,16 +444,47 @@ def due_waiting(items: list[dict]) -> list[dict]:
             "version": i["version"], **w}
            for i in items for w in i.get("waitingSteps") or []
            if w.get("daysLeft") is not None and w["daysLeft"] <= 0]
-    return sorted(due, key=lambda d: (d["daysLeft"], d["id"], d["step"]))
+    return sorted(due, key=lambda d: (d["daysLeft"], d.get("hoursLeft", 0),
+                                      d["id"], d["step"]))
 
 
 def format_due(due: list[dict]) -> list[str]:
     """One reminder line per due waiting step, with the command that ticks it."""
     return [f"⏰ {d['displayId'] or '#' + str(d['id'])} step {d['step']} "
-            f"({countdown(d['daysLeft'])}"
+            f"({countdown(d['daysLeft'], d.get('hoursLeft'))}"
+            + (f", awaiting {d['on']}" if d.get("on") else "")
             + (f": {d['reason']}" if d.get("reason") else "") + f") — {d['text']} "
             f"→ verify, then: roadmap.py check --plan {d['id']} --step {d['step']}"
             for d in due]
+
+
+def awaiting_waits(items: list[dict]) -> list[dict]:
+    """Every open-ended wait on someone (plan 53: `on`, no date) across `items`
+    (status rows), longest-waiting first: {id, displayId, title, version, step,
+    text, until, reason, on, since, daysLeft, waitingDays}. Never due, never
+    overdue — listed every day until the step is checked."""
+    rows = [{"id": i["id"], "displayId": i.get("displayId"), "title": i["title"],
+             "version": i["version"], **w}
+            for i in items if i.get("lane") != "done"
+            for w in i.get("waitingSteps") or []
+            if w.get("on") and not w.get("until")]
+    return sorted(rows, key=lambda d: (-(d.get("waitingDays") or 0), d["id"], d["step"]))
+
+
+def format_awaiting(rows: list[dict]) -> list[str]:
+    """One reminder line per open-ended wait (plan 53): who, since when, and the
+    command that ends it."""
+    out = []
+    for d in rows:
+        days = d.get("waitingDays")
+        since = (f"since {d['since']}" if d.get("since") else "since ?") \
+            + (f", {_days(days)}" if isinstance(days, int) else "")
+        out.append(f"⏳ {d.get('displayId') or '#' + str(d['id'])} step {d['step']} "
+                   f"awaiting {d['on']} ({since})"
+                   + (f": {d['reason']}" if d.get("reason") else "")
+                   + f" — {d['text']} → once they report back: roadmap.py check "
+                     f"--plan {d['id']} --step {d['step']}")
+    return out
 
 
 def _public_branch(info: dict, item_id: int) -> dict:
@@ -429,6 +531,7 @@ def status(root: Path, worktrees: bool = False, conflicts: bool = False,
     other_names = {b["name"] for b in found["other"]}
     claimed_from_other: set[str] = set()
     today = datetime.date.today()
+    now = datetime.datetime.now(datetime.timezone.utc)
     items = []
     for item in cfg["items"]:
         done, total = progress.get(item["id"], (0, 0))
@@ -447,7 +550,7 @@ def status(root: Path, worktrees: bool = False, conflicts: bool = False,
         st = derive_status(done, total)
         # Waiting steps (plan 46): counted open in done/total; `waiting` counts
         # them separately and the lane flips once they are all that is left.
-        wrows = _waiting_rows(path, today) if path.exists() else []
+        wrows = _waiting_rows(path, today, now) if path.exists() else []
         waits = bool(wrows) and done + len(wrows) == total
         row = {**item, "displayId": display_id(item),
                "done": done, "total": total, "pct": pct,
@@ -483,6 +586,8 @@ def status(root: Path, worktrees: bool = False, conflicts: bool = False,
     # when some item has a waiting step, so other projects' payload is unchanged.
     if any(i["waiting"] for i in items):
         extra["waitingDue"] = due_waiting(items)
+        # Open-ended waits on someone (plan 53): listed every day, never due.
+        extra["waitingOn"] = awaiting_waits(items)
     # Run log (plan 38): last runs, trunk health, and skipped-line warnings.
     extra.update(rmruns.runs_status(root, cfg, found["trunk"]))
     # Work-in-progress limit (plan 40): only present when settings.wipLimit is set.

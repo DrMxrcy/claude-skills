@@ -7,7 +7,7 @@ from pathlib import Path
 from rmlib.core import (
     display_id, get_version, read_config, roadmap_dir, write_config)
 from rmlib.sync import (
-    format_due, next_item, roadmap_health, status)
+    format_awaiting, format_due, next_item, roadmap_health, status)
 from rmlib.incubator import (
     incubator_file, list_incubator_bullets)
 from rmlib import owners as rmowners
@@ -135,6 +135,8 @@ def orient(root: Path) -> dict | None:
         # Plan 46: waiting steps due today/overdue (listed first), and whether
         # the current version's only open work is waiting steps.
         "waitingDue": st.get("waitingDue") or [],
+        # Plan 53: open-ended waits on someone, listed every session.
+        "waitingOn": st.get("waitingOn") or [],
         "waitingOnly": any(i["lane"] == "waiting" for i in in_ver) and all(
             i["lane"] in ("done", "waiting") for i in in_ver),
         "drift": drift_check(root),
@@ -181,6 +183,7 @@ def format_orient(payload: dict, handoff: bool = False) -> str:
         f"{payload['stepsDone']}/{payload['stepsTotal']} steps",
     ]
     lines.extend(format_due(payload.get("waitingDue") or []))
+    lines.extend(format_awaiting(payload.get("waitingOn") or []))   # plan 53
     nxt = payload.get("next")
     if nxt:
         nid = nxt["id"]
