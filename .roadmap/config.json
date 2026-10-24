@@ -1,7 +1,7 @@
 {
   "project": "claude-skills",
   "currentVersion": "0.19.0",
-  "nextId": 53,
+  "nextId": 54,
   "items": [
     {
       "id": 1,
@@ -531,6 +531,19 @@
       "type": "bug",
       "version": "0.19.0",
       "file": "plans/052-leftovers-note-error-suggests-a-missing-audience-flag-board-copy-commands-lack-the-project-under-serve-all-board-filters-shared-across-projects.md"
+    },
+    {
+      "id": 53,
+      "slug": "waits-in-hours-and-open-ended-waits-on-a-person-wait-until-24h-and-wait-on",
+      "title": "Waits in hours and open-ended waits on a person: wait --until 24h and wait --on",
+      "type": "feature",
+      "version": "0.21.0",
+      "file": "plans/053-waits-in-hours-and-open-ended-waits-on-a-person-wait-until-24h-and-wait-on.md",
+      "note": "Steps can wait a few hours, or wait on a person such as a tester, with daily reminders until they are done.",
+      "audience": "public",
+      "dependsOn": [
+        46
+      ]
     }
   ],
   "settings": {
@@ -546,8 +559,7 @@
     "0.16.0": "2026-08-20",
     "0.17.0": "2026-08-21",
     "0.18.0": "2026-10-21",
-    "0.20.0": "2026-10-23",
-    "0.21.0": "2026-10-24"
+    "0.20.0": "2026-10-23"
   },
   "releaseNotes": {
     "0.17.0": "Trust, but verify: finished steps can now carry proof of the tests that passed, release dates always match when work really wrapped, and your setup stays tidy across every AI coder you use.",
