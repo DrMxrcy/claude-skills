@@ -333,3 +333,20 @@ def test_upgrade_writes_the_bug_rules_line(roadmap, repo, monkeypatch):
     text = (repo / "CLAUDE.md").read_text()
     assert "**Bugs never go in the incubator:**" in text
     assert 'roadmap.py bug "<title>" --found-in <id>' in text
+
+
+# ---- claim hold (bug 51): refuse BEFORE writing the Fix step -------------------
+
+def test_bug_refused_by_held_claim_writes_nothing_and_take_overrides(
+        roadmap, proj, monkeypatch, capsys):
+    roadmap.set_claim(proj, 5, stage="review", owner="alice")
+    plan = _plan(proj, 5)
+    before = plan.read_bytes()
+    monkeypatch.setenv("ROADMAP_OWNER", "bob")
+    assert roadmap.main(["bug", "Menu clips", "--found-in", "5"]) != 0
+    assert "alice" in capsys.readouterr().err
+    assert plan.read_bytes() == before
+    assert roadmap.main(["bug", "Menu clips", "--found-in", "5", "--take"]) == 0
+    assert "Fix: Menu clips" in plan.read_text()
+    c = roadmap.read_claim(plan)
+    assert (c["stage"], c["owner"]) == ("fixing", "bob")

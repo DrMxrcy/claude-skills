@@ -287,7 +287,14 @@ def _item_detail(rm, root: Path, item_id: int) -> dict:
                   "notes": notes,
                   "dependsOn": list(item.get("dependsOn") or []),
                   "blockedBy": [],
-                  "steps": [{"done": d, "text": t} for d, t in plan["steps"]],
+                  "steps": [{"done": d, "text": t,
+                             **({"waiting": plan["waiting"][n]}
+                                if n in (plan.get("waiting") or {}) else {})}
+                            for n, (d, t) in enumerate(plan["steps"], 1)],
+                  # follow-up links (plan 46), both directions
+                  "followUpOf": item.get("followUpOf"),
+                  "followUps": list(item.get("followUps") or []),
+                  "waitingSteps": [],
                   "lane": None, "claim": None, "branch": None,
                   "rulings": list(plan.get("rulings") or []),
                   "needsApproval": False,
@@ -303,6 +310,7 @@ def _item_detail(rm, root: Path, item_id: int) -> dict:
             detail["lane"], detail["claim"] = row.get("lane"), row.get("claim")
             detail["blockedBy"] = list(row.get("blockedBy") or [])
             detail["needsApproval"] = bool(row.get("needsApproval"))
+            detail["waitingSteps"] = list(row.get("waitingSteps") or [])
             for k in ("displayId", "pct", "done", "total",
                       "foundIn", "bugsFound", "foundDuringBuild"):   # plan 47
                 detail[k] = row.get(k)
@@ -353,6 +361,23 @@ def _ideas(rm, root: Path) -> dict:
                 else str(f), "bullets": bullets}
     except (ValueError, FileNotFoundError, OSError) as e:
         return {"error": str(e), "bullets": []}
+
+
+DIGEST_SINCE = ("3h", "1d", "3d", "1w", "2w", "last")   # the page's selector
+
+
+def _digest(rm, root: Path, since: str) -> dict:
+    """Digest page data (plan 45): the CLI digest for one checkout plus its
+    display rows. Read-only — `last` reads this user's stamp but never moves
+    it. Conflicts are included: the broadcaster already computed them, so
+    their sha-keyed cache is warm."""
+    since = since if since in DIGEST_SINCE else "1d"
+    try:
+        d = rm.digest(root, since, conflicts=True, owner=rm.default_owner(root))
+    except (ValueError, FileNotFoundError, OSError) as e:
+        return {"error": str(e), "since": since, "options": list(DIGEST_SINCE)}
+    return {**d, "sections": rm.digest_sections(d), "sinceArg": since,
+            "options": list(DIGEST_SINCE)}
 
 
 def _discover_roots(rm, root: Path) -> list[tuple[Path, str | None]]:
@@ -659,6 +684,10 @@ def serve(rm, root: Path, port: int | None = None,
                            "application/json")
             elif path == "/api/ideas":
                 self._send(200, json.dumps(_ideas(rm, rroot)).encode("utf-8"),
+                           "application/json")
+            elif path == "/api/digest":
+                since = (urllib.parse.parse_qs(query).get("since") or ["1d"])[0]
+                self._send(200, json.dumps(_digest(rm, rroot, since)).encode("utf-8"),
                            "application/json")
             elif path == "/api/changelog":
                 try:

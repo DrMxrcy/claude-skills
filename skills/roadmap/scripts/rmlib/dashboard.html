@@ -10,6 +10,7 @@
     --bg:#0e1116; --line:#232a34; --fg:#e6edf3; --muted:#8b98a5;
     --bar:#242c38; --done:#3fb950; --active:#d29922; --blocked:#f85149;
     --todo:#4b5563; --accent:#58a6ff; --build:#39c5cf; --gate:#a371f7;
+    --wait:#db61a2;
   }
   * { box-sizing:border-box; }
   /* #app sets display:flex, which outranks the UA rule for [hidden] — without
@@ -124,6 +125,13 @@
     font-weight:600; }
   .rel .sec div { padding-left:14px; }
   .rel .pending { color:var(--active); }
+  /* digest page (plan 45): #/digest/<since> */
+  .dghead { display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding:8px 0; }
+  .dghead .srcfile { padding:0; }
+  .dgsec { border-top:1px solid var(--line); padding:8px 0; }
+  .dgsec h4 { margin:0 0 4px; font-size:12px; color:var(--muted); font-weight:600; }
+  .dgsec div { padding-left:14px; overflow-wrap:anywhere; }
+  .dgsec.attention h4 { color:var(--blocked); }
   /* ---- in-flight overlay (plan 30): one colour per lane group ---------- */
   .lg-done { --lc:var(--done); }
   .lg-gate { --lc:var(--gate); }
@@ -131,6 +139,11 @@
   .lg-hold { --lc:var(--blocked); }
   .lg-build { --lc:var(--build); }
   .lg-plan { --lc:var(--todo); }
+  .lg-wait { --lc:var(--wait); }
+  /* waiting steps (plan 46): built, verified only after a date */
+  .md li.task.waiting > .box { color:var(--wait); }
+  .md li.task.waiting > .tbody > .ttext { color:var(--wait); }
+  .lane.due { font-weight:600; }
   .dot[class*="lg-"], .chip .cdot[class*="lg-"] { background:var(--lc); }
   .lane { font-size:10px; border-radius:4px; padding:1px 6px; flex:none;
     color:var(--lc); border:1px solid var(--lc); white-space:nowrap;
@@ -371,6 +384,7 @@
   <div id="app"><div class="empty">connecting…</div></div>
   <div id="ideas" hidden></div>
   <div id="changelog" hidden></div>
+  <div id="digest" hidden></div>
   <div id="page" hidden></div>
 </main>
 <script>
@@ -389,15 +403,30 @@ const store = {
 // Lanes (plan 30): derived per item by the CLI; the dashboard only colours
 // and filters them. Group -> one colour family.
 const LANES = ["building","review","fixing","gate-ready","gating","landed","blocked",
-  "stale","active","planned","done"];
+  "stale","waiting","active","planned","done"];
 const LANE_GROUP = {done:"done", gating:"gate", "gate-ready":"gate", landed:"done",
   review:"review", fixing:"review", blocked:"hold", stale:"hold",
-  building:"build", active:"build", planned:"plan"};
+  building:"build", active:"build", planned:"plan", waiting:"wait"};
 const laneOf = it => it.lane || (it.status === "done" || it.pct === 100
   ? "done" : (it.status || "planned"));
 const lg = it => "lg-" + (LANE_GROUP[laneOf(it)] || "plan");
-// Same predicate as the CLI's is_in_flight: not done, and a branch or claim.
-const inFlight = it => laneOf(it) !== "done" && !!(it.branch || it.claim);
+// Same predicate as the CLI's is_in_flight: not done (or parked waiting on a
+// date, plan 46), and a branch or claim.
+const inFlight = it => !["done","waiting"].includes(laneOf(it))
+  && !!(it.branch || it.claim);
+// Waiting steps (plan 46): days until the step's date, counted from the
+// browser's today so a long-open page stays right; null when undated.
+const daysLeft = w => {
+  if(!w || !/^\d{4}-\d{2}-\d{2}$/.test(w.until||"")) return null;
+  const [y,m,d] = w.until.split("-").map(Number), t = new Date();
+  return Math.round((Date.UTC(y,m-1,d)
+    - Date.UTC(t.getFullYear(), t.getMonth(), t.getDate())) / 864e5);
+};
+const countdown = n => n == null ? "no date" : n > 0 ? n+"d left"
+  : n === 0 ? "due" : (-n)+"d overdue";
+// The soonest wait on an item decides its badge.
+const nextWait = it => (it.waitingSteps||[]).map(daysLeft)
+  .reduce((a,n) => n == null ? a : a == null ? n : Math.min(a,n), null);
 // Default: the current version is expanded, all others collapsed. `prefs` holds
 // only the versions the user explicitly toggled, so it overrides the default and
 // auto-advance still opens whatever the new current version is.
@@ -500,7 +529,17 @@ function syncLaneSel(items){
 }
 
 function laneBadge(it){
-  const b = txt("span","lane "+lg(it), laneOf(it));
+  const lane = laneOf(it);
+  if(lane === "waiting"){
+    const n = nextWait(it);
+    const b = txt("span","lane "+lg(it)+(n != null && n <= 0 ? " due" : ""),
+      "waiting · "+countdown(n));
+    b.title = (it.waitingSteps||[]).map(w => "step "+w.step+": "+w.text
+      +(w.until ? " — until "+w.until : "")+(w.reason ? " ("+w.reason+")" : ""))
+      .join("\n");
+    return b;
+  }
+  const b = txt("span","lane "+lg(it), lane);
   const c = it.claim;
   if(c && (c.note || c.updated))
     b.title = [c.note, c.updated && "claimed "+c.updated].filter(Boolean).join(" · ");
@@ -552,7 +591,7 @@ function itemRow(it){
       "blocked by "+it.blockedBy.map(x=>"#"+x).join(",")));
   row.appendChild(title);
   const right = el("span","right");
-  if(fly) right.appendChild(laneBadge(it));
+  if(fly || laneOf(it) === "waiting") right.appendChild(laneBadge(it));
   right.appendChild(progressBar(it, fly));
   right.appendChild(txt("span","frac", (it.done||0)+"/"+(it.total||0)));
   row.appendChild(right);
@@ -995,9 +1034,10 @@ function render(d){
   };
   // done / in-flight / active / planned: every item in exactly one bucket
   // (mirrors the CLI's lane_counts; computed here so every view gets it).
-  const k = {done:0, fly:0, active:0, planned:0};
+  const k = {done:0, fly:0, active:0, planned:0, waiting:0};
   for(const it of items){
     if(laneOf(it) === "done") k.done++;
+    else if(laneOf(it) === "waiting") k.waiting++;
     else if(inFlight(it)) k.fly++;
     else if(it.status === "active") k.active++;
     else k.planned++;
@@ -1009,6 +1049,7 @@ function render(d){
     wipFlag(chip(k.fly, "in flight", "lg-build"), k.fly, d.wip),
     chip(k.active, "active", "active"),
     chip(k.planned, "planned", null),
+    ...(k.waiting ? [chip(k.waiting, "waiting", "lg-wait")] : []),
     ...(nblocked ? [chip(nblocked, "blocked", "blocked")] : []));
   const app = document.getElementById("app");
   const others = Array.isArray(d.otherBranches) ? d.otherBranches : [];
@@ -1089,11 +1130,14 @@ setInterval(() => { if(LAST && ROUTE.name === "roadmap") render(LAST); }, 60000)
 // ---- routes (plan 31) -------------------------------------------------
 // Hash routes, so deep links and Back work without any server change:
 //   #/  #/ideas  #/changelog          the three list tabs
+//   #/digest[/<since>]                what changed since 3h|1d|3d|1w|2w|last
 //   #/plan/<id>  #/idea/<n>  #/notes/<root-relative .md path>   full pages
 // The route lives only in the URL; nothing about it is stored.
-const TABS = [["roadmap","Roadmap"],["ideas","Ideas"],["changelog","Changelog"]];
+const TABS = [["roadmap","Roadmap"],["ideas","Ideas"],["changelog","Changelog"],
+  ["digest","Digest"]];
 const TABCOUNTS = {};
-const LISTS = ["roadmap","ideas","changelog"];
+const LISTS = ["roadmap","ideas","changelog","digest"];
+const DIGEST_SINCE = ["3h","1d","3d","1w","2w","last"];
 const paneOf = t => document.getElementById(t==="roadmap" ? "app" : t);
 const rootParam = () => "root=" + viewRoot(null);
 let ROUTE = {name:"roadmap"};
@@ -1112,6 +1156,8 @@ function parseRoute(h){
     return {name:"notes", path:p};
   }
   if(head === "ideas" || head === "changelog") return {name:head};
+  if(head === "digest")
+    return {name:"digest", since: DIGEST_SINCE.includes(parts[1]) ? parts[1] : "1d"};
   return {name:"roadmap"};
 }
 const noteHref = p => "#/notes/" + encodeURIComponent(p).replace(/%2F/g, "/");
@@ -1158,6 +1204,7 @@ function onRoute(){
     const done = () => window.scrollTo(0, y);
     if(ROUTE.name === "ideas") loadIdeas(done);
     else if(ROUTE.name === "changelog") loadChangelog(done);
+    else if(ROUTE.name === "digest") loadDigest(done);
     else done();
   } else {
     showPane("page");
@@ -1171,13 +1218,15 @@ window.addEventListener("hashchange", () => {
 });
 function routeHash(r){
   return r.name === "plan" ? "#/plan/"+r.id : r.name === "idea" ? "#/idea/"+r.n
-    : r.name === "notes" ? noteHref(r.path) : r.name === "roadmap" ? "#/" : "#/"+r.name;
+    : r.name === "notes" ? noteHref(r.path) : r.name === "roadmap" ? "#/"
+    : r.name === "digest" ? "#/digest/"+r.since : "#/"+r.name;
 }
 
 // Re-render the open route after an SSE payload or a view switch.
 function refreshRoute(){
   if(ROUTE.name === "ideas") loadIdeas();
   else if(ROUTE.name === "changelog") loadChangelog();
+  else if(ROUTE.name === "digest") loadDigest();
   else if(!LISTS.includes(ROUTE.name)) renderPage(true);
 }
 
@@ -1281,6 +1330,15 @@ function planPage(r){
     }
     const planLinks = ids => (ids||[]).map(x => link("#/plan/"+x, "#"+x));
     fact(facts, "depends on", ...planLinks(d.dependsOn));
+    // Follow-ups (plan 46): linked both ways.
+    if(d.followUpOf) fact(facts, "follow-up of", ...planLinks([d.followUpOf]));
+    fact(facts, "follow-ups", ...planLinks(d.followUps));
+    for(const w of (d.waitingSteps||[])){
+      const n = daysLeft(w);
+      fact(facts, "waiting", txt("span","lane lg-wait"+(n != null && n <= 0 ? " due" : ""),
+        countdown(n)), "step "+w.step+": "+w.text,
+        w.until ? "until "+w.until : "", w.reason || "");
+    }
     // Bug routing (plan 47): a bug's origin and an origin's filed bugs.
     if(row.foundIn != null) fact(facts, "found in", ...planLinks([row.foundIn]));
     fact(facts, "bugs found", ...planLinks(row.bugsFound));
@@ -1442,11 +1500,11 @@ function md(src, path){
         top = {indent, list}; stack.push(top);
       }
       const li = el("li");
-      const task = m[3].match(/^\[([ xX])\]\s*(.*)$/);
+      const task = m[3].match(/^\[([ xX~])\]\s*(.*)$/);
       if(task){
-        const done = task[1] !== " ";
-        li.className = "task" + (done ? " done" : "");
-        li.appendChild(txt("span","box", done ? "✓" : "○"));
+        const done = /[xX]/.test(task[1]), wait = task[1] === "~";
+        li.className = "task" + (done ? " done" : "") + (wait ? " waiting" : "");
+        li.appendChild(txt("span","box", done ? "✓" : wait ? "⏳" : "○"));
         const body = el("span","tbody"), t = el("span","ttext");
         inline(t, task[2], path); body.appendChild(t); li.appendChild(body);
       } else inline(li, m[3], path);
@@ -1576,6 +1634,57 @@ function loadChangelog(after){
     }));
     if(!after) window.scrollTo(0, y);
   }).catch(()=>pane.replaceChildren(txt("div","empty","failed to load changelog")))
+    .finally(()=>{ if(after) after(); });
+}
+
+// ---- digest (plan 45) -----------------------------------------------------
+// The CLI digest for the viewed checkout; the selector rewrites the route, so
+// the window lives in the URL only. Rows arrive pre-formatted (rmdigest.sections).
+function digestNodes(d, since){
+  const head = el("div","dghead");
+  const sel = el("select");
+  sel.title = "show changes since";
+  for(const o of (d.options || DIGEST_SINCE)){
+    const opt = txt("option", null, o === "last" ? "since my last digest" : "last "+o);
+    opt.value = o;
+    if(o === since) opt.selected = true;
+    sel.appendChild(opt);
+  }
+  sel.addEventListener("change", () => { location.hash = "#/digest/"+sel.value; });
+  head.appendChild(sel);
+  if(d.since) head.appendChild(txt("span","srcfile",
+    "since "+String(d.since).replace("T"," ").slice(0,16)+"Z"
+    + (d.label ? " ("+d.label+")" : "")
+    + (d.baseline && d.baseline.sha ? " · baseline "+d.baseline.sha : "")));
+  const out = [head];
+  if(d.error){ out.push(txt("div","empty", d.error)); return out; }
+  if(d.git === false) out.push(txt("div","srcfile",
+    "not a git repo — only runs and attention can be reported"));
+  const secs = d.sections || [];
+  if(!secs.length) out.push(txt("div","empty","nothing changed in this window"));
+  for(const s of secs){
+    const box = el("div","dgsec "+s.key);
+    box.appendChild(txt("h4", null, s.title+" ("+s.rows.length+")"));
+    for(const r of s.rows){
+      const row = el("div");
+      row.appendChild(r.id != null ? link("#/plan/"+r.id, r.text) : txt("span",null,r.text));
+      box.appendChild(row);
+    }
+    out.push(box);
+  }
+  return out;
+}
+
+function loadDigest(after){
+  const pane = document.getElementById("digest");
+  const since = ROUTE.since || "1d";
+  getJSON("/api/digest?since="+encodeURIComponent(since)+"&"+rootParam()).then(d=>{
+    const att = (d.sections || []).find(s => s.key === "attention");
+    TABCOUNTS.digest = att ? att.rows.length : null; renderTabs();
+    const y = window.scrollY;
+    pane.replaceChildren(...digestNodes(d, since));
+    if(!after) window.scrollTo(0, y);
+  }).catch(()=>pane.replaceChildren(txt("div","empty","failed to load digest")))
     .finally(()=>{ if(after) after(); });
 }
 

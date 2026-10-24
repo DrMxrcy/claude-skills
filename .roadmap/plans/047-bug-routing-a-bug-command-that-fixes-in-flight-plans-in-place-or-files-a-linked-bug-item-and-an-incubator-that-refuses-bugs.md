@@ -5,6 +5,7 @@ type: feature
 version: 0.21.0
 status: done
 created: 2026-10-23
+bugsFound: 51
 ---
 
 # Plan 47: Bug routing: a bug command that fixes in-flight plans in place or files a linked bug item, and an incubator that refuses bugs

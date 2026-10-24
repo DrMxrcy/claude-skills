@@ -3,7 +3,7 @@ id: 45
 title: Digest: what landed, moved, stalled and got blocked since a given time
 type: feature
 version: 0.21.0
-status: planned
+status: done
 created: 2026-10-23
 ---
 
@@ -31,7 +31,11 @@ created: 2026-10-23
 - **Fails if:** digest writes anything tracked by git.
 
 ## 🚶 Step-by-Step Checklist
-- [ ] Step 1: window parsing and change collection from git history -> target: rmlib/digest.py, tests
-- [ ] Step 2: `digest` command with md/json output and `--since last` stamp -> target: roadmap.py, tests
-- [ ] Step 3: orient summary -> target: orient code, tests
-- [ ] Step 4: dashboard digest page -> target: rmlib/dashboard.html, rmlib/dashboard.py, tests
+- [x] Step 1: window parsing and change collection from git history -> target: rmlib/digest.py, tests
+  > evidence: 5c1b2af d393e48 7c264dc 08cbd26; 20 digest tests; statewide read-only digest 26 claim moves, git status unchanged; merged 4c7e26c; 668 passed in 171.27s (0:02:51); reviews skipped at owner request (2026-10-24)
+- [x] Step 2: `digest` command with md/json output and `--since last` stamp -> target: roadmap.py, tests
+  > evidence: 5c1b2af d393e48 7c264dc 08cbd26; 20 digest tests; statewide read-only digest 26 claim moves, git status unchanged; merged 4c7e26c; 668 passed in 171.27s (0:02:51); reviews skipped at owner request (2026-10-24)
+- [x] Step 3: orient summary -> target: orient code, tests
+  > evidence: 5c1b2af d393e48 7c264dc 08cbd26; 20 digest tests; statewide read-only digest 26 claim moves, git status unchanged; merged 4c7e26c; 668 passed in 171.27s (0:02:51); reviews skipped at owner request (2026-10-24)
+- [x] Step 4: dashboard digest page -> target: rmlib/dashboard.html, rmlib/dashboard.py, tests
+  > evidence: 5c1b2af d393e48 7c264dc 08cbd26; 20 digest tests; statewide read-only digest 26 claim moves, git status unchanged; merged 4c7e26c; 668 passed in 171.27s (0:02:51); reviews skipped at owner request (2026-10-24)
