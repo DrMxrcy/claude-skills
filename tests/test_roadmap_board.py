@@ -40,6 +40,7 @@ const IDS = {};
 const document = { createElement: t => new Node(t), createElementNS: (ns,t) => new Node(t),
   createTextNode: s => { const n = new Node("#text"); n._t = String(s); return n; },
   getElementById: id => IDS[id] ||= new Node("div"), body: new Node("body"),
+  documentElement: new Node("html"), title: "", hidden: false,
   addEventListener(){}, querySelector: () => null };
 const window = { addEventListener(){}, scrollTo(){}, scrollY: 0 };
 const location = { hash: "", search: "", pathname: "/" };
@@ -54,7 +55,9 @@ const localStorage = { getItem: k => k in LS ? LS[k] : null,
 def _script(dashboard):
     """The whole page script minus its start-up calls (no route, no SSE)."""
     body = dashboard._dashboard_html()
-    js = body[body.index("<script>") + len("<script>"):body.rindex("</script>")]
+    # The main page script is the last inline block (plan 50 added a tiny
+    # pre-paint theme script in <head> before it).
+    js = body[body.rindex("<script>") + len("<script>"):body.rindex("</script>")]
     boot = js.rindex("onRoute();")
     return js[:boot] + js[boot:].replace("onRoute();", "").replace("connect();", "")
 

@@ -4,13 +4,40 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>roadmap</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%230e1116'/%3E%3Crect x='3' y='4' width='10' height='2' rx='1' fill='%233fb950'/%3E%3Crect x='3' y='7' width='7' height='2' rx='1' fill='%23d29922'/%3E%3Crect x='3' y='10' width='4' height='2' rx='1' fill='%234b5563'/%3E%3C/svg%3E">
+<script>
+// plan 50: apply a remembered theme before first paint (storage may throw)
+try { const t = JSON.parse(localStorage.getItem("rm-theme"));
+  if(t === "light" || t === "dark") document.documentElement.dataset.theme = t; } catch(_){}
+</script>
+<link rel="icon" id="favicon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%230e1116'/%3E%3Crect x='3' y='4' width='10' height='2' rx='1' fill='%233fb950'/%3E%3Crect x='3' y='7' width='7' height='2' rx='1' fill='%23d29922'/%3E%3Crect x='3' y='10' width='4' height='2' rx='1' fill='%234b5563'/%3E%3C/svg%3E">
 <style>
+  /* Theme tokens (plan 50): every colour on the page is one of these. Light
+     is the base; dark follows prefers-color-scheme unless the viewer picked a
+     theme (html[data-theme], remembered in localStorage). Lane colours keep
+     4.5:1 against the background and their 14% badge tint in both themes —
+     tests/test_roadmap_dashboard_polish.py checks the values below. */
   :root {
+    color-scheme:light;
+    --bg:#ffffff; --line:#d0d7de; --fg:#1f2328; --muted:#59636e;
+    --bar:#eef1f4; --done:#116329; --active:#7d4e00; --blocked:#a40e26;
+    --todo:#8c959f; --accent:#0550ae; --build:#0f5d63; --gate:#6639ba;
+    --wait:#99286e; --hover:rgba(0,0,0,.03);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+    color-scheme:dark;
     --bg:#0e1116; --line:#232a34; --fg:#e6edf3; --muted:#8b98a5;
     --bar:#242c38; --done:#3fb950; --active:#d29922; --blocked:#f85149;
     --todo:#4b5563; --accent:#58a6ff; --build:#39c5cf; --gate:#a371f7;
-    --wait:#db61a2;
+    --wait:#db61a2; --hover:rgba(255,255,255,.02);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme:dark;
+    --bg:#0e1116; --line:#232a34; --fg:#e6edf3; --muted:#8b98a5;
+    --bar:#242c38; --done:#3fb950; --active:#d29922; --blocked:#f85149;
+    --todo:#4b5563; --accent:#58a6ff; --build:#39c5cf; --gate:#a371f7;
+    --wait:#db61a2; --hover:rgba(255,255,255,.02);
   }
   * { box-sizing:border-box; }
   /* #app sets display:flex, which outranks the UA rule for [hidden] — without
@@ -71,7 +98,7 @@
   .item-wrap { border-top:1px solid var(--line); }
   .item { display:grid; grid-template-columns:14px 1fr auto;
     gap:10px; align-items:start; padding:7px 0; cursor:pointer; }
-  .item:hover { background:rgba(255,255,255,.02); }
+  .item:hover { background:var(--hover); }
   .icaret { color:var(--muted); flex:none; font-size:10px; width:10px;
     display:inline-block; }
   .steps { padding:2px 0 12px 26px; display:flex; flex-direction:column;
@@ -362,7 +389,7 @@
   .bcard { border:1px solid var(--line); border-left:3px solid var(--lc, var(--todo));
     border-radius:6px; padding:7px 8px; display:flex; flex-direction:column;
     gap:5px; cursor:pointer; font-size:12px; min-width:0; background:var(--bg); }
-  .bcard:hover { background:rgba(255,255,255,.03); }
+  .bcard:hover { background:var(--hover); }
   .bcard.flag { border-color:var(--blocked); border-left-color:var(--blocked); }
   .btop { display:flex; gap:6px; align-items:baseline; flex-wrap:wrap; }
   .btop .num { color:var(--muted); font-variant-numeric:tabular-nums; }
@@ -402,6 +429,25 @@
     .bcol { flex:none; }
   }
   /* ---- end lane board (plan 37) ----------------------------------------- */
+  /* ---- connection banner, header meta (plan 50) ----------------------- */
+  .connbanner { display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+    margin:0 0 10px; padding:7px 10px; border:1px solid var(--blocked);
+    border-radius:6px; font-size:12px; color:var(--fg);
+    background:color-mix(in srgb, var(--blocked) 12%, var(--bg)); }
+  .connbanner .cbt { font-weight:600; color:var(--blocked); }
+  .connbanner code { background:var(--bar); border-radius:4px; padding:1px 6px;
+    user-select:all; }
+  .connbanner .cbretry { color:var(--muted); }
+  .hbtn { background:var(--bar); border:1px solid var(--line); color:var(--fg);
+    border-radius:6px; padding:2px 8px; font:inherit; font-size:12px;
+    cursor:pointer; }
+  .hbtn:hover { border-color:var(--muted); }
+  .hbtn:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+  .hmeta { display:inline-flex; gap:8px; align-items:center; flex-wrap:wrap;
+    color:var(--muted); font-size:12px; }
+  .scanhint { color:var(--active); }
+  .attn { color:var(--blocked); font-weight:600; text-decoration:none; }
+  .attn:hover { text-decoration:underline; }
   @media (max-width:640px) {
     header, main { padding-left:16px; padding-right:16px; }
     .facts { grid-template-columns:1fr; }
@@ -418,11 +464,26 @@
 <body>
 <header>
   <div class="wrap">
+    <!-- plan 50: shown while the event stream is down; data stays visible -->
+    <div class="connbanner" id="connbanner" role="status" hidden>
+      <span class="cbt">dashboard stopped</span>
+      <span>— run <code id="cbcmd">claude-roadmap serve</code></span>
+      <button type="button" class="hbtn" id="cbcopy">copy</button>
+      <span class="cbretry" id="cbretry"></span>
+    </div>
     <div class="hrow">
       <h1><span id="stale" title="live"></span><span id="project">roadmap</span>
         <span class="ver" id="cver"></span></h1>
       <select id="rootsel" autocomplete="off" hidden></select>
       <span class="overall" id="overall"></span>
+      <span class="hmeta" id="hmeta">
+        <span class="scanhint" id="scanhint" hidden></span>
+        <a class="attn" id="attnlink" href="#/digest" hidden></a>
+        <span id="stamp" title="when the data last changed"></span>
+        <button type="button" class="hbtn" id="refreshBtn" title="reload the data now">refresh</button>
+        <button type="button" class="hbtn" id="notifyBtn" aria-pressed="false"></button>
+        <button type="button" class="hbtn" id="themeBtn"></button>
+      </span>
     </div>
     <div class="hbar"><i id="hbarfill"></i></div>
     <div class="counts" id="counts"></div>
@@ -1139,7 +1200,8 @@ function render(d){
     ...conflictsPanel(d.conflicts), ...worktreePanel(d.worktrees)];
   const head = [...slotStrip(d.slots), ...runPanel(d)];
   if(!items.length){
-    app.replaceChildren(...head, txt("div","empty", d.error||"no roadmap items yet"), ...tail);
+    app.replaceChildren(...head, txt("div","empty", d.error
+      || (d.scanning ? "scanning this worktree…" : "no roadmap items yet")), ...tail);
     return;
   }
   const groups = {};
@@ -1454,16 +1516,189 @@ document.getElementById("collapseAll").onclick = () => {
 };
 
 // Server-Sent Events: server pushes a fresh status on every .roadmap or
-// branch-ref change. EventSource auto-reconnects on drop, so a closed
-// terminal just goes stale-grey. A refresh re-renders whatever route is
-// open, in place, keeping the route and the scroll position.
-let es;
-function connect(){
-  es = new EventSource("/events");
-  es.onmessage = ev => { try { LASTP = JSON.parse(ev.data);
-    render(view(LASTP)); stale(false); refreshRoute(); } catch(_){} };
-  es.onerror = () => stale(true);
+// branch-ref change. A refresh re-renders whatever route is open, in place,
+// keeping the route and the scroll position.
+// ---- connection banner + reconnect (plan 50) ----------------------------
+// On a dropped stream the last data stays on screen, the live dot goes grey,
+// and (if not back within DOWN_GRACE) a banner says how to restart the
+// server. Reconnects back off 1-2-4-8 s; a tab coming back into view or the
+// network returning retries at once. Every payload carries the server's
+// instance id: a different one means the server restarted, so the open
+// route and tab counts reload — no page refresh.
+let es = null, INSTANCE = null, RETRY_N = 0, RETRY_T = null, RETRY_AT = 0,
+  DOWN_T = null, DOWN = false;
+const BACKOFF = [1000, 2000, 4000, 8000];
+const DOWN_GRACE = 1500;
+function connBanner(on){
+  DOWN = on;
+  document.getElementById("connbanner").hidden = !on;
+  tickRetry();
 }
+function tickRetry(){
+  const s = Math.max(0, Math.ceil((RETRY_AT - Date.now())/1000));
+  document.getElementById("cbretry").textContent = !DOWN ? ""
+    : s > 0 ? "reconnecting in "+s+"s…" : "reconnecting…";
+}
+setInterval(() => { if(DOWN) tickRetry(); }, 1000);
+function scheduleRetry(){
+  clearTimeout(RETRY_T);
+  const ms = BACKOFF[Math.min(RETRY_N++, BACKOFF.length-1)];
+  RETRY_AT = Date.now() + ms;
+  RETRY_T = setTimeout(connect, ms);
+  tickRetry();
+}
+function connect(){
+  clearTimeout(RETRY_T); RETRY_T = null;
+  if(es) es.close();
+  es = new EventSource("/events");
+  es.onmessage = ev => {
+    let P; try { P = JSON.parse(ev.data); } catch(_){ return; }
+    RETRY_N = 0; clearTimeout(DOWN_T); DOWN_T = null; connBanner(false);
+    onPayload(P);
+  };
+  es.onerror = () => {
+    // Take over from EventSource's own retry so the backoff is ours.
+    es.close(); stale(true);
+    if(!DOWN && !DOWN_T) DOWN_T = setTimeout(() => { DOWN_T = null; connBanner(true); },
+      DOWN_GRACE);
+    scheduleRetry();
+  };
+}
+function onPayload(P){
+  const restarted = !!(INSTANCE && P.instance && P.instance !== INSTANCE);
+  if(P.instance) INSTANCE = P.instance;
+  try { LASTP = P; render(view(LASTP)); stale(false); refreshRoute(); } catch(_){}
+  if(restarted){ for(const k of Object.keys(TABCOUNTS)) delete TABCOUNTS[k];
+    renderTabs(); }
+  for(const f of PAYLOAD_HOOKS){ try { f(P, restarted); } catch(_){} }
+}
+// Later features hang per-payload work here (header meta, title, favicon).
+const PAYLOAD_HOOKS = [];
+const retryNow = () => { if(es && es.readyState === 1) return;
+  RETRY_N = 0; connect(); };
+document.addEventListener("visibilitychange", () => {
+  if(!document.hidden && (DOWN || DOWN_T)) retryNow(); });
+window.addEventListener("online", () => { if(DOWN || DOWN_T) retryNow(); });
+document.getElementById("cbcopy").onclick = e => {
+  const btn = e.currentTarget, cmd = document.getElementById("cbcmd");
+  const done = ok => { btn.textContent = ok ? "copied" : "select + copy";
+    setTimeout(() => { btn.textContent = "copy"; }, 1500); };
+  const select = () => { try { const r = document.createRange();
+    r.selectNodeContents(cmd); const sel = getSelection();
+    sel.removeAllRanges(); sel.addRange(r); } catch(_){} };
+  try { navigator.clipboard.writeText(cmd.textContent)
+    .then(() => done(true), () => { select(); done(false); }); }
+  catch(_){ select(); done(false); }
+};
+// Manual refresh: re-read the server's snapshot, reload the open route, and
+// reconnect at once when the stream is down.
+document.getElementById("refreshBtn").onclick = () => {
+  if(DOWN || DOWN_T || !es || es.readyState !== 1) retryNow();
+  getJSON("/api/status").then(P => onPayload(P)).catch(() => {});
+};
+// ---- theme toggle (plan 50): auto (follow the OS) -> light -> dark --------
+const THEMES = ["auto","light","dark"];
+let THEME = (t => THEMES.includes(t) ? t : "auto")(store.get("rm-theme", "auto"));
+function applyTheme(){
+  const root = document.documentElement;
+  if(THEME === "auto") delete root.dataset.theme; else root.dataset.theme = THEME;
+  const b = document.getElementById("themeBtn");
+  b.textContent = "theme: "+THEME;
+  b.title = THEME === "auto" ? "following the system theme — click for light"
+    : "click for "+THEMES[(THEMES.indexOf(THEME)+1) % THEMES.length];
+}
+document.getElementById("themeBtn").onclick = () => {
+  THEME = THEMES[(THEMES.indexOf(THEME)+1) % THEMES.length];
+  store.set("rm-theme", THEME);
+  applyTheme();
+};
+applyTheme();
+// ---- tab title, favicon dot, opt-in notifications (plan 50) -------------
+// The count is the server's `attention` list for the trunk view — the same
+// checks `roadmap digest` lists under "Needs attention" (REFUTED verdicts,
+// blocked claims, slot clashes, overdue waiting steps, a failing trunk suite,
+// WIP over the limit, template stubs, high conflict risk).
+// <plan50-pure> DOM-free helpers; tests run this block in node.
+const attnCount = P => Array.isArray(P && P.attention) ? P.attention.length : 0;
+const titleFor = (project, n) => (n > 0 ? "("+n+") " : "")
+  + (project ? project+" — roadmap" : "roadmap");
+const FAVICON = (dot) => "data:image/svg+xml," + encodeURIComponent(
+  "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'>"
+  + "<rect width='16' height='16' rx='3' fill='#0e1116'/>"
+  + "<rect x='3' y='4' width='10' height='2' rx='1' fill='#3fb950'/>"
+  + "<rect x='3' y='7' width='7' height='2' rx='1' fill='#d29922'/>"
+  + "<rect x='3' y='10' width='4' height='2' rx='1' fill='#4b5563'/>"
+  + (dot ? "<circle cx='12' cy='12' r='4' fill='#f85149' stroke='#0e1116' stroke-width='1.5'/>" : "")
+  + "</svg>");
+// A notification only after the viewer opted in on this page (our own flag,
+// not just a browser permission granted earlier) and only when the count
+// rises against a settled baseline.
+const shouldNotify = (prev, n, optedIn, perm) => optedIn === true
+  && perm === "granted" && Number.isInteger(prev) && n > prev;
+// </plan50-pure>
+let ATTN_PREV = null;            // settled count to compare against; null = none yet
+let NOTIFY_ON = store.get("rm-notify", false) === true;
+const notifyPerm = () => { try { return Notification.permission; }
+  catch(_){ return "unsupported"; } };
+function syncNotifyBtn(){
+  const b = document.getElementById("notifyBtn"), perm = notifyPerm();
+  const on = NOTIFY_ON && perm === "granted";
+  b.textContent = perm === "unsupported" ? "alerts n/a"
+    : perm === "denied" ? "alerts blocked" : on ? "alerts on" : "alerts off";
+  b.setAttribute("aria-pressed", on ? "true" : "false");
+  b.title = perm === "unsupported" ? "this browser has no notifications"
+    : perm === "denied" ? "notifications are blocked for this page in the browser"
+    : on ? "notify when the attention count rises — click to stop"
+    : "notify me when the attention count rises";
+}
+document.getElementById("notifyBtn").onclick = () => {
+  const perm = notifyPerm();
+  if(perm === "unsupported" || perm === "denied"){ syncNotifyBtn(); return; }
+  if(NOTIFY_ON){ NOTIFY_ON = false; store.set("rm-notify", false); syncNotifyBtn(); return; }
+  // The only place permission is ever requested: this click.
+  const ask = perm === "granted" ? Promise.resolve("granted")
+    : Promise.resolve(Notification.requestPermission());
+  ask.then(p => { NOTIFY_ON = p === "granted"; store.set("rm-notify", NOTIFY_ON);
+    syncNotifyBtn(); }).catch(() => syncNotifyBtn());
+};
+syncNotifyBtn();
+function notifyRise(P, n){
+  const proj = projectOf(P);
+  const body = (P.attention || []).map(a => a.text).slice(0, 4).join("\n");
+  try { const note = new Notification(titleFor(proj, n), {body, tag:"roadmap-attention"});
+    note.onclick = () => { try { window.focus(); } catch(_){} location.hash = "#/digest"; };
+  } catch(_){}
+}
+const projectOf = P => ((P.statuses || [])[trunkIdx(P)] || {}).project
+  || (P.merged || {}).project || null;
+PAYLOAD_HOOKS.push((P, restarted) => {
+  const n = attnCount(P);
+  document.title = titleFor(projectOf(P), n);
+  document.getElementById("favicon").href = FAVICON(n > 0);
+  const a = document.getElementById("attnlink");
+  a.hidden = !n;
+  a.textContent = n ? "⚠ "+n+" need"+(n === 1 ? "s" : "")+" attention" : "";
+  a.title = (P.attention || []).map(x => x.text).join("\n");
+  if(restarted) ATTN_PREV = null;
+  // A mid-scan payload is incomplete (conflicts arrive with the full scan):
+  // never notify from it, never settle the baseline on it.
+  if(P.scanning) return;
+  if(shouldNotify(ATTN_PREV, n, NOTIFY_ON, notifyPerm())) notifyRise(P, n);
+  ATTN_PREV = n;
+});
+// Header meta: "scanning N worktrees" while the first scan runs, and when
+// the data last changed.
+const hhmm = ms => { const d = new Date(ms); return isNaN(d) ? "" :
+  d.toLocaleTimeString([], {hour:"2-digit", minute:"2-digit", second:"2-digit"}); };
+PAYLOAD_HOOKS.push(P => {
+  const sc = P.scanning, hint = document.getElementById("scanhint");
+  const left = sc ? Math.max(0, (sc.total||0) - (sc.done||0)) : 0;
+  hint.hidden = !left;
+  hint.textContent = left ? "scanning "+left+" worktree"+(left === 1 ? "" : "s")+"…" : "";
+  const st = document.getElementById("stamp");
+  st.textContent = P.updated ? "updated "+hhmm(P.updated) : "";
+  st.title = P.updated ? "data last changed "+new Date(P.updated).toString() : "";
+});
 document.getElementById("rootsel").addEventListener("change", e => {
   const v = e.target.value;
   VIEW = (v === "trunk" || v === "all") ? v : (parseInt(v, 10) || 0);

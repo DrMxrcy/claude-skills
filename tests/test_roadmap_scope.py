@@ -167,7 +167,10 @@ def _set_settings(roadmap, repo, **kv):
 
 def _repo_state(repo):
     idx = repo / ".git" / "index"
-    return (_git(repo, "for-each-ref", "--format=%(refname) %(objectname)"),
+    # Branches and tags only: a user-level git hook may add refs/notes/* to a
+    # fresh commit asynchronously, which is not the drift report writing.
+    return (_git(repo, "for-each-ref", "--format=%(refname) %(objectname)",
+                 "refs/heads", "refs/tags"),
             _git(repo, "rev-parse", "HEAD"),
             hashlib.sha1(idx.read_bytes()).hexdigest() if idx.exists() else None,
             _git(repo, "status", "--porcelain"))
