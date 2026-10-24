@@ -1,0 +1,35 @@
+skills/roadmap/scripts/rmlib/report.py
+  s_fbae122c7a65de::t_fb5b4be69865b5 10,132-136,160,182-185
+skills/roadmap/scripts/rmlib/sync.py
+  s_fbc496dffa0e96::t_6098c1babec043 14-15,24-27,58-59,61,130,136,169,273-277,280-281,296-299,303-306,310-311,326-329,344-384,423,440-443,447,450,468-471,652-662
+skills/roadmap/scripts/roadmap.py
+  s_fbae122c7a65de::t_34a5da264ad05d 24,94,674-677,684,814,816-819,830-831
+tests/test_roadmap.py
+  s_fbae122c7a65de::t_e34fdcf33c74c2 3280
+tests/test_roadmap_waiting.py
+  s_fbae122c7a65de::t_5f16b57a1825c8 128-244
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3f809a6b7335e74119a27771b6af35d32fbfbe1e",
+  "prompts": {},
+  "sessions": {
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    },
+    "s_fbc496dffa0e96": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "652f2b9d-5a18-4cca-8f56-9faf34444282",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
