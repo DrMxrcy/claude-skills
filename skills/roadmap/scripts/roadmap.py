@@ -77,6 +77,7 @@ from rmlib.ops import file_bug  # noqa: E402  (plan 47: bug routing)
 from rmlib.incubator import bug_tells  # noqa: E402  (plan 47)
 from rmlib import forecast as rmforecast  # noqa: E402  (plan 44: version forecast)
 from rmlib import runs as rmruns  # noqa: E402  (plan 38: run log)
+from rmlib import owners as rmowners  # noqa: E402  (plan 40: claim owners, WIP limit)
 
 
 __all__ = [  # public facade: names re-exported for callers/tests/hooks (roadmap.X)
@@ -329,6 +330,12 @@ def main(argv: list[str]) -> int:
                          help="branch override (default: the discovered branch)")
     p_claim.add_argument("--clear", action="store_true",
                          help="remove the claim (lane reverts to the derived one)")
+    p_claim.add_argument("--owner",
+                         help="who holds the item (default: $ROADMAP_OWNER, else the "
+                              "git user name, else the agent name); --owner alone "
+                              "opens an owner-only claim")
+    p_claim.add_argument("--take", action="store_true",
+                         help="take over (or clear) an item held by another owner")
     p_claim.add_argument("--landed", metavar="SHA",
                          help="move items whose branch tip SHA (a commit or branch, "
                               "e.g. the integration branch) contains to stage "
@@ -570,10 +577,10 @@ def main(argv: list[str]) -> int:
             if args.clear and any(v is not None for v in
                                   (args.stage, args.verdict, args.note, args.branch,
                                    args.landed)):
-                p_claim.error("--clear takes no other options")
-            if args.landed is not None and any(
+                p_claim.error("--clear takes only --owner and --take")
+            if args.landed is not None and (args.take or any(
                     v is not None for v in (args.stage, args.verdict, args.note,
-                                            args.branch)):
+                                            args.branch, args.owner))):
                 p_claim.error("--landed takes no other options (the stage is 'landed')")
             plan_ids = [n for tok in args.ids for n in rids(tok)]
             if args.landed is not None:
@@ -592,12 +599,14 @@ def main(argv: list[str]) -> int:
             if not plan_ids:
                 p_claim.error("no item id given")
             if args.clear:
-                for plan_id, cleared in clear_claims(root, plan_ids).items():
+                for plan_id, cleared in clear_claims(root, plan_ids, owner=args.owner,
+                                                     take=args.take).items():
                     print(f"#{plan_id}: claim cleared" if cleared
                           else f"#{plan_id}: no claim to clear")
                 return 0
             claims = set_claims(root, plan_ids, stage=args.stage, verdict=args.verdict,
-                                note=args.note, branch=args.branch)
+                                note=args.note, branch=args.branch, owner=args.owner,
+                                take=args.take)
             for plan_id, c in claims.items():
                 print(f"#{plan_id}: " + " · ".join(f"{f}={c[f]}" for f in CLAIM_FIELDS
                                                     if c.get(f)))
@@ -797,6 +806,9 @@ def main(argv: list[str]) -> int:
             if not args.as_json:
                 for w in st.get("runWarnings") or []:
                     print(f"warning: {w}", file=sys.stderr)
+                over = rmowners.wip_warning(st.get("wip"))      # plan 40
+                if over:
+                    print(f"warning: {over}", file=sys.stderr)
             if args.runs:
                 if args.as_json:
                     print(json.dumps({k: st.get(k) for k in

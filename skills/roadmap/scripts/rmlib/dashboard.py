@@ -406,7 +406,9 @@ def _merge_status(statuses: list[dict], roots_meta: list[dict]) -> dict:
     if statuses and "forecast" in statuses[_trunk_root(statuses, roots_meta)]:
         out["forecast"] = statuses[_trunk_root(statuses, roots_meta)]["forecast"]
     # The run log (plan 38) is trunk truth too: its runs and trunk health.
-    for key in ("runs", "trunkHealth", "runWarnings"):
+    # The WIP limit (plan 40) is a trunk setting; the page compares it with
+    # the in-flight count it shows.
+    for key in ("runs", "trunkHealth", "runWarnings", "wip"):
         if statuses and key in statuses[_trunk_root(statuses, roots_meta)]:
             out[key] = statuses[_trunk_root(statuses, roots_meta)][key]
     return out

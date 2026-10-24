@@ -23,6 +23,7 @@ from rmlib.sync import (
     _branch_has_work, status, sync, uncut_complete_version)
 from rmlib.sync import is_in_flight  # plan 47
 from rmlib import branches as rmbranches
+from rmlib import owners as rmowners
 from rmlib.report import (
     _record_last_seen_sha)
 from rmlib.incubator import (
@@ -146,13 +147,24 @@ def _apply_claim(text: str, claim: dict | None) -> str:
     return "---\n" + "\n".join(keep) + "\n---\n" + text[m.end():]
 
 
+_KEEP = object()     # _prepare_claim: leave owner/refreshed as they are
+
+
 def _prepare_claim(root: Path, plan_id: int, stage: str | None = None,
                    verdict: str | None = None, note: str | None = None,
                    branch: str | None = None,
-                   landed_sha: str | None = None) -> tuple[Path, str, dict]:
+                   landed_sha: str | None = None, owner=_KEEP,
+                   take: bool = False, explicit_owner: bool = False,
+                   ttl_hours: float | None = None) -> tuple[Path, str, dict]:
     """Validate a claim update and return (plan path, new plan text, claim)
     without writing anything — the shared core of set_claim / set_claims, so a
-    multi-id claim can validate every item before touching any file."""
+    multi-id claim can validate every item before touching any file.
+
+    `owner` (plan 40): the claimant. A claim held by a different owner (see
+    rmlib/owners.py) is refused unless `take`; otherwise the owner is recorded
+    and `refreshed` restamped. The default `_KEEP` (claim --landed) neither
+    checks nor changes ownership. A new claim needs a stage, or an
+    `explicit_owner` (an owner-only claim that holds the item while it builds)."""
     if stage is not None:
         stage = stage.strip().lower()
         if stage == "building":
@@ -180,9 +192,19 @@ def _prepare_claim(root: Path, plan_id: int, stage: str | None = None,
         raise ValueError(f"#{plan_id} is done ({done}/{total} steps ticked on trunk) — "
                          f"a done item cannot be claimed")
     claim = read_claim(path) or {}
-    if stage is None and not claim:
+    if stage is None and not claim and not explicit_owner:
         raise ValueError(f"#{plan_id} has no claim yet — pass --stage "
-                         f"{{{','.join(CLAIM_STAGES)}}}")
+                         f"{{{','.join(CLAIM_STAGES)}}} (or --owner NAME to hold it "
+                         f"while it builds)")
+    if owner is not _KEEP:
+        owner = rmowners.clean_owner(owner)
+        if ttl_hours is None:
+            ttl_hours = rmowners.claim_ttl_hours(read_config(root))
+        other = rmowners.held_by_other(claim, owner, ttl_hours)
+        if other and not take:
+            raise ValueError(rmowners.held_message(plan_id, other, claim))
+        claim["owner"] = owner
+        claim["refreshed"] = rmowners.stamp() if owner else None
     if stage is not None:
         claim["stage"] = stage
     if verdict is not None:
@@ -202,16 +224,15 @@ def _prepare_claim(root: Path, plan_id: int, stage: str | None = None,
 
 def set_claim(root: Path, plan_id: int, stage: str | None = None,
               verdict: str | None = None, note: str | None = None,
-              branch: str | None = None) -> dict:
+              branch: str | None = None, owner: str | None = None,
+              take: bool = False) -> dict:
     """Record (or update in place) an item's in-flight claim: the build-loop stage
     and review verdict git cannot know. Fields not passed keep their prior values;
     `updated` is always restamped. An empty --note/--branch removes that field.
-    Refused on a done item — trunk ticks are the only source of done."""
-    path, text, claim = _prepare_claim(root, plan_id, stage=stage, verdict=verdict,
-                                       note=note, branch=branch)
-    atomic_write(path, text)
-    sync(root)
-    return claim
+    Refused on a done item — trunk ticks are the only source of done.
+    Ownership (plan 40): see set_claims."""
+    return set_claims(root, [plan_id], stage=stage, verdict=verdict, note=note,
+                      branch=branch, owner=owner, take=take)[plan_id]
 
 
 def _unique(ids) -> list[int]:
@@ -220,15 +241,27 @@ def _unique(ids) -> list[int]:
 
 def set_claims(root: Path, plan_ids, stage: str | None = None,
                verdict: str | None = None, note: str | None = None,
-               branch: str | None = None) -> dict[int, dict]:
+               branch: str | None = None, owner: str | None = None,
+               take: bool = False) -> dict[int, dict]:
     """set_claim for several items with the same options, all-or-nothing: every
     item is validated before any plan file is written, so one bad id (unknown,
-    missing plan, done, no claim and no --stage) changes none of them."""
+    missing plan, done, no claim and no --stage, held by another owner) changes
+    none of them.
+
+    Every claim records its owner (plan 40): `owner`, else
+    rmowners.default_owner ($ROADMAP_OWNER, git user name, agent name). An item
+    held by a different owner is refused unless `take`. An explicit `owner`
+    alone may open a claim (owner-only: it holds the item, lane stays derived)."""
     ids = _unique(plan_ids)
     if not ids:
         raise ValueError("claim needs at least one item id")
+    explicit = rmowners.clean_owner(owner) is not None
+    who = rmowners.clean_owner(owner) if explicit else rmowners.default_owner(root)
+    ttl = rmowners.claim_ttl_hours(read_config(root))
     prepared = [(pid, *_prepare_claim(root, pid, stage=stage, verdict=verdict,
-                                      note=note, branch=branch)) for pid in ids]
+                                      note=note, branch=branch, owner=who,
+                                      take=take, explicit_owner=explicit,
+                                      ttl_hours=ttl)) for pid in ids]
     for _, path, text, _ in prepared:
         atomic_write(path, text)
     sync(root)
@@ -360,21 +393,30 @@ def check_landed(root: Path, evidence: str | None = None,
     return out
 
 
-def clear_claim(root: Path, plan_id: int) -> bool:
+def clear_claim(root: Path, plan_id: int, owner: str | None = None,
+                take: bool = False) -> bool:
     """Remove an item's claim (its lane reverts to the derived one). Allowed on done
     items. Returns False when there was nothing to clear."""
-    return clear_claims(root, [plan_id])[plan_id]
+    return clear_claims(root, [plan_id], owner=owner, take=take)[plan_id]
 
 
-def clear_claims(root: Path, plan_ids) -> dict[int, bool]:
+def clear_claims(root: Path, plan_ids, owner: str | None = None,
+                 take: bool = False) -> dict[int, bool]:
     """clear_claim for several items, all-or-nothing: every id must resolve to an
-    existing plan file before any claim is removed. {id: cleared?}."""
+    existing plan file, and none may be held by another owner (plan 40; `take`
+    overrides), before any claim is removed. {id: cleared?}."""
     ids = _unique(plan_ids)
+    who = rmowners.clean_owner(owner) or rmowners.default_owner(root)
+    ttl = rmowners.claim_ttl_hours(read_config(root))
     paths = {}
     for pid in ids:
         path = _plan_path(root, pid)
         if not path.exists():
             raise ValueError(f"plan file for #{pid} is missing ({path.name})")
+        claim = read_claim(path)
+        other = None if take else rmowners.held_by_other(claim, who, ttl)
+        if other:
+            raise ValueError(rmowners.held_message(pid, other, claim))
         paths[pid] = path
     out = {}
     for pid, path in paths.items():

@@ -3047,9 +3047,12 @@ def test_claim_set_writes_flat_frontmatter_keys(roadmap, repo, monkeypatch):
                          "CONFIRMED", "--note", "spec + quality\npassed",
                          "--branch", "roadmap/1"]) == 0
     today = datetime.date.today().isoformat()
-    assert roadmap.read_claim(plan) == {
+    claim = roadmap.read_claim(plan)
+    assert claim.pop("refreshed")          # plan 40: UTC stamp of the owner's refresh
+    assert claim == {
         "stage": "gate-ready", "verdict": "CONFIRMED", "note": "spec + quality passed",
-        "branch": "roadmap/1", "landed_sha": None, "updated": today}
+        "branch": "roadmap/1", "landed_sha": None, "updated": today,
+        "owner": "t"}                      # plan 40: defaults to the git user name
     meta = roadmap.parse_plan(plan)["meta"]
     assert meta["id"] == "1" and meta["claim_stage"] == "gate-ready"
     assert "stage" not in meta and "claim" not in meta     # flat, no nesting
@@ -3379,6 +3382,9 @@ def test_status_in_flight_filter_and_combinations(roadmap, branches, repo,
 
 def test_status_lanes_without_git(roadmap, branches, tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)                      # not a git repo at all
+    # A fixed claim owner (plan 40): with git gone below, the git-user-name
+    # fallback would resolve differently between the claim and the clear.
+    monkeypatch.setenv("ROADMAP_OWNER", "me")
     roadmap.init_project(tmp_path, "P", claude_md=False)
     roadmap.new_item(tmp_path, "feature", "A")
     roadmap.set_claim(tmp_path, 1, stage="blocked", note="waiting on API")
