@@ -15,6 +15,7 @@ import sys
 import threading
 import time
 import urllib.parse
+import uuid
 import urllib.request
 import webbrowser
 from pathlib import Path
@@ -147,6 +148,27 @@ def _safe_conflicts(rm, root: Path, st: dict) -> dict | None:
         return fn(root, st)
     except Exception:  # noqa: BLE001
         return None
+
+
+def _safe_attention(rm, root: Path, st: dict, conflicts: dict | None) -> list:
+    """Needs-attention entries (plan 50) for the trunk view — the digest's
+    ATTENTION checks, so the tab title counts exactly what `roadmap digest`
+    lists. Empty without the hook or on any failure."""
+    fn = getattr(rm, "attention", None)
+    if fn is None or st.get("error"):
+        return []
+    try:
+        return list(fn(root, {**st, "conflicts": conflicts} if conflicts else st))
+    except Exception:  # noqa: BLE001 — the title count must never break a payload
+        return []
+
+
+def _pending_status() -> dict:
+    """Placeholder for a checkout whose status is still being scanned (plan
+    50's fast first paint): shaped like an empty status so every consumer
+    (merge, summary lines, the page) handles it unchanged."""
+    return {"project": None, "currentVersion": None, "items": [],
+            "scanning": True}
 
 
 def _safe_status(rm, root: Path) -> dict:
@@ -487,16 +509,34 @@ class _Broadcaster:
     """
     RESCAN_TICKS = 5
 
-    def __init__(self, rm, origin: Path, verbose: bool = False):
+    def __init__(self, rm, origin: Path, verbose: bool = False,
+                 fast_start: bool = False):
         self.rm, self.origin = rm, origin
         self.verbose = verbose
         self.url: str | None = None   # set by serve() once the port is bound
         self.cond = threading.Condition()
         self.version = 0
+        # Plan 50: a fresh id per server process, carried in every payload and
+        # header, so an open page can tell a restarted server from a dropped
+        # connection; `updated` is when the payload last changed.
+        self.instance = uuid.uuid4().hex[:12]
+        self.updated = time.time()
         self.roots = _discover_roots(rm, origin)
         self._wt_root = origin    # trunk checkout once known (set by _dump)
-        self.json = self._dump()
-        self._sigs = self._signature()
+        self._partial: list | None = None
+        if fast_start and len(self.roots) > 1:
+            # Fast first paint (plan 50): only the trunk checkout is scanned
+            # before the server binds; the start() thread adds the other
+            # checkouts as they finish. Signatures first, so a change made
+            # during the scan is picked up by the first tick after it.
+            self._sigs = self._signature()
+            self._partial = self._first_statuses()
+            self._core = self._dump(self._padded(self._partial),
+                                    scanning=self._scan_progress())
+        else:
+            self._core = self._dump()
+            self._sigs = self._signature()
+        self.json = self._with_meta(self._core)
 
     def _signature(self) -> list:
         # Refs and worktrees are shared by every checkout of the repo: one
@@ -505,28 +545,94 @@ class _Broadcaster:
                 + [_refs_signature(self.origin),
                    _worktree_signature(self.rm, self._wt_root)])
 
-    def _dump(self) -> str:
+    # ---- fast first paint (plan 50) ------------------------------------
+    def _first_statuses(self) -> list:
+        """The main checkout's status, plus the trunk checkout's when trunk is
+        checked out elsewhere; every other slot None (not scanned yet)."""
+        stats: list = [None] * len(self.roots)
+        stats[0] = _safe_status(self.rm, self.roots[0][0])
+        trunk = stats[0].get("trunk")
+        t = next((i for i, (_, b) in enumerate(self.roots)
+                  if trunk and b == trunk), 0)
+        if stats[t] is None:
+            stats[t] = _safe_status(self.rm, self.roots[t][0])
+        return stats
+
+    @staticmethod
+    def _padded(stats: list) -> list[dict]:
+        return [s if s is not None else _pending_status() for s in stats]
+
+    def _scan_progress(self) -> dict:
+        stats = self._partial or []
+        return {"done": sum(s is not None for s in stats), "total": len(stats)}
+
+    def _finish_scan(self) -> None:
+        """Scan the checkouts the first payload skipped, publishing after each
+        one, then publish the full payload (worktree map, conflicts)."""
+        stats = self._partial
+        if stats is None:
+            return
+        for i, (p, _) in enumerate(self.roots):
+            if stats[i] is not None:
+                continue
+            stats[i] = _safe_status(self.rm, p)
+            if any(s is None for s in stats):
+                self._publish(self._dump(self._padded(stats),
+                                         scanning=self._scan_progress()))
+        self._partial = None
+        self._publish(self._dump(stats))
+
+    def _with_meta(self, core: str) -> str:
+        """`core` (a JSON object) plus the instance id and change time. Kept
+        out of `core` so the change check compares data only."""
+        meta = json.dumps({"instance": self.instance,
+                           "updated": round(self.updated * 1000)})
+        return core[:-1] + ", " + meta[1:] if core.endswith("}") else core
+
+    def _publish(self, core: str) -> bool:
+        """Swap in a new payload and wake every SSE client; False (and no
+        notification) when the data did not actually change."""
+        if core == self._core:
+            return False
+        with self.cond:
+            self._core = core
+            self.updated = time.time()
+            self.json = self._with_meta(core)
+            self.version += 1
+            self.cond.notify_all()
+        return True
+
+    def _dump(self, stats: list[dict] | None = None,
+              scanning: dict | None = None) -> str:
         meta = [{"path": str(p), "branch": b, "name": p.name}
                 for p, b in self.roots]
-        stats = [_safe_status(self.rm, p) for p, _ in self.roots]
+        if stats is None:
+            stats = [_safe_status(self.rm, p) for p, _ in self.roots]
         merged = _merge_status(stats, meta) if len(stats) > 1 else stats[0]
         trunk = _trunk_root(stats, meta)
         # The worktree map is repo-wide: computed once, from the trunk view.
         self._wt_root = self.roots[trunk][0] if trunk < len(self.roots) else self.origin
         out = {"_roots": meta, "statuses": stats, "merged": merged,
                "trunkRoot": trunk}
-        wt = _safe_worktrees(self.rm, self._wt_root, stats[trunk])
-        if wt is not None:
-            out["worktrees"] = wt
-        cf = _safe_conflicts(self.rm, self._wt_root, stats[trunk])
-        if cf is not None:
-            out["conflicts"] = cf
+        cf = None
+        if scanning is not None:
+            # Mid-scan (plan 50): the repo-wide panels wait for the full scan.
+            out["scanning"] = scanning
+        else:
+            wt = _safe_worktrees(self.rm, self._wt_root, stats[trunk])
+            if wt is not None:
+                out["worktrees"] = wt
+            cf = _safe_conflicts(self.rm, self._wt_root, stats[trunk])
+            if cf is not None:
+                out["conflicts"] = cf
+        out["attention"] = _safe_attention(self.rm, self._wt_root, stats[trunk], cf)
         return json.dumps(out)
 
     def start(self) -> None:
         threading.Thread(target=self._run, daemon=True).start()
 
     def _run(self) -> None:
+        self._finish_scan()   # no-op unless started with fast_start
         tick = 0
         while True:
             time.sleep(1)
@@ -557,12 +663,8 @@ class _Broadcaster:
         snap = self._dump()
         # mtime signatures flap on every file touch (editors, agents, git);
         # only notify clients and print when the status actually changed.
-        if snap == self.json:
+        if not self._publish(snap):
             return
-        with self.cond:
-            self.json = snap
-            self.version += 1
-            self.cond.notify_all()
         for line in _summary_lines(json.loads(snap), self.url, self.verbose,
                                    prefix=f"  ↻ {time.strftime('%H:%M:%S')} "):
             print(line, flush=True)
@@ -597,7 +699,9 @@ def serve(rm, root: Path, port: int | None = None,
     # has a .roadmap/ (re-discovered live by the broadcaster). Port + dedupe
     # key on the primary (main-checkout) root, so `roadmap serve` from any
     # checkout converges on the same dashboard.
-    bcast = _Broadcaster(rm, root, verbose=verbose)
+    # fast_start (plan 50): bind after the trunk scan only; the watcher
+    # thread adds the other checkouts as they finish.
+    bcast = _Broadcaster(rm, root, verbose=verbose, fast_start=True)
     primary = bcast.roots[0][0]
     root_id = str(primary)
     dashboard_html = _dashboard_html()
@@ -617,6 +721,7 @@ def serve(rm, root: Path, port: int | None = None,
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Cache-Control", "no-store")
             self.send_header("X-Roadmap-Root", root_id)
+            self.send_header("X-Roadmap-Instance", bcast.instance)   # plan 50
             self.end_headers()
             self.wfile.write(body)
 
@@ -626,6 +731,7 @@ def serve(rm, root: Path, port: int | None = None,
             self.send_header("Cache-Control", "no-store")
             self.send_header("Connection", "keep-alive")
             self.send_header("X-Roadmap-Root", root_id)
+            self.send_header("X-Roadmap-Instance", bcast.instance)   # plan 50
             self.end_headers()
             ver, snap = bcast.snapshot()
             try:

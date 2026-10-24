@@ -144,7 +144,8 @@ def _dashboard_api():
         worktree_payload=worktree_payload,
         conflicts_payload=conflicts_payload,
         digest=rmdigest.digest, digest_sections=rmdigest.sections,   # plan 45
-        default_owner=rmowners.default_owner)
+        default_owner=rmowners.default_owner,
+        attention=rmdigest.attention)   # plan 50: tab-title / favicon count
 
 
 def serve(root: Path, port: int | None = None, open_browser: bool = True,
