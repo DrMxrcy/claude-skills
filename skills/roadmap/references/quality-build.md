@@ -116,6 +116,7 @@ Parent reads the plan file + linked Spec / Detailed plan once, then for **each u
 - Fresh **`scout`** gets the step text + ✅ Acceptance list and runs `git diff` itself (don't paste the diff — it is cheaper for haiku to read it than for the parent to relay it):
   - "For each criterion: MET / NOT MET / UNVERIFIED with `path:line`. List extras outside the step. No quality opinions."
 - Any NOT MET → re-dispatch `executor` with the gap list; re-run the scout pass. **Cap at two fix→review loops**, then the parent reads the gap itself.
+- **Mark the acceptance ledger** (plan 43): once a ✅ Acceptance criterion is MET with evidence, the parent records it — `roadmap.py accept <id> --line N --evidence "<verify command + result>"` (`accept <id>` lists the bullets with their numbers and state; `--fail` records a failed check). `Fails if:` bullets are guards, never marked — the quality review enforces them. With `settings.requireAcceptance` on, the `check` that would complete the item is refused while any criterion is unmarked or failed, so mark each bullet as soon as its evidence exists rather than at the end. `--force` overrides and records `forced past unaccepted acceptance (#…)` in the evidence line.
 
 ### D. Quality review (`verifier`, sonnet at high effort — a different model than the author)
 
@@ -154,7 +155,7 @@ The tier table above is the **default when native workers are available and perm
 If implementation or review workers are unavailable or prohibited, the parent **continues the authorized work**:
 
 1. Implement as the **sole writer**.
-2. Run a **separate spec-compliance pass** — fresh read of `git diff` against the step text and ✅ Acceptance list; fix findings and repeat until clean.
+2. Run a **separate spec-compliance pass** — fresh read of `git diff` against the step text and ✅ Acceptance list; fix findings and repeat until clean, then mark each MET criterion with `roadmap.py accept <id> --line N --evidence "…"`.
 3. Run a **separate code-quality pass** — adversarial correctness, edge cases, error handling, contract drift, test quality; fix findings and repeat until clean.
 4. Use capable **permitted read-only reviewers** for whichever passes the host offers.
 5. In the `check --evidence` text, **record which passes were independent and which were parent self-reviews**, with findings and evidence. Never claim a worker review happened when it did not.

@@ -300,6 +300,21 @@
   .ruling .rtext { overflow-wrap:anywhere; }
   .ruling .rctx { color:var(--muted); }
   .appr { color:var(--done); border-color:var(--done); font-weight:600; }
+  /* ---- acceptance ledger (plan 43): per-bullet state + evidence ------- */
+  .accept { margin-top:8px; display:flex; flex-direction:column; gap:4px; }
+  .accept h4 { margin:0 0 2px; font-size:12px; color:var(--muted); font-weight:600; }
+  .acc { display:grid; grid-template-columns:auto 1fr; gap:2px 10px;
+    font-size:12px; align-items:baseline; }
+  .acc .astate { border:1px solid var(--line); border-radius:4px; padding:0 6px;
+    font-size:11px; color:var(--muted); text-align:center; min-width:58px; }
+  .acc.met .astate { color:var(--done); border-color:var(--done); font-weight:600; }
+  .acc.failed .astate { color:var(--blocked); border-color:var(--blocked);
+    font-weight:600; }
+  .acc .atext { overflow-wrap:anywhere; min-width:0; }
+  .acc .alabel { color:var(--muted); }
+  .acc .aev { grid-column:2; color:var(--muted); overflow-wrap:anywhere; }
+  .acc-open { color:var(--active); border-color:var(--active); }
+  .acc-fail { color:var(--blocked); border-color:var(--blocked); font-weight:600; }
   /* ---- bug routing (plan 47): fixes found during build --------------- */
   .found { margin-top:8px; display:flex; flex-direction:column; gap:4px; font-size:12px; }
   .found h4 { margin:0 0 2px; font-size:12px; color:var(--muted); font-weight:600; }
@@ -627,6 +642,7 @@ function itemRow(it){
   title.appendChild(t);
   title.appendChild(txt("span","badge", it.type));
   rulingBadges(it).forEach(b => title.appendChild(b));
+  const acc = acceptBadge(it); if(acc) title.appendChild(acc);
   if(it.foundIn != null) title.appendChild(txt("span","badge", "from #"+it.foundIn));
   if(VIEW === "all" && it.checkout) title.appendChild(txt("span","badge", it.checkout));
   if(it.blockedBy && it.blockedBy.length)
@@ -661,6 +677,36 @@ function rulingBadges(it){
   }
   if(it.needsApproval) out.push(txt("span","badge needs-appr","needs approval"));
   return out;
+}
+// Acceptance ledger (plan 43): "3/5 accepted" on cards and the plan page —
+// green when every criterion is met, red when one failed, amber part-way.
+function acceptBadge(it){
+  const a = it.acceptance;
+  if(!a || !a.total) return null;
+  const cls = a.failed ? " acc-fail" : a.met === a.total ? " appr"
+    : a.met ? " acc-open" : "";
+  const b = txt("span","badge"+cls, a.met+"/"+a.total+" accepted");
+  b.title = a.met+" of "+a.total+" acceptance criteria met"
+    +(a.failed ? " · "+a.failed+" failed" : "");
+  return b;
+}
+function acceptanceBlock(a){
+  const box = el("div","accept");
+  box.appendChild(txt("h4",null, "✅ acceptance · "+a.met+"/"+a.total+" accepted"));
+  for(const b of a.bullets){
+    const guard = b.kind === "guard";
+    const line = el("div","acc "+(guard ? "guard" : (b.state || "open")));
+    line.appendChild(txt("span","astate",
+      guard ? "guard" : b.state === "met" ? "✓ met" : b.state === "failed" ? "✗ failed" : "open"));
+    const t = el("span","atext");
+    if(b.label) t.appendChild(txt("span","alabel", b.label+": "));
+    t.appendChild(document.createTextNode(b.text || ""));
+    line.appendChild(t);
+    if(b.state) line.appendChild(txt("span","aev",
+      [b.date, b.evidence].filter(Boolean).join(" · ")));
+    box.appendChild(line);
+  }
+  return box;
 }
 function rulingsBlock(rs){
   const box = el("div","rulings");
@@ -1584,6 +1630,7 @@ function planPage(r){
     if(d.version) meta.appendChild(txt("span","badge", "v"+d.version));
     if(d.status) meta.appendChild(txt("span","badge", d.status));
     rulingBadges(d).forEach(b => meta.appendChild(b));
+    const acc = acceptBadge(d); if(acc) meta.appendChild(acc);
     meta.appendChild(progressBar(row, fly));
     meta.appendChild(txt("span","frac", (row.done||0)+"/"+(row.total||0)));
     head.appendChild(meta);
@@ -1658,6 +1705,8 @@ function planPage(r){
         box.appendChild(txt("div","muted","…"+(b.ahead-cs.length)+" more"));
       out.push(box);
     }
+    if(d.acceptance && d.acceptance.bullets && d.acceptance.bullets.length)
+      out.push(acceptanceBlock(d.acceptance));
     if(d.rulings && d.rulings.length) out.push(rulingsBlock(d.rulings));
     if(row.foundDuringBuild && row.foundDuringBuild.length){
       const box = el("div","found");

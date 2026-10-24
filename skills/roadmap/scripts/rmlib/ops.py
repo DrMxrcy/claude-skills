@@ -17,6 +17,7 @@ from rmlib.parse import (
     STEP_RE, WAIT_BOX, _HEADING_RE, _is_fence, _norm_name, _plan_path, count_progress,
     parse_plan, read_claim, required_sections, split_wait_marker, template_stubs,
     wait_marker)
+from rmlib.parse import ACCEPT_MARKER_RE, acceptance_bullets, public_bullet  # plan 43
 from rmlib.parse import FOUND_HEADING, FOUND_SECTION_KEY, meta_ids  # plan 47
 from rmlib.changelog import (
     demote_tells, item_audience, lint_note, status_tells)
@@ -78,7 +79,9 @@ def check_step(root: Path, plan_id: int, step: int | None,
     step, so counts and generated output are untouched. `tokens` (optional, >= 0) is
     appended to that same sub-line so spend can be compared per completed step.
     Checking is refused while the plan's required sections are still template text
-    (plan 35); `force` checks anyway and records the override in the evidence line."""
+    (plan 35), and — with settings.requireAcceptance — when the check would complete
+    the item while an acceptance criterion is not marked met (plan 43); `force`
+    checks anyway and records the override in the evidence line."""
     path = _plan_path(root, plan_id)
     evidence = " ".join(evidence.split()) if evidence else ""
     if tokens is not None and tokens < 0:
@@ -103,9 +106,9 @@ def check_step(root: Path, plan_id: int, step: int | None,
     if stubs:
         forced = f"forced past empty template ({', '.join(stubs)})"
         evidence = f"{evidence} · {forced}" if evidence else forced
-    spend = f" · tokens: {tokens}" if tokens is not None and evidence and not undo else ""
-    stamp = f"  > evidence: {evidence} ({datetime.date.today().isoformat()}){spend}"
+    done_before, total_before = count_progress(path)
     box = "[ ]" if undo else "[x]"
+    hits = []                     # out-indices where a checked step's evidence goes
     out, n, ticked, in_fence, kept_waiting = [], 0, 0, False, 0
     for line in path.read_text(encoding="utf-8").splitlines():
         if _is_fence(line):
@@ -126,10 +129,18 @@ def check_step(root: Path, plan_id: int, step: int | None,
                 line = re.sub(r"\[( |x|X)\]", box, line, count=1)
             ticked += STEP_RE.match(line).group(2).lower() == "x"
         out.append(line)
-        if hit and evidence and not undo:
-            out.append(stamp)
+        if hit and not undo:
+            hits.append(len(out))
     if step is not None and not all_done and (step < 1 or step > n):
         raise ValueError(f"plan {plan_id} step {step} out of range (1..{n})")
+    completes = not undo and n and ticked == n and done_before < total_before
+    unaccepted = acceptance_gate(cfg, path, plan_id, force) if completes else ""
+    if unaccepted:
+        evidence = f"{evidence} · {unaccepted}" if evidence else unaccepted
+    spend = f" · tokens: {tokens}" if tokens is not None and evidence and not undo else ""
+    stamp = f"  > evidence: {evidence} ({datetime.date.today().isoformat()}){spend}"
+    for at in reversed(hits if evidence else []):
+        out.insert(at, stamp)
     text = "\n".join(out) + "\n"
     if not undo and n and ticked == n:
         text = _apply_claim(text, None)     # item is done: its in-flight claim ends
@@ -142,6 +153,70 @@ def check_step(root: Path, plan_id: int, step: int | None,
     if not undo:
         _record_last_seen_sha(root)
         release_gate(root)
+
+
+def acceptance_gate(cfg: dict, path: Path, plan_id: int, force: bool) -> str:
+    """The completion gate (plan 43): with settings.requireAcceptance on, the check
+    that would complete an item is refused while any acceptance criterion is not
+    marked met (unmarked or failed). Returns "" when the gate passes or is off, or
+    the override note to record in the evidence line when `force` bypasses it."""
+    if not (cfg.get("settings") or {}).get("requireAcceptance"):
+        return ""
+    lines = path.read_text(encoding="utf-8").splitlines()
+    open_ = [b for b in acceptance_bullets(lines)
+             if b["kind"] == "criterion" and b["state"] != "met"]
+    if not open_:
+        return ""
+    if not force:
+        listed = "\n".join(
+            f"  #{b['n']} [{b['state'] or 'unmarked'}] "
+            f"{(b['label'] + ': ') if b['label'] else ''}{b['text']}" for b in open_)
+        raise ValueError(
+            f"check refused — settings.requireAcceptance is on and this check would "
+            f"complete plan {plan_id}, but {len(open_)} acceptance bullet(s) are not "
+            f"marked met:\n{listed}\nMark each once verified: roadmap.py accept "
+            f'{plan_id} --line N --evidence "<command + result>", or re-run with '
+            f"--force (recorded in the evidence line).")
+    return f"forced past unaccepted acceptance (#{', #'.join(str(b['n']) for b in open_)})"
+
+
+def list_acceptance(root: Path, plan_id: int) -> list[dict]:
+    """The plan's acceptance bullets with their state (see acceptance_bullets)."""
+    lines = _plan_path(root, plan_id).read_text(encoding="utf-8").splitlines()
+    return [public_bullet(b) for b in acceptance_bullets(lines)]
+
+
+def accept(root: Path, plan_id: int, n: int, evidence: str,
+           fail: bool = False) -> dict:
+    """Mark acceptance bullet `n` met (or failed with `fail`) with `evidence`
+    (plan 43): writes `  > accepted: DATE evidence` (or `> failed:`) under the
+    bullet, replacing any earlier marker there. `Fails if:` guards are refused.
+    Returns the updated bullet."""
+    evidence = " ".join((evidence or "").split())
+    if not evidence:
+        raise ValueError('accept needs --evidence "<verify command + result>"')
+    path = _plan_path(root, plan_id)
+    lines = path.read_text(encoding="utf-8").splitlines()
+    bullets = acceptance_bullets(lines)
+    if not bullets:
+        raise ValueError(f"plan {plan_id} has no ✅ Acceptance bullets "
+                         f"({path.relative_to(root)})")
+    if not 1 <= n <= len(bullets):
+        raise ValueError(f"plan {plan_id} acceptance bullet {n} out of range "
+                         f"(1..{len(bullets)})")
+    b = bullets[n - 1]
+    if b["kind"] == "guard":
+        raise ValueError(f"plan {plan_id} acceptance bullet {n} is a "
+                         f"'{b['label']}' guard — guards are not marked")
+    span = [ln for ln in lines[b["line"] + 1:b["end"]] if not ACCEPT_MARKER_RE.match(ln)]
+    while span and not span[-1].strip():
+        span.pop()
+    word = "failed" if fail else "accepted"
+    marker = f"  > {word}: {datetime.date.today().isoformat()} {evidence}"
+    lines[b["line"] + 1:b["end"]] = [*span, marker]
+    atomic_write(path, "\n".join(lines) + "\n")
+    sync(root)
+    return list_acceptance(root, plan_id)[n - 1]
 
 
 _REL_UNTIL_RE = re.compile(r"^(\d+)\s*([dw])$", re.IGNORECASE)
