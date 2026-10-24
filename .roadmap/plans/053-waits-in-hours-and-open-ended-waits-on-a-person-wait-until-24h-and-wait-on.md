@@ -3,7 +3,7 @@ id: 53
 title: Waits in hours and open-ended waits on a person: wait --until 24h and wait --on
 type: feature
 version: 0.21.0
-status: planned
+status: done
 created: 2026-10-24
 ---
 
@@ -31,6 +31,9 @@ created: 2026-10-24
 - **Fails if:** a waiting step counts as done anywhere, or existing `--until 7d` behaviour changes.
 
 ## 🚶 Step-by-Step Checklist
-- [ ] Step 1: hours in `--until`, time-of-day due, hour countdowns -> target: rmlib/ops.py, rmlib/parse.py, rmlib/sync.py, tests
-- [ ] Step 2: `--on` open-ended waits, marker fields, reminders in orient and digest, attention after waitNudgeDays -> target: roadmap.py, rmlib/ops.py, rmlib/report.py, rmlib/digest.py, tests
-- [ ] Step 3: follow-ups carry `--on`, dashboard badge and board column text, docs -> target: rmlib/ops.py, rmlib/dashboard.html, references/state-model.md, SKILL.md, tests
+- [x] Step 1: hours in `--until`, time-of-day due, hour countdowns -> target: rmlib/ops.py, rmlib/parse.py, rmlib/sync.py, tests
+  > evidence: 45f7941 8334669 9156a2a; 20 wait-on tests incl. old-style markers unchanged; 839 passed in worktree; merged 5c84d10; 839 passed in 245.64s (0:04:05); reviews skipped at owner request (2026-10-24)
+- [x] Step 2: `--on` open-ended waits, marker fields, reminders in orient and digest, attention after waitNudgeDays -> target: roadmap.py, rmlib/ops.py, rmlib/report.py, rmlib/digest.py, tests
+  > evidence: 45f7941 8334669 9156a2a; 20 wait-on tests incl. old-style markers unchanged; 839 passed in worktree; merged 5c84d10; 839 passed in 245.64s (0:04:05); reviews skipped at owner request (2026-10-24)
+- [x] Step 3: follow-ups carry `--on`, dashboard badge and board column text, docs -> target: rmlib/ops.py, rmlib/dashboard.html, references/state-model.md, SKILL.md, tests
+  > evidence: 45f7941 8334669 9156a2a; 20 wait-on tests incl. old-style markers unchanged; 839 passed in worktree; merged 5c84d10; 839 passed in 245.64s (0:04:05); reviews skipped at owner request (2026-10-24)

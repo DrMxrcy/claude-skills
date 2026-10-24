@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.21.0 — (in progress)
+## v0.21.0 — 2026-10-24
 
 ### ✨ New
 - Move many items through review and merge in one command, and tick them off together once they reach main.
@@ -21,7 +21,7 @@
 - One dashboard page lists every project you use the roadmap in, with no setup.
 - Find anything fast: pages per version, a dependency map, search across every plan, and keyboard shortcuts.
 - The dashboard reconnects on its own, flags problems in the browser tab, follows your light or dark setting, and opens faster.
-- (pending) Steps can wait a few hours, or wait on a person such as a tester, with daily reminders until they are done.
+- Steps can wait a few hours, or wait on a person such as a tester, with daily reminders until they are done.
 
 ### ⚡ Improved
 - The roadmap stops warning about file length once shipped versions fold away on their own.
