@@ -302,6 +302,13 @@ def _item_detail(rm, root: Path, item_id: int) -> dict:
             for k in ("displayId", "pct", "done", "total",
                       "foundIn", "bugsFound", "foundDuringBuild"):   # plan 47
                 detail[k] = row.get(k)
+            # plan 49: who `claim` would default to, so the page's copy
+            # buttons add --take only when someone else holds the item.
+            owner_fn = getattr(rm, "default_owner", None)
+            try:
+                detail["me"] = owner_fn(root) if owner_fn else None
+            except Exception:  # noqa: BLE001 — a git hiccup must not break the page
+                detail["me"] = None
             if row.get("branch"):
                 detail["branch"] = {
                     **row["branch"],

@@ -364,3 +364,182 @@ def test_dashboard_graph_page_hooks(dashboard):
         assert hook in body, hook
     # the graph is drawn in-page: no chart/graph library is loaded
     assert "<script src" not in body
+
+
+# --- step 4: keyboard, palette, copy-command buttons -------------------------
+
+def test_dashboard_key_actions(dashboard, tmp_path):
+    js = _slice(_body(dashboard), "const GO = {", "const NAV_ROWS") \
+        + _slice(_body(dashboard), "function isTyping", "function visiblePane") + r"""
+const free = {typing:false, mod:false, palette:false, pending:false};
+const keys = ["/","g","j","k","Enter","Escape","?","x"];
+const go = ["l","i","c","g","v","x"].map(k => keyAction(k, {...free, pending:true}));
+const typing = keys.map(k => keyAction(k, {...free, typing:true}));
+const mod = keys.map(k => keyAction(k, {...free, mod:true}));
+const pal = [keyAction("k", {...free, palette:true}), keyAction("k", {...free, palette:true, typing:true})];
+const inp = t => ({tagName:"INPUT", type:t});
+console.log(JSON.stringify({free: keys.map(k => keyAction(k, free)), go, typing, mod, pal,
+  isTyping: [isTyping(inp("search")), isTyping(inp("text")), isTyping(inp("checkbox")),
+    isTyping({tagName:"TEXTAREA"}), isTyping({tagName:"SELECT"}),
+    isTyping({tagName:"DIV", isContentEditable:true}), isTyping({tagName:"A"}), isTyping(null)]}));
+"""
+    r = _node(tmp_path, "keys.js", js)
+    assert r["free"] == [{"act": "search"}, {"act": "pending"}, {"act": "move", "by": 1},
+                         {"act": "move", "by": -1}, {"act": "open"}, {"act": "back"},
+                         {"act": "help"}, None]
+    assert r["go"] == [{"act": "go", "href": h} for h in
+                       ("#/", "#/ideas", "#/changelog", "#/graph", "#/versions")] + [{"act": "cancel"}]
+    # shortcuts do nothing while typing in an input, or with a modifier held
+    assert r["typing"] == [None] * 8 and r["mod"] == [None] * 8
+    assert r["pal"] == [{"act": "palette"}, {"act": "palette"}]
+    assert r["isTyping"] == [True, True, False, True, True, True, False, False]
+
+
+_PAL_STUBS = r"""
+const laneOf = it => it.lane || "planned";
+let LAST = {currentVersion:"0.21.0"};
+const searchHref = q => "#/search/" + encodeURIComponent(q);
+"""
+
+
+def test_dashboard_palette_finds_plan_by_partial_title(dashboard, tmp_path):
+    body = _body(dashboard)
+    js = _PAL_STUBS + _slice(body, "const vkeyOf", "function versionsPage") \
+        + _slice(body, "const PAGES = [", "let PAL = null;") + r"""
+const items = [
+  {id:49, displayId:"FEAT-49", version:"0.21.0", title:"Dashboard navigation: version pages, dependency graph"},
+  {id:45, displayId:"FEAT-45", version:"0.21.0", title:"Dashboard digest page"},
+  {id:12, displayId:"BUG-12", version:"0.20.0", title:"Fix the changelog audience", lane:"done"}];
+const ideas = [{index:2, title:"Graph colour themes"}];
+const e = paletteEntries(items, ideas);
+const top = q => (paletteRank(q, e)[0] || {}).href;
+console.log(JSON.stringify({
+  kinds: [...new Set(e.map(x => x.kind))],
+  nav: top("dash nav"), dep: top("version pages"), graph: top("dependency gr"), digest: top("digest page"),
+  id: top("#12"), disp: top("bug-12"), sub: top("chnglg aud"), ver: top("v0.20"),
+  idea: top("colour"), page: top("ideas"), none: paletteRank("zzzz", e).length,
+  all: paletteRank("", e).length, fz: [fuzzy("dn", "dashboard nav") > 0, fuzzy("xq", "dashboard")]}));
+"""
+    r = _node(tmp_path, "pal.js", js)
+    assert r["kinds"] == ["page", "version", "plan", "idea"]
+    assert r["nav"] == "#/plan/49" and r["dep"] == "#/plan/49" and r["graph"] == "#/graph"
+    assert r["digest"] == "#/plan/45" and r["id"] == "#/plan/12" and r["disp"] == "#/plan/12"
+    assert r["sub"] == "#/plan/12"                 # subsequence: "chnglg aud"
+    assert r["ver"] == "#/version/0.20.0" and r["idea"] == "#/idea/2"
+    assert r["page"] == "#/ideas" and r["none"] == 0 and r["all"] == 6 + 2 + 3 + 1
+    assert r["fz"] == [True, -1]
+
+
+_CMD_STUBS = r"""
+const LANE_GROUP = {};
+const laneOf = it => it.lane || "planned";
+const daysLeft = w => w && w.until === "past" ? -2 : w && w.until ? 5 : null;
+let LAST = null, LASTP = null;
+const trunkIdx = () => 0;
+"""
+
+
+def _plan_cmds(dashboard, tmp_path, cases):
+    body = _body(dashboard)
+    js = _DOM + _CMD_STUBS + _slice(body, "const CLI = ", "function cmdBlock") \
+        + _slice(body, "const trunkName", "// ---- keyboard layer") \
+        + "const cases = " + json.dumps(cases) + ";\n" + r"""
+console.log(JSON.stringify(cases.map(([d, row, ctx]) => planCommands(d, row, ctx))));
+"""
+    return _node(tmp_path, "cmds.js", js)
+
+
+def _parses(roadmap, monkeypatch, cmd):
+    """True when `cmd` (a copied command line) parses with the real CLI."""
+    import argparse
+    import shlex
+
+    class Parsed(Exception):
+        pass
+
+    real = argparse.ArgumentParser.parse_args
+
+    def fake(self, args=None, namespace=None):
+        real(self, args, namespace)
+        raise Parsed
+
+    argv = shlex.split(cmd)
+    assert argv[0] == "roadmap.py", cmd
+    monkeypatch.setattr(argparse.ArgumentParser, "parse_args", fake)
+    try:
+        roadmap.main(argv[1:])
+    except Parsed:
+        return True
+    except SystemExit:
+        return False
+    finally:
+        monkeypatch.setattr(argparse.ArgumentParser, "parse_args", real)
+    return False
+
+
+def test_plan_copy_commands_by_lane_are_valid_cli(dashboard, roadmap, tmp_path, monkeypatch):
+    steps = [{"done": True, "text": "one"}, {"done": False, "text": "two",
+              "waiting": {"until": "past"}}, {"done": False, "text": "three"}]
+    slots = {"kinds": [{"kind": "migration", "reservations": [{"plan": 9}]},
+                       {"kind": "odd kind", "reservations": []}]}
+    cases = [
+        [{"id": 7, "steps": steps}, {"lane": "planned"}, {"slots": slots, "trunk": "main"}],
+        [{"id": 7, "steps": steps, "claim": {"owner": "ann"}, "me": "bob"},
+         {"lane": "review"}, {"trunk": "main"}],
+        [{"id": 7, "steps": steps}, {"lane": "fixing"}, {}],
+        [{"id": 7, "steps": steps}, {"lane": "gate-ready"}, {}],
+        [{"id": 7, "steps": steps}, {"lane": "gating"}, {"trunk": "trunk/x"}],
+        [{"id": 7, "steps": steps}, {"lane": "landed"}, {}],
+        [{"id": 9, "steps": steps, "needsApproval": True}, {"lane": "building"},
+         {"slots": slots}],
+        [{"id": 7, "steps": [{"done": True, "text": "x"}]}, {"lane": "done"}, {}],
+    ]
+    out = _plan_cmds(dashboard, tmp_path, cases)
+    cmds = [[c["cmd"] for c in case] for case in out]
+    planned, review, fixing, gready, gating, landed, building, done = cmds
+    assert planned == [
+        "roadmap.py next",
+        'roadmap.py check --plan 7 --step 2 --evidence "<verify command + result>"',
+        'roadmap.py check --plan 7 --step 3 --evidence "<verify command + result>"',
+        'roadmap.py wait 7 --step 3 --until 7d --reason "<what>"',
+        "roadmap.py claim 7 --stage review",
+        "roadmap.py slot 7 --kind migration",
+        "roadmap.py slot 7 --kind 'odd kind'",
+        'roadmap.py ruling 7 --text "<decision>"',
+        'roadmap.py bug "<title>" --found-in 7']
+    assert "roadmap.py claim 7 --stage gate-ready --verdict CONFIRMED --take" in review
+    assert "roadmap.py claim 7 --stage fixing --verdict PARTIAL --take" in review
+    assert "roadmap.py claim 7 --owner bob --take" in review
+    assert "roadmap.py claim 7 --stage review" in fixing
+    assert "roadmap.py claim 7 --stage gating" in gready
+    assert "roadmap.py claim 7 --landed trunk/x" in gating
+    assert landed[-4:-2] == ["roadmap.py check --landed", "roadmap.py check --landed --yes"]
+    assert "roadmap.py slot 9 --check" in building
+    assert 'roadmap.py ruling 9 --text "<sign-off>" --approval' in building
+    assert done == ['roadmap.py ruling 7 --text "<decision>"',
+                    'roadmap.py bug "<title>" --found-in 7']
+    # Every button copies a command the real CLI parser accepts.
+    for c in {c for case in cmds for c in case}:
+        assert _parses(roadmap, monkeypatch, c), c
+    # the parse check itself rejects a bad command
+    assert not _parses(roadmap, monkeypatch, "roadmap.py claim 7 --stage nope")
+    # "why" text is shown next to each command
+    assert out[0][1]["why"] == "waiting step 2 is due — tick it once verified"
+
+
+def test_api_item_reports_default_owner(served, monkeypatch):
+    base, roadmap, repo = served
+    monkeypatch.setenv("ROADMAP_OWNER", "carol")
+    d = srv._get_json(base + "/api/item?id=1")[1]
+    assert d["me"] == "carol"
+
+
+def test_dashboard_keyboard_palette_copy_hooks(dashboard):
+    body = _body(dashboard)
+    for hook in ('document.addEventListener("keydown"', "isTyping(e.target)", "function togglePalette",
+                 "function toggleSheet", "function planCommands", "planCommands(d, row",
+                 "paletteTab()", "navigator.clipboard.writeText", "KSEL_IDX = -1",
+                 "history.back()", '.tabs { flex-wrap:wrap; }', "width:min(560px, 100%)"):
+        assert hook in body, hook
+    for sink in (".innerHTML", "outerHTML", "insertAdjacentHTML", "document.write"):
+        assert sink not in body, sink
