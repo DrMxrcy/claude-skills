@@ -319,8 +319,9 @@ def test_status_payload_carries_bug_links_and_found_fixes(roadmap, proj, dashboa
 
 def test_dashboard_html_shows_found_fixes_and_origin_links(dashboard):
     body = dashboard._dashboard_html()
-    for hook in ('"found in"', '"bugs found"', "row.foundDuringBuild",
-                 "found during build", '"from #"+it.foundIn'):
+    # plan 57: origin links live in the plan page details; the "found during
+    # build" section renders from the plan body itself.
+    for hook in ('"found in"', '"bugs found"', "row.foundIn", "row.bugsFound"):
         assert hook in body, hook
     assert ".innerHTML" not in body and "insertAdjacentHTML" not in body
 

@@ -445,10 +445,10 @@ def test_dashboard_item_detail_carries_waits_and_follow_up_links(roadmap, repo, 
 def test_dashboard_html_has_waiting_hooks(dashboard):
     body = dashboard._dashboard_html()
     for hook in ('"waiting"', 'waiting:"wait"', ".lg-wait", "--wait:",
-                 "function laneBadge", "const countdown", "const daysLeft",
+                 "function rowMark", "const countdown", "const daysLeft",
                  "it.waitingSteps", "d.waitingSteps", '"follow-up of"',
                  '"follow-ups"', "d.followUpOf", "d.followUps",
-                 "[ xX~]", "li.task.waiting", '"waiting · "+countdown'):
+                 "[ xX~]", "li.task.waiting", '"waiting, "+countdown'):
         assert hook in body, hook
     assert ".innerHTML" not in body and "insertAdjacentHTML" not in body
     # the board/lane filter lists the waiting lane

@@ -192,13 +192,11 @@ def test_card_fields_match_api_status(dashboard, proj, tmp_path):
     it = next(i for i in st["items"] if i["id"] == 1)
     card = _card(dashboard, tmp_path, st, 1)
     assert card["num"] == it["displayId"]
-    assert card["bname"] == it["branch"]["name"] == "roadmap/1"
-    assert card["sha"] == it["branch"]["lastCommit"] == it["branch"]["sha"][:7]
-    assert card["verdict"] == it["claim"]["verdict"] == "PARTIAL"
-    assert card["owner"] == "owner " + it["claim"]["owner"] == "owner alice"
-    assert card["note"].startswith("<b>fix</b> the & edge · claimed ")  # text, not HTML
     assert card["href"] == "#/plan/1"
-    assert card["badges"][:2] == ["feature", "v" + it["version"]]
+    # plan 57: a card is id, title and the one problem; branch, sha, verdict,
+    # owner, note and badges live on the plan page.
+    assert card["bname"] is None and card["sha"] is None and card["owner"] is None
+    assert card["badges"] == [] and card["note"] is None
     # review with a PARTIAL verdict: the suggested move is back to fixing
     assert card["cmd"] == "roadmap.py claim 1 --stage fixing"
 
@@ -210,9 +208,9 @@ def test_card_badges_slot_waiting_acceptance_found_in(dashboard, tmp_path):
         {"plan": 7, "numbers": ["0269"], "value": "0269_x", "state": "ok",
          "detail": "free"}]}]}}
     card = _card(dashboard, tmp_path, d, 7)
-    assert "waiting · " in card["text"] and "overdue" in card["text"]
-    assert "migration 0269" in card["text"]
-    assert "2/5 accepted" in card["badges"] and "from #3" in card["badges"]
+    assert "waiting, " in card["text"] and "overdue" in card["text"]
+    assert "migration 0269" not in card["text"]   # plan 57: on the plan page
+    assert card["badges"] == []
     assert card["cmd"] is None and card["opts"] == []     # waiting: no claim move
 
 

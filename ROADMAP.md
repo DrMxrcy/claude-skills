@@ -35,7 +35,7 @@
 ### [x] v0.20.0 — 100%
 - [x] **#27 Parallel-safe roadmap builds: per-item worktrees, fresh-session orchestration, pending-decision handoff and per-item token spend** `feature` — 100% ([plan](.roadmap/plans/027-parallel-safe-roadmap-builds-per-item-worktrees-fresh-session-orchestration-pending-decision-handoff-and-per-item-token-spend.md))
 
-### [ ] v0.21.0 — 90%
+### [x] v0.21.0 — 100%
 - [x] **#32 Batch claims, a landed stage, and bulk check-off from claims** `feature` — 100% ([plan](.roadmap/plans/032-batch-claims-a-landed-stage-and-bulk-check-off-from-claims.md))
 - [x] **#33 Numbered slot reservations: reserve the next migration (or any numbered sequence) per plan, with clash detection** `feature` — 100% ([plan](.roadmap/plans/033-numbered-slot-reservations-reserve-the-next-migration-or-any-numbered-sequence-per-plan-with-clash-detection.md))
 - [x] **#34 Rulings: record dated decisions on a plan from the CLI and show them on the dashboard** `feature` — 100% ([plan](.roadmap/plans/034-rulings-record-dated-decisions-on-a-plan-from-the-cli-and-show-them-on-the-dashboard.md))
@@ -56,5 +56,5 @@
 - [x] **#49 Dashboard navigation: version pages, dependency graph, full-text search, keyboard shortcuts and copy-command buttons** `feature` — 100% ([plan](.roadmap/plans/049-dashboard-navigation-version-pages-dependency-graph-full-text-search-keyboard-shortcuts-and-copy-command-buttons.md))
 - [x] **#50 Dashboard resilience and polish: reconnect banner, tab-title alerts, light theme, fast first paint** `feature` — 100% ([plan](.roadmap/plans/050-dashboard-resilience-and-polish-reconnect-banner-tab-title-alerts-light-theme-fast-first-paint.md))
 - [x] **#53 Waits in hours and open-ended waits on a person: wait --until 24h and wait --on** `feature` — 100% ([plan](.roadmap/plans/053-waits-in-hours-and-open-ended-waits-on-a-person-wait-until-24h-and-wait-on.md))
-- [ ] **#57 Dashboard simplification: one home per fact, answer-first pages, monochrome, no badge clutter (Vercel design principles)** `refactor` — 0% ([plan](.roadmap/plans/057-dashboard-simplification-one-home-per-fact-answer-first-pages-monochrome-no-badge-clutter-vercel-design-principles.md))
+- [x] **#57 Dashboard simplification: one home per fact, answer-first pages, monochrome, no badge clutter (Vercel design principles)** `refactor` — 100% ([plan](.roadmap/plans/057-dashboard-simplification-one-home-per-fact-answer-first-pages-monochrome-no-badge-clutter-vercel-design-principles.md))
 <!-- roadmap:auto:end -->

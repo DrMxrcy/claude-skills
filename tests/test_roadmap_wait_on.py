@@ -378,7 +378,7 @@ def test_dashboard_html_has_awaiting_hooks(dashboard):
     body = dashboard._dashboard_html()
     for hook in ("const hoursLeft", "const openEnded", "const awaitText",
                  '"awaiting "+w.on', "const waitText", 'h+"h left"',
-                 '"waiting · "+countdown'):
+                 '"waiting, "+countdown'):
         assert hook in body, hook
     assert ".innerHTML" not in body and "insertAdjacentHTML" not in body
 

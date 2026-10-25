@@ -296,8 +296,9 @@ def test_merged_view_carries_trunk_wip(dashboard):
 
 def test_dashboard_html_has_owner_and_wip_hooks(dashboard):
     body = dashboard._dashboard_html()
-    for hook in ("function wipFlag", "wipFlag(chip(k.fly", "d.wip", ".chip.over",
-                 '"owner "+c.owner', "c.refreshed"):
+    # plan 57: the WIP warning is part of the header sentence; the owner is on
+    # the plan page details.
+    for hook in ("d.wip", "over the limit of", '"owner "+c.owner', "c.refreshed"):
         assert hook in body, hook
     assert ".innerHTML" not in body and "insertAdjacentHTML" not in body
 
@@ -317,24 +318,10 @@ const chip = (n,label,cls) => { const c = el("span","chip");
 """
 
 
-def test_dashboard_header_flags_wip_over_limit(dashboard, tmp_path):
-    node = shutil.which("node")
-    if not node:
-        pytest.skip("node not installed")
+def test_dashboard_header_flags_wip_over_limit(dashboard):
+    # plan 57: the WIP warning is part of the header sentence, in words.
     body = dashboard._dashboard_html()
-    start = body.index("// settings.wipLimit (plan 40)")
-    end = body.index("// ---- plan page", start)
-    js = tmp_path / "wip.js"
-    js.write_text(_HARNESS + body[start:end] + """
-const show = c => [c.className, c.textContent, c.title];
-console.log(JSON.stringify([
-  show(wipFlag(chip(4,"in flight","lg-build"), 4, {count:4, limit:3, over:true})),
-  show(wipFlag(chip(3,"in flight","lg-build"), 3, {count:3, limit:3, over:false})),
-  show(wipFlag(chip(9,"in flight","lg-build"), 9, undefined)),
-]));
-""")
-    out = subprocess.run([node, str(js)], capture_output=True, text=True, check=True)
-    over, at, none = json.loads(out.stdout)
-    assert over == ["chip over", "4 in flight (limit 3)",
-                    "over settings.wipLimit (3) — finish or land one first"]
-    assert at == ["chip", "3 in flight", ""] and none == ["chip", "9 in flight", ""]
+    assert "const lim = d.wip && d.wip.limit;" in body
+    assert "if(lim && k.fly > lim)" in body
+    assert '" (over the limit of "+lim+" in flight)"' in body
+

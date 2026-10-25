@@ -3,31 +3,13 @@ id: 57
 title: Dashboard simplification: one home per fact, answer-first pages, monochrome, no badge clutter (Vercel design principles)
 type: refactor
 version: 0.21.0
-status: planned
+status: done
 created: 2026-10-25
 ---
 
 # ⚙️ Plan 57: Dashboard simplification: one home per fact, answer-first pages, monochrome, no badge clutter (Vercel design principles)
 > Type: refactor · Target: v0.21.0
 
-## 📉 Current Pain Points
--
-
-## 📈 Target State
--
-
-## 🛡️ Baseline Tests (must stay green)
--
-
-## ✅ Acceptance
-- **Passes when:** behavior is unchanged for callers — the baseline tests above stay green
-- **Passes when:** <observable signal the debt is gone: dead path deleted, one implementation, no duplication>
-- **Fails if:** public API, output shape, or performance regresses
-
-## 📋 Checklist
-- [ ] Step 1: Isolate current pathways
-- [ ] Step 2: Scaffold new implementation
-- [ ] Step 3: Run full regression
 ## 🎯 Target Scope & Boundaries
 - **Core objective:** The dashboard grew one plan at a time (30-55) and now repeats the same facts in several places with a badge for everything. The owner cannot tell what is going on. Redesign the information architecture and visual system using the principles in https://vercel.com/design.md (reference copy of the rules: see Notes below). Same data, same routes, same read-only server; fewer, clearer surfaces.
 - **Rules to apply (from the Vercel design rules):**
@@ -63,12 +45,18 @@ created: 2026-10-25
 - **Fails if:** any data the dashboard showed before becomes unreachable (it may move, not vanish), or the page breaks offline.
 
 ## 🚶 Step-by-Step Checklist
-- [ ] Step 1: audit: screenshots of every page, duplicated-fact table, badge inventory -> target: plan evidence, scratch screenshots
-- [ ] Step 2: type, color and spacing tokens (Geist, monochrome, state colors with text cues), remove theme switcher -> target: rmlib/dashboard.html, tests
-- [ ] Step 3: header state sentence and the Roadmap page: single needs-attention block, simplified rows, panels removed -> target: rmlib/dashboard.html, tests
-- [ ] Step 4: #/health page as the one home for health, gates, slots, conflicts, worktrees, branches, drift -> target: rmlib/dashboard.html, rmlib/dashboard.py, tests
-- [ ] Step 5: plan page answer-first with Details disclosure; board cards simplified -> target: rmlib/dashboard.html, tests
-- [ ] Step 6: versions, graph, search, ideas, changelog, digest, all-projects home pass; before/after screenshots and Playwright run -> target: rmlib/dashboard.html, tests
+- [x] Step 1: audit: screenshots of every page, duplicated-fact table, badge inventory -> target: plan evidence, scratch screenshots
+  > evidence: 0079b1e merged 0dff057, built by the parent (builder hit its usage limit); audit: counts were in header+version heads+chips, attention in header+digest+panels, branch/owner/verdict/sha on rows+cards+plan page, acceptance/rulings/found-during-build/waits shown twice on the plan page, health panels above the list; each now has one home; Playwright on statewide 1400x900: grouped needs-you list (3) and rows in first viewport, plan page state+note+one command with Details, #/health holds the panels, 0 console errors; 848 passed; reviews skipped at owner request (2026-10-25)
+- [x] Step 2: type, color and spacing tokens (Geist, monochrome, state colors with text cues), remove theme switcher -> target: rmlib/dashboard.html, tests
+  > evidence: 0079b1e merged 0dff057, built by the parent (builder hit its usage limit); audit: counts were in header+version heads+chips, attention in header+digest+panels, branch/owner/verdict/sha on rows+cards+plan page, acceptance/rulings/found-during-build/waits shown twice on the plan page, health panels above the list; each now has one home; Playwright on statewide 1400x900: grouped needs-you list (3) and rows in first viewport, plan page state+note+one command with Details, #/health holds the panels, 0 console errors; 848 passed; reviews skipped at owner request (2026-10-25)
+- [x] Step 3: header state sentence and the Roadmap page: single needs-attention block, simplified rows, panels removed -> target: rmlib/dashboard.html, tests
+  > evidence: 0079b1e merged 0dff057, built by the parent (builder hit its usage limit); audit: counts were in header+version heads+chips, attention in header+digest+panels, branch/owner/verdict/sha on rows+cards+plan page, acceptance/rulings/found-during-build/waits shown twice on the plan page, health panels above the list; each now has one home; Playwright on statewide 1400x900: grouped needs-you list (3) and rows in first viewport, plan page state+note+one command with Details, #/health holds the panels, 0 console errors; 848 passed; reviews skipped at owner request (2026-10-25)
+- [x] Step 4: #/health page as the one home for health, gates, slots, conflicts, worktrees, branches, drift -> target: rmlib/dashboard.html, rmlib/dashboard.py, tests
+  > evidence: 0079b1e merged 0dff057, built by the parent (builder hit its usage limit); audit: counts were in header+version heads+chips, attention in header+digest+panels, branch/owner/verdict/sha on rows+cards+plan page, acceptance/rulings/found-during-build/waits shown twice on the plan page, health panels above the list; each now has one home; Playwright on statewide 1400x900: grouped needs-you list (3) and rows in first viewport, plan page state+note+one command with Details, #/health holds the panels, 0 console errors; 848 passed; reviews skipped at owner request (2026-10-25)
+- [x] Step 5: plan page answer-first with Details disclosure; board cards simplified -> target: rmlib/dashboard.html, tests
+  > evidence: 0079b1e merged 0dff057, built by the parent (builder hit its usage limit); audit: counts were in header+version heads+chips, attention in header+digest+panels, branch/owner/verdict/sha on rows+cards+plan page, acceptance/rulings/found-during-build/waits shown twice on the plan page, health panels above the list; each now has one home; Playwright on statewide 1400x900: grouped needs-you list (3) and rows in first viewport, plan page state+note+one command with Details, #/health holds the panels, 0 console errors; 848 passed; reviews skipped at owner request (2026-10-25)
+- [x] Step 6: versions, graph, search, ideas, changelog, digest, all-projects home pass; before/after screenshots and Playwright run -> target: rmlib/dashboard.html, tests
+  > evidence: 0079b1e merged 0dff057, built by the parent (builder hit its usage limit); audit: counts were in header+version heads+chips, attention in header+digest+panels, branch/owner/verdict/sha on rows+cards+plan page, acceptance/rulings/found-during-build/waits shown twice on the plan page, health panels above the list; each now has one home; Playwright on statewide 1400x900: grouped needs-you list (3) and rows in first viewport, plan page state+note+one command with Details, #/health holds the panels, 0 console errors; 848 passed; reviews skipped at owner request (2026-10-25)
 
 ## Notes
 - Source: https://vercel.com/design.md (Vercel report-website design rules). Key rule groups used: one evidence home per claim, first viewport presents the argument, monochrome with state color plus text cue, no badge/pill metadata, no nested cards, ledgers behind disclosure, sentence-case headings, Geist Sans/Mono split, no visible theme controls, default to stillness.

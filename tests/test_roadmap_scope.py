@@ -412,8 +412,9 @@ def test_dashboard_safe_drift_survives_a_failing_hook(dashboard, tmp_path):
 
 def test_dashboard_html_has_drift_hooks(dashboard):
     body = dashboard._dashboard_html()
+    # plan 57: one off-plan marker on rows, the file list in plan details.
     for hook in ("scopeDrift: P.scopeDrift", "function offPlanOf(",
-                 "offPlanChip(it.id)", "offPlanChip(d.id)", "offPlanOf(d.id)",
-                 '" off-plan"', "no declared scope", "offplan-list"):
+                 "offPlanOf(it.id)", "offPlanOf(d.id)", '" files off plan"',
+                 '"off plan"', "nothing is checked"):
         assert hook in body, hook
     assert ".innerHTML" not in body and "insertAdjacentHTML" not in body

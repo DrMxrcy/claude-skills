@@ -266,8 +266,9 @@ def test_dashboard_html_has_acceptance_display(dashboard):
     """Cards show "m/t accepted"; the plan page lists every bullet with its
     state and evidence — DOM text nodes only."""
     body = dashboard._dashboard_html()
-    for hook in ("function acceptBadge", "function acceptanceBlock",
-                 "it.acceptance", '" accepted"', "acceptBadge(it)", "acceptBadge(d)",
+    # plan 57: rows carry only a failed-acceptance marker; the plan page shows
+    # the ledger once any criterion is marked.
+    for hook in ("function acceptanceBlock", "it.acceptance", '" acceptance failed"',
                  "acceptanceBlock(d.acceptance)", "b.evidence", "b.state"):
         assert hook in body, hook
     assert ".innerHTML" not in body and "insertAdjacentHTML" not in body

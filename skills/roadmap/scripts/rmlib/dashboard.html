@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="roadmap-mode" content="project">
 <title>roadmap</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
 <script>
 // plan 50: apply a remembered theme before first paint (storage may throw)
 try { const t = JSON.parse(localStorage.getItem("rm-theme"));
@@ -47,8 +49,13 @@ try { const t = JSON.parse(localStorage.getItem("rm-theme"));
   /* #app sets display:flex, which outranks the UA rule for [hidden] — without
      this the Roadmap pane stays visible on every tab. */
   [hidden] { display:none !important; }
+  /* plan 57: Geist Sans for UI text, Geist Mono only for ids, commands,
+     paths and shas; system fallbacks keep the offline dashboard readable. */
+  :root { --sans:Geist,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+    --mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
   body { margin:0; background:var(--bg); color:var(--fg);
-    font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+    font:14px/1.5 var(--sans); font-variant-numeric:tabular-nums; }
+  code, pre, kbd, .num, .mono, .bname, .cmd { font-family:var(--mono); }
   /* Compact header (bug 55): identity + meta controls, progress + counts,
      tabs + list controls — three short rows, ~110px at 1400px wide. */
   header { position:sticky; top:0; z-index:5; background:var(--bg);
@@ -65,7 +72,7 @@ try { const t = JSON.parse(localStorage.getItem("rm-theme"));
   .hbar { height:4px; background:var(--bar); border-radius:2px;
     overflow:hidden; flex:0 1 220px; min-width:80px; }
   .hprog { margin-top:4px; }
-  .hbar > i { display:block; height:100%; width:0; background:var(--done);
+  .hbar > i { display:block; height:100%; width:0; background:var(--fg);
     transition:width .3s; }
   .counts { color:var(--muted); font-size:12px;
     display:flex; gap:4px 14px; flex-wrap:wrap; align-items:center; }
@@ -137,7 +144,7 @@ try { const t = JSON.parse(localStorage.getItem("rm-theme"));
   .right { display:flex; align-items:center; gap:10px; }
   .bar { width:110px; height:6px; background:var(--bar); border-radius:3px;
     overflow:hidden; }
-  .bar > i { display:block; height:100%; background:var(--done);
+  .bar > i { display:block; height:100%; background:var(--muted);
     transition:width .3s; }
   .frac { color:var(--muted); font-size:12px; min-width:38px; text-align:right; }
   .empty { color:var(--muted); padding:40px 0; text-align:center; }
@@ -577,6 +584,30 @@ try { const t = JSON.parse(localStorage.getItem("rm-theme"));
   .pcard .pf { display:flex; gap:8px; color:var(--muted); font-size:11px; min-width:0; }
   .pcard .pf .path { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .pcard .pf .age { margin-left:auto; white-space:nowrap; }
+
+  /* ---- plan 57: simplified views (Vercel design rules) ------------------
+     One home per fact, monochrome with state colour only beside a text cue,
+     no badges for ordinary metadata, spacing instead of boxes. */
+  .dot.lg-done, .dot.lg-plan, .dot.lg-build, .dot.lg-gate, .dot.lg-review { background:var(--line); }
+  .state { font-size:12px; color:var(--muted); white-space:nowrap; }
+  .mark { font-size:12px; color:var(--blocked); white-space:nowrap; }
+  .mark.soft { color:var(--wait); }
+  .hsentence { color:var(--muted); font-size:13px; }
+  .hsentence b { color:var(--fg); font-weight:500; }
+  .attnbox { margin:4px 0 20px; }
+  .attnbox h2 { font-size:15px; font-weight:600; margin:0 0 6px; }
+  .attnbox ul { margin:0; padding:0; list-style:none; }
+  .attnbox li { padding:3px 0; display:flex; gap:10px; align-items:baseline; }
+  .attnbox li .why { color:var(--blocked); font-size:12px; min-width:84px; }
+  .attnbox li a { color:inherit; text-decoration:none; }
+  .attnbox li a:hover { text-decoration:underline; }
+  .healthline { margin:0 0 18px; font-size:13px; color:var(--muted); }
+  .healthline a { color:var(--blocked); }
+  #health h1 { font-size:20px; font-weight:600; margin:8px 0 4px; }
+  #health .lede { color:var(--muted); margin:0 0 18px; }
+  details.more { margin-top:24px; }
+  details.more > summary { cursor:pointer; color:var(--muted); font-size:13px; }
+  .ver-head h2 { font-weight:600; }
 </style>
 </head>
 <body>
@@ -596,11 +627,11 @@ try { const t = JSON.parse(localStorage.getItem("rm-theme"));
       <select id="rootsel" autocomplete="off" hidden></select>
       <span class="hmeta" id="hmeta">
         <span class="scanhint" id="scanhint" hidden></span>
-        <a class="attn" id="attnlink" href="#/digest" hidden></a>
+        <a class="attn" id="attnlink" href="#/" hidden></a>
         <span id="stamp" title="when the data last changed"></span>
         <button type="button" class="hbtn" id="refreshBtn" title="reload the data now">refresh</button>
         <button type="button" class="hbtn" id="notifyBtn" aria-pressed="false"></button>
-        <button type="button" class="hbtn" id="themeBtn"></button>
+        <button type="button" class="hbtn" id="themeBtn" hidden></button>
       </span>
     </div>
     <div class="hrow hprog">
@@ -629,6 +660,7 @@ try { const t = JSON.parse(localStorage.getItem("rm-theme"));
   <div id="ideas" hidden></div>
   <div id="changelog" hidden></div>
   <div id="digest" hidden></div>
+  <div id="health" hidden></div>
   <div id="page" hidden></div>
   <div id="projects" hidden></div>
 </main>
@@ -829,7 +861,7 @@ function view(P){
     : (P.statuses || [P.merged || {}])[VIEW === "trunk" ? trunkIdx(P) : VIEW]
       || P.merged || {};
   return {...st, _roots: P._roots, worktrees: P.worktrees, conflicts: P.conflicts,
-          scopeDrift: P.scopeDrift};
+          scopeDrift: P.scopeDrift, attention: P.attention};
 }
 // Checkout index the item/ideas/changelog endpoints should read.
 const viewRoot = it => VIEW === "all"
@@ -862,49 +894,27 @@ function syncLaneSel(items){
   sel.value = FILT.lane;
 }
 
-function laneBadge(it){
-  const lane = laneOf(it);
-  if(lane === "waiting"){
-    const w = nextWait(it), n = daysLeft(w);
-    const b = txt("span","lane "+lg(it)+(n != null && n <= 0 ? " due" : ""),
-      openEnded(w) ? awaitText(w)                      // plan 53: on someone
-        : "waiting · "+countdown(n, hoursLeft(w))+(w && w.on ? " · "+w.on : ""));
-    b.title = (it.waitingSteps||[]).map(w => "step "+w.step+": "+w.text
-      +(w.until ? " — until "+w.until : "")
-      +(w.on ? " — awaiting "+w.on+(w.since ? " since "+w.since : "") : "")
-      +(w.reason ? " ("+w.reason+")" : ""))
-      .join("\n");
-    return b;
-  }
-  const b = txt("span","lane "+lg(it), lane);
-  const c = it.claim;
-  if(c && (c.note || c.updated))
-    b.title = [c.note, c.updated && "claimed "+c.updated].filter(Boolean).join(" · ");
-  return b;
-}
 
-function flightLine(it){
-  const line = el("div","flight");
-  const b = it.branch, c = it.claim || {};
-  if(b){
-    line.appendChild(txt("span","bname", b.name));
-    if(b.ahead) line.appendChild(txt("span","ahead", "+"+b.ahead));
-    if(b.behind) line.appendChild(txt("span",null, "-"+b.behind+" behind"));
-    if(b.taggedCommits) line.appendChild(txt("span",null,
-      b.taggedCommits+" tagged"));
-    const a = age(b.lastDate);
-    if(a){ const s = txt("span",null, "last "+a);
-      if(b.lastSubject) s.title = b.lastSubject; line.appendChild(s); }
-    if(b.worktree){ const w = txt("span","wt", "wt "+base(b.worktree));
-      w.title = b.worktree; line.appendChild(w); }
-  } else if(c.stage) {
-    line.appendChild(txt("span",null, "no branch found"));
+
+// One problem marker per row (plan 57): the most urgent reason, in words.
+// Everything else about the item lives on its plan page.
+function rowMark(it){
+  const c = it.claim || {}, a = it.acceptance || {};
+  if(it.blockedBy && it.blockedBy.length)
+    return ["blocked by "+it.blockedBy.map(x=>"#"+x).join(", "), ""];
+  if(c.verdict === "REFUTED") return ["review refuted", ""];
+  if(laneOf(it) === "blocked") return ["blocked"+(c.note ? ": "+c.note : ""), ""];
+  if(it.needsApproval) return ["needs approval", ""];
+  if(a.failed) return [a.failed+" acceptance failed", ""];
+  const off = offPlanOf(it.id);
+  if(off && off.length) return [off.length+" files off plan", ""];
+  if(laneOf(it) === "waiting"){
+    const w = nextWait(it), n = daysLeft(w);
+    if(openEnded(w)) return [awaitText(w), "soft"];
+    return ["waiting, "+countdown(n, hoursLeft(w)), n != null && n <= 0 ? "" : "soft"];
   }
-  if(c.verdict) line.appendChild(txt("span","verdict "+c.verdict, c.verdict));
-  // Claim owner (plan 40): who holds the item, refreshed when (hover).
-  if(c.owner){ const o = txt("span","owner", "owner "+c.owner);
-    const a = age(c.refreshed); if(a) o.title = "claimed "+a; line.appendChild(o); }
-  return line;
+  if(laneOf(it) === "stale") return ["stale branch", "soft"];
+  return null;
 }
 
 function itemRow(it){
@@ -918,23 +928,16 @@ function itemRow(it){
   const t = el("span","t");
   t.appendChild(link(href, it.title));
   title.appendChild(t);
-  title.appendChild(txt("span","badge", it.type));
-  rulingBadges(it).forEach(b => title.appendChild(b));
-  const acc = acceptBadge(it); if(acc) title.appendChild(acc);
-  if(it.foundIn != null) title.appendChild(txt("span","badge", "from #"+it.foundIn));
-  const opc = offPlanChip(it.id);
-  if(opc) title.appendChild(opc);
-  if(VIEW === "all" && it.checkout) title.appendChild(txt("span","badge", it.checkout));
-  if(it.blockedBy && it.blockedBy.length)
-    title.appendChild(txt("span","blockedby",
-      "blocked by "+it.blockedBy.map(x=>"#"+x).join(",")));
+  if(VIEW === "all" && it.checkout) title.appendChild(txt("span","state", it.checkout));
   row.appendChild(title);
   const right = el("span","right");
-  if(fly || laneOf(it) === "waiting") right.appendChild(laneBadge(it));
+  const m = rowMark(it);
+  if(m){ const s = txt("span","mark"+(m[1] ? " "+m[1] : ""), m[0]); s.title = m[0];
+    right.appendChild(s); }
+  else if(fly) right.appendChild(txt("span","state", laneOf(it)));
   right.appendChild(progressBar(it, fly));
   right.appendChild(txt("span","frac", (it.done||0)+"/"+(it.total||0)));
   row.appendChild(right);
-  if(fly) row.appendChild(flightLine(it));
   // The whole row opens the plan page; the title is a real link, so
   // middle-click / copy-link / open-in-new-tab work too.
   row.onclick = e => { if(!e.target.closest("a")) location.hash = R(href); };
@@ -942,34 +945,6 @@ function itemRow(it){
   return wrap;
 }
 
-// Rulings (plan 34): a count badge (✓ when any is an approval) and a red
-// "needs approval" marker when the plan declares `approval: required` and
-// has no approval ruling yet.
-function rulingBadges(it){
-  const out = [], rs = it.rulings || [];
-  if(rs.length){
-    const ok = rs.some(r => r.approval);
-    const b = txt("span","badge"+(ok ? " appr" : ""),
-      "⚖ "+rs.length+(ok ? " ✓" : ""));
-    b.title = rs.length+" ruling"+(rs.length === 1 ? "" : "s")
-      +(ok ? " · approved" : "");
-    out.push(b);
-  }
-  if(it.needsApproval) out.push(txt("span","badge needs-appr","needs approval"));
-  return out;
-}
-// Acceptance ledger (plan 43): "3/5 accepted" on cards and the plan page —
-// green when every criterion is met, red when one failed, amber part-way.
-function acceptBadge(it){
-  const a = it.acceptance;
-  if(!a || !a.total) return null;
-  const cls = a.failed ? " acc-fail" : a.met === a.total ? " appr"
-    : a.met ? " acc-open" : "";
-  const b = txt("span","badge"+cls, a.met+"/"+a.total+" accepted");
-  b.title = a.met+" of "+a.total+" acceptance criteria met"
-    +(a.failed ? " · "+a.failed+" failed" : "");
-  return b;
-}
 function acceptanceBlock(a){
   const box = el("div","accept");
   box.appendChild(txt("h4",null, "✅ acceptance · "+a.met+"/"+a.total+" accepted"));
@@ -984,23 +959,6 @@ function acceptanceBlock(a){
     line.appendChild(t);
     if(b.state) line.appendChild(txt("span","aev",
       [b.date, b.evidence].filter(Boolean).join(" · ")));
-    box.appendChild(line);
-  }
-  return box;
-}
-function rulingsBlock(rs){
-  const box = el("div","rulings");
-  box.appendChild(txt("h4",null, "rulings"));
-  for(const r of rs){
-    const line = el("div","ruling");
-    line.appendChild(txt("span","rdate", r.date || "undated"));
-    line.appendChild(txt("span","rby", r.by || "?"));
-    const t = el("span","rtext");
-    if(r.approval) t.appendChild(txt("span","badge appr","approval"));
-    if(r.approval) t.appendChild(document.createTextNode(" "));
-    t.appendChild(document.createTextNode(r.text || ""));
-    if(r.context) t.appendChild(txt("span","rctx", " ("+r.context+")"));
-    line.appendChild(t);
     box.appendChild(line);
   }
   return box;
@@ -1033,7 +991,7 @@ function verSection(v, items, cur){
   const fc = ((LAST && LAST.forecast) || {})[v];
   if(fc) head.appendChild(forecastTag(fc));
   head.appendChild(txt("span","vpct",
-    (nf ? nf+" in flight · " : "")+(gt?Math.round(100*gd/gt):0)+"% · "+gd+"/"+gt));
+    (gt?Math.round(100*gd/gt):0)+"% · "+gd+"/"+gt));
   head.onclick = () => {
     sec.classList.toggle("collapsed");
     prefs[v] = !sec.classList.contains("collapsed");
@@ -1346,13 +1304,6 @@ function offPlanOf(id){
   const by = (LAST && LAST.scopeDrift && LAST.scopeDrift.byItem) || {};
   return Object.prototype.hasOwnProperty.call(by, String(id)) ? by[String(id)] : undefined;
 }
-function offPlanChip(id){
-  const off = offPlanOf(id);
-  if(!off || !off.length) return null;
-  const c = txt("span","badge offplan", off.length+" off-plan");
-  c.title = "changed outside the plan's declared files: "+off.join(", ");
-  return c;
-}
 // The items a plan's branch overlaps with (plan page "overlaps" fact).
 function overlapsOf(id){
   const pairs = (LAST && LAST.conflicts && LAST.conflicts.pairs) || [];
@@ -1366,6 +1317,80 @@ function overlapsOf(id){
     s.appendChild(txt("span","cff", (p.files||[]).join(", ")+(more > 0 ? " +"+more+" more" : "")));
     return s;
   });
+}
+
+// ---- plan 57: one home for "needs attention" and for health panels ------
+// The Roadmap page opens with what needs a person (the same list the digest
+// and the tab title use); every health panel lives on #/health.
+function attentionBox(d){
+  const raw = Array.isArray(d.attention) ? d.attention : [];
+  if(!raw.length) return [];
+  // Group repeats (six conflict pairs read as one problem) and keep each
+  // line short: detail such as file lists lives on the Health page.
+  const groupKinds = {conflict:"branch pairs will conflict", slots:"migration slot clashes",
+    stubs:"plans are still the empty template"};
+  const rows = [], seen = {};
+  for(const a of raw){
+    if(groupKinds[a.kind]){
+      if(seen[a.kind]){ seen[a.kind].n++; continue; }
+      seen[a.kind] = {n:1, a}; rows.push(seen[a.kind]); continue;
+    }
+    rows.push({n:1, a});
+  }
+  const why = {refuted:"refuted", blocked:"blocked", trunk:"trunk", wip:"in flight",
+    slots:"migrations", conflict:"conflicts", stubs:"plans", waiting:"wait due",
+    awaiting:"awaiting"};
+  const short = s => String(s||"").replace(/\s*\([^)]*\)\s*$/, "").replace(/ — .*$/, "");
+  const box = el("section","attnbox");
+  box.appendChild(txt("h2",null, rows.length === 1 ? "1 thing needs you"
+    : rows.length+" things need you"));
+  const ul = el("ul");
+  for(const r of rows.slice(0, 8)){
+    const a = r.a, li = el("li");
+    li.appendChild(txt("span","why", why[a.kind] || a.kind || ""));
+    const grouped = r.n > 1 || groupKinds[a.kind];
+    const text = grouped && r.n > 1 ? r.n+" "+groupKinds[a.kind] : short(a.text);
+    const toHealth = a.kind === "trunk" || a.kind === "conflict" || a.kind === "slots";
+    if(toHealth) li.appendChild(link("#/health", text));
+    else if(a.id != null && a.kind !== "wip") li.appendChild(link("#/plan/"+a.id, text));
+    else li.appendChild(txt("span",null, text));
+    ul.appendChild(li);
+  }
+  box.appendChild(ul);
+  if(rows.length > 8) box.appendChild(link("#/digest", (rows.length-8)+" more in the digest"));
+  return [box];
+}
+function healthRed(d){
+  const out = [];
+  const h = d.trunkHealth;
+  if(h && h.green === false) out.push("trunk suite failing");
+  if(d.slots && d.slots.clashes) out.push("migration slot clash");
+  if(d.conflicts && (d.conflicts.pairs||[]).some(p=>p.risk==="high"))
+    out.push("branch conflicts");
+  return out;
+}
+function healthLine(d){
+  // Only what the needs-you list above does not already say.
+  const said = new Set((d.attention||[]).map(a => a.kind));
+  const red = healthRed(d).filter(x => !(x === "trunk suite failing" && said.has("trunk"))
+    && !(x === "branch conflicts" && said.has("conflict"))
+    && !(x === "migration slot clash" && said.has("slots")));
+  if(!red.length) return [];
+  const p = el("p","healthline");
+  p.appendChild(document.createTextNode("Health: "));
+  p.appendChild(link("#/health", red.join(", ")));
+  return [p];
+}
+function renderHealth(d){
+  const box = document.getElementById("health");
+  const others = Array.isArray(d.otherBranches) ? d.otherBranches : [];
+  const parts = [...runPanel(d), ...slotStrip(d.slots), ...conflictsPanel(d.conflicts),
+    ...worktreePanel(d.worktrees), ...(others.length ? [otherSection(others)] : [])];
+  const red = healthRed(d);
+  box.replaceChildren(txt("h1",null, "Health"),
+    txt("p","lede", red.length ? "Needs a look: "+red.join(", ")+"."
+      : "Trunk, merge gates, migration slots, branches and worktrees."),
+    ...(parts.length ? parts : [txt("div","empty", "nothing recorded yet")]));
 }
 
 function render(d){
@@ -1401,19 +1426,22 @@ function render(d){
     else k.planned++;
   }
   const nblocked = items.filter(i=>i.blockedBy&&i.blockedBy.length).length;
-  document.getElementById("counts").replaceChildren(
-    chip(items.length, "items", null),
-    chip(k.done, "done", "done"),
-    wipFlag(chip(k.fly, "in flight", "lg-build"), k.fly, d.wip),
-    chip(k.active, "active", "active"),
-    chip(k.planned, "planned", null),
-    ...(k.waiting ? [chip(k.waiting, "waiting", "lg-wait")] : []),
-    ...(nblocked ? [chip(nblocked, "blocked", "blocked")] : []));
+  // plan 57: the counts live here only, as one sentence.
+  const sent = el("span","hsentence");
+  const part = (n, label) => { const s = el("span"); s.appendChild(txt("b",null, String(n)));
+    s.appendChild(document.createTextNode(" "+label)); return s; };
+  const parts = [part(k.done+" of "+items.length, "done"), part(k.fly, "in flight")];
+  if(k.waiting) parts.push(part(k.waiting, "waiting"));
+  if(nblocked) parts.push(part(nblocked, "blocked"));
+  parts.forEach((p,i) => { if(i) sent.appendChild(document.createTextNode(", ")); sent.appendChild(p); });
+  const lim = d.wip && d.wip.limit;
+  if(lim && k.fly > lim){ sent.appendChild(txt("span","mark", " (over the limit of "+lim+" in flight)")); }
+  document.getElementById("counts").replaceChildren(sent);
   const app = document.getElementById("app");
   const others = Array.isArray(d.otherBranches) ? d.otherBranches : [];
-  const tail = [...(others.length ? [otherSection(others)] : []),
-    ...conflictsPanel(d.conflicts), ...worktreePanel(d.worktrees)];
-  const head = [...slotStrip(d.slots), ...runPanel(d)];
+  if(ROUTE.name === "health") renderHealth(d);   // plan 57: panels' one home
+  const tail = [];
+  const head = [...attentionBox(d), ...healthLine(d)];
   if(!items.length){
     app.replaceChildren(...head, txt("div","empty", d.error
       || (d.scanning ? "scanning this worktree…" : "no roadmap items yet")), ...tail);
@@ -1478,36 +1506,14 @@ function boardCard(it, d){
   const card = el("div","bcard "+lg(it)+(BOARD_FLAGGED.includes(laneOf(it)) ? " flag" : ""));
   const top = el("div","btop");
   top.appendChild(txt("span","num", it.displayId || "#"+it.id));
-  top.appendChild(txt("span","badge", it.type || ""));
-  if(it.version) top.appendChild(txt("span","badge", "v"+it.version));
   card.appendChild(top);
   const t = el("div","bt");
   t.appendChild(link(href, it.title || ""));
   card.appendChild(t);
-  const c = it.claim || {}, b = it.branch || {};
-  const meta = [];
-  const bname = b.name || c.branch;
-  if(bname) meta.push(txt("span","bname", bname));
-  const sha = boardSha(it);
-  if(sha) meta.push(txt("span","sha", sha));
-  if(c.verdict) meta.push(txt("span","verdict "+c.verdict, c.verdict));
-  if(c.owner) meta.push(txt("span","owner", "owner "+c.owner));
-  if(laneOf(it) === "waiting") meta.push(laneBadge(it));   // countdown (plan 46)
-  meta.push(...boardSlots(it, d));                         // reservations (plan 33)
-  const acc = boardAccept(it);                             // ledger (plan 43)
-  if(acc) meta.push(acc);
-  if(it.foundIn != null) meta.push(txt("span","badge", "from #"+it.foundIn));
-  if(it.blockedBy && it.blockedBy.length) meta.push(txt("span","blockedby",
-    "blocked by "+it.blockedBy.map(x => "#"+x).join(",")));
-  if(meta.length){ const m = el("div","bmeta"); m.append(...meta); card.appendChild(m); }
-  // Last claim note and how long ago the claim was refreshed (or restamped).
-  const ago = age(c.refreshed || c.updated);
-  if(c.note || ago){
-    const n = el("div","bnote");
-    if(c.note) n.appendChild(txt("span",null, c.note));
-    if(ago) n.appendChild(txt("span","bage", (c.note ? " · " : "")+"claimed "+ago));
-    card.appendChild(n);
-  }
+  // plan 57: a card carries the one problem (if any) and nothing else; the
+  // branch, sha, owner, slots and acceptance are on the plan page.
+  const m = rowMark(it);
+  if(m) card.appendChild(txt("div","mark"+(m[1] ? " "+m[1] : ""), m[0]));
   const moves = boardMoves(it);
   if(moves.length) card.appendChild(boardFoot(it, moves));
   card.onclick = e => {
@@ -1515,31 +1521,7 @@ function boardCard(it, d){
   return card;
 }
 
-// Short sha: the landing commit once landed (claim --landed), else the tip.
-function boardSha(it){
-  const c = it.claim || {}, b = it.branch || {};
-  if(laneOf(it) === "landed" && c.landed_sha) return String(c.landed_sha).slice(0,7);
-  return b.lastCommit || (b.sha ? String(b.sha).slice(0,7) : "");
-}
-function boardSlots(it, d){
-  const out = [];
-  for(const k of ((d && d.slots && d.slots.kinds) || []))
-    for(const r of (k.reservations || [])) if(r.plan === it.id){
-      const s = txt("span","slot st-"+r.state, k.kind+" "+((r.numbers||[]).join(",") || r.value));
-      s.title = [r.value, r.state+(r.detail ? ": "+r.detail : "")].filter(Boolean).join(" — ");
-      out.push(s);
-    }
-  return out;
-}
 // "m/t accepted" when the payload carries an acceptance ledger {met, failed, total}.
-function boardAccept(it){
-  const a = it.acceptance;
-  if(!a || !a.total) return null;
-  const cls = a.failed ? " acc-fail" : a.met === a.total ? " appr" : a.met ? " acc-open" : "";
-  const s = txt("span","badge"+cls, (a.met||0)+"/"+a.total+" accepted");
-  if(a.failed) s.title = a.failed+" failed";
-  return s;
-}
 
 // Mirrors rmlib/parse.py CLAIM_STAGES (a test keeps the two equal).
 const BOARD_STAGES = ["review","fixing","gate-ready","gating","blocked","landed"];
@@ -1844,7 +1826,18 @@ applyTheme();
 // blocked claims, slot clashes, overdue waiting steps, a failing trunk suite,
 // WIP over the limit, template stubs, high conflict risk).
 // <plan50-pure> DOM-free helpers; tests run this block in node.
-const attnCount = P => Array.isArray(P && P.attention) ? P.attention.length : 0;
+// plan 57: count problems the way the needs-you list groups them (six
+// conflicting branch pairs are one problem), so header, tab title and list agree.
+const ATTN_GROUPED = new Set(["conflict","slots","stubs"]);
+const attnCount = P => {
+  if(!Array.isArray(P && P.attention)) return 0;
+  const kinds = new Set(); let n = 0;
+  for(const a of P.attention){
+    if(ATTN_GROUPED.has(a.kind)){ if(!kinds.has(a.kind)){ kinds.add(a.kind); n++; } }
+    else n++;
+  }
+  return n;
+};
 const titleFor = (project, n) => (n > 0 ? "("+n+") " : "")
   + (project ? project+" — roadmap" : "roadmap");
 const FAVICON = (dot) => "data:image/svg+xml," + encodeURIComponent(
@@ -1891,7 +1884,7 @@ function notifyRise(P, n){
   const proj = projectOf(P);
   const body = (P.attention || []).map(a => a.text).slice(0, 4).join("\n");
   try { const note = new Notification(titleFor(proj, n), {body, tag:"roadmap-attention"});
-    note.onclick = () => { try { window.focus(); } catch(_){} location.hash = R("#/digest"); };
+    note.onclick = () => { try { window.focus(); } catch(_){} location.hash = R("#/"); };
   } catch(_){}
 }
 const projectOf = P => ((P.statuses || [])[trunkIdx(P)] || {}).project
@@ -1901,7 +1894,7 @@ PAYLOAD_HOOKS.push((P, restarted) => {
   document.title = titleFor(projectOf(P), n);
   document.getElementById("favicon").href = FAVICON(n > 0);
   const a = document.getElementById("attnlink");
-  a.href = R("#/digest");          // plan 48: keep the #/p/<slug> prefix
+  a.href = R("#/");                // plan 57: the needs-you list tops the Roadmap page
   a.hidden = !n;
   a.textContent = n ? "⚠ "+n+" need"+(n === 1 ? "s" : "")+" attention" : "";
   a.title = (P.attention || []).map(x => x.text).join("\n");
@@ -1944,9 +1937,9 @@ setInterval(() => { if(LAST && ["roadmap","board"].includes(ROUTE.name)) render(
 // The route lives only in the URL; nothing about it is stored.
 const TABS = [["roadmap","Roadmap"],["board","Board"],["ideas","Ideas"],["changelog","Changelog"],
   ["digest","Digest"],
-  ["versions","Versions"],["graph","Graph"]];   // plan 49 pages
+  ["versions","Versions"],["graph","Graph"],["health","Health"]];   // plan 49 pages, plan 57 health
 const TABCOUNTS = {};
-const LISTS = ["roadmap","board","ideas","changelog","digest"];
+const LISTS = ["roadmap","board","ideas","changelog","digest","health"];
 const DIGEST_SINCE = ["3h","1d","3d","1w","2w","last"];
 const paneOf = t => document.getElementById(t==="roadmap" ? "app" : t);
 const rootParam = () => "root=" + viewRoot(null);
@@ -1966,7 +1959,7 @@ function parseRoute(h){
     try { p = decodeURIComponent(p); } catch(_){ return {name:"roadmap"}; }
     return {name:"notes", path:p};
   }
-  if(head === "ideas" || head === "changelog" || head === "board") return {name:head};
+  if(head === "ideas" || head === "changelog" || head === "board" || head === "health") return {name:head};
   // plan 49: #/search/<q>
   if(head === "search"){
     let q = parts.slice(1).join("/");
@@ -2027,7 +2020,7 @@ function onRoute(){
     showPane(ROUTE.name);
     if(FOCUS_SEARCH && ROUTE.name === "roadmap"){ FOCUS_SEARCH = false;
       document.getElementById("search").focus(); }
-    if((ROUTE.name === "roadmap" || ROUTE.name === "board") && LAST) render(LAST);
+    if((ROUTE.name === "roadmap" || ROUTE.name === "board" || ROUTE.name === "health") && LAST) render(LAST);
     const y = SCROLL[ROUTE.name] || 0;
     const done = () => window.scrollTo(0, y);
     if(ROUTE.name === "ideas") loadIdeas(done);
@@ -2105,16 +2098,6 @@ function fact(box, key, ...vals){
   box.appendChild(v);
 }
 
-// settings.wipLimit (plan 40): the header's in-flight chip turns red, and
-// names the limit, once the in-flight count it shows goes over it.
-function wipFlag(c, n, wip){
-  const lim = wip && wip.limit;
-  if(!lim || n <= lim) return c;
-  c.className += " over";
-  c.lastChild.textContent = n+" in flight (limit "+lim+")";
-  c.title = "over settings.wipLimit ("+lim+") — finish or land one first";
-  return c;
-}
 // ---- plan page --------------------------------------------------------
 function planPage(r){
   // Which checkout to read: the one the current view shows this item from.
@@ -2125,89 +2108,87 @@ function planPage(r){
     if(d.error){ out.push(txt("div","empty", d.error)); return out; }
     const row = {...(it||{}), ...d};   // list row fields + fresh detail
     const fly = inFlight(row);
+    // plan 57, answer first: title, one state sentence, the one problem (if
+    // any), the latest claim note, the next command, then the plan itself.
+    // Everything else is under "Details" at the end, once.
     const head = el("div","phead");
     const h = el("h2");
     h.appendChild(txt("span","num", d.displayId || "#"+d.id));
-    h.appendChild(txt("span",null, d.title||""));
+    h.appendChild(txt("span",null, " "+(d.title||"")));
     head.appendChild(h);
     const meta = el("div","pmeta");
-    meta.appendChild(el("span","dot "+lg(row)));
-    meta.appendChild(laneBadge(row));
-    meta.appendChild(txt("span","badge", d.type||""));
-    if(d.version) meta.appendChild(txt("span","badge", "v"+d.version));
-    if(d.status) meta.appendChild(txt("span","badge", d.status));
-    rulingBadges(d).forEach(b => meta.appendChild(b));
-    const acc = acceptBadge(d); if(acc) meta.appendChild(acc);
-    const opc = offPlanChip(d.id);
-    if(opc) meta.appendChild(opc);
-    meta.appendChild(progressBar(row, fly));
-    meta.appendChild(txt("span","frac", (row.done||0)+"/"+(row.total||0)));
+    const lane = laneOf(row);
+    const said = [lane === "done" ? "done" : lane,
+      (row.done||0)+" of "+(row.total||0)+" steps",
+      d.version ? "v"+d.version : "", d.type || ""].filter(Boolean).join(" · ");
+    meta.appendChild(txt("span","state", said));
+    const m = rowMark(row);
+    if(m) meta.appendChild(txt("span","mark"+(m[1] ? " "+m[1] : ""), m[0]));
     head.appendChild(meta);
-    if(fly) { const f = flightLine(row); head.appendChild(f); }
     out.push(head);
+    const c = d.claim || {};
+    if(c.note){
+      const p = el("p","lede");
+      p.appendChild(txt("span","state", "Latest"+(c.owner ? " from "+c.owner : "")
+        +(c.updated ? ", "+c.updated : "")+": "));
+      p.appendChild(document.createTextNode(c.note));
+      out.push(p);
+    }
+    // plan 49: the likely next CLI actions, as text to copy
+    const cmds = cmdBlock("Next step", planCommands(d, row,
+      {slots: LAST && LAST.slots, trunk: trunkName()}), {lead:true});
+    if(cmds) out.push(cmds);
+    // Acceptance state only adds something once a criterion is marked; the
+    // plan text below already lists the criteria themselves.
+    if(d.acceptance && (d.acceptance.met || d.acceptance.failed)
+       && d.acceptance.bullets && d.acceptance.bullets.length)
+      out.push(acceptanceBlock(d.acceptance));
+    // The page header already shows the title, type and version: drop the
+    // plan file's own "# Plan N: title" line and "> Type: … · Target: …" line.
+    const body = String(d.body || "").replace(/^\s*#\s[^\n]*\n(\s*>\s*Type:[^\n]*\n)?/, "");
+    out.push(md(body, d.planPath || ""));
 
     const facts = el("div","facts");
-    if(d.note) fact(facts, "note", d.note);
-    const c = d.claim;
-    if(c){
+    if(c.stage || c.verdict || c.owner || c.branch){
       const v = [];
-      if(c.stage) v.push(txt("span","lane "+lg(row), c.stage));
-      if(c.verdict) v.push(txt("span","verdict "+c.verdict, c.verdict));
-      if(c.note) v.push(c.note);
-      if(c.updated) v.push("updated "+c.updated);
+      if(c.stage) v.push(c.stage);
+      if(c.verdict) v.push(c.verdict);
       if(c.branch) v.push("branch "+c.branch);
       if(c.owner) v.push("owner "+c.owner+(c.refreshed && age(c.refreshed)
-        ? " · claimed "+age(c.refreshed) : ""));
+        ? ", claimed "+age(c.refreshed) : ""));
       fact(facts, "claim", ...v);
     }
     for(const k of ((LAST && LAST.slots && LAST.slots.kinds) || [])){
       const r = (k.reservations||[]).find(x => x.plan === d.id);
-      if(r) fact(facts, "slot "+k.kind, txt("span","slot st-"+r.state, r.value),
-        r.state+" — "+r.detail);
+      if(r) fact(facts, "slot "+k.kind, r.value, r.state+": "+r.detail);
     }
     const planLinks = ids => (ids||[]).map(x => link("#/plan/"+x, "#"+x));
     fact(facts, "depends on", ...planLinks(d.dependsOn));
-    // Follow-ups (plan 46): linked both ways.
     if(d.followUpOf) fact(facts, "follow-up of", ...planLinks([d.followUpOf]));
     fact(facts, "follow-ups", ...planLinks(d.followUps));
-    for(const w of (d.waitingSteps||[])){
-      const n = daysLeft(w);
-      fact(facts, "waiting", txt("span","lane lg-wait"+(n != null && n <= 0 ? " due" : ""),
-        waitText(w)), "step "+w.step+": "+w.text,
-        w.until ? "until "+w.until : "",
+    for(const w of (d.waitingSteps||[]))
+      fact(facts, "waiting", waitText(w), "step "+w.step,
         w.on && w.since ? "since "+w.since : "", w.reason || "");
-    }
-    // Bug routing (plan 47): a bug's origin and an origin's filed bugs.
     if(row.foundIn != null) fact(facts, "found in", ...planLinks([row.foundIn]));
     fact(facts, "bugs found", ...planLinks(row.bugsFound));
-    if(d.blockedBy && d.blockedBy.length){
-      const s = el("span","blk");
-      s.appendChild(document.createTextNode("blocked by "));
-      for(const a of planLinks(d.blockedBy)){ s.appendChild(a);
-        s.appendChild(document.createTextNode(" ")); }
-      fact(facts, "blocked", s);
-    }
     fact(facts, "overlaps", ...overlapsOf(d.id));
     const b = d.branch;
     if(b) fact(facts, "branch", b.name, b.ahead ? "+"+b.ahead+" ahead" : "",
-      b.behind ? "-"+b.behind+" behind" : "", b.merged ? "merged" : "",
-      b.taggedCommits ? b.taggedCommits+" tagged" : "",
-      b.worktree ? "wt "+base(b.worktree) : "");
+      b.behind ? b.behind+" behind" : "", b.merged ? "merged" : "",
+      b.worktree ? "worktree "+base(b.worktree) : "");
+    const off = offPlanOf(d.id);
+    if(off && off.length) fact(facts, "off plan", ...off.map(f => txt("span","mono", f)));
+    else if(off === null) fact(facts, "scope", "the plan lists no files, so nothing is checked");
     if(d.planPath) fact(facts, "plan file", link(noteHref(d.planPath), d.planPath));
     if(d.notes && d.notes.length)
       fact(facts, "notes", ...d.notes.map(n => link(noteHref(n), n)));
-    if(facts.childNodes.length) out.push(facts);
-    // plan 49: the likely next CLI actions, as text to copy
-    const cmds = cmdBlock("next actions — copy into a terminal", planCommands(d, row,
-      {slots: LAST && LAST.slots, trunk: trunkName()}));
-    if(cmds) out.push(cmds);
-
-    if(b){
+    const more = el("details","more");
+    more.appendChild(txt("summary",null, "Details"));
+    if(facts.childNodes.length) more.appendChild(facts);
+    if(b && (b.commits||[]).length){
       const box = el("div","commits");
-      box.appendChild(txt("h4",null, "commits on "+b.name+" not on trunk"));
-      const cs = b.commits || [];
-      if(!cs.length) box.appendChild(txt("div","muted","no commits ahead of trunk"));
-      for(const cm of cs){
+      box.appendChild(txt("h4",null, "Commits on "+b.name+" not on trunk"));
+      for(const cm of b.commits){
         const line = el("div","commit");
         line.appendChild(txt("span","sha", cm.sha||""));
         const a = txt("span","age", age(cm.date)); a.title = cm.date||"";
@@ -2215,33 +2196,11 @@ function planPage(r){
         line.appendChild(txt("span","subj", cm.subject||""));
         box.appendChild(line);
       }
-      if(b.ahead > cs.length)
-        box.appendChild(txt("div","muted","…"+(b.ahead-cs.length)+" more"));
-      out.push(box);
+      if(b.ahead > b.commits.length)
+        box.appendChild(txt("div","muted", (b.ahead-b.commits.length)+" more"));
+      more.appendChild(box);
     }
-    if(d.acceptance && d.acceptance.bullets && d.acceptance.bullets.length)
-      out.push(acceptanceBlock(d.acceptance));
-    if(d.rulings && d.rulings.length) out.push(rulingsBlock(d.rulings));
-    const off = offPlanOf(d.id);
-    if(off === null){
-      const box = el("div","offplan-list");
-      box.appendChild(txt("h4",null, "scope"));
-      box.appendChild(txt("div","muted", "no declared scope — the plan lists no files, so nothing is flagged"));
-      out.push(box);
-    } else if(off && off.length){
-      const box = el("div","offplan-list");
-      box.appendChild(txt("h4",null, "off-plan · "+off.length+" file"+(off.length === 1 ? "" : "s")
-        +" changed outside the plan's declared paths"));
-      for(const f of off) box.appendChild(txt("div","opf", f));
-      out.push(box);
-    }
-    if(row.foundDuringBuild && row.foundDuringBuild.length){
-      const box = el("div","found");
-      box.appendChild(txt("h4",null, "🐞 found during build"));
-      for(const f of row.foundDuringBuild) box.appendChild(txt("div",null, f));
-      out.push(box);
-    }
-    out.push(md(d.body || "", d.planPath || ""));
+    if(more.childNodes.length > 1) out.push(more);
     return out;
   });
 }
@@ -2754,11 +2713,18 @@ function copyText(s, btn){
     navigator.clipboard.writeText(s).then(ok, fallback);
   else fallback();
 }
-function cmdBlock(title, cmds){
+function cmdBlock(title, cmds, opts){
   if(!cmds.length) return null;
   const box = el("section","cmds");
   box.appendChild(txt("h4",null, title));
-  for(const c of cmds){
+  // plan 57: with {lead:true} show one command (the first that acts on this
+  // item, not the generic `next`) and fold the rest under "more commands".
+  let shown = cmds, rest = [];
+  if(opts && opts.lead && cmds.length > 1){
+    const i = Math.max(0, cmds.findIndex(c => !/ next( |$)/.test(c.cmd)));
+    shown = [cmds[i]]; rest = cmds.filter((_, j) => j !== i);
+  }
+  const addRows = (into, list) => { for(const c of list){
     const row = el("div","cmd");
     if(c.why) row.appendChild(txt("span","why", c.why));
     const full = inRoot(c.cmd);      // bug 52: runnable from any cwd under serve --all
@@ -2767,7 +2733,14 @@ function cmdBlock(title, cmds){
     b.type = "button"; b.title = "copy: "+full;
     b.addEventListener("click", () => copyText(full, b));
     row.appendChild(b);
-    box.appendChild(row);
+    into.appendChild(row);
+  } };
+  addRows(box, shown);
+  if(rest.length){
+    const more = el("details","more");
+    more.appendChild(txt("summary",null, rest.length+" more commands"));
+    addRows(more, rest);
+    box.appendChild(more);
   }
   return box;
 }
