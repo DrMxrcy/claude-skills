@@ -258,26 +258,57 @@ def _on_trunk(run: dict, trunk: str | None) -> bool:
     return not run["branches"] or (trunk is not None and trunk in run["branches"])
 
 
+# A suite run without --shards is one shard keyed by its label with the
+# per-run noise stripped (bug 55): parenthetical notes, "on <sha>", bare
+# commit shas and "N specs" — so "e2e 168 specs on c03db6dfd (fresh images)"
+# and "e2e 157 specs on b92e9850f" are both the `e2e` suite and the newer
+# one supersedes the older instead of standing beside it forever.
+_NOTE_RE = re.compile(r"\([^()]*\)")
+_ON_SHA_RE = re.compile(r"\bon\s+[0-9a-f]{7,40}\b")
+_SHA_WORD_RE = re.compile(r"\b(?=[0-9a-f]*\d)(?=[0-9a-f]*[a-f])[0-9a-f]{7,40}\b")
+_SPECS_RE = re.compile(r"\b\d+\s+specs?\b", re.I)
+HISTORY_KEEP = 30                      # superseded runs carried in trunkHealth
+
+
+def shard_key(label: str) -> str:
+    """The suite kind a run label names: `e2e 162 specs on 7ac7542e8` ->
+    `e2e`. A label that strips to nothing keys as itself."""
+    key = str(label or "")
+    while _NOTE_RE.search(key):
+        key = _NOTE_RE.sub(" ", key)
+    for rx in (_ON_SHA_RE, _SHA_WORD_RE, _SPECS_RE):
+        key = rx.sub(" ", key)
+    key = re.sub(r"\bon\s*$", " ", key.strip())
+    key = " ".join(key.split()).strip(" :,;-")
+    return key or " ".join(str(label or "").split())
+
+
 def trunk_health(runs: list[dict], trunk: str | None = None,
                  ahead: list[dict] | None = None) -> dict:
-    """Latest trunk suite result per shard (a run without shards is one shard
-    named by its label), failing names on the shards that failed, plus how
-    far the integration branch(es) are ahead of trunk. `green` is None when
-    no suite run has been recorded."""
+    """Latest trunk suite result per shard — explicit `--shards` names, else
+    the run's `shard_key` — failing names on the shards that failed, plus how
+    far the integration branch(es) are ahead of trunk. Older runs of a shard
+    go to `history` (newest first, capped); `lastAt` is the newest trunk
+    suite run. `green` is None when no suite run has been recorded."""
     shards: dict[str, dict] = {}
+    history: list[dict] = []
+    last_at = None
     for run in runs:                     # newest first: first sighting wins
         if run["kind"] != "suite" or not _on_trunk(run, trunk):
             continue
-        for name, res in (run["shards"] or {run["label"]: run["result"]}).items():
+        last_at = last_at or run["at"]
+        for name, res in (run["shards"] or {shard_key(run["label"]): run["result"]}).items():
+            row = {"shard": name, "result": res, "at": run["at"],
+                   "label": run["label"], "log": run["log"]}
             if name in shards:
+                if len(history) < HISTORY_KEEP:
+                    history.append(row)
                 continue
-            shards[name] = {"shard": name, "result": res, "at": run["at"],
-                            "label": run["label"], "log": run["log"],
-                            "failing": run["failing"] if res == "fail" else []}
+            shards[name] = dict(row, failing=run["failing"] if res == "fail" else [])
     rows = sorted(shards.values(), key=lambda s: s["shard"])
     return {"shards": rows,
             "green": all(s["result"] == "pass" for s in rows) if rows else None,
-            "ahead": list(ahead or [])}
+            "ahead": list(ahead or []), "history": history, "lastAt": last_at}
 
 
 def runs_status(root: Path, cfg: dict, trunk: str | None) -> dict:

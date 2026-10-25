@@ -49,38 +49,46 @@ try { const t = JSON.parse(localStorage.getItem("rm-theme"));
   [hidden] { display:none !important; }
   body { margin:0; background:var(--bg); color:var(--fg);
     font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+  /* Compact header (bug 55): identity + meta controls, progress + counts,
+     tabs + list controls — three short rows, ~110px at 1400px wide. */
   header { position:sticky; top:0; z-index:5; background:var(--bg);
-    padding:14px 24px 12px; border-bottom:1px solid var(--line); }
-  .wrap { max-width:960px; margin:0 auto; }
-  .hrow { display:flex; align-items:baseline; gap:16px; flex-wrap:wrap; }
+    padding:8px 24px 6px; border-bottom:1px solid var(--line); }
+  .wrap { max-width:1280px; margin:0 auto; }
+  .hrow { display:flex; align-items:center; gap:6px 14px; flex-wrap:wrap; }
   header h1 { font-size:16px; margin:0; font-weight:600; }
   header .ver { color:var(--accent); }
-  header .overall { margin-left:auto; color:var(--muted); font-size:12px; }
+  header .overall { color:var(--muted); font-size:12px; white-space:nowrap; }
   #stale { display:inline-block; width:8px; height:8px; border-radius:50%;
     background:var(--done); margin-right:6px; vertical-align:middle;
     transition:background .3s; }
   #stale.off { background:var(--todo); }
-  .hbar { height:4px; background:var(--bar); border-radius:2px; margin-top:10px;
-    overflow:hidden; }
+  .hbar { height:4px; background:var(--bar); border-radius:2px;
+    overflow:hidden; flex:0 1 220px; min-width:80px; }
+  .hprog { margin-top:4px; }
   .hbar > i { display:block; height:100%; width:0; background:var(--done);
     transition:width .3s; }
-  .counts { margin-top:9px; color:var(--muted); font-size:12px;
-    display:flex; gap:16px; flex-wrap:wrap; align-items:center; }
+  .counts { color:var(--muted); font-size:12px;
+    display:flex; gap:4px 14px; flex-wrap:wrap; align-items:center; }
   .chip { display:inline-flex; align-items:center; gap:6px; }
   .chip .cdot { width:8px; height:8px; border-radius:50%; background:var(--todo); }
   .chip .cdot.done { background:var(--done); }
   .chip .cdot.active { background:var(--active); }
   .chip .cdot.blocked { background:var(--blocked); }
   .chip.over { color:var(--blocked); font-weight:600; }   /* plan 40: over wipLimit */
-  .ctrls { margin-left:auto; display:flex; gap:8px; align-items:center; }
+  .navrow { display:flex; gap:4px 10px; align-items:center; flex-wrap:wrap;
+    margin-top:4px; color:var(--muted); font-size:12px; }
+  /* the list controls sit in the tab row; display:contents lets the open
+     filter-chip panel wrap to a full-width line of its own */
+  #rmctrls { display:contents; }
   #search { background:var(--bar); border:1px solid var(--line); color:var(--fg);
-    border-radius:6px; padding:4px 9px; font:inherit; font-size:12px; width:190px; }
+    border-radius:6px; padding:2px 8px; font:inherit; font-size:12px; width:190px;
+    margin-left:auto; }
   #search::placeholder { color:var(--muted); }
   #rootsel { background:var(--bar); border:1px solid var(--line); color:var(--fg);
     border-radius:6px; padding:3px 6px; font:inherit; font-size:12px; }
   .lnk { color:var(--muted); cursor:pointer; user-select:none; font-size:12px; }
   .lnk:hover { color:var(--fg); }
-  main { max-width:960px; margin:0 auto; padding:18px 24px 60px; }
+  main { max-width:1280px; margin:0 auto; padding:12px 24px 60px; }
   #app { display:flex; flex-direction:column; gap:18px; }
   .ver-group { margin:0; }
   .ver-head { display:flex; align-items:center; gap:10px; cursor:pointer;
@@ -133,8 +141,8 @@ try { const t = JSON.parse(localStorage.getItem("rm-theme"));
     transition:width .3s; }
   .frac { color:var(--muted); font-size:12px; min-width:38px; text-align:right; }
   .empty { color:var(--muted); padding:40px 0; text-align:center; }
-  .tabs { display:flex; gap:4px; margin-top:10px; }
-  .tab { color:var(--muted); font-size:12px; padding:4px 10px; cursor:pointer;
+  .tabs { display:flex; gap:2px; }
+  .tab { color:var(--muted); font-size:12px; padding:2px 8px; cursor:pointer;
     border:1px solid transparent; border-radius:6px; user-select:none; }
   .tab:hover { color:var(--fg); }
   .tab.on { color:var(--fg); background:var(--bar); border-color:var(--line); }
@@ -356,13 +364,15 @@ try { const t = JSON.parse(localStorage.getItem("rm-theme"));
   .offplan-list .opf { overflow-wrap:anywhere; }
   .needs-appr { color:var(--blocked); border-color:var(--blocked); font-weight:600; }
   /* ---- run log (plan 38): trunk health tile + gate timeline ------------ */
-  .runs { display:flex; flex-direction:column; gap:8px; font-size:12px; }
-  .health { border:1px solid var(--line); border-radius:6px; padding:8px 10px;
-    display:flex; flex-direction:column; gap:6px; }
-  .health.red { border-color:var(--blocked); }
+  .health { display:flex; flex-direction:column; gap:6px; }
   .health .hh { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-  .health .htitle, .gates .htitle { font-weight:600; }
-  .runs .muted { color:var(--muted); }
+  .failing .more { color:var(--muted); list-style:none; margin-left:-18px; }
+  .hist summary { cursor:pointer; user-select:none; color:var(--muted); }
+  .hist .hrun { display:flex; gap:8px; flex-wrap:wrap; align-items:center;
+    padding:2px 0 0 14px; min-width:0; }
+  .hist .hshard { font-weight:600; }
+  .hist .hlabel { color:var(--muted); overflow-wrap:anywhere; min-width:0; }
+  .panel .muted { color:var(--muted); }
   .shard { border:1px solid var(--line); border-radius:4px; padding:1px 6px;
     white-space:nowrap; color:var(--fg); text-decoration:none; }
   .shard.pass, .gres.pass { color:var(--done); border-color:var(--done); }
@@ -377,6 +387,13 @@ try { const t = JSON.parse(localStorage.getItem("rm-theme"));
     text-transform:uppercase; font-size:11px; }
   .grow .glabel { font-weight:600; overflow-wrap:anywhere; }
   .grow a { text-decoration:none; } .grow a:hover { text-decoration:underline; }
+  /* ---- dashboard panels (bug 55): one collapsible section each --------- */
+  .panel { font-size:12px; }
+  .pnlhead .pnlsum { color:var(--muted); font-size:12px; flex:1 1 auto; min-width:0;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .panel.red > .pnlhead h2, .panel.red > .pnlhead .pnlsum { color:var(--blocked); }
+  .pnlhead:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+  .pnlbody { padding:2px 0 8px 22px; }
   /* ---- navigation (plan 49): search, versions, graph, keys, copy ------- */
   .fts { background:var(--bar); border:1px solid var(--line); color:var(--fg);
     border-radius:6px; padding:5px 9px; font:inherit; font-size:13px; width:100%; }
@@ -448,7 +465,6 @@ try { const t = JSON.parse(localStorage.getItem("rm-theme"));
     background:var(--bar); font:inherit; font-size:12px; white-space:nowrap; }
   .sheet .muted { grid-column:1 / -1; color:var(--muted); font-size:12px; }
   .tabs { flex-wrap:wrap; }
-  .tab.kb { margin-left:auto; }
   /* ---- lane board (plan 37): #/board, one column per lane --------------- */
   body.on-board main, body.on-board header .wrap { max-width:1600px; }
   body.on-board #expandAll, body.on-board #collapseAll { display:none; }
@@ -488,7 +504,7 @@ try { const t = JSON.parse(localStorage.getItem("rm-theme"));
   .bfoot button { cursor:pointer; }
   .bfoot .bcmd { flex:1 1 100%; color:var(--muted); font-size:11px;
     overflow-wrap:anywhere; user-select:all; }
-  #chips { flex-basis:100%; }
+  #chips:has(> .fchips[open]) { flex-basis:100%; }
   .fchips summary { cursor:pointer; user-select:none; color:var(--muted); }
   .fchips[open] summary { margin-bottom:4px; }
   .fgroup { display:flex; gap:5px; flex-wrap:wrap; align-items:center;
@@ -515,12 +531,14 @@ try { const t = JSON.parse(localStorage.getItem("rm-theme"));
     user-select:all; }
   .connbanner .cbretry { color:var(--muted); }
   .hbtn { background:var(--bar); border:1px solid var(--line); color:var(--fg);
-    border-radius:6px; padding:2px 8px; font:inherit; font-size:12px;
-    cursor:pointer; }
+    border-radius:5px; padding:0 6px; font:inherit; font-size:11px;
+    line-height:18px; cursor:pointer; }
   .hbtn:hover { border-color:var(--muted); }
   .hbtn:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
   .hmeta { display:inline-flex; gap:8px; align-items:center; flex-wrap:wrap;
-    color:var(--muted); font-size:12px; }
+    color:var(--muted); font-size:12px; margin-left:auto; }
+  #rootsel { max-width:220px; }
+  #laneFilter { max-width:120px; }
   .scanhint { color:var(--active); }
   .attn { color:var(--blocked); font-weight:600; text-decoration:none; }
   .attn:hover { text-decoration:underline; }
@@ -529,7 +547,7 @@ try { const t = JSON.parse(localStorage.getItem("rm-theme"));
     .facts { grid-template-columns:1fr; }
     .ruling { grid-template-columns:auto 1fr; }
     .ruling .rtext { grid-column:1 / -1; }
-    .ctrls { margin-left:0; flex-wrap:wrap; }
+    #search { margin-left:0; }
     .bar { width:60px; }
     .ob { grid-template-columns:1fr auto; }
     .wtr { grid-template-columns:1fr auto; }
@@ -576,7 +594,6 @@ try { const t = JSON.parse(localStorage.getItem("rm-theme"));
       <h1><span id="stale" title="live"></span><span id="project">roadmap</span>
         <span class="ver" id="cver"></span></h1>
       <select id="rootsel" autocomplete="off" hidden></select>
-      <span class="overall" id="overall"></span>
       <span class="hmeta" id="hmeta">
         <span class="scanhint" id="scanhint" hidden></span>
         <a class="attn" id="attnlink" href="#/digest" hidden></a>
@@ -586,20 +603,23 @@ try { const t = JSON.parse(localStorage.getItem("rm-theme"));
         <button type="button" class="hbtn" id="themeBtn"></button>
       </span>
     </div>
-    <div class="hbar"><i id="hbarfill"></i></div>
-    <div class="counts" id="counts"></div>
-    <div class="tabs" id="tabs"></div>
-    <div class="counts" id="rmctrls">
-      <div class="ctrls">
-        <input id="search" type="search" autocomplete="off" placeholder="filter items · Enter: full-text">
+    <div class="hrow hprog">
+      <div class="hbar"><i id="hbarfill"></i></div>
+      <span class="overall" id="overall"></span>
+      <div class="counts" id="counts"></div>
+    </div>
+    <div class="navrow">
+      <div class="tabs" id="tabs"></div>
+      <div id="rmctrls">
+        <input id="search" type="search" autocomplete="off" placeholder="filter · Enter: full-text">
         <span class="filters">
           <label title="hide done items"><input type="checkbox" id="openOnly"> open only</label>
           <select id="laneFilter" title="show one lane"></select>
         </span>
-        <span class="lnk" id="expandAll">expand all</span>
-        <span class="lnk" id="collapseAll">collapse all</span>
+        <span class="lnk" id="expandAll" title="expand every version and panel">expand all</span>
+        <span class="lnk" id="collapseAll" title="collapse every version and panel">collapse all</span>
+        <div id="chips"></div>
       </div>
-      <div id="chips"></div>
     </div>
   </div>
 </header>
@@ -708,6 +728,49 @@ function loadFilt(){   // switchProject: swap in the new project's filters
   Object.assign(FILT, {open:false, lane:""}, store.get(skey("rm-filters"), {}) || {});
 }
 const saveFilt = () => store.set(skey("rm-filters"), FILT);
+// Dashboard panels (bug 55): slots, trunk health, merge gates, other
+// branches, conflicts and worktrees are each one collapsible section whose
+// header carries a one-line summary. Collapsed by default unless red; an
+// explicit toggle (or expand / collapse all) is remembered per project.
+const PANEL_OPEN = Object.assign({}, store.get("rm-panels", {}) || {});
+function loadPanels(){   // switchProject: swap in the new project's panels
+  for(const k of Object.keys(PANEL_OPEN)) delete PANEL_OPEN[k];
+  Object.assign(PANEL_OPEN, store.get(skey("rm-panels"), {}) || {});
+}
+const savePanels = () => store.set(skey("rm-panels"), PANEL_OPEN);
+const panelOpen = (key, red) => typeof PANEL_OPEN[key] === "boolean" ? PANEL_OPEN[key] : !!red;
+// Click / Enter / Space on `head` toggles `box` collapsed and remembers it.
+function collapsible(key, box, head, open){
+  if(!open) box.classList.add("collapsed");
+  head.tabIndex = 0;
+  head.setAttribute("role", "button");
+  head.setAttribute("aria-expanded", open ? "true" : "false");
+  const toggle = () => {
+    const now = !box.classList.toggle("collapsed");
+    head.setAttribute("aria-expanded", now ? "true" : "false");
+    PANEL_OPEN[key] = now; savePanels();
+  };
+  head.addEventListener("click", toggle);
+  head.addEventListener("keydown", e => {
+    if(e.target === head && (e.key === "Enter" || e.key === " ")){ e.preventDefault(); toggle(); } });
+}
+// o = {title, summary, red, body: [nodes], cls (body class), hcls (head class)}
+function panel(key, o){
+  const sec = el("section", "ver-group panel"+(o.red ? " red" : ""));
+  sec.setAttribute("data-panel", key);
+  const head = el("div", "ver-head pnlhead"+(o.hcls ? " "+o.hcls : ""));
+  head.appendChild(txt("span","chev","▾"));
+  head.appendChild(txt("h2",null, o.title));
+  const sum = txt("span","pnlsum", o.summary || "");
+  sum.title = o.summary || "";
+  head.appendChild(sum);
+  collapsible(key, sec, head, panelOpen(key, o.red));
+  sec.appendChild(head);
+  const box = el("div", "items pnlbody"+(o.cls ? " "+o.cls : ""));
+  box.append(...o.body);
+  sec.appendChild(box);
+  return sec;
+}
 let LAST = null;   // last rendered view, for instant re-render on toggle
 let QUERY = "";    // active search filter
 const stale = off => document.getElementById("stale").classList.toggle("off", off);
@@ -1040,21 +1103,7 @@ function burnDown(f){
 // Unmerged branches not attributed to any item (fix/*, experiments, release
 // branches): listed, never dropped. Collapsed by default.
 function otherSection(list){
-  const KEY = "__otherBranches";
-  const sec = el("section","ver-group");
-  if(!(prefs[KEY])) sec.classList.add("collapsed");
-  const head = el("div","ver-head");
-  head.appendChild(txt("span","chev","▾"));
-  head.appendChild(txt("h2",null,"other branches"));
-  head.appendChild(txt("span","vpct", list.length+" unmerged"));
-  head.onclick = () => {
-    sec.classList.toggle("collapsed");
-    prefs[KEY] = !sec.classList.contains("collapsed");
-    savePrefs();
-  };
-  sec.appendChild(head);
-  const box = el("div","items");
-  for(const b of list){
+  const rows = list.map(b => {
     const row = el("div","ob");
     const n = txt("span","bname", b.name||"");
     if(b.lastSubject) n.title = b.lastSubject;
@@ -1064,10 +1113,11 @@ function otherSection(list){
     const w = txt("span","muted", b.worktree ? "wt "+base(b.worktree) : "");
     if(b.worktree) w.title = b.worktree;
     row.appendChild(w);
-    box.appendChild(row);
-  }
-  sec.appendChild(box);
-  return sec;
+    return row;
+  });
+  const names = list.slice(0, 3).map(b => b.name||"").join(", ") + (list.length > 3 ? ", …" : "");
+  return panel("other", {title:"other branches", summary:list.length+" unmerged · "+names,
+    red:false, body:rows});
 }
 
 // Numbered slots (plan 33): one row per kind — trunk highest, branches
@@ -1075,8 +1125,10 @@ function otherSection(list){
 // Absent when settings.slots is not configured, so nothing renders.
 function slotStrip(s){
   if(!s || !(s.error || (s.kinds||[]).length)) return [];
-  const box = el("section","slots");
-  if(s.error){ box.appendChild(txt("div","serr","slots: "+s.error)); return [box]; }
+  if(s.error) return [panel("slots", {title:"slots", summary:"error: "+s.error, red:true,
+    body:[txt("div","serr","slots: "+s.error)], cls:"slots"})];
+  const rows = [], sums = [];
+  let red = false;
   for(const k of s.kinds){
     const row = el("div","srow");
     row.appendChild(txt("span","skind", k.kind));
@@ -1092,9 +1144,16 @@ function slotStrip(s){
     if(!rs.length) row.appendChild(txt("span","muted","no reservations"));
     if(k.clashes) row.appendChild(txt("span","slot st-clash",
       k.clashes+(k.clashes > 1 ? " clashes" : " clash")));
-    box.appendChild(row);
+    rows.push(row);
+    const bad = rs.filter(r => r.state === "clash" || r.state === "taken").length;
+    if(k.clashes || bad) red = true;
+    sums.push([k.kind, "trunk "+(k.trunkHighest||"—"),
+      ...(k.branchHighest ? ["branches "+k.branchHighest] : []),
+      rs.length ? rs.length+" reserved" : "no reservations",
+      ...(k.clashes ? [k.clashes+(k.clashes > 1 ? " clashes" : " clash")] : []),
+      ...(bad ? [bad+" taken/clashing"] : [])].join(" "));
   }
-  return [box];
+  return [panel("slots", {title:"slots", summary:sums.join(" · "), red, body:rows, cls:"slots"})];
 }
 
 // Run log (plan 38): trunk health tile (latest suite result per shard,
@@ -1112,35 +1171,69 @@ function fmtWhen(iso){
   return isNaN(t) ? "" : t.toLocaleString([], {month:"short", day:"numeric",
     hour:"2-digit", minute:"2-digit"});
 }
+const FAILING_SHOWN = 5;          // bug 55: failing names before "+N more"
 function healthTile(h){
   const shards = (h && h.shards) || [], ahead = (h && h.ahead) || [];
   if(!shards.length && !ahead.length) return null;
-  const box = el("section", "health"+(h.green === false ? " red" : ""));
+  const red = h.green === false;
+  const bad = shards.filter(s => s.result === "fail").map(s => s.shard);
+  const lastAt = h.lastAt || shards.map(s => s.at).sort().pop();
+  const summary = [!shards.length ? "no suite runs recorded"
+      : bad.length ? bad.length+" failing ("+bad.join(", ")+")"
+      : "all "+shards.length+" green",
+    ...(lastAt ? ["last suite "+age(lastAt)] : []),
+    ...ahead.filter(a => a.commits).map(a => a.branch+" +"+a.commits)].join(" · ");
+  const body = [];
   const head = el("div","hh");
-  head.appendChild(txt("span","htitle","trunk health"));
   if(!shards.length) head.appendChild(txt("span","muted","no suite runs recorded"));
   for(const s of shards){
     const chip = link(s.log || "", s.shard+" "+s.result, "shard "+s.result);
     chip.title = [s.label, fmtWhen(s.at), age(s.at)].filter(Boolean).join(" · ");
     head.appendChild(chip);
   }
-  box.appendChild(head);
+  body.push(head);
   const failing = [...new Set(shards.flatMap(s => s.failing || []))];
   if(failing.length){
     const ul = el("ul","failing");
-    for(const f of failing) ul.appendChild(txt("li", null, f));
-    box.appendChild(ul);
+    for(const f of failing.slice(0, FAILING_SHOWN)) ul.appendChild(txt("li", null, f));
+    if(failing.length > FAILING_SHOWN){
+      const more = txt("li","more", "+"+(failing.length - FAILING_SHOWN)+" more");
+      more.title = failing.slice(FAILING_SHOWN).join("\n");
+      ul.appendChild(more);
+    }
+    body.push(ul);
   }
-  for(const a of ahead) box.appendChild(txt("div","muted",
+  for(const a of ahead) body.push(txt("div","muted",
     a.branch+" is "+a.commits+" commit"+(a.commits === 1 ? "" : "s")+" ahead of trunk"));
-  return box;
+  // Superseded runs of each suite (newest first), behind a collapsed toggle.
+  const hist = (h && h.history) || [];
+  if(hist.length){
+    const det = el("details","hist");
+    det.open = PANEL_OPEN["health:history"] === true;
+    det.addEventListener("toggle", () => { PANEL_OPEN["health:history"] = det.open; savePanels(); });
+    det.appendChild(txt("summary",null, "history · "+hist.length+" superseded run"
+      +(hist.length === 1 ? "" : "s")));
+    for(const x of hist){
+      const row = el("div","hrun");
+      row.appendChild(txt("span","gres "+x.result, x.result));
+      row.appendChild(txt("span","hshard", x.shard));
+      row.appendChild(x.log ? link(x.log, x.label, "hlabel") : txt("span","hlabel", x.label));
+      const when = txt("span","muted", age(x.at));
+      when.title = fmtWhen(x.at);
+      row.appendChild(when);
+      det.appendChild(row);
+    }
+    body.push(det);
+  }
+  return panel("health", {title:"trunk health", summary, red, body, cls:"health"});
 }
 function gateTimeline(runs){
   const gates = (runs||[]).filter(r => r.kind === "gate").slice(0, GATES_SHOWN);
   if(!gates.length) return null;
-  const box = el("section","gates");
-  box.appendChild(txt("div","htitle","merge gates"));
-  for(const g of gates){
+  const last = gates[0], nfail = gates.filter(g => g.result === "fail").length;
+  const summary = ["last "+last.result+": "+last.label+" "+age(last.at),
+    nfail ? nfail+" of "+gates.length+" failed" : gates.length+" passed"].join(" · ");
+  const rows = gates.map(g => {
     const row = el("div","grow");
     row.appendChild(txt("span","gres "+g.result, g.result));
     row.appendChild(txt("span","glabel", g.label));
@@ -1151,16 +1244,13 @@ function gateTimeline(runs){
     row.appendChild(when);
     if(g.durationSec != null) row.appendChild(txt("span","muted", fmtDur(g.durationSec)));
     if(g.log) row.appendChild(link(g.log, "log"));
-    box.appendChild(row);
-  }
-  return box;
+    return row;
+  });
+  return panel("gates", {title:"merge gates", summary, red: last.result === "fail",
+    body:rows, cls:"gates"});
 }
 function runPanel(d){
-  const parts = [healthTile(d.trunkHealth), gateTimeline(d.runs)].filter(Boolean);
-  if(!parts.length) return [];
-  const box = el("section","runs");
-  box.append(...parts);
-  return [box];
+  return [healthTile(d.trunkHealth), gateTimeline(d.runs)].filter(Boolean);
 }
 
 // Worktree map (plan 36): every linked worktree of the repo, the same in
@@ -1168,26 +1258,11 @@ function runPanel(d){
 // the removal command as text to copy — the dashboard never runs it.
 function worktreePanel(w){
   if(!w || !w.count) return [];
-  const KEY = "__worktrees";
-  const sec = el("section","ver-group wtmap");
-  if(!(prefs[KEY])) sec.classList.add("collapsed");
-  const head = el("div","ver-head"+(w.over ? " wt-over" : ""));
-  head.appendChild(txt("span","chev","▾"));
-  head.appendChild(txt("h2",null,"worktrees"));
-  const sum = txt("span","vpct", w.count+" linked · "+w.safe+" safe to remove");
-  if(w.over) sum.title = "more than "+w.warnAt+" (settings.worktreeWarn)";
-  head.appendChild(sum);
-  head.onclick = () => {
-    sec.classList.toggle("collapsed");
-    prefs[KEY] = !sec.classList.contains("collapsed");
-    savePrefs();
-  };
-  sec.appendChild(head);
-  const box = el("div","items");
+  const box = [];
   const th = el("div","wtr wth");
   for(const h of ["worktree","item · lane","dirty","unmerged","stage","age","safe"])
     th.appendChild(txt("span",null,h));
-  box.appendChild(th);
+  box.push(th);
   const num = v => v == null ? "?" : String(v);
   for(const r of (w.rows||[])){
     const row = el("div","wtr");
@@ -1214,10 +1289,12 @@ function worktreePanel(w){
     if(!r.safe && r.reason) ok.title = r.reason;
     row.appendChild(ok);
     if(r.safe && r.removeCmd) row.appendChild(txt("code","wtcmd", r.removeCmd));
-    box.appendChild(row);
+    box.push(row);
   }
-  sec.appendChild(box);
-  return [sec];
+  return [panel("worktrees", {title:"worktrees",
+    summary:w.count+" linked · "+w.safe+" safe to remove"
+      +(w.over ? " · over "+w.warnAt+" (settings.worktreeWarn)" : ""),
+    red:!!w.over, hcls:w.over ? "wt-over" : "", body:box, cls:"wtmap"})];
 }
 
 // Branch conflict risk (plan 41): open item branches changing the same
@@ -1225,24 +1302,8 @@ function worktreePanel(w){
 // merge order. The same in every view; red header while any pair is high.
 function conflictsPanel(c){
   if(!c || !(c.pairs||[]).length) return [];
-  const KEY = "__conflicts";
   const n = c.counts || {};
-  const sec = el("section","ver-group cfmap");
-  if(!(prefs[KEY])) sec.classList.add("collapsed");
-  const head = el("div","ver-head"+(n.high ? " cf-high" : ""));
-  head.appendChild(txt("span","chev","▾"));
-  head.appendChild(txt("h2",null,"conflicts"));
-  const sum = txt("span","vpct", c.pairs.length+" overlapping · "+(n.high||0)+" high");
-  sum.title = c.mergeTree ? "checked with git merge-tree"
-    : "file overlap only (git < 2.38: no merge-tree)";
-  head.appendChild(sum);
-  head.onclick = () => {
-    sec.classList.toggle("collapsed");
-    prefs[KEY] = !sec.classList.contains("collapsed");
-    savePrefs();
-  };
-  sec.appendChild(head);
-  const box = el("div","items");
+  const box = [];
   // A branch carrying several items is one node: "FEAT-1 +3".
   const tag = w => (w.displayId || "#"+w.id)
     + ((w.items||[]).length > 1 ? " +"+(w.items.length-1) : "");
@@ -1259,7 +1320,7 @@ function conflictsPanel(c){
     if(p.conflictFiles && p.conflictFiles.length)
       f.title = "conflicts: "+p.conflictFiles.join(", ");
     row.appendChild(f);
-    box.appendChild(row);
+    box.push(row);
   }
   const order = c.order || [];
   if(order.length){
@@ -1271,10 +1332,12 @@ function conflictsPanel(c){
         +(x.high ? ", "+x.high+" high" : "") : "no overlaps");
       o.appendChild(a);
     });
-    box.appendChild(o);
+    box.push(o);
   }
-  sec.appendChild(box);
-  return [sec];
+  return [panel("conflicts", {title:"conflicts",
+    summary:c.pairs.length+" overlapping · "+(n.high||0)+" high"
+      +(c.mergeTree ? "" : " · file overlap only (git < 2.38: no merge-tree)"),
+    red:!!n.high, hcls:n.high ? "cf-high" : "", body:box, cls:"cfmap"})];
 }
 // Scope drift (plan 42): the off-plan files of an item's branch — an array
 // (possibly empty) when checked against declared paths, null when its plan
@@ -1319,7 +1382,7 @@ function render(d){
   const td =items.reduce((a,i)=>a+(i.done||0),0);
   const tt = items.reduce((a,i)=>a+(i.total||0),0);
   document.getElementById("overall").textContent =
-    tt ? Math.round(100*td/tt)+"% overall ("+td+"/"+tt+")" : "";
+    tt ? Math.round(100*td/tt)+"% ("+td+"/"+tt+")" : "";
   document.getElementById("hbarfill").style.width = (tt?100*td/tt:0)+"%";
   const chip = (n,label,cls) => {
     const c = el("span","chip");
@@ -1662,16 +1725,16 @@ document.getElementById("laneFilter").addEventListener("change", e => {
   FILT.lane = e.target.value; saveFilt();
   if(LAST) render(LAST);
 });
-document.getElementById("expandAll").onclick = () => {
+// Expand / collapse all: every version group and every dashboard panel.
+function setAllOpen(open){
   if(!LAST) return;
-  for(const it of (LAST.items||[])) prefs[it.version] = true;
-  savePrefs(); render(LAST);
-};
-document.getElementById("collapseAll").onclick = () => {
-  if(!LAST) return;
-  for(const it of (LAST.items||[])) prefs[it.version] = false;
-  savePrefs(); render(LAST);
-};
+  for(const it of (LAST.items||[])) prefs[it.version] = open;
+  for(const s of document.querySelectorAll("#app [data-panel]"))
+    PANEL_OPEN[s.getAttribute("data-panel")] = open;
+  savePrefs(); savePanels(); render(LAST);
+}
+document.getElementById("expandAll").onclick = () => setAllOpen(true);   // PANEL_OPEN too
+document.getElementById("collapseAll").onclick = () => setAllOpen(false);
 
 // Server-Sent Events: server pushes a fresh status on every .roadmap or
 // branch-ref change. A refresh re-renders whatever route is open, in place,
@@ -2516,7 +2579,7 @@ function switchProject(slug){
   document.getElementById("attnlink").hidden = true;
   document.getElementById("favicon").href = FAVICON(false);
   document.title = titleFor(slug, 0);
-  PROJ = slug; PROJ_ROOT = null; loadFilt(); loadBoard();
+  PROJ = slug; PROJ_ROOT = null; loadFilt(); loadBoard(); loadPanels();
   for(const k of Object.keys(BOARD_PICK)) delete BOARD_PICK[k];
   LASTP = null; LAST = null; VIEW = DEFAULT_VIEW; PREV_HASH = "";
   for(const o of [TABCOUNTS, SCROLL]) for(const k of Object.keys(o)) delete o[k];

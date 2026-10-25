@@ -219,7 +219,8 @@ def test_status_payload_runs_capped_and_no_warnings_key_when_clean(roadmap, runs
         runs.append_run(proj, _rec(runs, f"r{n}"))
     st = roadmap.status(proj)
     assert len(st["runs"]) == runs.STATUS_RUNS and "runWarnings" not in st
-    assert st["trunkHealth"] == {"shards": [], "green": None, "ahead": []}
+    assert st["trunkHealth"] == {"shards": [], "green": None, "ahead": [],
+                                 "history": [], "lastAt": None}          # bug 55: +history, lastAt
 
 
 def test_trunk_health_latest_suite_per_shard(runs):
