@@ -1,0 +1,39 @@
+.roadmap/plans/056-fleet-fold-review-eval-gate-keep-or-fold-policy-merge-spec-pass-drop-explore.md
+  s_9e09f0d2fda1d7::t_7a9c7d8fc3ffb8 6
+  s_9e09f0d2fda1d7::t_7a8dcabfb14b95 40
+  s_9e09f0d2fda1d7::t_bde5fd97b5f67f 41
+agy-plugin/plugins/agent/rules/AGENTS.md
+  s_9e09f0d2fda1d7::t_61063bdfdebf9f 47
+  s_9e09f0d2fda1d7::t_aaf1867e9de552 42-46
+skills/agent/references/orchestration-policy.md
+  s_9e09f0d2fda1d7::t_469989aab79713 43,45,47
+  s_9e09f0d2fda1d7::t_aaf1867e9de552 42,44,46
+.roadmap/config.json
+  s_0d994e3368ddf8::t_18e4434e41f59c 580
+ROADMAP.md
+  s_9e09f0d2fda1d7::t_7a9c7d8fc3ffb8 24,33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "eddc34e0749c86ab166d54cf7000b75cfea38450",
+  "prompts": {},
+  "sessions": {
+    "s_0d994e3368ddf8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1e59e42f-734a-4197-96a1-8f7a72731de8",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    },
+    "s_9e09f0d2fda1d7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5c30c5da-1829-4637-9ff7-7e202c5068cb",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
