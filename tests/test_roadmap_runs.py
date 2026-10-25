@@ -219,7 +219,8 @@ def test_status_payload_runs_capped_and_no_warnings_key_when_clean(roadmap, runs
         runs.append_run(proj, _rec(runs, f"r{n}"))
     st = roadmap.status(proj)
     assert len(st["runs"]) == runs.STATUS_RUNS and "runWarnings" not in st
-    assert st["trunkHealth"] == {"shards": [], "green": None, "ahead": []}
+    assert st["trunkHealth"] == {"shards": [], "green": None, "ahead": [],
+                                 "history": [], "lastAt": None}          # bug 55: +history, lastAt
 
 
 def test_trunk_health_latest_suite_per_shard(runs):
@@ -346,4 +347,56 @@ def test_dashboard_html_has_gate_timeline_and_health_tile(dashboard):
     # log URLs only ever reach an href through link() (http(s) / #/ only)
     import re
     assert not re.search(r"\.href\s*=\s*[gs]\.log", body)
+    assert ".innerHTML" not in body and "insertAdjacentHTML" not in body
+
+
+# ---- bug 55: trunk health keys suites by kind, not by raw label -------------
+
+@pytest.mark.parametrize("label, key", [
+    ("e2e 157 specs on b92e9850f", "e2e"),
+    ("e2e 168 specs on c03db6dfd (fresh images after the runner fix)", "e2e"),
+    ("unit on 5f56b2176", "unit"),
+    ("c3c8b24ca unit+shards+e2e", "unit+shards+e2e"),
+    ("nightly", "nightly"),
+    ("lint (fast)", "lint"),
+    ("on 1234567", "on 1234567"),          # nothing left: the raw label
+])
+def test_shard_key_strips_shas_counts_and_notes(runs, label, key):
+    assert runs.shard_key(label) == key
+
+
+def test_trunk_health_newest_run_per_suite_kind(runs):
+    shas = ["b92e9850f", "7ac7542e8", "dc1c21b63", "5f56b2176", "c03db6dfd"]
+    rs = [_rec(runs, f"e2e {160 + n} specs on {sha}", "pass" if n == 4 else "fail",
+               "suite", n, failing=[] if n == 4 else [f"t{n}"])
+          for n, sha in enumerate(shas)]
+    rs.append(_rec(runs, "unit on 7ac7542e8 (flaky)", "fail", "suite", 2,
+                   failing=[f"u{i}" for i in range(8)]))
+    rs = [runs._clean(r) for r in sorted(rs, key=lambda r: r["at"], reverse=True)]
+    h = runs.trunk_health(rs, "main")
+    by = {s["shard"]: s for s in h["shards"]}
+    assert set(by) == {"e2e", "unit"}                    # one chip per suite kind
+    assert by["e2e"]["result"] == "pass" and by["e2e"]["label"].endswith("c03db6dfd")
+    assert by["e2e"]["failing"] == []
+    assert set(by["e2e"]) >= {"shard", "result", "at", "label", "log", "failing"}
+    assert h["green"] is False                           # unit still red
+    hist = [x for x in h["history"] if x["shard"] == "e2e"]
+    assert [x["label"].split()[-1] for x in hist] == shas[3::-1]   # newest first
+    assert all(x["result"] == "fail" for x in hist)
+    assert h["lastAt"] == by["e2e"]["at"]
+    empty = runs.trunk_health([], "main")
+    assert empty["shards"] == [] and empty["green"] is None and empty["history"] == []
+    assert empty["lastAt"] is None
+
+
+def test_dashboard_panels_collapsible_with_summaries(dashboard):
+    body = dashboard._dashboard_html()
+    for hook in ("function panel(", 'skey("rm-panels")', "PANEL_OPEN", "data-panel",
+                 'panel("slots"', 'panel("health"', 'panel("gates"', 'panel("worktrees"',
+                 'panel("conflicts"', 'panel("other"', "h.history", "FAILING_SHOWN",
+                 "more", "last suite", "loadPanels()"):
+        assert hook in body, hook
+    # expand / collapse all reach the panels too
+    i = body.index('getElementById("expandAll")')
+    assert "PANEL_OPEN" in body[i:i + 600]
     assert ".innerHTML" not in body and "insertAdjacentHTML" not in body
