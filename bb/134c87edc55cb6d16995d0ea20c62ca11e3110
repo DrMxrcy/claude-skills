@@ -1,0 +1,44 @@
+.roadmap/config.json
+  s_46e1afb656488b::t_b12cf07d96d797 4,547-554
+  s_fbae122c7a65de::t_0fbdb83a26c528 555-562
+CHANGELOG.internal.md
+  s_46e1afb656488b::t_b12cf07d96d797 43
+  s_fbae122c7a65de::t_1f99bdb1805705 48
+ROADMAP.md
+  s_46e1afb656488b::t_b12cf07d96d797 24,31
+  s_fbae122c7a65de::t_a4b6bbb4f9cf5e 32
+.roadmap/plans/054-chunked-whole-repo-review-with-model-md-baseline-openusage-budgeting-and-resumable-coverage.md
+  s_46e1afb656488b::t_43a7863c7186f0 34-40
+  s_46e1afb656488b::t_b12cf07d96d797 1-13,16-17,22-23,32-33
+  s_46e1afb656488b::t_bf754ecb2df9c3 24-31
+  s_46e1afb656488b::t_c8be7239fa4315 14-15
+  s_46e1afb656488b::t_74283eb935f115 18-21
+.roadmap/plans/038-run-log-record-merge-gate-and-trunk-suite-runs-from-the-cli-shown-as-a-gate-timeline-and-trunk-health-tile.md
+  s_fbae122c7a65de::t_340fb090f029a1 8
+.roadmap/plans/055-dashboard-header-too-tall-panels-not-collapsible-trunk-health-shows-every-past-run-as-a-red-chip.md
+  s_fbae122c7a65de::t_dd9366396a617a 1-31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bb134c87edc55cb6d16995d0ea20c62ca11e3110",
+  "prompts": {},
+  "sessions": {
+    "s_46e1afb656488b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "29cbd46b-401e-4ab9-8990-06b287088024",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    },
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "unknown"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
