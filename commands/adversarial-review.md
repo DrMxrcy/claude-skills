@@ -1,6 +1,6 @@
 ---
 description: Read-only adversarial review by every installed model CLI, then triage the findings
-argument-hint: "[diff | branch:<base> | version:<v> | plan:<id> | repo] [--base REF] [--exclude a,b] [--refute] [--security] [--decided TEXT] [--deny GLOB] [--no-preflight]"
+argument-hint: "[diff | branch:<base> | version:<v> | plan:<id> | repo] [--base REF] [--exclude a,b] [--refute] [--security] [--decided TEXT] [--deny GLOB] [--no-preflight] [--chunk-budget N] [--resume RUN_DIR]"
 ---
 
 Run a read-only adversarial review using the **adversarial-review** skill. Target: $ARGUMENTS

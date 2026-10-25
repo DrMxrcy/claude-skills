@@ -3,7 +3,7 @@ id: 54
 title: Chunked whole-repo review with model.md baseline, openusage budgeting, and resumable coverage
 type: feature
 version: 0.19.0
-status: planned
+status: done
 created: 2026-10-25
 ---
 
@@ -31,10 +31,16 @@ created: 2026-10-25
 - **Fails if:** a chunk is sent with a secret that the deny list or secret scan should have caught; a model or effort value is used that is not in `model.md`; a resumed run re-sends finished chunks; or `codegraph init` runs.
 
 ## 🚶 Step-by-Step Checklist
-- [ ] Step 1: Model baseline: `probe_models.py` checks each member's `--help` for its model and effort flags, writes `model.md` with CLI version and date, and the runner refuses a member with no entry -> target: `skills/adversarial-review/scripts/probe_models.py`, `tests/test_adversarial_review_chunks.py`
-- [ ] Step 2: Chunk planner: module split under `--chunk-budget`, risk ordering, `coverage.json`, `--resume` -> target: `skills/adversarial-review/scripts/chunk_plan.py`, `skills/adversarial-review/scripts/run_review.py`
-- [ ] Step 3: Per-chunk member calls through the existing snapshot, guard and triage path, with coverage in `summary.md` -> target: `skills/adversarial-review/scripts/run_review.py`, `skills/adversarial-review/prompts/adversarial.md`
-- [ ] Step 4: openusage budgeting per member with a floor, and fallback to `--chunk-budget` alone when openusage is absent -> target: `skills/adversarial-review/scripts/run_review.py`, `tests/test_adversarial_review_chunks.py`
-- [ ] Step 5: Optional CodeGraph context for chunks when `.codegraph/` exists, raw-file fallback recorded -> target: `skills/adversarial-review/scripts/chunk_plan.py`, `tests/test_adversarial_review_chunks.py`
-- [ ] Step 6: Privacy redaction of deny-listed and secret-pattern content per chunk, with the file list in `summary.md` -> target: `skills/adversarial-review/scripts/run_review.py`, `tests/test_adversarial_review_chunks.py`
-- [ ] Step 7: Docs and install: SKILL.md and README.md describe chunks, `model.md`, coverage, resume and privacy; reinstall globally after the tests pass -> target: `skills/adversarial-review/SKILL.md`, `skills/adversarial-review/README.md`, `install.sh`
+- [x] Step 1: Model baseline: `probe_models.py` checks each member's `--help` for its model and effort flags, writes `model.md` with CLI version and date, and the runner refuses a member with no entry -> target: `skills/adversarial-review/scripts/probe_models.py`, `tests/test_adversarial_review_chunks.py`
+- [x] Step 2: Chunk planner: module split under `--chunk-budget`, risk ordering, `coverage.json`, `--resume` -> target: `skills/adversarial-review/scripts/chunk_plan.py`, `skills/adversarial-review/scripts/run_review.py`
+  > evidence: probe_models tests (help parsing, model.md, digest, pins, refusal): python3.11 -m pytest tests/test_adversarial_review.py tests/test_adversarial_review_chunks.py -q: 105 passed; python3 scripts/validate_skills.py: skills/ ok (2026-10-25)
+- [x] Step 3: Per-chunk member calls through the existing snapshot, guard and triage path, with coverage in `summary.md` -> target: `skills/adversarial-review/scripts/run_review.py`, `skills/adversarial-review/prompts/adversarial.md`
+  > evidence: chunk_plan tests (budget split, risk order, coverage, resume): python3.11 -m pytest tests/test_adversarial_review.py tests/test_adversarial_review_chunks.py -q: 105 passed; python3 scripts/validate_skills.py: skills/ ok (2026-10-25)
+- [x] Step 4: openusage budgeting per member with a floor, and fallback to `--chunk-budget` alone when openusage is absent -> target: `skills/adversarial-review/scripts/run_review.py`, `tests/test_adversarial_review_chunks.py`
+  > evidence: run_review repo chunk tests (one call per chunk, rate limit then resume, guard, refute): python3.11 -m pytest tests/test_adversarial_review.py tests/test_adversarial_review_chunks.py -q: 105 passed; python3 scripts/validate_skills.py: skills/ ok (2026-10-25)
+- [x] Step 5: Optional CodeGraph context for chunks when `.codegraph/` exists, raw-file fallback recorded -> target: `skills/adversarial-review/scripts/chunk_plan.py`, `tests/test_adversarial_review_chunks.py`
+  > evidence: openusage budgeting tests (floor, live reading, fallback without openusage): python3.11 -m pytest tests/test_adversarial_review.py tests/test_adversarial_review_chunks.py -q: 105 passed; python3 scripts/validate_skills.py: skills/ ok (2026-10-25)
+- [x] Step 6: Privacy redaction of deny-listed and secret-pattern content per chunk, with the file list in `summary.md` -> target: `skills/adversarial-review/scripts/run_review.py`, `tests/test_adversarial_review_chunks.py`
+  > evidence: codegraph context tests (index used, init never run, raw fallback): python3.11 -m pytest tests/test_adversarial_review.py tests/test_adversarial_review_chunks.py -q: 105 passed; python3 scripts/validate_skills.py: skills/ ok (2026-10-25)
+- [x] Step 7: Docs and install: SKILL.md and README.md describe chunks, `model.md`, coverage, resume and privacy; reinstall globally after the tests pass -> target: `skills/adversarial-review/SKILL.md`, `skills/adversarial-review/README.md`, `install.sh`
+  > evidence: redaction tests (patterns, every chunk, diff target too): python3.11 -m pytest tests/test_adversarial_review.py tests/test_adversarial_review_chunks.py -q: 105 passed; python3 scripts/validate_skills.py: skills/ ok (2026-10-25)

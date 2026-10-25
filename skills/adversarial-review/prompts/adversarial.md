@@ -11,6 +11,7 @@ and do not propose to apply fixes. Read files and search the repo as much as you
 {{TARGET}}
 
 {{SNAPSHOT}}
+{{CHUNK}}
 ## Your lens
 
 {{LENS}}

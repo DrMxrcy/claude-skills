@@ -79,7 +79,9 @@ def env(tmp_path):
 
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
-    git_dir = os.path.dirname(shutil.which("git"))
+    git_dir = tmp_path / "git-only"
+    git_dir.mkdir()
+    (git_dir / "git").symlink_to(shutil.which("git"))
     home = tmp_path / "home"
     home.mkdir()
     run_env = {**os.environ, "HOME": str(home),
@@ -983,7 +985,8 @@ def test_skill_layout_is_minimal():
     files = sorted(p.relative_to(SKILL).as_posix() for p in SKILL.rglob("*")
                    if p.is_file() and "__pycache__" not in p.parts)
     assert files == ["README.md", "SKILL.md", "VERSION", "prompts/adversarial.md",
-                     "prompts/refute.md", "scripts/run_review.py"]
+                     "prompts/refute.md", "scripts/chunk_plan.py", "scripts/probe_models.py",
+                     "scripts/run_review.py"]
 
 
 def test_docs_have_no_references_dir_or_checklist_sync():

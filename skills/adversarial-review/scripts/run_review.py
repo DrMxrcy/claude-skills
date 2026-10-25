@@ -31,6 +31,7 @@ import datetime as _dt
 import fnmatch
 import hashlib
 import json
+import math
 import os
 import re
 import shutil
@@ -38,11 +39,16 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unicodedata
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import chunk_plan      # noqa: E402  (same folder: module chunks, coverage.json, codegraph)
+import probe_models    # noqa: E402  (same folder: model.md baseline)
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
 PROMPT_FILE = SKILL_DIR / "prompts" / "adversarial.md"
@@ -162,24 +168,27 @@ class Member:
     models: tuple = ()             # opencode: (primary, fallback)
     env: dict = field(default_factory=dict)
 
-    def argv(self, binary_path, prompt, outfile=None, model=None):
-        b = binary_path
+    def argv(self, binary_path, prompt, outfile=None, model=None, pins=()):
+        """`pins`: model/effort flags from model.md (chunked runs only), placed before
+        the prompt arguments."""
+        b, pins = binary_path, list(pins)
         if self.name == "codex":
             # `-s` here is codex's --sandbox, not a session flag.
             return [b, "exec", "--skip-git-repo-check", "-s", "read-only",
-                    "--color", "never", "-o", str(outfile), "-"]
+                    "--color", "never", *pins, "-o", str(outfile), "-"]
         if self.name == "cursor-agent":
-            return [b, "-p", "--output-format", "text", "--mode", "ask", "--trust", prompt]
+            return [b, "-p", "--output-format", "text", "--mode", "ask", "--trust", *pins,
+                    prompt]
         if self.name == "agy":
             # -p consumes the next argument as the prompt, so it must come last.
-            return [b, "--mode", "plan", "-p", prompt]
+            return [b, "--mode", "plan", *pins, "-p", prompt]
         if self.name == "claude":
             return [b, "-p", "--tools", "Read,Grep,Glob",
                     "--disallowedTools", "Edit,Write,NotebookEdit,Bash",
                     "--permission-mode", "plan", "--permission-prompts", "none",
-                    "--strict-mcp-config", "--settings", '{"disableAllHooks":true}']
+                    "--strict-mcp-config", "--settings", '{"disableAllHooks":true}', *pins]
         if self.name == "opencode":
-            return [b, "run", "--standalone", "-m", model, "--agent", "plan", prompt]
+            return [b, "run", "--standalone", "-m", model, *pins, "--agent", "plan", prompt]
         raise ValueError(f"no invocation for member {self.name}")
 
 
@@ -323,11 +332,12 @@ def _display_argv(argv, prompt):
     return ["<prompt>" if a == prompt else a for a in argv]
 
 
-def _attempt(member, binary_path, prompt, repo, timeout, model=None, cap_label=None):
+def _attempt(member, binary_path, prompt, repo, timeout, model=None, cap_label=None,
+             pins=()):
     tmpdir = tempfile.mkdtemp(prefix=f"advrev-{member.name}-")
     outfile = Path(tmpdir) / "last-message.txt"
     try:
-        argv = member.argv(binary_path, prompt, outfile=outfile, model=model)
+        argv = member.argv(binary_path, prompt, outfile=outfile, model=model, pins=pins)
         shown = _display_argv(argv, prompt)
         bad = session_flags_in(member, argv, prompt)
         if bad:  # defence in depth; the registry never builds these
@@ -366,10 +376,10 @@ def probe_version(binary_path, repo, cap=VERSION_PROBE_TIMEOUT, env=None):
     return True, first
 
 
-def run_member(member, prompt, repo, timeout, probe=True):
+def run_member(member, prompt, repo, timeout, probe=True, pins=()):
     """Run one member under ONE wall-time budget of `timeout` seconds in total: the
     --version probe (at most 15 s of it), the call, and opencode's fallback retry,
-    which only gets whatever budget the primary left."""
+    which only gets whatever budget the primary left. `pins` are model.md flags."""
     deadline = time.monotonic() + timeout
     remaining = lambda: deadline - time.monotonic()  # noqa: E731
     path = shutil.which(member.binary)
@@ -384,12 +394,13 @@ def run_member(member, prompt, repo, timeout, probe=True):
             return MemberResult(member.name, "failed: version probe", version)
 
     if not member.models:
-        att = _attempt(member, path, prompt, repo, max(remaining(), 0.1), cap_label=timeout)
+        att = _attempt(member, path, prompt, repo, max(remaining(), 0.1), cap_label=timeout,
+                       pins=pins)
         return MemberResult(member.name, att.status, att.reason, version, [att])
 
     primary, fallback = member.models
     first = _attempt(member, path, prompt, repo, max(remaining(), 0.1), model=primary,
-                     cap_label=timeout)
+                     cap_label=timeout, pins=pins)
     if first.status == "ran":
         return MemberResult(member.name, "ran", f"model {primary}", version, [first])
     why = "usage limit" if first.status == "skipped: usage limit" else first.status
@@ -398,7 +409,7 @@ def run_member(member, prompt, repo, timeout, probe=True):
                             f"{primary}: {first.reason}; no budget left for fallback "
                             f"{fallback} within the {timeout}s cap", version, [first])
     second = _attempt(member, path, prompt, repo, remaining(), model=fallback,
-                      cap_label=timeout)
+                      cap_label=timeout, pins=pins)
     attempts = [first, second]
     note = f"after {why} on {primary}"
     if second.status == "ran":
@@ -516,6 +527,43 @@ def preflight(member_name, data):
     return Preflight("ok", "; ".join(parts))
 
 
+def usage_remaining(member_name, data):
+    """(remaining percent or None, detail) for chunk budgeting, from the same windows
+    the pre-flight reads. A group of alternative windows has the room of its best
+    window; a member has the room of its tightest group. claude: the best claude*
+    account's weekly window. None: no usable data (stale, missing, unmapped)."""
+    if not isinstance(data, dict):
+        return None, "no openusage data"
+    providers = data.get("providers") or {}
+    if member_name == "claude":
+        best = None
+        for key in sorted(k for k in providers if isinstance(k, str) and k.startswith("claude")):
+            prov = providers[key]
+            if not isinstance(prov, dict) or prov.get("stale"):
+                continue
+            w = _window(prov, "weekly")
+            if w is not None and (best is None or w[0] > best[0]):
+                best = (w[0], f"{_safe(key)}.weekly")
+        return (best[0], best[1]) if best else (None, "no fresh claude* weekly window")
+    spec = USAGE_WINDOWS.get(member_name)
+    if spec is None:
+        return None, "no openusage data for this CLI"
+    pid, groups = spec
+    prov = providers.get(pid)
+    if not isinstance(prov, dict) or prov.get("stale"):
+        return None, f"no fresh `{pid}` entry"
+    tightest = None
+    for group in groups:
+        vals = [(w[0], f"{pid}.{name}") for name in group
+                if (w := _window(prov, name)) is not None]
+        if len(vals) != len(group):
+            return None, f"{pid} window missing"
+        best = max(vals)
+        if tightest is None or best[0] < tightest[0]:
+            tightest = best
+    return tightest if tightest else (None, f"{pid} has no windows")
+
+
 # --- read-only guard ------------------------------------------------------------------
 
 def _git(repo, *args, check=True):
@@ -589,6 +637,85 @@ class Target:
     kind: str              # diff | branch | version | plan | repo
     files: list            # files under review (changed files, or plan files)
     withheld: list = field(default_factory=list)   # diff sections dropped by the deny list
+    redacted: dict = field(default_factory=dict)   # {kind: count} removed from context
+
+
+# --- (step 6) secret redaction ---------------------------------------------------------
+# Applied to every target before anything is sent: the prompt context (diff text, chunk
+# files, CodeGraph output) and every text file copied into a member snapshot. Matches
+# are replaced by `[REDACTED:<kind>]`; summary.md records only the kind and count.
+
+SECRET_PATTERNS = (
+    ("private-key-block", re.compile(
+        r"-----BEGIN[ A-Z0-9]*PRIVATE KEY(?: BLOCK)?-----.*?"
+        r"(?:-----END[ A-Z0-9]*PRIVATE KEY(?: BLOCK)?-----|\Z)", re.DOTALL)),
+    ("aws-access-key", re.compile(
+        r"(?<![A-Z0-9])(?:AKIA|ASIA|ABIA|ACCA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|APKA)"
+        r"[A-Z0-9]{16}(?![A-Z0-9])")),
+    ("github-token", re.compile(
+        r"(?<![A-Za-z0-9_])(?:gh[pousr]_[A-Za-z0-9]{36,255}|github_pat_[A-Za-z0-9_]{22,255})"
+        r"(?![A-Za-z0-9_])")),
+)
+# KEY=value / key: "value" where the name says key/secret/token/password and the value
+# looks random: at least 16 characters, a digit plus another character class, and at
+# least SECRET_MIN_ENTROPY bits per character. Identifiers like get_token_value stay.
+GENERIC_SECRET_RE = re.compile(
+    r"(?i)(?P<key>\b[a-z0-9_.-]{0,40}?(?:key|secret|token|passw(?:or)?d|pwd|credential|auth)"
+    r"[a-z0-9_.-]{0,40})(?P<sep>[\"']?\s*(?::=|=>|[:=])\s*[\"'`]?)"
+    r"(?P<val>[A-Za-z0-9+/=_\-.~]{16,512})")
+SECRET_MIN_ENTROPY = 3.5
+
+
+def _entropy(text):
+    counts = {}
+    for ch in text:
+        counts[ch] = counts.get(ch, 0) + 1
+    n = len(text)
+    return -sum(c / n * math.log2(c / n) for c in counts.values())
+
+
+def _looks_secret(val):
+    val = val.rstrip(".")
+    if len(val) < 16 or not re.search(r"[0-9]", val):
+        return False
+    classes = sum(bool(re.search(p, val)) for p in ("[a-z]", "[A-Z]", "[0-9]", r"[+/=_\-.~]"))
+    return classes >= 2 and _entropy(val) >= SECRET_MIN_ENTROPY
+
+
+def redact_text(text):
+    """(text with secrets replaced, {kind: count})."""
+    counts = {}
+    for kind, pat in SECRET_PATTERNS:
+        text, n = pat.subn(f"[REDACTED:{kind}]", text)
+        if n:
+            counts[kind] = counts.get(kind, 0) + n
+
+    def generic(m):
+        if not _looks_secret(m.group("val")):
+            return m.group(0)
+        counts["secret-assignment"] = counts.get("secret-assignment", 0) + 1
+        return m.group("key") + m.group("sep") + "[REDACTED:secret-assignment]"
+
+    return GENERIC_SECRET_RE.sub(generic, text), counts
+
+
+def redact_file(path):
+    """Redact a text file in place; {kind: count} (empty for binary or clean files)."""
+    try:
+        data = Path(path).read_bytes()
+    except OSError:
+        return {}
+    if b"\0" in data[:8192]:
+        return {}
+    text = data.decode("utf-8", errors="surrogateescape")
+    new, counts = redact_text(text)
+    if counts:
+        Path(path).write_bytes(new.encode("utf-8", errors="surrogateescape"))
+    return counts
+
+
+def _counts_text(counts):
+    return ", ".join(f"{k} ×{n}" for k, n in sorted(counts.items()))
 
 
 def _cap(text):
@@ -650,13 +777,20 @@ def _git_diff(repo, *args):
 
 def build_target(repo, target, base=None, deny=None):
     """Return a Target for a target spec. Raises ValueError. Diff text is filtered by
-    the deny list (`deny`, default DEFAULT_DENY) before it can reach any prompt."""
+    the deny list (`deny`, default DEFAULT_DENY) and secret-redacted (redact_text)
+    before it can reach any prompt; target.redacted counts what was removed."""
+    t = _build_target(repo, target, base, deny)
+    t.context, t.redacted = redact_text(t.context)
+    return t
+
+
+def _build_target(repo, target, base=None, deny=None):
     repo = Path(repo)
     deny = DEFAULT_DENY if deny is None else tuple(deny)
     kind, _, arg = target.partition(":")
     if kind == "diff":
         if base or arg:
-            return build_target(repo, f"branch:{base or arg}", deny=deny)
+            return _build_target(repo, f"branch:{base or arg}", deny=deny)
         raw = _git_diff(repo, "HEAD")
         untracked = _lines(_git(repo, "ls-files", "--others", "--exclude-standard"))
         if not raw.strip() and not untracked:
@@ -739,6 +873,7 @@ class Snapshot:
     excluded: list          # [(rel, pattern)] removed by the deny list
     skipped: list           # [(rel, reason)] symlinks, oversized, unreadable
     deny: tuple
+    redacted: list = field(default_factory=list)   # [(rel, {kind: count})]
 
     def cleanup(self):
         shutil.rmtree(self.root, ignore_errors=True)
@@ -786,10 +921,14 @@ def snapshot_files(repo, target, out_rel=None):
     return sorted(wanted)
 
 
-def build_snapshot(repo, target, deny=DEFAULT_DENY, out_rel=None):
+def build_snapshot(repo, target, deny=DEFAULT_DENY, out_rel=None, only=None):
+    """Sanitized copy: deny list, no symlinks or hard links, size cap, and every copied
+    text file secret-redacted (snapshot.redacted). `only`: exact file list (a chunk)
+    instead of the target's file set."""
     root = Path(tempfile.mkdtemp(prefix="advrev-snap-"))
-    copied, excluded, skipped = [], [], []
-    for rel in snapshot_files(repo, target, out_rel):
+    copied, excluded, skipped, redacted = [], [], [], []
+    files = sorted(set(only)) if only is not None else snapshot_files(repo, target, out_rel)
+    for rel in files:
         pat = is_denied(rel, deny)
         if pat:
             excluded.append((rel, pat))
@@ -814,8 +953,11 @@ def build_snapshot(repo, target, deny=DEFAULT_DENY, out_rel=None):
         except OSError as exc:
             skipped.append((rel, f"unreadable: {exc.strerror or exc}"))
             continue
+        counts = redact_file(dst)
+        if counts:
+            redacted.append((rel, counts))
         copied.append(rel)
-    return Snapshot(root, copied, excluded, skipped, tuple(deny))
+    return Snapshot(root, copied, excluded, skipped, tuple(deny), redacted)
 
 
 def tree_hashes(root):
@@ -886,12 +1028,28 @@ def lens_for(index, security_only=False):
     return "security" if security_only else LENSES[index % len(LENSES)]
 
 
-def render_prompt(target, repo, lens="production breakage", decided=None, snapshot=None):
+def chunk_block(chunk, total):
+    """Chunk-scoped instructions for one chunk call (empty for other targets)."""
+    if chunk is None:
+        return ""
+    files = "".join(f"- `{f}`\n" for f in chunk["files"])
+    return ("## Chunk scope\n\n"
+            f"This is chunk {chunk['id']} of {total} (`{chunk['label']}`, risk: "
+            f"{chunk['risk']}). The whole repo is reviewed in module chunks, one call per "
+            "chunk; other chunks go to other calls. Review only the files below. Your "
+            "snapshot holds only these files plus the project docs, so cite only them. "
+            "Name anything outside the chunk that you needed in your NOT_CHECKED line.\n\n"
+            f"Files in this chunk:\n{files}")
+
+
+def render_prompt(target, repo, lens="production breakage", decided=None, snapshot=None,
+                  chunk=None, total_chunks=0):
     """`repo` is where members look (the snapshot root in a real run)."""
     template = PROMPT_FILE.read_text()
     blocks = {
         "{{TARGET}}": target.description,
         "{{SNAPSHOT}}": snapshot_block(snapshot),
+        "{{CHUNK}}": chunk_block(chunk, total_chunks),
         "{{LENS}}": LENS_TEXT[lens],
         "{{PROJECT_DOCS}}": project_docs_block(repo),
         "{{DECIDED}}": decided_block(decided),
@@ -1259,6 +1417,18 @@ def triage(results, repo=None, extra=()):
     Confirmed before Needs verification. Only findings that passed the evidence rule
     exist here (the rest are recorded per member in res.dropped). `extra` adds
     deterministic findings (the injection scan). Findings get ids F1..Fn."""
+    found = []
+    for res in results:
+        if not res.ran:
+            continue
+        kept, res.dropped = parse_findings(res.name, res.output, repo)
+        res.not_checked = parse_not_checked(res.output)
+        found += kept
+    return merge_findings(found, extra)
+
+
+def merge_findings(found, extra=()):
+    """Dedupe, merge and rank already-evidenced findings (see triage)."""
     merged = {}
 
     def add(f):
@@ -1274,19 +1444,29 @@ def triage(results, repo=None, extra=()):
         if f.label == "Confirmed":
             cur.label = "Confirmed"
 
-    for res in results:
-        if not res.ran:
-            continue
-        kept, res.dropped = parse_findings(res.name, res.output, repo)
-        res.not_checked = parse_not_checked(res.output)
-        for f in kept:
-            add(f)
+    for f in found:
+        add(f)
     for f in extra:
         add(f)
     ranked = sorted(merged.values(), key=_rank_key)
     for i, f in enumerate(ranked):
         f.id = f"F{i + 1}"
     return ranked
+
+
+def finding_to_dict(f):
+    return {"severity": f.severity, "location": f.location, "title": f.title,
+            "evidence": [list(e) for e in f.evidence], "members": sorted(f.members),
+            "evidenced": f.evidenced, "note": f.note, "label": f.label,
+            "impact": [list(i) for i in f.impact]}
+
+
+def finding_from_dict(d):
+    return Finding(d["severity"], d["location"], d["title"],
+                   [tuple(e) for e in d.get("evidence", [])], set(d.get("members", [])),
+                   bool(d.get("evidenced", True)), d.get("note", ""),
+                   label=d.get("label", "Needs verification"),
+                   impact=[tuple(i) for i in d.get("impact", [])])
 
 
 VERDICT_RULES = ("BLOCK: the read-only guard failed, or a surviving finding is critical, "
@@ -1366,8 +1546,10 @@ def parse_refutations(member, text, by_id, repo=None):
     return out
 
 
-def run_refute_round(members, round1, findings, description, repo, timeout):
-    """Fresh process per member, its own `timeout` budget; {member name: MemberResult}."""
+def run_refute_round(members, round1, findings, description, repo, timeout, pins=None):
+    """Fresh process per member, its own `timeout` budget; {member name: MemberResult}.
+    `pins`: {member: model.md flags} for chunked runs."""
+    pins = pins or {}
     by_name = {r.name: r for r in round1}
     by_id = {f.id: f for f in findings if f.id}
     jobs = {}
@@ -1384,7 +1566,8 @@ def run_refute_round(members, round1, findings, description, repo, timeout):
         jobs[m.name] = (m, render_refute_prompt(description, todo))
     results = dict(skipped)
     with ThreadPoolExecutor(max_workers=max(1, len(jobs))) as pool:
-        futs = {name: pool.submit(run_member, m, prompt, repo, timeout, False)
+        futs = {name: pool.submit(run_member, m, prompt, repo, timeout, False,
+                                  pins.get(name, ()))
                 for name, (m, prompt) in jobs.items()}
         for name, fut in futs.items():
             results[name] = fut.result()
@@ -1453,6 +1636,64 @@ def _snapshot_lines(info):
     return out
 
 
+def _redaction_lines(redacted):
+    """(6) What the secret scan removed before sending: where, kind and count only."""
+    if redacted is None:
+        return []
+    if not redacted:
+        return ["- secrets redacted before sending: none matched"]
+    return ["- secrets redacted before sending: " + ", ".join(
+        f"`{where}` ({_counts_text(counts)})" for where, counts in redacted)]
+
+
+def _egress_lines(egress):
+    """(6) Non-chunked targets: every file a member could read (its snapshot)."""
+    if egress is None:
+        return []
+    lines = ["", "## Egress (files in the member snapshot)", ""]
+    lines += [f"- `{f}`" for f in egress] or ["- none"]
+    return lines
+
+
+def _coverage_lines(chunked):
+    if not chunked:
+        return []
+    total = len(chunked["chunks"])
+    lines = ["", "## Coverage", "",
+             f"- {total} chunk(s) under a budget of {chunked['budget']} tokens each "
+             f"(estimate: {chunk_plan.BYTES_PER_TOKEN} bytes per token), in risk order "
+             "(changed files, then security-relevant paths)",
+             f"- resume: `--resume {chunked['run_dir']}` skips finished chunks"]
+    for name, (done, planned, source, stopped) in sorted(chunked["coverage"].items()):
+        lines.append(f"- {name}: chunks reviewed {done}/{total}; planned {planned} call(s) "
+                     f"({source})" + (f"; stopped: {stopped}" if stopped else ""))
+    lines += ["", "## Usage budget", ""] + [f"- {_safe(b)}" for b in chunked["budget_lines"]]
+    lines += ["", "## Model baseline (model.md)", ""] + chunked["model_lines"]
+    return lines
+
+
+def _chunk_egress_lines(chunked):
+    """(6) Chunked runs: each chunk's file list, context path and redactions."""
+    if not chunked:
+        return []
+    lines = ["", "## Chunks (egress: the files each chunk sends)", ""]
+    if chunked.get("docs"):
+        lines.append("- in every chunk snapshot: " + ", ".join(f"`{d}`" for d in chunked["docs"]))
+    if chunked.get("unchunked"):
+        lines.append("- not chunked: " + ", ".join(
+            f"`{rel}` ({why})" for rel, why in chunked["unchunked"]))
+    for c in chunked["chunks"]:
+        lines += ["", f"### {c['id']} · {c['label']} · risk {c['risk']} · {c['tokens']} "
+                      f"tokens" + (" · oversized" if c.get("oversized") else ""), "",
+                  f"- context: {c.get('context') or 'not built (no member reached it)'}",
+                  "- members done: " + (", ".join(sorted(c["members_done"])) or "none"),
+                  "- files: " + ", ".join(f"`{f}`" for f in c["files"])]
+        red = chunked.get("redacted", {}).get(c["id"])
+        lines.append("- redacted: " + (", ".join(f"`{w}` ({_counts_text(n)})"
+                                                 for w, n in red) if red else "none"))
+    return lines
+
+
 def write_summary(out_dir, meta, results, findings, guard, refute_results=None):
     changed, roadmap_changed = guard
     verdict_word, verdict_why = meta.get("verdict", ("CONCERNS", ""))
@@ -1474,6 +1715,7 @@ def write_summary(out_dir, meta, results, findings, guard, refute_results=None):
                   ", ".join(f"`{f}`" for f in meta["diff_withheld"])
                   if meta.get("diff_withheld") else "none"),
               *_snapshot_lines(meta.get("snapshot")),
+              *_redaction_lines(meta.get("redacted")),
               "- read-only guard (repo): " + (
                   "FAIL — changed: " + ", ".join(f"`{p}`" for p in changed) if changed
                   else "PASS (git status unchanged)"),
@@ -1485,12 +1727,15 @@ def write_summary(out_dir, meta, results, findings, guard, refute_results=None):
     for res in results:
         lines.append(f"| {_cell(res.name)} | {_cell(res.status)} | {_cell(res.reason)} | "
                      f"{_cell(res.lens or '-')} |")
+    lines += _coverage_lines(meta.get("chunked"))
     if refute_results is not None:
         lines += ["", "## Refutation round", "", "| member | status | reason |", "|---|---|---|"]
         for name in sorted(refute_results):
             r = refute_results[name]
             lines.append(f"| {_cell(name)} | {_cell(r.status)} | {_cell(r.reason)} |")
 
+    lines += _chunk_egress_lines(meta.get("chunked"))
+    lines += _egress_lines(meta.get("egress"))
     ranked = [f for f in findings if not f.refuted]
     refuted = [f for f in findings if f.refuted]
     lines += ["", "## Findings (ranked: severity, then members agreeing, then Confirmed)", ""]
@@ -1575,6 +1820,468 @@ def pick_out_dir(repo, explicit, slug, date):
     return out
 
 
+# --- chunked repo runs ----------------------------------------------------------------
+# `repo` is reviewed in module chunks (chunk_plan.py): each member gets one fresh call
+# per chunk, in risk order, in a snapshot holding only that chunk's files plus the
+# project docs. Each result is written to chunks/<id>/<member>.{json,md} and
+# coverage.json as it finishes, so a run cut off by a usage limit resumes with --resume.
+
+DEFAULT_USAGE_FLOOR = 10.0     # percent of a member's window kept in reserve
+DEFAULT_CHUNK_COST = 2.0       # estimated window percent per chunk call
+MAX_CONSECUTIVE_FAILURES = 2   # a member that fails this many chunks in a row stops
+CHUNKS_DIR = "chunks"
+MODEL_MD = "model.md"
+
+
+def changed_files(repo, base=None):
+    """Working-tree changes vs HEAD, untracked files, and with `base` the branch diff."""
+    out = set()
+    for args in (("-c", "core.quotePath=false", "diff", "--name-only", "HEAD"),
+                 ("ls-files", "--others", "--exclude-standard")):
+        try:
+            out |= set(_lines(_git(repo, *args)))
+        except RuntimeError:
+            pass                                   # e.g. no HEAD yet
+    if base:
+        out |= set(_lines(_git(repo, "-c", "core.quotePath=false", "diff", "--name-only",
+                               f"{base}...HEAD")))
+    return out
+
+
+def model_pins(member, entry):
+    """Model/effort flags to pass, taken only from the member's model.md row."""
+    pins = []
+    if not member.models and entry["model"] != probe_models.DEFAULT:
+        pins += [entry["model_flag"], entry["model"]]
+    if entry["effort"] != probe_models.DEFAULT and entry["effort_flag"] != probe_models.NONE:
+        pins += [entry["effort_flag"], entry["effort"]]
+    return pins
+
+
+def load_model_baseline(args, out_dir, members):
+    """({name: entry}, {name: reason}, note). Probes (--version/--help only) unless the
+    run folder already holds model.md (resume) or --model-md names one."""
+    path = out_dir / MODEL_MD
+    if args.model_md:
+        src = Path(args.model_md).expanduser()
+        text = src.read_text()
+        probe_models.parse_model_md(text)          # digest check before it is used
+        if not path.exists() or src.resolve() != path.resolve():
+            path.write_text(text)
+        note = f"from --model-md {src}"
+    elif path.is_file():
+        note = "reused from the run folder"
+    else:
+        by_name = {m.name: m for m in members}
+        specs = probe_models.specs_for(list(by_name),
+                                       models={m.name: m.models for m in members if m.models})
+        probe_models.write_model_md(path, specs, env_for=lambda n: member_env(by_name[n]))
+        note = "probed now (--version and --help only; no model called)"
+    entries, refused = probe_models.read_model_md(path)
+    return entries, refused, note
+
+
+def _fence(text):
+    longest = max((len(m.group(0)) for m in re.finditer(r"`{3,}", text)), default=2)
+    return "`" * max(3, longest + 1)
+
+
+def raw_chunk_context(root, files):
+    """Chunk files as pasted context, read from the (redacted) chunk snapshot."""
+    parts = ["## Chunk files (raw, secret-redacted)\n"]
+    for rel in files:
+        path = Path(root) / rel
+        if not path.is_file():
+            continue
+        text = path.read_text(errors="replace")
+        fence = _fence(text)
+        parts.append(f"\n### {rel}\n{fence}text\n{text}"
+                     f"{'' if text.endswith(chr(10)) else chr(10)}{fence}\n")
+    return _cap("".join(parts))
+
+
+def _base_env():
+    env = {k: v for k, v in os.environ.items()
+           if k in BASE_ENV_ALLOW or k.startswith(BASE_ENV_PREFIXES)}
+    env["NO_COLOR"] = "1"
+    return env
+
+
+def _write_json(path, data):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f".{path.name}.tmp")
+    tmp.write_text(json.dumps(data, indent=1, sort_keys=True) + "\n")
+    os.replace(tmp, path)
+
+
+def _write_chunk_result(out_dir, rec, attempts):
+    """One finished (member, chunk) call: JSON for resume and triage, Markdown reply."""
+    base = out_dir / CHUNKS_DIR / rec["chunk"]
+    _write_json(base / f"{rec['member']}.json", rec)
+    lines = [f"# {rec['member']} · {rec['chunk']}", "", f"- status: {rec['status']}",
+             f"- context: {rec['context']}", f"- lens: {rec['lens']}"]
+    if rec["reason"]:
+        lines.append(f"- reason: {rec['reason']}")
+    lines += _attempt_lines("Attempt", attempts)
+    (base / f"{rec['member']}.md").write_text("\n".join(lines) + "\n")
+
+
+def _load_chunk_results(out_dir, cov):
+    """{member: [record, ...]} in chunk order, including earlier (resumed) runs."""
+    out = {}
+    for c in cov["chunks"]:
+        d = out_dir / CHUNKS_DIR / c["id"]
+        if not d.is_dir():
+            continue
+        for path in sorted(d.glob("*.json")):
+            try:
+                rec = json.loads(path.read_text())
+            except ValueError:
+                continue
+            out.setdefault(rec.get("member", path.stem), []).append(rec)
+    return out
+
+
+def write_chunked_member_file(out_dir, res, recs, entry=None, refute=None):
+    lines = [f"# {res.name}", "", f"- status: {res.status}"]
+    if res.reason:
+        lines.append(f"- reason: {res.reason}")
+    if res.version:
+        lines.append(f"- version: {res.version}")
+    if res.lens:
+        lines.append(f"- lens: {res.lens}")
+    if entry:
+        lines.append(f"- model.md: model {entry['model']} via `{entry['model_flag']}`, "
+                     f"effort {entry['effort']} via `{entry['effort_flag']}`")
+    if res.not_checked:
+        lines.append("- not checked: " + "; ".join(res.not_checked))
+    if res.dropped:
+        lines += ["", "## Dropped by the evidence rule", ""]
+        lines += [f"- {title} — {why}" for title, why in res.dropped]
+    if recs:
+        lines += ["", "## Chunks", "", "| chunk | status | seconds | kept | dropped |",
+                  "|---|---|---|---|---|"]
+        for r in recs:
+            lines.append(f"| {r['chunk']} | {_cell(r['status'])} | {r['seconds']:.1f} | "
+                         f"{len(r['findings'])} | {len(r['dropped'])} |")
+        lines += ["", f"Each chunk's full reply is in `{CHUNKS_DIR}/<chunk>/{res.name}.md`."]
+    if refute is not None:
+        lines += ["", f"# Refutation round: {refute.status}"]
+        if refute.reason:
+            lines.append(f"- reason: {refute.reason}")
+        lines += _attempt_lines("Refutation attempt", refute.attempts)
+    (out_dir / f"{res.name}.md").write_text("\n".join(lines) + "\n")
+
+
+def _resolve_run_dir(repo, raw):
+    p = Path(raw).expanduser()
+    if p.is_absolute():
+        return p
+    return p.resolve() if p.exists() else (Path(repo) / p)
+
+
+def run_chunked(args, repo, members, not_run, deny):
+    """Chunked `repo` review (fresh or --resume). Returns the exit code."""
+    date = _dt.date.today().isoformat()
+    if args.resume:
+        out_dir = _resolve_run_dir(repo, args.resume)
+        cov = chunk_plan.load_coverage(out_dir)
+    else:
+        out_dir = pick_out_dir(repo, args.out_dir, "repo", date)
+        cov = None
+    try:
+        out_rel = str(out_dir.resolve().relative_to(repo.resolve()))
+    except ValueError:
+        out_rel = None
+    before = snapshot(repo, out_rel)          # live-tree guard covers the probe too
+
+    entries, refused, model_note = load_model_baseline(args, out_dir, members)
+    lenses = {m.name: lens_for(i, args.security) for i, m in enumerate(members)}
+    eligible, refusals = [], []
+    for m in members:
+        e = entries.get(m.name)
+        if e is None:
+            why = refused.get(m.name, "no row in model.md")
+            status = ("skipped: not installed" if why.startswith("not installed")
+                      else "skipped: no model.md entry")
+            refusals.append((m.name, status, why))
+        elif m.models and (e["model"], e["fallback"]) != tuple(m.models):
+            refusals.append((m.name, "skipped: no model.md entry",
+                             f"model.md baseline {e['model']} / {e['fallback']} differs from "
+                             f"the runner's {m.models[0]} / {m.models[1]}; re-probe"))
+        else:
+            eligible.append((m, e))
+
+    if cov is None:
+        repo_target = Target("whole repo", "repo", "", "repo", [])
+        sizes, unchunked = chunk_plan.plannable_files(
+            repo, snapshot_files(repo, repo_target, out_rel), is_denied, deny,
+            MAX_SNAPSHOT_FILE)
+        chunks = chunk_plan.plan_chunks(sizes, args.chunk_budget,
+                                        changed_files(repo, args.base))
+        if not chunks:
+            raise ValueError("no reviewable text files in the repo")
+        cov = chunk_plan.new_coverage(chunks, args.chunk_budget, unchunked, created=date)
+        chunk_plan.save_coverage(out_dir, cov)
+    chunks, total = cov["chunks"], len(cov["chunks"])
+    budget = cov.get("chunk_budget", args.chunk_budget)
+    docs = [d for d in PROJECT_DOCS if (repo / d).is_file() and not is_denied(d, deny)]
+
+    # (4) usage budgeting: openusage remaining window -> planned chunk calls per member
+    floor, cost = args.usage_floor, args.chunk_cost
+    if args.no_preflight:
+        data, usage_note = None, "disabled (--no-preflight)"
+    else:
+        data, usage_note = read_openusage()
+    pre, plans, budget_lines = {}, {}, []
+    if data is None:
+        budget_lines.append(
+            f"openusage unavailable ({usage_note}): chunk calls planned from --chunk-budget "
+            f"alone ({total} chunk(s) of up to {budget} tokens each); a usage limit still "
+            "stops a member and keeps its finished chunks")
+    else:
+        budget_lines.append(f"openusage read: floor {floor:g}%, estimated {cost:g}% per "
+                            "chunk call (raised to the measured drop when openusage shows one)")
+    runnable = []
+    for m, e in eligible:
+        todo = len(chunk_plan.todo_for(cov, m.name))
+        p_ = preflight(m.name, data) if data is not None else Preflight("unknown", usage_note)
+        pre[m.name] = p_
+        if p_.state == "exhausted":
+            continue
+        rem, window = usage_remaining(m.name, data) if data is not None else (None, "")
+        planned = chunk_plan.plan_calls(rem, floor, cost, todo)
+        source = ("openusage" if rem is not None else "--chunk-budget")
+        plans[m.name] = {"remaining": rem, "planned": planned, "todo": todo,
+                         "source": source, "stopped": ""}
+        if data is not None:
+            budget_lines.append(
+                f"{m.name}: remaining {rem:g}% ({window}) → planned {planned} of {todo} "
+                "call(s)" if rem is not None else
+                f"{m.name}: {window}; planned from --chunk-budget alone ({todo} call(s))")
+        runnable.append((m, e))
+
+    lock = threading.Lock()
+    cg_cache, cg_locks = {}, {}
+    use_codegraph = chunk_plan.has_codegraph(repo)
+
+    def codegraph_for(chunk):
+        with lock:
+            clock = cg_locks.setdefault(chunk["id"], threading.Lock())
+        with clock:
+            if chunk["id"] not in cg_cache:
+                text, note = chunk_plan.codegraph_context(
+                    repo, chunk["files"], env=_base_env(), is_denied=is_denied, deny=deny)
+                red = {}
+                if text is not None:
+                    text, red = redact_text(text)
+                    text = _cap("## Chunk context (codegraph explore, secret-redacted)\n\n"
+                                + text)
+                cg_cache[chunk["id"]] = (text, note, red)
+            return cg_cache[chunk["id"]]
+
+    def work(m, entry):
+        plan = plans[m.name]
+        pins = model_pins(m, entry)
+        calls, fails, est_cost = 0, 0, cost
+        for chunk in chunk_plan.todo_for(cov, m.name):
+            if calls >= plan["planned"]:
+                if plan["source"] == "openusage":
+                    plan["stopped"] = (f"usage floor {floor:g}%: planned {plan['planned']} "
+                                       f"call(s) from {plan['remaining']:g}% remaining")
+                break
+            if calls and plan["remaining"] is not None:
+                rem, _ = usage_remaining(m.name, read_openusage()[0])
+                if rem is not None:
+                    measured = (plan["remaining"] - rem) / calls
+                    est_cost = max(est_cost, measured)
+                    if rem - est_cost < floor:
+                        plan["stopped"] = (f"usage floor {floor:g}%: openusage shows {rem:g}% "
+                                           f"remaining after {calls} call(s)")
+                        break
+            ctx_note, ctx_red, cg_text = "raw files (no .codegraph/ index)", {}, None
+            if use_codegraph:
+                cg_text, ctx_note, ctx_red = codegraph_for(chunk)
+            ctarget = Target(f"whole repo, chunk {chunk['id']} of {total}: {chunk['label']}",
+                             "repo", "", "repo", list(chunk["files"]))
+            snap = build_snapshot(repo, ctarget, deny, out_rel,
+                                  only=list(chunk["files"]) + docs)
+            try:
+                ctarget.context = cg_text if cg_text is not None else \
+                    raw_chunk_context(snap.root, chunk["files"])
+                prompt = render_prompt(ctarget, snap.root, lenses[m.name], args.decided,
+                                       snapshot=snap, chunk=chunk, total_chunks=total)
+                h_before = tree_hashes(snap.root)
+                res = run_member(m, prompt, str(snap.root), args.timeout, probe=False,
+                                 pins=pins)
+                kept, dropped = (parse_findings(m.name, res.output, snap.root) if res.ran
+                                 else ([], []))
+                injected, partial = scan_injection_report(snap.root, snap.copied)
+                writes = sorted(k for k, v in tree_hashes(snap.root).items()
+                                if h_before.get(k) != v)
+            finally:
+                snap.cleanup()
+            redacted = ([("codegraph output", ctx_red)] if ctx_red else []) + snap.redacted
+            last = res.attempts[-1] if res.attempts else None
+            rec = {"chunk": chunk["id"], "member": m.name, "status": res.status,
+                   "reason": res.reason, "lens": lenses[m.name], "context": ctx_note,
+                   "seconds": sum(a.seconds for a in res.attempts),
+                   "model": last.model if last else "", "pins": pins,
+                   "findings": [finding_to_dict(f) for f in kept],
+                   "dropped": [list(d) for d in dropped],
+                   "not_checked": parse_not_checked(res.output) if res.ran else [],
+                   "injection": [finding_to_dict(f) for f in injected],
+                   "injection_partial": partial, "scanned": list(snap.copied),
+                   "snapshot_writes": writes,
+                   "redacted": [[w, n] for w, n in redacted]}
+            _write_chunk_result(out_dir, rec, res.attempts)
+            with lock:
+                c = chunk_plan.mark(cov, chunk["id"], m.name, res.status)
+                c["context"] = ctx_note
+                chunk_plan.save_coverage(out_dir, cov)
+            calls += 1
+            if res.status.startswith("skipped: usage limit"):
+                plan["stopped"] = f"usage limit on {chunk['id']}: {res.reason}"
+                break
+            fails = 0 if res.ran else fails + 1
+            if fails >= MAX_CONSECUTIVE_FAILURES:
+                plan["stopped"] = f"{fails} chunk calls failed in a row ({res.status})"
+                break
+
+    def safe_work(m, entry):
+        try:
+            work(m, entry)
+        except Exception as exc:   # keep finished chunks and still write the summary
+            plans[m.name]["stopped"] = f"runner error: {type(exc).__name__}: {exc}"
+
+    with ThreadPoolExecutor(max_workers=max(1, len(runnable))) as pool:
+        for fut in [pool.submit(safe_work, m, e) for m, e in runnable]:
+            fut.result()
+    with lock:
+        for name, plan in plans.items():
+            cov["members"][name] = {"planned": plan["planned"], "source": plan["source"],
+                                    "stopped": plan["stopped"]}
+        chunk_plan.save_coverage(out_dir, cov)
+
+    # Aggregate every finished chunk on disk (this run and resumed ones), then triage.
+    records = _load_chunk_results(out_dir, cov)
+    resume_hint = f"resume with --resume {out_dir}"
+    results, found, injected, scanned, partial = [], [], [], set(), set()
+    redacted_by_chunk, writes, all_redacted = {}, [], {}
+    for name, recs in records.items():
+        for r in recs:
+            injected += [finding_from_dict(d) for d in r.get("injection", [])]
+            scanned |= set(r.get("scanned", []))
+            partial |= set(r.get("injection_partial", []))
+            writes += [f"{r['chunk']}:{w}" for w in r.get("snapshot_writes", [])]
+            for where, counts in r.get("redacted", []):
+                redacted_by_chunk.setdefault(r["chunk"], {})[where] = counts
+                all_redacted[where] = counts
+    for m in members:
+        if m.name not in {x.name for x, _ in eligible}:
+            continue
+        recs = records.get(m.name, [])
+        done = chunk_plan.reviewed_count(cov, m.name)
+        info = plans.get(m.name) or cov["members"].get(m.name, {})
+        stopped = info.get("stopped", "")
+        if m.name in pre and pre[m.name].state == "exhausted" and not done:
+            p_ = pre[m.name]
+            res = MemberResult(m.name, f"skipped: usage limit (resets {p_.resets})",
+                               f"openusage pre-flight: {p_.detail}")
+        elif done == total:
+            res = MemberResult(m.name, "ran", f"all {total} chunk(s) reviewed")
+        elif done:
+            res = MemberResult(m.name, f"ran (partial: {done}/{total} chunks)",
+                               "; ".join(x for x in (stopped, resume_hint) if x))
+        else:
+            last = recs[-1] if recs else None
+            status = last["status"] if last else (
+                "skipped: usage floor" if info.get("planned") == 0 else "skipped: not run")
+            res = MemberResult(m.name, status, "; ".join(
+                x for x in (stopped, last["reason"] if last else "", resume_hint) if x))
+        res.version = entries[m.name]["version"]
+        res.lens = lenses[m.name]
+        for r in recs:
+            if r["status"].startswith("ran"):
+                found += [finding_from_dict(d) for d in r["findings"]]
+                res.dropped += [(f"{r['chunk']}: {t}", why) for t, why in r["dropped"]]
+                res.not_checked += [f"{r['chunk']}: {x}" for x in r["not_checked"]]
+        results.append(res)
+    findings = merge_findings(found, injected)
+
+    refute_results = None
+    if args.refute:
+        union = sorted({f for c in chunks if c["members_done"] for f in c["files"]})
+        snap = build_snapshot(repo, Target("whole repo", "repo", "", "repo", union), deny,
+                              out_rel, only=union + docs)
+        try:
+            refute_results = run_refute_round(
+                [m for m, _ in runnable], results, findings,
+                f"whole repo ({total} chunks)", str(snap.root), args.timeout,
+                pins={m.name: model_pins(m, e) for m, e in runnable})
+        finally:
+            snap.cleanup()
+    after = snapshot(repo, out_rel)
+    changed, roadmap_changed = guard_diff(before, after)
+
+    results += [MemberResult(n, s, r) for n, s, r in not_run + refusals]
+    for res in results:
+        write_chunked_member_file(out_dir, res, records.get(res.name, []),
+                                  entries.get(res.name), (refute_results or {}).get(res.name))
+    coverage = {}
+    for m, _ in eligible:
+        info = plans.get(m.name) or cov["members"].get(m.name, {})
+        coverage[m.name] = (chunk_plan.reviewed_count(cov, m.name),
+                            info.get("planned", 0), info.get("source", "not run"),
+                            info.get("stopped", ""))
+    model_lines = [f"- source: {model_note}; `{out_dir / MODEL_MD}`"]
+    for name in sorted(entries):
+        e = entries[name]
+        model_lines.append(f"- {name}: model {e['model']} via `{e['model_flag']}`"
+                           + (f" (fallback {e['fallback']})" if e["fallback"] != "-" else "")
+                           + f"; effort {e['effort']} via `{e['effort_flag']}`; "
+                           f"{e['version']}; probed {e['probed']}")
+    for name, why in sorted(refused.items()):
+        model_lines.append(f"- {name}: no entry, refused — {why}")
+    unchunked = cov.get("unchunked", [])
+    verdict_word, verdict_why = verdict(findings, results, changed)
+    if any(chunk_plan.reviewed_count(cov, m.name) < total for m, _ in eligible):
+        verdict_why += "; coverage incomplete (see Coverage)"
+    meta = {"description": f"whole repo in {total} chunk(s)", "date": date,
+            "repo": str(repo), "verdict": (verdict_word, verdict_why),
+            "injection_scanned": len(scanned),
+            "injection_hits": len({(f.location, f.title) for f in injected}),
+            "injection_partial": sorted(partial), "diff_withheld": [],
+            "redacted": sorted(all_redacted.items()),
+            "usage": (usage_note, {k: (v.state, v.detail) for k, v in pre.items()}),
+            "snapshot": (len(scanned),
+                         [(r, w) for r, w in unchunked if w.startswith("deny list")],
+                         [(r, w) for r, w in unchunked if not w.startswith("deny list")],
+                         writes),
+            "target": "repo" + (f" --resume {args.resume}" if args.resume else ""),
+            "timeout": args.timeout,
+            "chunked": {"chunks": chunks, "budget": budget, "run_dir": str(out_dir),
+                        "coverage": coverage, "budget_lines": budget_lines,
+                        "model_lines": model_lines, "docs": docs, "unchunked": unchunked,
+                        "redacted": {cid: sorted(v.items())
+                                     for cid, v in redacted_by_chunk.items()}}}
+    write_summary(out_dir, meta, results, findings, (changed, roadmap_changed), refute_results)
+
+    print(f"summary: {out_dir / 'summary.md'}")
+    for res in results:
+        print(f"  {res.name:13} {res.status}" + (f" — {res.reason}" if res.reason else ""))
+    for name, (done, *_rest) in sorted(coverage.items()):
+        print(f"  coverage {name:13} chunks reviewed {done}/{total}")
+    n_ref = sum(1 for f in findings if f.refuted)
+    print(f"findings: {len(findings) - n_ref} ranked, {n_ref} refuted, "
+          f"{sum(len(r.dropped) for r in results)} dropped by the evidence rule")
+    print(f"verdict: {verdict_word} — {verdict_why}")
+    if changed:
+        print("RUN FAILED: read-only guard — changed: " + ", ".join(changed), file=sys.stderr)
+        return 2
+    return 0
+
+
 # --- CLI ------------------------------------------------------------------------------
 
 def _names(csv):
@@ -1632,6 +2339,18 @@ def main(argv=None):
     ap.add_argument("--repo", default=None, help="repo root (default: git toplevel of CWD)")
     ap.add_argument("--out-dir", default=None)
     ap.add_argument("--list", action="store_true", help="show members and exit")
+    ap.add_argument("--chunk-budget", type=int, default=chunk_plan.DEFAULT_CHUNK_BUDGET,
+                    help="repo target: tokens per chunk (estimate: 4 bytes per token)")
+    ap.add_argument("--resume", metavar="RUN_DIR",
+                    help="repo target: continue a chunked run, skipping finished chunks")
+    ap.add_argument("--model-md", metavar="FILE",
+                    help="repo target: use this probe_models.py output instead of probing")
+    ap.add_argument("--usage-floor", type=float, default=DEFAULT_USAGE_FLOOR,
+                    help="repo target: stop a member before its openusage window drops "
+                         "below this percent")
+    ap.add_argument("--chunk-cost", type=float, default=DEFAULT_CHUNK_COST,
+                    help="repo target: estimated window percent one chunk call uses "
+                         "(raised to the measured drop when openusage shows one)")
     args = ap.parse_args(argv)
 
     if args.list:
@@ -1646,8 +2365,14 @@ def main(argv=None):
     try:
         members, not_run = select_members(args.members, ",".join(args.exclude))
         deny = tuple(DEFAULT_DENY) + tuple(d for entry in args.deny for d in _names(entry))
-        target = build_target(repo, args.target, args.base, deny)
         decided_block(args.decided)          # validate @files before anything runs
+        if args.resume or args.target == "repo":
+            if args.target not in ("repo", "diff"):   # "diff" is the unset default
+                raise ValueError("--resume continues a chunked repo run; drop the target")
+            if args.chunk_budget < 1:
+                raise ValueError("--chunk-budget must be at least 1 token")
+            return run_chunked(args, repo, members, not_run, deny)
+        target = build_target(repo, args.target, args.base, deny)
     except (ValueError, RuntimeError, OSError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -1710,6 +2435,9 @@ def main(argv=None):
             "verdict": verdict(findings, results, changed),
             "injection_scanned": len(scanned), "injection_hits": len(injected),
             "injection_partial": scan_partial, "diff_withheld": target.withheld,
+            "redacted": ([("prompt context", target.redacted)] if target.redacted else [])
+            + list(snap.redacted),
+            "egress": list(snap.copied),
             "usage": (usage_note, {k: (v.state, v.detail) for k, v in pre.items()}),
             "snapshot": (len(snap.copied), snap.excluded, snap.skipped, snapshot_writes),
             "target": args.target if not args.base else f"{args.target} --base {args.base}",
