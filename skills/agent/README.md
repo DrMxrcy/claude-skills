@@ -18,7 +18,7 @@ in clean context, so "done" means *checked*, not *claimed*.
   | `verifier` | sonnet | Fresh-context adversarial verification (never fixes) |
   | `security-executor` | opus | All security-sensitive work |
   | `mech-executor` | haiku | Fully-specified mechanical work (sonnet override if it stalls) |
-  | `scout` | haiku | Cheap read-only evidence, spec-conformance review, test runs |
+  | `scout` | haiku | Cheap read-only evidence, large-log summaries, test runs |
   | `Explore` | haiku | Broad read-only exploration (overrides the built-in, expensive default) |
 
 - **A two-part spawn brief** (`references/brief-common.md` stable prefix + `references/brief-task.md` placeholders) so cached prompt prefixes stay identical across tasks

@@ -84,55 +84,52 @@ Roadmap state is written only at steps 5 and 7, from the parent, never from the 
 3. Process items in `order` then id (or only the single id / `next` pick).
 4. `--auto`: after an item hits 100%, continue to the next unblocked item without asking.
 
-## Per-item loop (quality, cost-tiered)
+## Per-item loop (quality, single loop by default)
 
-Parent reads the plan file + linked Spec / Detailed plan once, then for **each unfinished checklist step** (in order). **Two to three subagents per step, never an unlabeled one** — a `general-purpose` child with no model inherits the parent's frontier model and effort, which is where build loops burn tokens. Default role → tier (the `agent` skill's fleet; use the matching `model` override on `general-purpose` when a tier isn't installed):
+Parent reads the plan file + linked Spec / Detailed plan once, then for **each unfinished checklist step** (in order) works **in the main loop — no subagents by default** (agent skill's keep-or-fold test). Subagents are the exception, and an unlabeled `general-purpose` child is never one of them: it inherits the parent's frontier model and effort. Default role → who:
 
-| Role | Tier | Model | When |
-|---|---|---|---|
-| Research | `scout` / `Explore` | haiku | **Only** when the plan doesn't already name the files |
-| Implement | `executor` | opus | Every step |
-| Spec review | `scout` | haiku | Every step — acceptance list → MET / NOT MET / UNVERIFIED |
-| Quality review | `verifier` | sonnet, high effort | Every step — one adversarial pass by a different model than the author |
-| Second quality pass | `verifier` + `opus` override, or cross-provider reviewer (Codex/Gemini) where installed | opus / other family | **High-risk steps only** (auth, billing, migrations, shared state, public contracts) |
-| Test run for evidence | `scout` | haiku | When the parent wants the result line without the log in its context |
+| Role | Who | When |
+|---|---|---|
+| Research | parent (codegraph / Read) | Always direct; a `scout` only for a sweep that would bloat context |
+| Implement | parent | Every step |
+| Spec pass | parent, self-review | Every step — acceptance list → MET / NOT MET / UNVERIFIED |
+| Quality pass | parent, self-review, separate from the spec pass | Every step |
+| Independent review | one fresh `verifier` (spec + quality in one pass, gets the Acceptance list and diff range) | **High-risk steps only** (auth, billing, permissions, migrations, shared state, concurrency, public contracts) |
+| Security-sensitive edits | `security-executor` | When the step is security work |
+| Parallel steps | `executor` in separate `isolation: worktree` worktrees, explicit parent merge | Only when steps are *proven* independent |
+| Test run | parent | Always direct; `-q`, cite the decisive line |
 
-### A. Research (skip by default)
+The user can still force the tiered fleet (`settings.buildRoles`, or by asking); `--auto` skips user pauses only, never the passes or the tests.
 
-- Skip when the plan's Blueprint already lists the files to touch — the implementer reads them itself.
-- Otherwise spawn **`scout`** (read-only, haiku) with: step text + "return the relevant files, call sites, and constraints as `path:line`." May run `background: true` while the parent prepares the implementer prompt. Never lets it edit.
+### A. Research
 
-### B. Implement (one writer, `executor`)
+Parent reads the files the plan's Blueprint names, or uses codegraph for call sites. Spawn nothing for lookups.
 
-- Prefer superpowers **`subagent-driven-development`** if installed (same shape as below).
-- Else spawn **`executor`** with a **self-contained, one-shot prompt**, stable content first, task content last (see *Spawn prompt shape* below):
-  - the plan body (Scope, Blueprint, Spec/Detailed-plan excerpts the step needs) and the ✅ Acceptance lines **pasted inline** — not as a file path to read. Keep "read the file" only for files over ~300 lines; a builder that has the plan in its prompt starts writing instead of re-deriving it.
-  - full step text, files to touch, TDD expectation, "run the project tests before reporting"
-  - "report DONE / DONE_WITH_CONCERNS / BLOCKED with the test command + result line; do not run roadmap CLI"
-- **One implementer at a time** for this item. Do not fan out multiple implementers unless steps are *proven* independent *and* use separate `isolation: worktree` worktrees with an explicit parent merge — default is **no**.
+### B. Implement (parent, one writer)
 
-### C. Spec review (`scout`, haiku)
+- Follow the step text, files to touch, and TDD expectation; run the project tests before moving on.
+- For parallel independent steps only: `executor` per worktree with a self-contained one-shot prompt (plan body and ✅ Acceptance pasted inline) and an explicit parent merge.
 
-- Fresh **`scout`** gets the step text + ✅ Acceptance list and runs `git diff` itself (don't paste the diff — it is cheaper for haiku to read it than for the parent to relay it):
-  - "For each criterion: MET / NOT MET / UNVERIFIED with `path:line`. List extras outside the step. No quality opinions."
-- Any NOT MET → re-dispatch `executor` with the gap list; re-run the scout pass. **Cap at two fix→review loops**, then the parent reads the gap itself.
-- **Mark the acceptance ledger** (plan 43): once a ✅ Acceptance criterion is MET with evidence, the parent records it — `roadmap.py accept <id> --line N --evidence "<verify command + result>"` (`accept <id>` lists the bullets with their numbers and state; `--fail` records a failed check). `Fails if:` bullets are guards, never marked — the quality review enforces them. With `settings.requireAcceptance` on, the `check` that would complete the item is refused while any criterion is unmarked or failed, so mark each bullet as soon as its evidence exists rather than at the end. `--force` overrides and records `forced past unaccepted acceptance (#…)` in the evidence line.
+### C. Spec pass (parent, self-review)
 
-### D. Quality review (`verifier`, sonnet at high effort — a different model than the author)
+- Read `git diff` against the step text and ✅ Acceptance list. For each criterion: MET / NOT MET / UNVERIFIED with `path:line`; list extras outside the step. No quality opinions in this pass.
+- Any NOT MET → fix and re-run the pass. Cap at two fix→review loops, then flag it to the user.
+- **Mark the acceptance ledger** (plan 43): once a ✅ Acceptance criterion is MET with evidence, record it — `roadmap.py accept <id> --line N --evidence "<verify command + result>"` (`accept <id>` lists the bullets with their numbers and state; `--fail` records a failed check). `Fails if:` bullets are guards, never marked — the quality pass enforces them. With `settings.requireAcceptance` on, the `check` that would complete the item is refused while any criterion is unmarked or failed, so mark each bullet as soon as its evidence exists. `--force` overrides and records `forced past unaccepted acceptance (#…)` in the evidence line.
 
-- **Why a different model:** builder and verifier tiers are different models by default because a model reviewing its own output shares its blind spots — it rationalizes the same assumptions it wrote. Independent blind spots are the point; the cheaper model is a side benefit. **Why high effort:** for review work, effort moves finding quality more than model choice does, so the verifier runs high while the orchestrator stays low/medium.
-- After spec is clean, one fresh **`verifier`** pass: correctness edge cases, error handling, contract drift, test quality; any "Fails if" line in ✅ Acceptance is a hard blocker. Returns CONFIRMED / REFUTED / PARTIAL with evidence.
-- REFUTED/PARTIAL → before dispatching the fix, the parent snapshots the tree: `git add -N .` (intent-to-add, so new files appear in diffs) then `git stash create` — prints a commit SHA without touching the working tree; empty when the tree is clean, then use `HEAD`. Copy the literal SHA into the verifier prompt (shell variables do not survive between tool calls). `executor` fixes → `git add -N .` again for files the fix created → **re-run only the verifier, scoped to the fix**: its prompt receives the diff range `git diff <baseline-sha>` plus the specific findings sent back, and it verifies only that diff and those findings — not the whole step again (spec already passed; the unchanged code already has a verdict). Same two-loop cap.
-- **High-risk steps** (touching auth, billing, permissions, migrations, shared state, concurrency, public API contracts) get a **second, independent pass** — `verifier` with an `opus` model override, or a cross-provider reviewer (Codex/Gemini CLI) where installed, for maximum blind-spot diversity; otherwise one pass is the default.
+### D. Quality pass (parent, then a `verifier` only if high-risk)
+
+- Second, separate read of the diff: correctness edge cases, error handling, contract drift, test quality; any "Fails if" line in ✅ Acceptance is a hard blocker. Write the findings down before fixing; do not merge this pass into the spec pass.
+- **Why still a second pass:** a model reviewing its own output shares its blind spots, so the pass is adversarial on purpose — assume the step is wrong and try to show it. State in the evidence that it was self-review.
+- **High-risk steps** get one fresh **`verifier`** (different model; high effort) that receives the Acceptance list and the diff range and returns CONFIRMED / REFUTED / PARTIAL per bullet with evidence. For fixes, snapshot first (`git add -N .` then `git stash create` for a baseline SHA; empty on a clean tree, use `HEAD`), fix, and re-run the verifier scoped to `git diff <baseline-sha>` plus the findings. Same two-loop cap. A cross-provider reviewer (Codex/Gemini CLI) may be the second opinion where installed.
 
 ### E. Parent verification + roadmap
 
 Only the parent:
 
-1. Run the project's real build/tests for the change — directly, or via **`scout`** returning the decisive result line verbatim when the log would bloat the parent's context.
+1. Run the project's real build/tests for the change directly (`-q`, tail the decisive line).
 2. On green: `python3 "$RM" check --plan <id> --step <n> --evidence "<command>: <real result>"`
-   — paste the actual test output line you (or the scout) saw (e.g. `pytest -q: 312 passed`), never a guess.
-   Append the review ledger in a fixed shape so it can be counted later: `verifier: <CONFIRMED|REFUTED|PARTIAL>, <n> findings, <m> acted on`. Measurement: `grep -ho 'verifier: [A-Z]*, [0-9]* findings, [0-9]* acted on' .roadmap/plans/*.md` tallies review quality per batch — the number that decides whether the review tier and effort stay as configured.
+   — paste the actual test output line you saw (e.g. `pytest -q: 312 passed`), never a guess.
+   Append the review ledger in a fixed shape so it can be counted later: `verifier: <CONFIRMED|REFUTED|PARTIAL|self-review>, <n> findings, <m> acted on`. Measurement: `grep -hoE 'verifier: [A-Za-z-]+, [0-9]+ findings, [0-9]+ acted on' .roadmap/plans/*.md` tallies review quality per batch — the number that decides whether the review tier and effort stay as configured.
 3. **Micro-commit code + roadmap immediately** (one commit per checked step).
    This is what makes rate-limits safe: the next agent only loses uncommitted
    in-flight work, never completed steps.

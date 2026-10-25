@@ -41,7 +41,8 @@ def test_agent_policy_merged_into_instruction_files(tmp_path):
     for name in ("CLAUDE.md", "AGENTS.md"):
         text = (tmp_path / name).read_text()
         assert START in text
-        assert "Delegation tiers" in text
+        assert "Default: one agent loop" in text
+        assert "Keep-or-fold test" in text
         assert "security-executor" in text
         assert "roadmap:rules:start" in text     # coexists with roadmap rules block
 
