@@ -1,0 +1,57 @@
+.roadmap/plans/054-chunked-whole-repo-review-with-model-md-baseline-openusage-budgeting-and-resumable-coverage.md
+  s_46e1afb656488b::t_bd316231136cb9 6,34-46
+ROADMAP.md
+  s_46e1afb656488b::t_bd316231136cb9 24,31
+CHANGELOG.internal.md
+  s_46e1afb656488b::t_bd316231136cb9 43
+commands/adversarial-review.md
+  s_46e1afb656488b::t_0f13dbd08b284b 3
+skills/adversarial-review/README.md
+  s_46e1afb656488b::t_856d394df7f473 25-26,35-41,51-52,64-66
+skills/adversarial-review/SKILL.md
+  s_46e1afb656488b::t_32d0b79a0efdfb 29-30,39,52-88,169-175,198-202
+skills/adversarial-review/prompts/adversarial.md
+  s_fbae122c7a65de::t_41a096130d62fc 14
+skills/adversarial-review/scripts/chunk_plan.py
+  s_fbae122c7a65de::t_4519ec144cd807 1-279
+skills/adversarial-review/scripts/probe_models.py
+  s_fbae122c7a65de::t_22d2772f1c94af 1-304
+skills/adversarial-review/scripts/run_review.py
+  s_46e1afb656488b::t_15794f7a8fe0d4 34,42,49-52,171-174,178,180-181,184,189,191,335-336,340,379,382,397-398,403,412,530-566,640-718,780-787,793,876,924-927,929-931,956-958,960,1031-1046,1052,1420-1431,1447-1448,1457-1471,1549-1552,1569-1570,1639-1696,1718,1730,1737-1738,1823-2284,2342-2353,2369-2375,2438-2440
+tests/test_adversarial_review.py
+  s_0d994e3368ddf8::t_147c2761c3a8c1 82-84,988-989
+tests/test_adversarial_review_chunks.py
+  s_46e1afb656488b::t_9cde0a83af6fee 1-652
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5acfe6b7d2f687e6ce82047198e8abd13a4dd4bb",
+  "prompts": {},
+  "sessions": {
+    "s_0d994e3368ddf8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1e59e42f-734a-4197-96a1-8f7a72731de8",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    },
+    "s_46e1afb656488b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "29cbd46b-401e-4ab9-8990-06b287088024",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    },
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
