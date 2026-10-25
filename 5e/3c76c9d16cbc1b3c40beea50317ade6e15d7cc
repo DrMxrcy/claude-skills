@@ -1,0 +1,45 @@
+CHANGELOG.internal.md
+  s_fbae122c7a65de::t_f164dcc33ec18c 5,30
+CHANGELOG.md
+  s_fbae122c7a65de::t_f164dcc33ec18c 3,28
+.roadmap/plans/057-dashboard-simplification-one-home-per-fact-answer-first-pages-monochrome-no-badge-clutter-vercel-design-principles.md
+  s_fbae122c7a65de::t_f164dcc33ec18c 6,48-59
+skills/roadmap/scripts/rmlib/dashboard.html
+  s_fbae122c7a65de::t_f164dcc33ec18c 8-9,52-55,57-58,75,147,587-610,630,634,663,864,898-914,916-917,931,934-937,994,1322-1395,1429-1439,1442-1444,1513-1516,1829-1840,1887,1897,1940,1942,1962,2023,2111-2113,2117,2120-2126,2129-2149,2152,2154-2155,2158,2163,2169-2170,2177-2181,2185-2188,2190-2191,2199-2201,2203,2716,2720-2727,2736-2743
+tests/test_roadmap_board.py
+  s_fbae122c7a65de::t_f164dcc33ec18c 196-199,211-213
+tests/test_roadmap_wait_on.py
+  s_fbae122c7a65de::t_f164dcc33ec18c 381
+.roadmap/config.json
+  s_fbae122c7a65de::t_f164dcc33ec18c 590,598-599
+tests/test_roadmap_scope.py
+  s_fbae122c7a65de::t_f164dcc33ec18c 415,417-418
+ROADMAP.md
+  s_fbae122c7a65de::t_f164dcc33ec18c 38,59
+tests/test_roadmap_serve.py
+  s_fbae122c7a65de::t_f164dcc33ec18c 677,702-704
+tests/test_roadmap_bug.py
+  s_fbae122c7a65de::t_f164dcc33ec18c 322-324
+tests/test_roadmap_acceptance.py
+  s_fbae122c7a65de::t_f164dcc33ec18c 269-271
+tests/test_roadmap_waiting.py
+  s_fbae122c7a65de::t_f164dcc33ec18c 448,451
+tests/test_roadmap_owners.py
+  s_fbae122c7a65de::t_f164dcc33ec18c 299-301,321-322,324-327
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5e3c76c9d16cbc1b3c40beea50317ade6e15d7cc",
+  "prompts": {},
+  "sessions": {
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
