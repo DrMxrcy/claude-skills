@@ -1,0 +1,83 @@
+commands/roadmap-release.md
+  s_46e1afb656488b::t_d1ad090e58d959 48
+commands/roadmap-status.md
+  s_46e1afb656488b::t_d1ad090e58d959 18
+commands/roadmap-reevaluate.md
+  s_46e1afb656488b::t_d1ad090e58d959 43
+install.sh
+  s_46e1afb656488b::t_45c87ae97698fb 130-131,157
+  s_46e1afb656488b::t_1af8706d770e6f 59,196-200
+tests/test_adversarial_review_chunks.py
+  s_46e1afb656488b::t_f2205465f00dba 246,248-252
+  s_46e1afb656488b::t_43bdb371479594 659-671
+  s_46e1afb656488b::t_73007840dde3ec 247
+CHANGELOG.internal.md
+  s_46e1afb656488b::t_12043b320166b4 45
+commands/roadmap-changelog.md
+  s_46e1afb656488b::t_d1ad090e58d959 177
+commands/roadmap-plan.md
+  s_46e1afb656488b::t_d1ad090e58d959 43
+commands/roadmap-build.md
+  s_46e1afb656488b::t_d1ad090e58d959 125
+commands/roadmap-handoff.md
+  s_46e1afb656488b::t_d1ad090e58d959 51
+commands/roadmap-sync.md
+  s_46e1afb656488b::t_d1ad090e58d959 16
+commands/roadmap-idea.md
+  s_46e1afb656488b::t_d1ad090e58d959 28
+commands/roadmap-promote.md
+  s_46e1afb656488b::t_d1ad090e58d959 34
+commands/roadmap-retarget.md
+  s_46e1afb656488b::t_d1ad090e58d959 39
+commands/roadmap-remove.md
+  s_46e1afb656488b::t_d1ad090e58d959 25
+commands/roadmap-done.md
+  s_46e1afb656488b::t_d1ad090e58d959 30
+commands/roadmap-review.md
+  s_46e1afb656488b::t_d1ad090e58d959 36
+.roadmap/config.json
+  s_46e1afb656488b::t_12043b320166b4 4,583-590
+commands/roadmap-catchup.md
+  s_46e1afb656488b::t_d1ad090e58d959 33
+tests/test_adversarial_review.py
+  s_46e1afb656488b::t_f2205465f00dba 987
+.roadmap/plans/058-opencode-install-target-roadmap-and-adversarial-review-in-config-opencode.md
+  s_46e1afb656488b::t_12043b320166b4 1-30
+commands/roadmap-next.md
+  s_46e1afb656488b::t_d1ad090e58d959 50
+skills/roadmap/SKILL.md
+  s_46e1afb656488b::t_72781cefbd3efe 28
+ROADMAP.md
+  s_46e1afb656488b::t_12043b320166b4 24,34
+skills/adversarial-review/model.md
+  s_46e1afb656488b::t_269c8d01d7f900 1-12,14-18,20-24
+  s_46e1afb656488b::t_d62b492cc53e1a 13,19,25
+commands/roadmap-upgrade.md
+  s_46e1afb656488b::t_d1ad090e58d959 19
+commands/roadmap-init.md
+  s_46e1afb656488b::t_d1ad090e58d959 21
+skills/adversarial-review/scripts/run_review.py
+  s_46e1afb656488b::t_36891f2fe903fb 2449-2450
+  s_46e1afb656488b::t_8b19a0cc0537f0 2430-2431
+  s_46e1afb656488b::t_e33119b2263022 2411
+  s_46e1afb656488b::t_22de86b0ea66c4 1861-1879
+  s_46e1afb656488b::t_80d793eff9411d 1893-1898
+commands/roadmap-tidy.md
+  s_46e1afb656488b::t_d1ad090e58d959 60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b1b38ef8e959c018910d653efb5b292701853517",
+  "prompts": {},
+  "sessions": {
+    "s_46e1afb656488b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "29cbd46b-401e-4ab9-8990-06b287088024",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
