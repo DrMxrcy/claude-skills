@@ -1,0 +1,23 @@
+skills/agent/references/orchestration-policy.md
+  s_9e09f0d2fda1d7::t_aaf1867e9de552 42,44,46
+  s_9e09f0d2fda1d7::t_469989aab79713 43,45,47
+agy-plugin/plugins/agent/rules/AGENTS.md
+  s_9e09f0d2fda1d7::t_aaf1867e9de552 42-46
+  s_9e09f0d2fda1d7::t_61063bdfdebf9f 47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "004dd2c59b48525d02fdeb6488423055b24469a2",
+  "prompts": {},
+  "sessions": {
+    "s_9e09f0d2fda1d7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5c30c5da-1829-4637-9ff7-7e202c5068cb",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
