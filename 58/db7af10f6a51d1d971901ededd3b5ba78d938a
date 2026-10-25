@@ -1,0 +1,26 @@
+ROADMAP.md
+  s_9e09f0d2fda1d7::t_7a9c7d8fc3ffb8 24,33
+.roadmap/config.json
+  s_9e09f0d2fda1d7::t_7a9c7d8fc3ffb8 4,563-572
+CHANGELOG.internal.md
+  s_9e09f0d2fda1d7::t_7a9c7d8fc3ffb8 50-52
+.roadmap/plans/056-fleet-fold-review-eval-gate-keep-or-fold-policy-merge-spec-pass-drop-explore.md
+  s_9e09f0d2fda1d7::t_7a9c7d8fc3ffb8 1-12,15,20-21,28-29,31-32,38-39
+  s_9e09f0d2fda1d7::t_7a8dcabfb14b95 13-14,16-19,22-27,30,33-37,40-44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "58db7af10f6a51d1d971901ededd3b5ba78d938a",
+  "prompts": {},
+  "sessions": {
+    "s_9e09f0d2fda1d7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5c30c5da-1829-4637-9ff7-7e202c5068cb",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
