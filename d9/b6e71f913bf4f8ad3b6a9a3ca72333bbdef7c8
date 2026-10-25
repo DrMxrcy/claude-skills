@@ -1,0 +1,43 @@
+skills/agent/references/orchestration-policy.md
+  s_9e09f0d2fda1d7::t_5415c94ffbf1c0 3,7,22,25,32,36,38
+skills/agent/SKILL.md
+  s_9e09f0d2fda1d7::t_6aceec59ff9c11 28,31
+skills/agent/.claude/agents/scout.md
+  s_9e09f0d2fda1d7::t_4aa8fa6a434353 3
+agy-plugin/plugins/agent/agents/verifier.md
+  s_9e09f0d2fda1d7::t_6aceec59ff9c11 18
+skills/agent/README.md
+  s_9e09f0d2fda1d7::t_6aceec59ff9c11 21
+agy-plugin/plugins/agent/agents/scout.md
+  s_9e09f0d2fda1d7::t_6aceec59ff9c11 3
+agy-plugin/plugins/agent/rules/AGENTS.md
+  s_9e09f0d2fda1d7::t_5415c94ffbf1c0 3,7,22,25,32,36,38
+tests/test_install_agent.py
+  s_9e09f0d2fda1d7::t_119b0546d442a7 44-45
+skills/agent/.claude/agents/verifier.md
+  s_9e09f0d2fda1d7::t_4aa8fa6a434353 18
+skills/roadmap/references/quality-build.md
+  s_9e09f0d2fda1d7::t_5415c94ffbf1c0 87,89,91-100,102,104,106,108,110-111,113,115-117,119-123,129,131-132
+.roadmap/config.json
+  s_9e09f0d2fda1d7::t_41cb9129840e1b 580
+.roadmap/plans/056-fleet-fold-review-eval-gate-keep-or-fold-policy-merge-spec-pass-drop-explore.md
+  s_9e09f0d2fda1d7::t_29615c1c9c68a7 44-45,52
+ROADMAP.md
+  s_9e09f0d2fda1d7::t_e9a58ffe6d0913 24,33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d9b6e71f913bf4f8ad3b6a9a3ca72333bbdef7c8",
+  "prompts": {},
+  "sessions": {
+    "s_9e09f0d2fda1d7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5c30c5da-1829-4637-9ff7-7e202c5068cb",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
