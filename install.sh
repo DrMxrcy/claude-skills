@@ -672,6 +672,10 @@ if [ "$agent_fleet" = "1" ] && _want agent && { [ "$agent" = "claude" ] || [ "$a
     fi
     copied=$((copied + 1))
   done
+  # Explore was retired from the fleet (plan 56); drop our stale copy, never a user's own.
+  if [ -f "$agents_dest/Explore.md" ] && grep -q "^description: Fast read-only codebase exploration" "$agents_dest/Explore.md"; then
+    rm -f "$agents_dest/Explore.md"
+  fi
   echo "Installed $copied orchestration agent(s) -> $agents_dest"
   fleet_installed=1
 

@@ -5,7 +5,7 @@ description: >
   skills). Use when you want the main session to act as a senior decision-maker that
   delegates labor to the cheapest capable model tier — implementation (executor),
   adversarial verification (verifier), security work (security-executor), mechanical
-  edits (mech-executor), and read-only evidence (scout / Explore). Installs a fleet of
+  edits (mech-executor), and read-only evidence (scout). Installs a fleet of
   project subagents plus an orchestration policy that merges into CLAUDE.md. Triggers
   on "orchestrate", "delegate to subagents", "spin up the agent fleet", "who should do
   this work", "keep the main model on judgment".
@@ -29,7 +29,6 @@ version changes.
 | `security-executor` | opus | high | ALL security-sensitive work — auth, secrets, headers, crypto, CVE triage |
 | `mech-executor` | haiku | medium | Fully-specified mechanical work — pattern refactors, tests, docs, bulk edits (escalate to `sonnet` override if it stalls) |
 | `scout` | haiku | low | Cheap read-only evidence — where/how is X, usages, config values, log summaries, test runs |
-| `Explore` | haiku | low | Broad read-only codebase exploration (overrides the built-in Explore, which since Claude Code v2.1.198 inherits the parent model instead of defaulting to haiku) |
 
 **Why this split:** Opus writes code; a *different* model (Sonnet) reviews it so the review does not share the author's blind spots, with Opus (or a cross-provider reviewer where installed) as the second pass on high-risk steps. Review runs at **high** effort: for review work, effort
 moves finding quality more than model choice does, so a cheaper model at high effort beats a
@@ -45,7 +44,7 @@ main session's model *and* effort level when unset — an unlabeled agent silent
 frontier price. Frontmatter is the only reliable per-role effort control (the Agent tool
 has no runtime effort parameter), and the fleet keeps the orchestrator free to run at
 low/medium effort by default, going high only for multi-step judgment. Read-only roles
-(`verifier`, `scout`, `Explore`) also pin `tools:` to Read/Grep/Glob/Bash — no Edit, Write,
+(`verifier`, `scout`) also pin `tools:` to Read/Grep/Glob/Bash — no Edit, Write,
 or Agent — so a review cannot quietly turn into a fix or a sub-fleet.
 
 The full orchestration policy — who keeps what, one-shot delegation specs, the
@@ -110,7 +109,7 @@ them mid-task:
   started a session most recently. The hook no-ops when the plugin is absent; skip
   it with `--no-hook`.
 - **codegraph** — code-index MCP. When the project has a `.codegraph/` index, evidence
-  tiers (scout / Explore / verifier) resolve structure questions — usages, callers,
+  tiers (scout / verifier) resolve structure questions — usages, callers,
   impact, dependencies — via codegraph queries before any broad grep. Indexing is never
   run by the orchestrator; that's the user's decision.
 
