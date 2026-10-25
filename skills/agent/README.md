@@ -55,6 +55,13 @@ uninstalls the policy.
   and tries to refute.
 - **Spawn-cost awareness** — don't delegate a task that costs less than the handoff.
 
+## Evals (maintainers)
+
+`evals/` holds 10 golden tasks with tiny fixture repos and a stdlib runner
+(`evals/run_eval.py`). Fleet changes such as folding an agent or merging review passes
+are gated on them. Run each task at least twice per configuration and compare. See
+`evals/README.md`. They're dev-only: the installer strips `evals/` from installed copies.
+
 ## Note: agents register only in new sessions
 
 Newly installed or renamed subagents appear on the **next** session start. Until then,

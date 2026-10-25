@@ -26,6 +26,16 @@ def test_agent_fleet_installed_by_default(tmp_path):
     assert FLEET <= agents
 
 
+def test_install_strips_dev_only_evals(tmp_path):
+    # evals/ (golden tasks + fixture repos) is for maintainers; users never get it.
+    assert (REPO / "skills/agent/evals").is_dir()
+    res = _run(tmp_path, "--project")
+    assert res.returncode == 0, res.stderr
+    installed = tmp_path / ".claude/skills/agent"
+    assert (installed / "SKILL.md").is_file()
+    assert not (installed / "evals").exists()
+
+
 def test_agent_policy_merged_into_instruction_files(tmp_path):
     _run(tmp_path, "--project")
     for name in ("CLAUDE.md", "AGENTS.md"):

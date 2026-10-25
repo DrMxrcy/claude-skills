@@ -78,6 +78,7 @@ mkdir -p "$agent_pkg/skills" "$agent_pkg/agents" "$agent_pkg/rules"
 # Bundle skill
 rm -rf "$agent_pkg/skills/agent"
 cp -R "$agent_src" "$agent_pkg/skills/agent"
+rm -rf "$agent_pkg/skills/agent/evals"   # dev-only golden tasks + fixtures
 echo "Bundled skill: skills/agent -> $agent_pkg/skills/agent (v$agent_version)"
 
 # Copy subagents fleet

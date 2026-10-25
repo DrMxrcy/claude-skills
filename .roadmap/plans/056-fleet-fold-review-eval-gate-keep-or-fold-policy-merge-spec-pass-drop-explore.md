@@ -39,7 +39,12 @@ created: 2026-10-25
 ## 📋 Checklist
 - [x] Step 1: Add keep-or-fold test, divide-by-context rule, eval-gate rule to orchestration-policy.md
   > evidence: scout spec MET x4; verifier PARTIAL fixed (fleet grandfathered, evals sign-off, tie rule); pytest install_agent+agy 24 passed (agy validate test pre-existing fail) (2026-10-25)
-- [ ] Step 2: Build evals/ with 10 golden tasks and runner doc; run baseline twice
+- [x] Step 2: Build evals/ with 10 golden tasks and runner doc; run baseline twice
+  > evidence: 10 tasks+fixtures+run_eval.py; pytest agent_evals+install_agent+agy 59 passed 1 skipped; evals/ stripped from installs; self-reviewed (user: no subagents) (2026-10-25)
 - [ ] Step 3: Merge scout spec pass into verifier (quality-build.md, policy, verifier/scout agent files); re-run evals, compare
 - [ ] Step 4: Remove Explore from fleet, installer, agy-plugin, codex-plugin, tests; re-run evals
 - [ ] Step 5: Record mech-executor decision from eval data (hold or fold); run full regression
+
+## ⚖️ Rulings
+
+- **Ruling (2026-10-25, user):** No subagents for this plan's build: parent does all steps in the main loop, self-reviews (spec pass then quality pass, recorded as self-review). Default policy becomes single main loop; subagents only for the keep-or-fold reasons.

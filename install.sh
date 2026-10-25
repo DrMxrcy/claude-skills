@@ -220,6 +220,8 @@ for skill_dir in "$SRC_DIR"/*/; do
     echo "Linked skill:    $name -> $target"
   else
     cp -R "${skill_dir%/}" "$target"
+    # evals/ (golden tasks + fixtures) is dev-only; never ship it to user installs.
+    rm -rf "$target/evals"
     echo "Installed skill: $name -> $target"
   fi
   installed=$((installed + 1))
