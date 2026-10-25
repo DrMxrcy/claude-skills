@@ -1,0 +1,27 @@
+.roadmap/config.json
+  s_fbae122c7a65de::t_56bbfaa0174338 4,573-582,598
+.roadmap/plans/057-dashboard-simplification-one-home-per-fact-answer-first-pages-monochrome-no-badge-clutter-vercel-design-principles.md
+  s_fbae122c7a65de::t_7c290c751058c5 1-74
+CHANGELOG.internal.md
+  s_fbae122c7a65de::t_0bb734773ec0f6 5,30
+CHANGELOG.md
+  s_fbae122c7a65de::t_3b418dc3505c0d 3,28
+ROADMAP.md
+  s_fbae122c7a65de::t_4893094979fce6 38,59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f86aa8e43df848be1fb5dac23ebc9fe087b6d705",
+  "prompts": {},
+  "sessions": {
+    "s_fbae122c7a65de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd838b82-88b0-4e34-826e-5c9db11bb6cf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
