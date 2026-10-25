@@ -45,7 +45,7 @@ _Full work log — every item, including internal/dev work. The curated public c
 ### 🐛 Fixed
 - bug --found-in writes the Fix step before refusing a claim held by another owner
 - Leftovers: note error suggests a missing --audience flag; board copy commands lack the project under serve --all; board filters shared across projects
-- (pending) Dashboard: header too tall, panels not collapsible, trunk health shows every past run as a red chip
+- Dashboard: header too tall, panels not collapsible, trunk health shows every past run as a red chip
 
 ### ⚡ Improved
 - (pending) Agent fleet slimmed per fold-subagents guidance, gated on golden-task evals

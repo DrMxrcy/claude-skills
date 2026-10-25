@@ -3,7 +3,7 @@ id: 55
 title: Dashboard: header too tall, panels not collapsible, trunk health shows every past run as a red chip
 type: bug
 version: 0.19.0
-status: planned
+status: done
 created: 2026-10-25
 foundIn: 38
 ---
@@ -26,6 +26,9 @@ foundIn: 38
 - **Fails if:** status JSON `trunkHealth` drops fields existing consumers use, board/plan pages or serve --all routing regress, or text goes in via innerHTML.
 
 ## 🛠️ Checklist
-- [ ] Step 1: Write a reproduction test
-- [ ] Step 2: Apply the fix
-- [ ] Step 3: Verify suite is green
+- [x] Step 1: Write a reproduction test
+  > evidence: ad6adf6 repro tests failed before fix; a487569; header 242px -> 89px at 1400x900 on statewide, first item visible without scroll, panels collapse and persist; merged 5acfe6b; 848 passed in 446.26s (0:07:26); reviews skipped at owner request (2026-10-25)
+- [x] Step 2: Apply the fix
+  > evidence: ad6adf6 repro tests failed before fix; a487569; header 242px -> 89px at 1400x900 on statewide, first item visible without scroll, panels collapse and persist; merged 5acfe6b; 848 passed in 446.26s (0:07:26); reviews skipped at owner request (2026-10-25)
+- [x] Step 3: Verify suite is green
+  > evidence: ad6adf6 repro tests failed before fix; a487569; header 242px -> 89px at 1400x900 on statewide, first item visible without scroll, panels collapse and persist; merged 5acfe6b; 848 passed in 446.26s (0:07:26); reviews skipped at owner request (2026-10-25)
