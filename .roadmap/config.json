@@ -1,7 +1,7 @@
 {
   "project": "claude-skills",
   "currentVersion": "0.19.0",
-  "nextId": 58,
+  "nextId": 59,
   "items": [
     {
       "id": 1,
@@ -580,6 +580,14 @@
       "file": "plans/057-dashboard-simplification-one-home-per-fact-answer-first-pages-monochrome-no-badge-clutter-vercel-design-principles.md",
       "note": "A calmer dashboard: each fact appears once, pages lead with what matters now, and color only marks real problems.",
       "audience": "public"
+    },
+    {
+      "id": 58,
+      "slug": "opencode-install-target-roadmap-and-adversarial-review-in-config-opencode",
+      "title": "OpenCode install target: roadmap and adversarial-review in ~/.config/opencode",
+      "type": "feature",
+      "version": "0.19.0",
+      "file": "plans/058-opencode-install-target-roadmap-and-adversarial-review-in-config-opencode.md"
     }
   ],
   "settings": {

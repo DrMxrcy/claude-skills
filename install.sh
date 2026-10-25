@@ -56,6 +56,7 @@ for arg in "$@"; do
     --grok) agent="grok"; pass_args+=("$arg") ;;
     --codex) agent="codex"; pass_args+=("$arg") ;;
     --agy|--antigravity) agent="agy"; pass_args+=("$arg") ;;
+    --opencode) agent="opencode"; pass_args+=("$arg") ;;
     --claude) agent="claude"; pass_args+=("$arg") ;;
     --both|--all-agents) both=1 ;;
     --link) link=1; pass_args+=("$arg") ;;
@@ -126,6 +127,8 @@ _want() {
 }
 agent_hook=$hook
 if ! _want roadmap; then hook=0; orient=0; do_init=0; fi
+# OpenCode has no roadmap hook wiring yet: install skills and commands only.
+if [ "$agent" = "opencode" ]; then hook=0; orient=0; fi
 
 # --both: install Claude then Grok with the same flags (keeps multi-coder skill in sync).
 if [ "$both" = "1" ]; then
@@ -151,6 +154,7 @@ fi
 # a global Codex or AGY install writes rules to AGENTS.md in its own global directory,
 # so the discipline applies there too.
 [ "$scope" = "global" ] && [ "$agent" != "codex" ] && [ "$agent" != "agy" ] && claude_md=0
+[ "$agent" = "opencode" ] && claude_md=0
 
 PYTHON="${PYTHON:-python3}"
 SLUG="${SKILLS_REPO:-DrMxrcy/claude-skills}"
@@ -189,6 +193,11 @@ if [ "$agent" = "agy" ]; then
   fi
   skills_dest="$base/skills"
   settings="$base/hooks.json"
+elif [ "$agent" = "opencode" ]; then
+  # OpenCode: skills and commands only. No hook wiring, no AGENTS.md rules (opt-in later).
+  if [ "$scope" = "global" ]; then base="$HOME/.config/opencode"; else base="$PWD/.opencode"; fi
+  skills_dest="$base/skills"
+  settings="$base/opencode.json"
 elif [ "$scope" = "global" ]; then
   base="$HOME/.$agent"
   skills_dest="$base/skills"

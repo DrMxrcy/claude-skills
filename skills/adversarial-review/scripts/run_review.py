@@ -1858,6 +1858,25 @@ def model_pins(member, entry):
     return pins
 
 
+DEFAULT_MODEL_MD = Path(__file__).resolve().parent.parent / "model.md"
+
+
+def single_run_pins(args, out_dir, members, not_run):
+    """Pins from model.md for a non-chunked run, so no member inherits its CLI's session
+    model (Claude Code's own model included). Members without a row are refused."""
+    entries, refused, note = load_model_baseline(args, out_dir, members)
+    pins, keep = {}, []
+    for m in members:
+        e = entries.get(m.name)
+        if e is None:
+            why = refused.get(m.name, "no row in model.md")
+            not_run.append((m.name, "skipped: no model.md entry", why))
+        else:
+            pins[m.name] = model_pins(m, e)
+            keep.append(m)
+    return keep, pins, note
+
+
 def load_model_baseline(args, out_dir, members):
     """({name: entry}, {name: reason}, note). Probes (--version/--help only) unless the
     run folder already holds model.md (resume) or --model-md names one."""
@@ -1871,6 +1890,12 @@ def load_model_baseline(args, out_dir, members):
         note = f"from --model-md {src}"
     elif path.is_file():
         note = "reused from the run folder"
+    elif DEFAULT_MODEL_MD.is_file():
+        # Shipped baseline: Claude is pinned here so no run inherits the Claude Code session model.
+        text = DEFAULT_MODEL_MD.read_text()
+        probe_models.parse_model_md(text)          # digest check before it is used
+        path.write_text(text)
+        note = f"shipped default {DEFAULT_MODEL_MD.name}"
     else:
         by_name = {m.name: m for m in members}
         specs = probe_models.specs_for(list(by_name),
@@ -2383,6 +2408,7 @@ def main(argv=None):
         out_rel = str(out_dir.resolve().relative_to(repo.resolve()))
     except ValueError:
         out_rel = None
+    members, pins_by_member, model_note = single_run_pins(args, out_dir, members, not_run)
     before = snapshot(repo, out_rel)          # live-tree guard: unchanged, on the live repo
     snap = build_snapshot(repo, target, deny, out_rel)
     try:
@@ -2401,7 +2427,8 @@ def main(argv=None):
         snap_before = tree_hashes(snap.root)
         with ThreadPoolExecutor(max_workers=max(1, len(runnable))) as pool:
             futures = {m.name: pool.submit(run_member, m, prompts[m.name], str(snap.root),
-                                           args.timeout) for m in runnable}
+                                           args.timeout, True, pins_by_member.get(m.name, ()))
+                       for m in runnable}
             results = []
             for m in members:
                 if m.name in futures:
@@ -2419,7 +2446,8 @@ def main(argv=None):
         refute_results = None
         if args.refute:
             refute_results = run_refute_round(runnable, results, findings,
-                                              target.description, str(snap.root), args.timeout)
+                                              target.description, str(snap.root), args.timeout,
+                                              pins=pins_by_member)
         snap_after = tree_hashes(snap.root)
     finally:
         snap.cleanup()

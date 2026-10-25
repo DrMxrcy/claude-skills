@@ -984,7 +984,7 @@ def test_injection_regex_negatives():
 def test_skill_layout_is_minimal():
     files = sorted(p.relative_to(SKILL).as_posix() for p in SKILL.rglob("*")
                    if p.is_file() and "__pycache__" not in p.parts)
-    assert files == ["README.md", "SKILL.md", "VERSION", "prompts/adversarial.md",
+    assert files == ["README.md", "SKILL.md", "VERSION", "model.md", "prompts/adversarial.md",
                      "prompts/refute.md", "scripts/chunk_plan.py", "scripts/probe_models.py",
                      "scripts/run_review.py"]
 

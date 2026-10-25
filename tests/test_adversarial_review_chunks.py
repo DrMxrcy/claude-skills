@@ -243,7 +243,13 @@ def test_missing_model_md_entry_is_refused_not_run(env):
     repo, bin_dir, run = env
     _fake(bin_dir, "agy", _reply(OK))
     _fake(bin_dir, "cursor-agent", _reply(OK), help_text=NO_MODEL_HELP)
-    res = run("repo", "--members", "agy,cursor-agent", "--no-preflight")
+    # The shipped model.md has a cursor-agent row; drop it and re-render so the run must refuse.
+    entries, refused = pm.parse_model_md((REPO / "skills/adversarial-review/model.md").read_text())
+    entries.pop("cursor-agent", None)
+    mm = repo.parent / "model.md"
+    mm.write_text(pm.render_model_md(entries, {**refused, "cursor-agent": "no model flag in --help"},
+                                     "2026-10-25"))
+    res = run("repo", "--members", "agy,cursor-agent", "--no-preflight", "--model-md", str(mm))
     assert res.returncode == 0, res.stderr
     summary, run_dir = _summary(repo)
     row = [ln for ln in summary.splitlines() if ln.startswith("| cursor-agent |")][0]
@@ -650,3 +656,16 @@ def test_refute_round_runs_over_reviewed_chunks(env):
     assert "## Refutation round" in summary and "`lib/util.py:2` | add subtracts" in summary
     assert _calls(bin_dir, "claude").count("-") == 1          # one refute call, fresh process
     assert "-" not in _calls(bin_dir, "agy"), "agy has nothing to refute"
+
+
+def test_single_run_pins_claude_to_shipped_baseline(tmp_path):
+    """Claude must never run on the Claude Code session model: the shipped model.md pins it."""
+    import argparse
+    out = tmp_path / "run"
+    out.mkdir()
+    members = [m for m in rr.MEMBERS if m.name == "claude"]
+    not_run = []
+    keep, pins, note = rr.single_run_pins(argparse.Namespace(model_md=None), out, members, not_run)
+    assert [m.name for m in keep] == ["claude"] and not not_run
+    assert pins["claude"] == ["--model", "sonnet", "--effort", "medium"]
+    assert "shipped default" in note

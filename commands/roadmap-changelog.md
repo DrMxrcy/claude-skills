@@ -174,7 +174,7 @@ items by plan/title, then set each item's audience + note as above.
 the agent's skills dir; probe the fixed candidates once and reuse `$RM`:
 
 ```bash
-for d in .claude .grok .agents "$HOME/.claude" "$HOME/.grok" "$HOME/.agents"; do RM="$d/skills/roadmap/scripts/roadmap.py"; [ -f "$RM" ] && break; done
+for d in .claude .grok .agents .opencode "$HOME/.claude" "$HOME/.grok" "$HOME/.agents" "$HOME/.config/opencode"; do RM="$d/skills/roadmap/scripts/roadmap.py"; [ -f "$RM" ] && break; done
 ```
 
 Run `python3 "$RM" …` — use `$RM` wherever `<roadmap.py>` appears.

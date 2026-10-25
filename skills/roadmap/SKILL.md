@@ -25,7 +25,7 @@ Antigravity plugins — project-level or home) — **do not search or glob for i
 Resolve it once and reuse `$RM` (run from the project root):
 
 ```bash
-for d in .claude .grok .agents "$HOME/.claude" "$HOME/.grok" "$HOME/.agents" "$HOME/.gemini/config/plugins/roadmap" ".agents/plugins/roadmap"; do RM="$d/skills/roadmap/scripts/roadmap.py"; [ -f "$RM" ] && break; done
+for d in .claude .grok .agents .opencode "$HOME/.claude" "$HOME/.grok" "$HOME/.agents" "$HOME/.config/opencode" "$HOME/.gemini/config/plugins/roadmap" ".agents/plugins/roadmap"; do RM="$d/skills/roadmap/scripts/roadmap.py"; [ -f "$RM" ] && break; done
 python3 "$RM" <command>
 ```
 
