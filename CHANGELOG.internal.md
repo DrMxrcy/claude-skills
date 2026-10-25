@@ -40,10 +40,12 @@ _Full work log — every item, including internal/dev work. The curated public c
 - Adversarial review skill: multi-CLI review with triage from Claude Code
 - Built-but-unmerged work shows its real state instead of 0%.
 - The live roadmap page opens on everything, and every plan and idea gets its own page.
+- (pending) Chunked whole-repo review with model.md baseline, openusage budgeting, and resumable coverage
 
 ### 🐛 Fixed
 - bug --found-in writes the Fix step before refusing a claim held by another owner
 - Leftovers: note error suggests a missing --audience flag; board copy commands lack the project under serve --all; board filters shared across projects
+- (pending) Dashboard: header too tall, panels not collapsible, trunk health shows every past run as a red chip
 
 ## v0.18.0 — 2026-10-21
 

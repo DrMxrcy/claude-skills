@@ -5,6 +5,7 @@ type: feature
 version: 0.21.0
 status: done
 created: 2026-10-23
+bugsFound: 55
 ---
 
 # Plan 38: Run log: record merge-gate and trunk suite runs from the CLI, shown as a gate timeline and trunk health tile

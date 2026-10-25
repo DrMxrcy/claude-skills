@@ -1,7 +1,7 @@
 {
   "project": "claude-skills",
   "currentVersion": "0.19.0",
-  "nextId": 54,
+  "nextId": 56,
   "items": [
     {
       "id": 1,
@@ -544,6 +544,22 @@
       "dependsOn": [
         46
       ]
+    },
+    {
+      "id": 54,
+      "slug": "chunked-whole-repo-review-with-model-md-baseline-openusage-budgeting-and-resumable-coverage",
+      "title": "Chunked whole-repo review with model.md baseline, openusage budgeting, and resumable coverage",
+      "type": "feature",
+      "version": "0.19.0",
+      "file": "plans/054-chunked-whole-repo-review-with-model-md-baseline-openusage-budgeting-and-resumable-coverage.md"
+    },
+    {
+      "id": 55,
+      "slug": "dashboard-header-too-tall-panels-not-collapsible-trunk-health-shows-every-past-run-as-a-red-chip",
+      "title": "Dashboard: header too tall, panels not collapsible, trunk health shows every past run as a red chip",
+      "type": "bug",
+      "version": "0.19.0",
+      "file": "plans/055-dashboard-header-too-tall-panels-not-collapsible-trunk-health-shows-every-past-run-as-a-red-chip.md"
     }
   ],
   "settings": {
