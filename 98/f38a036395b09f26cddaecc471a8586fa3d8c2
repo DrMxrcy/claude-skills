@@ -1,0 +1,33 @@
+.roadmap/config.json
+  s_46e1afb656488b::t_bd316231136cb9 580
+.roadmap/plans/055-dashboard-header-too-tall-panels-not-collapsible-trunk-health-shows-every-past-run-as-a-red-chip.md
+  s_9778eff612a80d::t_c014f4fcb83de8 6,29-34
+CHANGELOG.internal.md
+  s_9778eff612a80d::t_86d0b841adfeec 48
+ROADMAP.md
+  s_9778eff612a80d::t_0d2a579da51d79 24,32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "98f38a036395b09f26cddaecc471a8586fa3d8c2",
+  "prompts": {},
+  "sessions": {
+    "s_46e1afb656488b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "29cbd46b-401e-4ab9-8990-06b287088024",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    },
+    "s_9778eff612a80d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e5c61be7-abbf-436e-9b07-7797f677126c",
+        "model": "unknown"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
