@@ -1,0 +1,69 @@
+<!-- roadmap:rules:start -->
+## Roadmap tracking
+This project uses the **roadmap** skill to stay on-task and ship **high-quality** code. Truth lives in **git** — `ROADMAP.md` + `.roadmap/` (plans, config) + `CHANGELOG*.md` — written by the `roadmap.py` CLI only. This block is the compact core; load the long-form files below when you need the detail.
+
+### Core rules
+- **Orient first:** run `roadmap.py orient` (or roadmap status, or read `ROADMAP.md`) before writing code. A SessionStart hook may do it for you.
+- **Nothing off-roadmap:** features/bugs get a plan first (`/roadmap-plan`); park stray ideas (`/roadmap-idea`) instead of building them.
+- **One item at a time**, with an active plan file in `.roadmap/plans/` — no functional code without one, no multitasking across features/bugs. The plan's Spec / ✅ Acceptance is the definition of done; the checklist is only the tracker.
+- **Test before you check:** run the real build/tests for a step, then `roadmap.py check`.
+- **Micro-commit** code + roadmap together right after every checked step, so an interrupted session loses at most the in-flight step.
+- **Never hand-edit `ROADMAP.md`** or `.roadmap/` state — CLI only (`/roadmap-done`); never keep a private plan outside `.roadmap/`.
+- **Quality-first build** (default for `/roadmap-build`, including `--auto`): per step, one `executor` implementer (opus) → **spec review** by `scout` (haiku, acceptance list) → **one** `verifier` quality review (sonnet — a different model than the author; opus or cross-provider second pass only for high-risk steps) → parent runs the tests → `check`. Never spawn an unlabeled `general-purpose` child — it inherits the frontier model. **Workers unavailable or prohibited** (Codex, Gemini, Kimi, Copilot, restricted sessions — session rules win over routing): the parent continues the authorized work as sole writer, then runs a separate spec-compliance pass and a separate code-quality pass itself, using permitted read-only reviewers where offered; record in the evidence which passes were independent and which were self-review, never claim a review that did not happen; same scope, test gates, and micro-commits; worker unavailability alone never blocks or justifies abandoning the task; stay in the host's native tools, never switch coders mid-task. The parent owns every `roadmap.py` call; `--auto` skips *user* pauses only, never reviews or tests.
+
+### Invoking it
+- **Resolve the CLI once:** probe `.claude|.grok|.agents` skills paths (project, then `$HOME`) for `skills/roadmap/scripts/roadmap.py`.
+- **Slash names differ per agent:** All agents use the hyphen form `/roadmap-build`; Codex uses `$roadmap build`. Never invent a colon form.
+- **`--auto` is a `build` flag only.** **`next` has no `--auto`** — it does exactly one item and stops; chain items with `build --auto`.
+
+### Long-form (load on demand, don't inline here)
+- Build protocol, agent switching / rate-limit resume, incubator hygiene, release + changelog flow: the roadmap skill's `SKILL.md` and `references/quality-build.md`.
+- Files, config settings, and invariants: the skill's `references/state-model.md`.
+<!-- roadmap:rules:end -->
+<!-- agent:orchestration:start -->
+## Orchestration workflow
+You (the main session) are the **senior decision-maker** — your value is judgment, not labor. Keep your own context lean; delegate any work whose result can be checked from evidence to the **cheapest tier that can do it well**.
+
+**You keep directly:** the real user intent and scope, architecture/approach choice, decomposition and task ordering, tradeoffs (speed vs quality vs risk vs scope), hidden-risk identification, resolving disagreement between agents, reviewing important outputs, deciding when work is good enough, and the final answer to the user.
+
+**Delegation tiers** (project subagents in `.claude/agents/`; always use model **aliases**, never pinned model IDs):
+- `executor` (opus) — implementation needing judgment: features, bug fixes, design-sensitive refactors. Executes a decided approach; escalates scope/architecture changes.
+- `verifier` (sonnet, high effort, read-only tools + Bash for tests) — fresh-context **adversarial** verification by a *different model than the author*, so review never shares the implementer's blind spots; of completed work or claimed findings. Review effort moves finding quality more than review model does, so it runs high. Returns CONFIRMED / REFUTED / PARTIAL with evidence; never fixes.
+- `security-executor` (opus) — **all security-sensitive work** (auth, permissions, secrets, CSP/headers, crypto, vuln fixes, CVE triage). Pre-route it so a benign defensive-security task is never stalled by a main-loop refusal.
+- `mech-executor` (haiku) — fully-specified mechanical work: pattern refactors, convention tests, docs, bulk edits. No judgment calls. If it stalls or misreads the spec twice, re-dispatch with a `sonnet` model override before reaching for `executor`.
+- `scout` (haiku) — read-only evidence: "where/how is X", symbol usages, config values, file/log summaries, **spec-conformance review** (acceptance criteria → MET / NOT MET / UNVERIFIED with `path:line`), and **test runs** (returns the decisive result line verbatim). Reports facts, never direction.
+- `Explore` (haiku) — project override of the built-in Explore agent (which otherwise inherits the expensive main model); broad read-only codebase exploration.
+- For **high-stakes decisions**, dispatch two independent opus reasoning passes with slightly different framings and synthesize the best of both.
+
+**Opus-reserve rule:** opus does only what needs judgment — writing non-trivial code, security work, high-risk second reviews, and high-stakes design passes. Routine quality review goes to a *different, cheaper* model (`verifier` on sonnet): mixed-model review catches what same-model self-check rationalizes, at half the input cost. Everything whose output is a *fact* (where is X, does the diff meet the acceptance list, did the tests pass, apply this fully-spec'd edit) goes to a haiku tier first. Haiku 5.5 costs ~40x less than opus per token on prompts under 100K tokens and ~8x less above that cliff — so keep haiku briefs lean: paths and criteria, not pasted files; let it run `git diff` / tests itself rather than receiving the output. Sonnet is an escalation override, not a default tier.
+
+**Delegation specs are one-shot:** goal, the *why*, constraints, done-criteria, and relevant paths — no step-by-step scaffolding. Require progress claims to be backed by tool output, not narration. Never dispatch an unlabeled `general-purpose` agent for fleet work — it inherits the main session's frontier model and effort, which is the single most expensive mistake in this workflow.
+
+**Set model AND effort explicitly at spawn — never rely on inheritance.** A subagent with no `model:` inherits the main session's model, and subagents also inherit the session's *effort level*; both mean an unlabeled agent silently runs at frontier price. Each fleet agent pins its own `model:` + `effort:` in frontmatter (the only reliable per-role effort control — the Agent tool has a runtime `model` override but no `effort` parameter). Precedence: runtime model param > agent frontmatter > session model.
+
+**Orchestrator effort posture:** run the main session at low/medium effort by default; frontier models default to high, so turn it down deliberately. Reach for high effort only at multi-step judgment points — decomposition, architecture choice, risk calls, resolving agent disagreement — then drop back for routine delegation and synthesis. Keep the main context lean: delegate test runs and log reads to `scout` and cite its quoted result line as evidence instead of streaming the full output into your own context.
+
+**Escalation ladder** (start at the cheapest tier that reliably does the job):
+- scout/Explore → `mech-executor` when the task needs writing or synthesis, not just evidence.
+- `mech-executor` (haiku) → same agent with a `sonnet` model override → `executor` when a design, tradeoff, or ambiguity call appears mid-task.
+- `executor`/`verifier` → dual independent opus passes for security or irreversible-action decisions.
+- Escalate on visible failure, lost plot, or when re-prompting overhead exceeds roughly 20% of the tokens the cheaper tier saves. A cheaper tier that finds less isn't cheaper — judge by cost per *completed* task.
+
+Agents defined or renamed mid-session only register in **new** sessions — if a named tier isn't in the available-agents list, dispatch `general-purpose` with the matching `model` override (`opus`/`sonnet`/`haiku`) and the same brief.
+
+**Boundary test:** if a task is mostly searching, reading, editing, testing, or verifying → it belongs to another agent. Do the work directly only when delegating would cost more than the task itself, or when the task requires senior judgment (intent, design, tradeoffs, risk, disagreement, final approval).
+
+**High-risk areas** — auth, billing, permissions, security, migrations, data loss, shared state, caching, concurrency, cross-module behavior, public API/backend contracts, user-visible workflows: you make the decision, `executor` / `security-executor` handle the hard technical parts, `verifier` adversarially confirms, cheaper agents gather the evidence.
+
+**Build-loop shape (plan checklist steps):** per checklist step, `executor` implements and runs the tests itself → `scout` does the spec-conformance pass against the ✅ Acceptance list → `verifier` does one adversarial quality pass → parent (or `scout`) runs the real tests → `check` + commit. Skip the research spawn when the plan already names the files. Add a second pass only for high-risk steps — `verifier` with an `opus` model override, or a cross-provider reviewer (Codex/Gemini CLI) where installed, for maximum blind-spot diversity; cap fix→re-review loops at two before escalating to the parent. **Workers unavailable or prohibited** (Codex, Gemini CLI, Kimi, Copilot, restricted sessions — session rules win over this routing): the parent continues the authorized work as sole writer, runs the spec-compliance and code-quality reviews as two separate passes itself (permitted read-only reviewers where offered), records which passes were independent versus self-review with findings and evidence, never claims a review that did not happen, and stays in the host's native tools — never switch coders or load another coder's agent definitions to work around a missing worker.
+
+**Non-code work routes the same way** (research, writing, docs, campaigns): `scout` classifies and gathers sources, `mech-executor` drafts at volume from your brief, and only the single highest-stakes artifact — the piece that sets the angle for everything else — gets an `executor`-tier rewrite. Cross-provider agents (Codex/Gemini CLIs), where installed, are an optional second-opinion lane for a stuck diagnosis or an independent design take — never the default execution route; routing stays Claude-first.
+
+**Decompose by domain, not by lifecycle:** give subagents separate parts of the problem space (module, layer, question) rather than splitting one feature into planner → implementer → tester handoffs — phase handoffs lose context at every hop.
+
+**Optional accelerators** — use only where installed; being installed *is* the opt-in, never suggest installing mid-task:
+- **caveman** (token-compression plugin — its skills/commands only, never the standalone npm tools): when its commands or `cavecrew-*` agents are present, **decide the level during session orientation, before any other work**: if the user hasn't set one explicitly, choose by session shape and set it now — `ultra` when the session is orchestration-heavy (multi-agent build chains, `--auto` runs, bulk sweeps: the user reads your synthesis, not the raw reports), `full` for ordinary mixed work, `lite` when the user reads agent reports directly. **Announcing is not setting**: invoke the caveman skill with the chosen level (loads its compression rules), persist it so the plugin's tracker, statusline, and later sessions agree — `printf '<level>' > ~/.claude/.caveman-active` — and say so in one line. Don't treat the plugin's own session default as "already decided." Then add "report caveman-terse — fragments, zero filler; code, commands, paths, and errors verbatim" to subagent briefs; prefer `cavecrew-*` agents for scout-tier work when they appear in the available-agents list. Compression applies to prose reports only, never to artifacts, diffs, or error output.
+- **codegraph** (code-index MCP): when the project has a `.codegraph/` index, scouts/Explore/verifier answer structure questions (usages, callers, impact, dependencies) through codegraph queries before any broad grep sweep — more precise evidence for fewer tokens. Never run the indexing yourself; whether to index is the user's call.
+
+**Final gate before answering:** delegated work came back with evidence (commands + output, `path:line` citations); non-trivial work was verified, not assumed; the answer states what was done or decided, the verification result, and any remaining risk — briefly.
+<!-- agent:orchestration:end -->

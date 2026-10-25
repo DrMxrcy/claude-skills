@@ -1,0 +1,3275 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="roadmap-mode" content="project">
+<title>roadmap</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<script>
+// plan 50: apply a remembered theme before first paint (storage may throw)
+try { const t = JSON.parse(localStorage.getItem("rm-theme"));
+  if(t === "light" || t === "dark") document.documentElement.dataset.theme = t; } catch(_){}
+</script>
+<link rel="icon" id="favicon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%230e1116'/%3E%3Crect x='3' y='4' width='10' height='2' rx='1' fill='%233fb950'/%3E%3Crect x='3' y='7' width='7' height='2' rx='1' fill='%23d29922'/%3E%3Crect x='3' y='10' width='4' height='2' rx='1' fill='%234b5563'/%3E%3C/svg%3E">
+<style>
+  /* Theme tokens (plan 50): every colour on the page is one of these. Light
+     is the base; dark follows prefers-color-scheme unless the viewer picked a
+     theme (html[data-theme], remembered in localStorage). Lane colours keep
+     4.5:1 against the background and their 14% badge tint in both themes —
+     tests/test_roadmap_dashboard_polish.py checks the values below. */
+  :root {
+    color-scheme:light;
+    --bg:#ffffff; --line:#d0d7de; --fg:#1f2328; --muted:#59636e;
+    --bar:#eef1f4; --done:#116329; --active:#7d4e00; --blocked:#a40e26;
+    --todo:#8c959f; --accent:#0550ae; --build:#0f5d63; --gate:#6639ba;
+    --wait:#99286e; --hover:rgba(0,0,0,.03);
+    --overlay:rgba(31,35,40,.35); --shadow:rgba(31,35,40,.18);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+    color-scheme:dark;
+    --bg:#0e1116; --line:#232a34; --fg:#e6edf3; --muted:#8b98a5;
+    --bar:#242c38; --done:#3fb950; --active:#d29922; --blocked:#f85149;
+    --todo:#4b5563; --accent:#58a6ff; --build:#39c5cf; --gate:#a371f7;
+    --wait:#db61a2; --hover:rgba(255,255,255,.02);
+    --overlay:rgba(0,0,0,.55); --shadow:rgba(0,0,0,.5);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme:dark;
+    --bg:#0e1116; --line:#232a34; --fg:#e6edf3; --muted:#8b98a5;
+    --bar:#242c38; --done:#3fb950; --active:#d29922; --blocked:#f85149;
+    --todo:#4b5563; --accent:#58a6ff; --build:#39c5cf; --gate:#a371f7;
+    --wait:#db61a2; --hover:rgba(255,255,255,.02);
+    --overlay:rgba(0,0,0,.55); --shadow:rgba(0,0,0,.5);
+  }
+  * { box-sizing:border-box; }
+  /* #app sets display:flex, which outranks the UA rule for [hidden] — without
+     this the Roadmap pane stays visible on every tab. */
+  [hidden] { display:none !important; }
+  /* plan 57: Geist Sans for UI text, Geist Mono only for ids, commands,
+     paths and shas; system fallbacks keep the offline dashboard readable. */
+  :root { --sans:Geist,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+    --mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+    font:14px/1.5 var(--sans); font-variant-numeric:tabular-nums; }
+  code, pre, kbd, .num, .mono, .bname, .cmd { font-family:var(--mono); }
+  /* Compact header (bug 55): identity + meta controls, progress + counts,
+     tabs + list controls — three short rows, ~110px at 1400px wide. */
+  header { position:sticky; top:0; z-index:5; background:var(--bg);
+    padding:8px 24px 6px; border-bottom:1px solid var(--line); }
+  .wrap { max-width:1280px; margin:0 auto; }
+  .hrow { display:flex; align-items:center; gap:6px 14px; flex-wrap:wrap; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  header .ver { color:var(--accent); }
+  header .overall { color:var(--muted); font-size:12px; white-space:nowrap; }
+  #stale { display:inline-block; width:8px; height:8px; border-radius:50%;
+    background:var(--done); margin-right:6px; vertical-align:middle;
+    transition:background .3s; }
+  #stale.off { background:var(--todo); }
+  .hbar { height:4px; background:var(--bar); border-radius:2px;
+    overflow:hidden; flex:0 1 220px; min-width:80px; }
+  .hprog { margin-top:4px; }
+  .hbar > i { display:block; height:100%; width:0; background:var(--fg);
+    transition:width .3s; }
+  .counts { color:var(--muted); font-size:12px;
+    display:flex; gap:4px 14px; flex-wrap:wrap; align-items:center; }
+  .chip { display:inline-flex; align-items:center; gap:6px; }
+  .chip .cdot { width:8px; height:8px; border-radius:50%; background:var(--todo); }
+  .chip .cdot.done { background:var(--done); }
+  .chip .cdot.active { background:var(--active); }
+  .chip .cdot.blocked { background:var(--blocked); }
+  .chip.over { color:var(--blocked); font-weight:600; }   /* plan 40: over wipLimit */
+  .navrow { display:flex; gap:4px 10px; align-items:center; flex-wrap:wrap;
+    margin-top:4px; color:var(--muted); font-size:12px; }
+  /* the list controls sit in the tab row; display:contents lets the open
+     filter-chip panel wrap to a full-width line of its own */
+  #rmctrls { display:contents; }
+  #search { background:var(--bar); border:1px solid var(--line); color:var(--fg);
+    border-radius:6px; padding:2px 8px; font:inherit; font-size:12px; width:190px;
+    margin-left:auto; }
+  #search::placeholder { color:var(--muted); }
+  #rootsel { background:var(--bar); border:1px solid var(--line); color:var(--fg);
+    border-radius:6px; padding:3px 6px; font:inherit; font-size:12px; }
+  .lnk { color:var(--muted); cursor:pointer; user-select:none; font-size:12px; }
+  .lnk:hover { color:var(--fg); }
+  main { max-width:1280px; margin:0 auto; padding:12px 24px 60px; }
+  #app { display:flex; flex-direction:column; gap:18px; }
+  .ver-group { margin:0; }
+  .ver-head { display:flex; align-items:center; gap:10px; cursor:pointer;
+    padding:6px 0; user-select:none; }
+  .ver-head h2 { font-size:13px; margin:0; letter-spacing:.02em; }
+  .ver-head .vpct { color:var(--muted); font-size:12px; margin-left:auto; }
+  .ver-head .vfc { color:var(--muted); font-size:12px; }
+  .vfc .tgt { margin-left:6px; border:1px solid var(--line); border-radius:4px;
+    padding:0 5px; }
+  .vfc .tgt.ontrack { color:var(--done); border-color:var(--done); }
+  .vfc .tgt.atrisk { color:var(--active); border-color:var(--active); }
+  .vfc .tgt.late { color:var(--blocked); border-color:var(--blocked); }
+  .burn { display:flex; align-items:center; gap:10px; padding:6px 0 8px;
+    color:var(--muted); font-size:11px; }
+  .burn svg { flex:none; }
+  .ver-group.collapsed .items { display:none; }
+  .chev { color:var(--muted); transition:transform .15s; }
+  .ver-group.collapsed .chev { transform:rotate(-90deg); }
+  .item-wrap { border-top:1px solid var(--line); }
+  .item { display:grid; grid-template-columns:14px 1fr auto;
+    gap:10px; align-items:start; padding:7px 0; cursor:pointer; }
+  .item:hover { background:var(--hover); }
+  .icaret { color:var(--muted); flex:none; font-size:10px; width:10px;
+    display:inline-block; }
+  .steps { padding:2px 0 12px 26px; display:flex; flex-direction:column;
+    gap:4px; }
+  .steps .note { color:var(--muted); margin-bottom:4px; font-style:normal; }
+  .step { display:flex; gap:8px; align-items:baseline; font-size:13px; }
+  .step .box { flex:none; color:var(--todo); }
+  .step .box.done { color:var(--done); }
+  .step .stext.done { color:var(--muted); text-decoration:line-through; }
+  .steps .file { color:var(--muted); font-size:11px; margin-top:6px; }
+  .steps .muted { color:var(--muted); }
+  .dot { width:9px; height:9px; border-radius:50%; background:var(--todo);
+    margin-top:5px; }
+  .dot.done { background:var(--done); }
+  .dot.active { background:var(--active); }
+  .dot.blocked { background:var(--blocked); }
+  .title { display:flex; align-items:baseline; gap:8px; min-width:0;
+    flex-wrap:wrap; }
+  .title .num { color:var(--muted); flex:none; font-variant-numeric:tabular-nums; }
+  .title .t { white-space:normal; overflow-wrap:anywhere; flex:1 1 auto; }
+  .badge { font-size:10px; color:var(--muted); border:1px solid var(--line);
+    border-radius:4px; padding:1px 5px; flex:none; }
+  .blockedby { font-size:11px; color:var(--blocked); flex:none; }
+  .right { display:flex; align-items:center; gap:10px; }
+  .bar { width:110px; height:6px; background:var(--bar); border-radius:3px;
+    overflow:hidden; }
+  .bar > i { display:block; height:100%; background:var(--muted);
+    transition:width .3s; }
+  .frac { color:var(--muted); font-size:12px; min-width:38px; text-align:right; }
+  .empty { color:var(--muted); padding:40px 0; text-align:center; }
+  .tabs { display:flex; gap:2px; }
+  .tab { color:var(--muted); font-size:12px; padding:2px 8px; cursor:pointer;
+    border:1px solid transparent; border-radius:6px; user-select:none; }
+  .tab:hover { color:var(--fg); }
+  .tab.on { color:var(--fg); background:var(--bar); border-color:var(--line); }
+  .tab .n { color:var(--muted); margin-left:6px; font-size:11px; }
+  .idea { border-top:1px solid var(--line); padding:8px 0; display:flex;
+    gap:10px; align-items:baseline; }
+  .idea .bullet { color:var(--active); flex:none; }
+  .idea .body { overflow-wrap:anywhere; }
+  .srcfile { color:var(--muted); font-size:11px; padding:6px 0 2px; }
+  .rel { border-top:1px solid var(--line); padding:12px 0; }
+  .rel h3 { margin:0 0 6px; font-size:13px; }
+  .rel h3 .date { color:var(--muted); font-weight:400; margin-left:8px;
+    font-size:11px; }
+  .rel .pill { font-size:10px; color:var(--muted); border:1px solid var(--line);
+    border-radius:4px; padding:1px 5px; margin-left:8px; }
+  .rel .blurb { color:var(--fg); }
+  .rel .sec { margin-top:6px; }
+  .rel .sec h4 { margin:0 0 3px; font-size:12px; color:var(--muted);
+    font-weight:600; }
+  .rel .sec div { padding-left:14px; }
+  .rel .pending { color:var(--active); }
+  /* digest page (plan 45): #/digest/<since> */
+  .dghead { display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding:8px 0; }
+  .dghead .srcfile { padding:0; }
+  .dgsec { border-top:1px solid var(--line); padding:8px 0; }
+  .dgsec h4 { margin:0 0 4px; font-size:12px; color:var(--muted); font-weight:600; }
+  .dgsec div { padding-left:14px; overflow-wrap:anywhere; }
+  .dgsec.attention h4 { color:var(--blocked); }
+  /* ---- in-flight overlay (plan 30): one colour per lane group ---------- */
+  .lg-done { --lc:var(--done); }
+  .lg-gate { --lc:var(--gate); }
+  .lg-review { --lc:var(--active); }
+  .lg-hold { --lc:var(--blocked); }
+  .lg-build { --lc:var(--build); }
+  .lg-plan { --lc:var(--todo); }
+  .lg-wait { --lc:var(--wait); }
+  /* waiting steps (plan 46): built, verified only after a date */
+  .md li.task.waiting > .box { color:var(--wait); }
+  .md li.task.waiting > .tbody > .ttext { color:var(--wait); }
+  .lane.due { font-weight:600; }
+  .dot[class*="lg-"], .chip .cdot[class*="lg-"] { background:var(--lc); }
+  .lane { font-size:10px; border-radius:4px; padding:1px 6px; flex:none;
+    color:var(--lc); border:1px solid var(--lc); white-space:nowrap;
+    background:color-mix(in srgb, var(--lc) 14%, transparent); }
+  .lane.lg-plan { color:var(--muted); }
+  .verdict { font-size:10px; border-radius:4px; padding:1px 5px; flex:none;
+    font-weight:600; border:1px solid currentColor; }
+  .verdict.CONFIRMED { color:var(--done); }
+  .verdict.PARTIAL { color:var(--active); }
+  .verdict.REFUTED { color:var(--blocked); }
+  .flight { grid-column:2 / 4; display:flex; gap:10px; flex-wrap:wrap;
+    align-items:center; font-size:12px; color:var(--muted); margin-top:-2px; }
+  .flight .bname { color:var(--fg); overflow-wrap:anywhere; }
+  .flight .ahead { color:var(--build); font-variant-numeric:tabular-nums; }
+  .flight .owner { color:var(--fg); }
+  .flight .wt { border:1px dashed var(--line); border-radius:4px;
+    padding:0 5px; font-size:11px; }
+  .bar.inflight { background:repeating-linear-gradient(-45deg,
+    color-mix(in srgb, var(--lc) 35%, transparent) 0 4px, var(--bar) 4px 8px); }
+  .filters { display:flex; gap:10px; align-items:center; }
+  .filters label { display:inline-flex; gap:5px; align-items:center;
+    cursor:pointer; user-select:none; }
+  .filters input[type=checkbox] { accent-color:var(--accent); margin:0; }
+  #laneFilter { background:var(--bar); border:1px solid var(--line);
+    color:var(--fg); border-radius:6px; padding:3px 6px; font:inherit;
+    font-size:12px; }
+  .commits { margin-top:8px; display:flex; flex-direction:column; gap:3px; }
+  .commits h4, .claim h4 { margin:0 0 2px; font-size:12px; color:var(--muted);
+    font-weight:600; }
+  .commit { display:grid; grid-template-columns:auto auto 1fr; gap:10px;
+    font-size:12px; align-items:baseline; }
+  .commit .sha { color:var(--accent); }
+  .commit .age { color:var(--muted); min-width:52px; }
+  .commit .subj { overflow-wrap:anywhere; }
+  .claim { margin-top:8px; font-size:12px; }
+  .ob { display:grid; grid-template-columns:1fr auto auto auto; gap:12px;
+    font-size:12px; padding:5px 0; border-top:1px solid var(--line);
+    align-items:baseline; }
+  .ob .bname { overflow-wrap:anywhere; }
+  .ob .muted { color:var(--muted); }
+  .ob .ahead { color:var(--build); }
+  /* ---- pages (plan 31): #/plan/<id>, #/idea/<n>, #/notes/<file> -------- */
+  a { color:var(--accent); }
+  .tab { text-decoration:none; }
+  .item .t a { color:inherit; text-decoration:none; }
+  .item .t a:hover { text-decoration:underline; }
+  .idea a.body { color:inherit; text-decoration:none; }
+  .idea a.body:hover { text-decoration:underline; }
+  .page { display:flex; flex-direction:column; gap:14px; }
+  .crumb { display:flex; gap:12px; align-items:baseline; flex-wrap:wrap;
+    font-size:12px; color:var(--muted); }
+  .crumb a { color:var(--muted); text-decoration:none; }
+  .crumb a:hover { color:var(--fg); }
+  .crumb .path { overflow-wrap:anywhere; }
+  .phead { display:flex; flex-direction:column; gap:8px; }
+  .phead h2 { margin:0; font-size:17px; font-weight:600; display:flex;
+    gap:10px; align-items:baseline; flex-wrap:wrap; }
+  .phead h2 .num { color:var(--muted); font-weight:400; }
+  .pmeta { display:flex; gap:8px; align-items:center; flex-wrap:wrap;
+    font-size:12px; color:var(--muted); }
+  .pmeta .flight { margin-top:0; }
+  .facts { display:grid; grid-template-columns:auto 1fr; gap:6px 14px;
+    font-size:12px; border-top:1px solid var(--line); padding-top:10px; }
+  .facts > .k { color:var(--muted); }
+  .facts > .v { display:flex; gap:8px; flex-wrap:wrap; overflow-wrap:anywhere;
+    min-width:0; }
+  .facts a { text-decoration:none; }
+  .facts a:hover { text-decoration:underline; }
+  .facts .blk { color:var(--blocked); }
+  .hint { font-size:12px; color:var(--muted); border:1px dashed var(--line);
+    border-radius:6px; padding:8px 10px; }
+  .hint code { color:var(--fg); }
+  .md { border-top:1px solid var(--line); padding-top:6px;
+    overflow-wrap:anywhere; min-width:0; }
+  .md h1, .md h2, .md h3, .md h4, .md h5, .md h6 { margin:18px 0 6px;
+    font-weight:600; line-height:1.3; }
+  .md h1 { font-size:16px; } .md h2 { font-size:15px; }
+  .md h3 { font-size:14px; } .md h4, .md h5, .md h6 { font-size:13px;
+    color:var(--muted); }
+  .md p { margin:6px 0; }
+  .md ul, .md ol { margin:4px 0; padding-left:22px; }
+  .md li { margin:2px 0; }
+  .md li.task { list-style:none; margin-left:-18px; display:flex; gap:8px;
+    align-items:baseline; }
+  .md li.task > .box { flex:none; color:var(--todo); }
+  .md li.task.done > .box { color:var(--done); }
+  .md li.task > .tbody { min-width:0; flex:1; }
+  .md li.task.done > .tbody > .ttext { color:var(--muted); }
+  .md code { background:var(--bar); border-radius:4px; padding:0 4px;
+    font-size:12px; }
+  .md pre { background:var(--bar); border:1px solid var(--line);
+    border-radius:6px; padding:10px 12px; overflow-x:auto; font-size:12px; }
+  .md pre code { background:none; padding:0; white-space:pre; }
+  .md blockquote { margin:6px 0; padding:2px 12px; color:var(--muted);
+    border-left:3px solid var(--line); }
+  .md hr { border:0; border-top:1px solid var(--line); margin:14px 0; }
+  .md .tw { overflow-x:auto; }
+  .md table { border-collapse:collapse; font-size:12px; margin:6px 0; }
+  .md th, .md td { border:1px solid var(--line); padding:4px 8px;
+    text-align:left; vertical-align:top; }
+  .md th { color:var(--muted); font-weight:600; }
+  /* ---- numbered slots (plan 33): trunk highest + reservations per kind -- */
+  .slots { display:flex; flex-direction:column; gap:6px; font-size:12px; }
+  .srow { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .srow .skind { font-weight:600; }
+  .srow .muted { color:var(--muted); }
+  .slot { border:1px solid var(--line); border-radius:4px; padding:1px 6px;
+    color:var(--fg); text-decoration:none; white-space:nowrap; }
+  a.slot:hover { text-decoration:underline; }
+  .slot.st-ok { color:var(--done); border-color:var(--done); }
+  .slot.st-missing { color:var(--muted); }
+  .slot.st-clash, .slot.st-taken { color:var(--blocked); border-color:var(--blocked);
+    font-weight:600; background:color-mix(in srgb, var(--blocked) 14%, transparent); }
+  .slots .serr { color:var(--blocked); }
+  /* ---- worktree map (plan 36): one row per linked worktree ------------- */
+  .ver-head.wt-over h2, .ver-head.wt-over .vpct { color:var(--blocked); }
+  .wtr { display:grid; grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) auto
+    auto auto auto auto; gap:10px; align-items:center; font-size:12px;
+    padding:5px 0; border-top:1px solid var(--line); }
+  .wtr.wth { color:var(--muted); font-size:11px; border-top:0; }
+  .wtr .bname { overflow-wrap:anywhere; }
+  .wtr .muted { color:var(--muted); }
+  .wtr .ahead { color:var(--build); font-variant-numeric:tabular-nums; }
+  .wtr .dirty { color:var(--active); font-variant-numeric:tabular-nums; }
+  .wtr .wit { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+  .wtr .safe { color:var(--done); font-weight:600; }
+  .wtr .unsafe { color:var(--muted); }
+  .wtcmd { grid-column:1 / -1; font:11px ui-monospace, SFMono-Regular, Menlo,
+    monospace; color:var(--muted); user-select:all; overflow-wrap:anywhere; }
+  /* ---- conflict risk (plan 41): open branches changing the same files -- */
+  .ver-head.cf-high h2, .ver-head.cf-high .vpct { color:var(--blocked); }
+  .cfr { display:grid; grid-template-columns:auto minmax(0,1fr) minmax(0,2fr);
+    gap:10px; align-items:baseline; font-size:12px; padding:5px 0;
+    border-top:1px solid var(--line); }
+  .cffiles, .cfo .cff { color:var(--muted); overflow-wrap:anywhere;
+    font:11px ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .risk { border:1px solid var(--line); border-radius:4px; padding:0 6px;
+    font-size:11px; }
+  .risk.r-high { color:var(--blocked); border-color:var(--blocked); font-weight:600; }
+  .risk.r-medium { color:var(--active); border-color:var(--active); }
+  .risk.r-low { color:var(--muted); }
+  .cforder { display:flex; gap:8px; flex-wrap:wrap; align-items:baseline;
+    font-size:12px; padding:6px 0; border-top:1px solid var(--line); }
+  .cforder .muted { color:var(--muted); }
+  .cfo { display:inline-flex; gap:6px; align-items:baseline; flex-wrap:wrap;
+    margin-right:10px; }
+  /* ---- rulings (plan 34): dated decisions, approvals flagged ------------ */
+  .rulings { margin-top:8px; display:flex; flex-direction:column; gap:4px; }
+  .rulings h4 { margin:0 0 2px; font-size:12px; color:var(--muted); font-weight:600; }
+  .ruling { display:grid; grid-template-columns:auto auto 1fr; gap:10px;
+    font-size:12px; align-items:baseline; }
+  .ruling .rdate { color:var(--muted); font-variant-numeric:tabular-nums; }
+  .ruling .rby { color:var(--accent); }
+  .ruling .rtext { overflow-wrap:anywhere; }
+  .ruling .rctx { color:var(--muted); }
+  .appr { color:var(--done); border-color:var(--done); font-weight:600; }
+  /* ---- acceptance ledger (plan 43): per-bullet state + evidence ------- */
+  .accept { margin-top:8px; display:flex; flex-direction:column; gap:4px; }
+  .accept h4 { margin:0 0 2px; font-size:12px; color:var(--muted); font-weight:600; }
+  .acc { display:grid; grid-template-columns:auto 1fr; gap:2px 10px;
+    font-size:12px; align-items:baseline; }
+  .acc .astate { border:1px solid var(--line); border-radius:4px; padding:0 6px;
+    font-size:11px; color:var(--muted); text-align:center; min-width:58px; }
+  .acc.met .astate { color:var(--done); border-color:var(--done); font-weight:600; }
+  .acc.failed .astate { color:var(--blocked); border-color:var(--blocked);
+    font-weight:600; }
+  .acc .atext { overflow-wrap:anywhere; min-width:0; }
+  .acc .alabel { color:var(--muted); }
+  .acc .aev { grid-column:2; color:var(--muted); overflow-wrap:anywhere; }
+  .acc-open { color:var(--active); border-color:var(--active); }
+  .acc-fail { color:var(--blocked); border-color:var(--blocked); font-weight:600; }
+  /* ---- bug routing (plan 47): fixes found during build --------------- */
+  .found { margin-top:8px; display:flex; flex-direction:column; gap:4px; font-size:12px; }
+  .found h4 { margin:0 0 2px; font-size:12px; color:var(--muted); font-weight:600; }
+  .found div { overflow-wrap:anywhere; }
+  .badge.offplan { color:var(--blocked); border-color:var(--blocked); }
+  .offplan-list { margin-top:8px; display:flex; flex-direction:column; gap:4px; font-size:12px; }
+  .offplan-list h4 { margin:0 0 2px; font-size:12px; color:var(--muted); font-weight:600; }
+  .offplan-list .opf { overflow-wrap:anywhere; }
+  .needs-appr { color:var(--blocked); border-color:var(--blocked); font-weight:600; }
+  /* ---- run log (plan 38): trunk health tile + gate timeline ------------ */
+  .health { display:flex; flex-direction:column; gap:6px; }
+  .health .hh { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .failing .more { color:var(--muted); list-style:none; margin-left:-18px; }
+  .hist summary { cursor:pointer; user-select:none; color:var(--muted); }
+  .hist .hrun { display:flex; gap:8px; flex-wrap:wrap; align-items:center;
+    padding:2px 0 0 14px; min-width:0; }
+  .hist .hshard { font-weight:600; }
+  .hist .hlabel { color:var(--muted); overflow-wrap:anywhere; min-width:0; }
+  .panel .muted { color:var(--muted); }
+  .shard { border:1px solid var(--line); border-radius:4px; padding:1px 6px;
+    white-space:nowrap; color:var(--fg); text-decoration:none; }
+  .shard.pass, .gres.pass { color:var(--done); border-color:var(--done); }
+  .shard.fail, .gres.fail { color:var(--blocked); border-color:var(--blocked);
+    font-weight:600; }
+  .failing { margin:0; padding-left:18px; color:var(--blocked);
+    overflow-wrap:anywhere; }
+  .gates { display:flex; flex-direction:column; gap:4px; }
+  .grow { display:flex; gap:8px; flex-wrap:wrap; align-items:center;
+    border-top:1px solid var(--line); padding-top:4px; min-width:0; }
+  .gres { border:1px solid var(--line); border-radius:4px; padding:0 6px;
+    text-transform:uppercase; font-size:11px; }
+  .grow .glabel { font-weight:600; overflow-wrap:anywhere; }
+  .grow a { text-decoration:none; } .grow a:hover { text-decoration:underline; }
+  /* ---- dashboard panels (bug 55): one collapsible section each --------- */
+  .panel { font-size:12px; }
+  .pnlhead .pnlsum { color:var(--muted); font-size:12px; flex:1 1 auto; min-width:0;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .panel.red > .pnlhead h2, .panel.red > .pnlhead .pnlsum { color:var(--blocked); }
+  .pnlhead:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+  .pnlbody { padding:2px 0 8px 22px; }
+  /* ---- navigation (plan 49): search, versions, graph, keys, copy ------- */
+  .fts { background:var(--bar); border:1px solid var(--line); color:var(--fg);
+    border-radius:6px; padding:5px 9px; font:inherit; font-size:13px; width:100%; }
+  .hitgrp { border-top:1px solid var(--line); padding:8px 0; display:flex;
+    flex-direction:column; gap:3px; min-width:0; }
+  .hitgrp .hh { display:flex; gap:8px; align-items:baseline; flex-wrap:wrap; }
+  .hitgrp .hh a { text-decoration:none; } .hitgrp .hh a:hover { text-decoration:underline; }
+  .hit { display:flex; gap:10px; font-size:12px; align-items:baseline; min-width:0; }
+  .hit .hl { color:var(--muted); flex:none; min-width:56px; }
+  .hit .hs { overflow-wrap:anywhere; min-width:0; }
+  mark { background:color-mix(in srgb, var(--active) 35%, transparent);
+    color:var(--fg); border-radius:2px; }
+  .kbsel { outline:1px solid var(--accent); outline-offset:2px; border-radius:4px; }
+  .ver-head .vlink { font-size:11px; color:var(--muted); text-decoration:none; }
+  .ver-head .vlink:hover { color:var(--fg); text-decoration:underline; }
+  .vrow { display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:10px;
+    align-items:center; border-top:1px solid var(--line); padding:7px 0; font-size:13px; }
+  .vrow a { text-decoration:none; } .vrow a:hover { text-decoration:underline; }
+  .vrow .vfc, .vrow .muted { color:var(--muted); font-size:12px; }
+  .lanegrp h4 { margin:8px 0 2px; font-size:12px; font-weight:600;
+    display:flex; gap:8px; align-items:center; }
+  .clprev h4 { margin:0 0 2px; font-size:12px; color:var(--muted); font-weight:600; }
+  .cmds { display:flex; flex-direction:column; gap:6px; font-size:12px;
+    border:1px dashed var(--line); border-radius:6px; padding:8px 10px; }
+  .cmds h4 { margin:0; font-size:12px; color:var(--muted); font-weight:600; }
+  .cmd { display:flex; gap:8px; align-items:center; flex-wrap:wrap; min-width:0; }
+  .cmd .why { color:var(--muted); flex:1 1 100%; }
+  .cmd code { background:var(--bar); border-radius:4px; padding:2px 6px; flex:1 1 0;
+    min-width:0; overflow-wrap:anywhere; user-select:all; color:var(--fg); }
+  .copy { background:var(--bar); border:1px solid var(--line); color:var(--fg);
+    border-radius:6px; padding:2px 9px; font:inherit; font-size:11px; cursor:pointer;
+    flex:none; }
+  .copy:hover { border-color:var(--accent); }
+  .copy.ok { color:var(--done); border-color:var(--done); }
+  .graph { overflow:auto; max-width:100%; border-top:1px solid var(--line);
+    padding-top:8px; -webkit-overflow-scrolling:touch; }
+  .graph svg { display:block; }
+  .gnode { cursor:pointer; outline:none; }
+  .gnode rect { fill:color-mix(in srgb, var(--lc, var(--todo)) 14%, var(--bg));
+    stroke:var(--lc, var(--todo)); stroke-width:1.2; }
+  .gnode.blocked rect { stroke:var(--blocked); stroke-dasharray:4 3; stroke-width:1.6; }
+  .gnode.ctx rect { opacity:.55; }
+  .gnode:hover rect, .gnode:focus rect, .gnode.kbsel rect { stroke-width:2.6; }
+  .gnode text { fill:var(--fg); font:11px ui-monospace,SFMono-Regular,Menlo,monospace; }
+  .gnode text.gid { fill:var(--muted); }
+  .gedge { fill:none; stroke:var(--muted); stroke-width:1.2; opacity:.7; }
+  .gedge.blocking { stroke:var(--blocked); stroke-width:1.8; opacity:1; }
+  .garrow { fill:var(--muted); } .garrow.blocking { fill:var(--blocked); }
+  .glegend { display:flex; gap:6px 16px; flex-wrap:wrap; align-items:center;
+    font-size:12px; color:var(--muted); }
+  .overlay { position:fixed; inset:0; z-index:20; background:var(--overlay);
+    display:flex; justify-content:center; align-items:flex-start; padding:10vh 16px 16px; }
+  .ovbox { background:var(--bg); border:1px solid var(--line); border-radius:8px;
+    width:min(560px, 100%); max-height:76vh; display:flex; flex-direction:column;
+    overflow:hidden; box-shadow:0 12px 40px var(--shadow); }
+  .ovbox .fts { border:0; border-bottom:1px solid var(--line); border-radius:0;
+    padding:10px 12px; font-size:14px; }
+  .pal-list { overflow-y:auto; padding:4px 0; }
+  .pal-row { display:flex; gap:10px; align-items:baseline; padding:6px 12px;
+    cursor:pointer; font-size:13px; min-width:0; }
+  .pal-row .pk { color:var(--muted); font-size:11px; flex:none; min-width:46px; }
+  .pal-row .pl { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; }
+  .pal-row .ps { color:var(--muted); font-size:11px; flex:none; }
+  .pal-row.on { background:var(--bar); }
+  .sheet { padding:12px 14px; display:grid; grid-template-columns:auto 1fr;
+    gap:6px 16px; font-size:13px; overflow-y:auto; }
+  .sheet h4 { grid-column:1 / -1; margin:0 0 4px; font-size:13px; }
+  .sheet kbd { border:1px solid var(--line); border-radius:4px; padding:0 5px;
+    background:var(--bar); font:inherit; font-size:12px; white-space:nowrap; }
+  .sheet .muted { grid-column:1 / -1; color:var(--muted); font-size:12px; }
+  .tabs { flex-wrap:wrap; }
+  /* ---- lane board (plan 37): #/board, one column per lane --------------- */
+  body.on-board main, body.on-board header .wrap { max-width:1600px; }
+  body.on-board #expandAll, body.on-board #collapseAll { display:none; }
+  .board { display:flex; gap:12px; align-items:flex-start; overflow-x:auto;
+    padding-bottom:10px; }
+  .bcol { flex:0 0 250px; min-width:0; display:flex; flex-direction:column;
+    gap:8px; border:1px solid var(--line); border-radius:8px; padding:8px; }
+  .bcol.flagged { border-color:color-mix(in srgb, var(--blocked) 55%, var(--line));
+    border-style:dashed; }
+  .bhead { display:flex; align-items:center; gap:8px; font-size:12px; }
+  .bhead .bn { color:var(--muted); margin-left:auto;
+    font-variant-numeric:tabular-nums; }
+  .bempty { color:var(--muted); font-size:12px; text-align:center; padding:6px 0; }
+  .bcard { border:1px solid var(--line); border-left:3px solid var(--lc, var(--todo));
+    border-radius:6px; padding:7px 8px; display:flex; flex-direction:column;
+    gap:5px; cursor:pointer; font-size:12px; min-width:0; background:var(--bg); }
+  .bcard:hover { background:var(--hover); }
+  .bcard.flag { border-color:var(--blocked); border-left-color:var(--blocked); }
+  .btop { display:flex; gap:6px; align-items:baseline; flex-wrap:wrap; }
+  .btop .num { color:var(--muted); font-variant-numeric:tabular-nums; }
+  .bt { overflow-wrap:anywhere; font-size:13px; }
+  .bt a { color:inherit; text-decoration:none; }
+  .bt a:hover { text-decoration:underline; }
+  .bmeta { display:flex; gap:6px; flex-wrap:wrap; align-items:center;
+    color:var(--muted); }
+  .bmeta .bname { color:var(--fg); overflow-wrap:anywhere; }
+  .bmeta .sha { color:var(--accent); }
+  .bmeta .owner { color:var(--fg); }
+  .bmeta .acc-open { color:var(--active); border-color:var(--active); }
+  .bmeta .acc-fail { color:var(--blocked); border-color:var(--blocked); font-weight:600; }
+  .bnote { color:var(--muted); overflow-wrap:anywhere; }
+  .bfoot { display:flex; gap:6px; flex-wrap:wrap; align-items:center;
+    border-top:1px solid var(--line); padding-top:5px; cursor:default; }
+  .bfoot select, .bfoot button { background:var(--bar); border:1px solid var(--line);
+    color:var(--fg); border-radius:5px; padding:1px 6px; font:inherit;
+    font-size:11px; max-width:100%; }
+  .bfoot button { cursor:pointer; }
+  .bfoot .bcmd { flex:1 1 100%; color:var(--muted); font-size:11px;
+    overflow-wrap:anywhere; user-select:all; }
+  #chips:has(> .fchips[open]) { flex-basis:100%; }
+  .fchips summary { cursor:pointer; user-select:none; color:var(--muted); }
+  .fchips[open] summary { margin-bottom:4px; }
+  .fgroup { display:flex; gap:5px; flex-wrap:wrap; align-items:center;
+    padding:2px 0; }
+  .fgroup .fk { color:var(--muted); min-width:56px; }
+  .fchip { background:transparent; border:1px solid var(--line); color:var(--muted);
+    border-radius:10px; padding:0 8px; font:inherit; font-size:11px; cursor:pointer;
+    overflow-wrap:anywhere; max-width:100%; text-align:left; }
+  .fchip:hover { color:var(--fg); }
+  .fchip.on { color:var(--fg); border-color:var(--accent);
+    background:color-mix(in srgb, var(--accent) 16%, transparent); }
+  @media (max-width:640px) {
+    .board { flex-direction:column; align-items:stretch; overflow-x:visible; }
+    .bcol { flex:none; }
+  }
+  /* ---- end lane board (plan 37) ----------------------------------------- */
+  /* ---- connection banner, header meta (plan 50) ----------------------- */
+  .connbanner { display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+    margin:0 0 10px; padding:7px 10px; border:1px solid var(--blocked);
+    border-radius:6px; font-size:12px; color:var(--fg);
+    background:color-mix(in srgb, var(--blocked) 12%, var(--bg)); }
+  .connbanner .cbt { font-weight:600; color:var(--blocked); }
+  .connbanner code { background:var(--bar); border-radius:4px; padding:1px 6px;
+    user-select:all; }
+  .connbanner .cbretry { color:var(--muted); }
+  .hbtn { background:var(--bar); border:1px solid var(--line); color:var(--fg);
+    border-radius:5px; padding:0 6px; font:inherit; font-size:11px;
+    line-height:18px; cursor:pointer; }
+  .hbtn:hover { border-color:var(--muted); }
+  .hbtn:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+  .hmeta { display:inline-flex; gap:8px; align-items:center; flex-wrap:wrap;
+    color:var(--muted); font-size:12px; margin-left:auto; }
+  #rootsel { max-width:220px; }
+  #laneFilter { max-width:120px; }
+  .scanhint { color:var(--active); }
+  .attn { color:var(--blocked); font-weight:600; text-decoration:none; }
+  .attn:hover { text-decoration:underline; }
+  @media (max-width:640px) {
+    header, main { padding-left:16px; padding-right:16px; }
+    .facts { grid-template-columns:1fr; }
+    .ruling { grid-template-columns:auto 1fr; }
+    .ruling .rtext { grid-column:1 / -1; }
+    #search { margin-left:0; }
+    .bar { width:60px; }
+    .ob { grid-template-columns:1fr auto; }
+    .wtr { grid-template-columns:1fr auto; }
+    .wtr.wth { display:none; }
+  }
+  /* ---- all-projects home (plan 48): #/projects, #/p/<slug>/... ---------- */
+  #homelink { color:var(--muted); font-size:12px; text-decoration:none; }
+  #homelink:hover { color:var(--fg); }
+  #projects { display:grid; gap:14px;
+    grid-template-columns:repeat(auto-fill, minmax(min(100%, 280px), 1fr)); }
+  #projects > .empty { grid-column:1 / -1; }
+  .pcard { display:flex; flex-direction:column; gap:8px; min-width:0;
+    padding:12px 14px; border:1px solid var(--line); border-radius:8px;
+    color:var(--fg); text-decoration:none; }
+  a.pcard:hover { border-color:var(--accent); }
+  .pcard.gone { opacity:.45; }
+  .pcard .ph { display:flex; align-items:baseline; gap:8px; min-width:0; }
+  .pcard .pn { font-weight:600; overflow:hidden; text-overflow:ellipsis;
+    white-space:nowrap; }
+  .pcard .pv { color:var(--accent); font-size:12px; }
+  .pcard .pp { margin-left:auto; color:var(--muted); font-size:12px; }
+  .pcard .pbar { height:4px; background:var(--bar); border-radius:2px; overflow:hidden; }
+  .pcard .pbar > i { display:block; height:100%; background:var(--done); }
+  .pcard .pc { display:flex; gap:12px; flex-wrap:wrap; color:var(--muted); font-size:12px; }
+  .pcard .pc .hot { color:var(--fg); }
+  .pcard .pa { color:var(--blocked); font-size:12px; }
+  .pcard .pf { display:flex; gap:8px; color:var(--muted); font-size:11px; min-width:0; }
+  .pcard .pf .path { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pcard .pf .age { margin-left:auto; white-space:nowrap; }
+
+  /* ---- plan 57: simplified views (Vercel design rules) ------------------
+     One home per fact, monochrome with state colour only beside a text cue,
+     no badges for ordinary metadata, spacing instead of boxes. */
+  .dot.lg-done, .dot.lg-plan, .dot.lg-build, .dot.lg-gate, .dot.lg-review { background:var(--line); }
+  .state { font-size:12px; color:var(--muted); white-space:nowrap; }
+  .mark { font-size:12px; color:var(--blocked); white-space:nowrap; }
+  .mark.soft { color:var(--wait); }
+  .hsentence { color:var(--muted); font-size:13px; }
+  .hsentence b { color:var(--fg); font-weight:500; }
+  .attnbox { margin:4px 0 20px; }
+  .attnbox h2 { font-size:15px; font-weight:600; margin:0 0 6px; }
+  .attnbox ul { margin:0; padding:0; list-style:none; }
+  .attnbox li { padding:3px 0; display:flex; gap:10px; align-items:baseline; }
+  .attnbox li .why { color:var(--blocked); font-size:12px; min-width:84px; }
+  .attnbox li a { color:inherit; text-decoration:none; }
+  .attnbox li a:hover { text-decoration:underline; }
+  .healthline { margin:0 0 18px; font-size:13px; color:var(--muted); }
+  .healthline a { color:var(--blocked); }
+  #health h1 { font-size:20px; font-weight:600; margin:8px 0 4px; }
+  #health .lede { color:var(--muted); margin:0 0 18px; }
+  details.more { margin-top:24px; }
+  details.more > summary { cursor:pointer; color:var(--muted); font-size:13px; }
+  .ver-head h2 { font-weight:600; }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <!-- plan 50: shown while the event stream is down; data stays visible -->
+    <div class="connbanner" id="connbanner" role="status" hidden>
+      <span class="cbt">dashboard stopped</span>
+      <span>— run <code id="cbcmd">claude-roadmap serve</code></span>
+      <button type="button" class="hbtn" id="cbcopy">copy</button>
+      <span class="cbretry" id="cbretry"></span>
+    </div>
+    <div class="hrow">
+      <a id="homelink" href="#/projects" hidden>← all projects</a>
+      <h1><span id="stale" title="live"></span><span id="project">roadmap</span>
+        <span class="ver" id="cver"></span></h1>
+      <select id="rootsel" autocomplete="off" hidden></select>
+      <span class="hmeta" id="hmeta">
+        <span class="scanhint" id="scanhint" hidden></span>
+        <a class="attn" id="attnlink" href="#/" hidden></a>
+        <span id="stamp" title="when the data last changed"></span>
+        <button type="button" class="hbtn" id="refreshBtn" title="reload the data now">refresh</button>
+        <button type="button" class="hbtn" id="notifyBtn" aria-pressed="false"></button>
+        <button type="button" class="hbtn" id="themeBtn" hidden></button>
+      </span>
+    </div>
+    <div class="hrow hprog">
+      <div class="hbar"><i id="hbarfill"></i></div>
+      <span class="overall" id="overall"></span>
+      <div class="counts" id="counts"></div>
+    </div>
+    <div class="navrow">
+      <div class="tabs" id="tabs"></div>
+      <div id="rmctrls">
+        <input id="search" type="search" autocomplete="off" placeholder="filter · Enter: full-text">
+        <span class="filters">
+          <label title="hide done items"><input type="checkbox" id="openOnly"> open only</label>
+          <select id="laneFilter" title="show one lane"></select>
+        </span>
+        <span class="lnk" id="expandAll" title="expand every version and panel">expand all</span>
+        <span class="lnk" id="collapseAll" title="collapse every version and panel">collapse all</span>
+        <div id="chips"></div>
+      </div>
+    </div>
+  </div>
+</header>
+<main>
+  <div id="app"><div class="empty">connecting…</div></div>
+  <div id="board" hidden></div>
+  <div id="ideas" hidden></div>
+  <div id="changelog" hidden></div>
+  <div id="digest" hidden></div>
+  <div id="health" hidden></div>
+  <div id="page" hidden></div>
+  <div id="projects" hidden></div>
+</main>
+<script>
+// All text goes in via textContent (attributes via properties) — never parsed
+// as HTML, so branch names and commit subjects (untrusted) cannot inject.
+const el = (tag,cls) => { const e=document.createElement(tag);
+  if(cls) e.className=cls; return e; };
+const txt = (tag,cls,s) => { const e=el(tag,cls); e.textContent=s; return e; };
+// localStorage can be missing or throw (private window, blocked site data):
+// every read/write goes through these and the page works without them.
+const store = {
+  get(k, fb){ try { const v = localStorage.getItem(k);
+    return v == null ? fb : JSON.parse(v); } catch(_){ return fb; } },
+  set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(_){} },
+};
+// Lanes (plan 30): derived per item by the CLI; the dashboard only colours
+// and filters them. Group -> one colour family.
+const LANES = ["building","review","fixing","gate-ready","gating","landed","blocked",
+  "stale","waiting","active","planned","done"];
+const LANE_GROUP = {done:"done", gating:"gate", "gate-ready":"gate", landed:"done",
+  review:"review", fixing:"review", blocked:"hold", stale:"hold",
+  building:"build", active:"build", planned:"plan", waiting:"wait"};
+const laneOf = it => it.lane || (it.status === "done" || it.pct === 100
+  ? "done" : (it.status || "planned"));
+const lg = it => "lg-" + (LANE_GROUP[laneOf(it)] || "plan");
+// Same predicate as the CLI's is_in_flight: not done (or parked waiting on a
+// date, plan 46), and a branch or claim.
+const inFlight = it => !["done","waiting"].includes(laneOf(it))
+  && !!(it.branch || it.claim);
+// <plan53-pure> DOM-free wait helpers; tests run this block in node.
+// Waiting steps (plan 46): days until the step's date, counted from the
+// browser's today so a long-open page stays right; null when undated.
+const dayDiff = iso => {
+  const [y,m,d] = iso.split("-").map(Number), t = new Date();
+  return Math.round((Date.UTC(y,m-1,d)
+    - Date.UTC(t.getFullYear(), t.getMonth(), t.getDate())) / 864e5);
+};
+// Plan 53: a wait given in hours is due at a UTC time (2026-10-25T14:00Z).
+// Hours round up while time remains (never "0h left"); 0 for the first hour
+// past due; daysLeft follows them like the CLI's wait_left.
+const AT_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}Z$/;
+const hoursLeft = w => {
+  if(!w || !AT_RE.test(w.until||"")) return null;
+  const s = (Date.parse(w.until.replace("Z", ":00Z")) - Date.now()) / 1000;
+  return s > 0 ? Math.ceil(s / 3600) : (Math.trunc(s / 3600) || 0);
+};
+const daysLeft = w => {
+  const h = hoursLeft(w);
+  if(h != null) return h > 0 ? Math.max(1, Math.floor(h / 24)) : (-Math.floor(-h / 24) || 0);
+  if(!w || !/^\d{4}-\d{2}-\d{2}$/.test(w.until||"")) return null;
+  return dayDiff(w.until);
+};
+const countdown = (n, h) => h != null && Math.abs(h) < 48
+  ? (h > 0 ? h+"h left" : h === 0 ? "due" : (-h)+"h overdue")
+  : n == null ? "no date" : n > 0 ? n+"d left"
+  : n === 0 ? "due" : (-n)+"d overdue";
+// Plan 53: an open-ended wait on someone (`wait --on`, no date) is never due;
+// its badge counts the days since it began: "awaiting dispatch team · 3d".
+const openEnded = w => !!(w && w.on && !w.until);
+const waitingDays = w => w && /^\d{4}-\d{2}-\d{2}$/.test(w.since||"")
+  ? -dayDiff(w.since) : null;
+const awaitText = w => "awaiting "+w.on
+  + (waitingDays(w) != null ? " · "+waitingDays(w)+"d" : "");
+const waitText = w => openEnded(w) ? awaitText(w)
+  : countdown(daysLeft(w), hoursLeft(w)) + (w && w.on ? " · awaiting "+w.on : "");
+// The soonest dated wait on an item decides its badge (hours break day ties);
+// with none dated, its longest-open wait on someone does.
+const nextWait = it => {
+  const ws = it.waitingSteps||[];
+  const key = w => { const h = hoursLeft(w), n = daysLeft(w);
+    return h != null ? h : n != null ? n * 24 : null; };
+  const dated = ws.filter(w => key(w) != null).sort((a,b) => key(a) - key(b));
+  if(dated.length) return dated[0];
+  const open = ws.filter(openEnded)
+    .sort((a,b) => (waitingDays(b) ?? 0) - (waitingDays(a) ?? 0));
+  return open[0] || ws[0] || null;
+};
+// </plan53-pure>
+// Default: the current version is expanded, all others collapsed. `prefs` holds
+// only the versions the user explicitly toggled, so it overrides the default and
+// auto-advance still opens whatever the new current version is.
+const prefs = store.get("rm-prefs", {}) || {};
+const savePrefs = () => store.set("rm-prefs", prefs);
+const isOpen = (v,cur) => (v in prefs) ? prefs[v] : (v === cur);
+// Items open in a page now (plan 31) — the inline-expand key and the
+// remembered tab (now a #/ route) are retired.
+for(const k of ["rm-open-items","rm-tab"]){ try { localStorage.removeItem(k); } catch(_){} }
+// Per-project storage key (bug 52): under serve --all (ALLMODE/PROJ, plan 48,
+// declared further down) each project keeps its own filters and board choices;
+// a single-project dashboard, and the all-projects home, keep the bare keys.
+const skey = k => ALLMODE && PROJ != null ? k + ":" + PROJ : k;
+// Client-side filters, remembered per browser.
+const FILT = Object.assign({open:false, lane:""}, store.get("rm-filters", {}) || {});
+function loadFilt(){   // switchProject: swap in the new project's filters
+  for(const k of Object.keys(FILT)) delete FILT[k];
+  Object.assign(FILT, {open:false, lane:""}, store.get(skey("rm-filters"), {}) || {});
+}
+const saveFilt = () => store.set(skey("rm-filters"), FILT);
+// Dashboard panels (bug 55): slots, trunk health, merge gates, other
+// branches, conflicts and worktrees are each one collapsible section whose
+// header carries a one-line summary. Collapsed by default unless red; an
+// explicit toggle (or expand / collapse all) is remembered per project.
+const PANEL_OPEN = Object.assign({}, store.get("rm-panels", {}) || {});
+function loadPanels(){   // switchProject: swap in the new project's panels
+  for(const k of Object.keys(PANEL_OPEN)) delete PANEL_OPEN[k];
+  Object.assign(PANEL_OPEN, store.get(skey("rm-panels"), {}) || {});
+}
+const savePanels = () => store.set(skey("rm-panels"), PANEL_OPEN);
+const panelOpen = (key, red) => typeof PANEL_OPEN[key] === "boolean" ? PANEL_OPEN[key] : !!red;
+// Click / Enter / Space on `head` toggles `box` collapsed and remembers it.
+function collapsible(key, box, head, open){
+  if(!open) box.classList.add("collapsed");
+  head.tabIndex = 0;
+  head.setAttribute("role", "button");
+  head.setAttribute("aria-expanded", open ? "true" : "false");
+  const toggle = () => {
+    const now = !box.classList.toggle("collapsed");
+    head.setAttribute("aria-expanded", now ? "true" : "false");
+    PANEL_OPEN[key] = now; savePanels();
+  };
+  head.addEventListener("click", toggle);
+  head.addEventListener("keydown", e => {
+    if(e.target === head && (e.key === "Enter" || e.key === " ")){ e.preventDefault(); toggle(); } });
+}
+// o = {title, summary, red, body: [nodes], cls (body class), hcls (head class)}
+function panel(key, o){
+  const sec = el("section", "ver-group panel"+(o.red ? " red" : ""));
+  sec.setAttribute("data-panel", key);
+  const head = el("div", "ver-head pnlhead"+(o.hcls ? " "+o.hcls : ""));
+  head.appendChild(txt("span","chev","▾"));
+  head.appendChild(txt("h2",null, o.title));
+  const sum = txt("span","pnlsum", o.summary || "");
+  sum.title = o.summary || "";
+  head.appendChild(sum);
+  collapsible(key, sec, head, panelOpen(key, o.red));
+  sec.appendChild(head);
+  const box = el("div", "items pnlbody"+(o.cls ? " "+o.cls : ""));
+  box.append(...o.body);
+  sec.appendChild(box);
+  return sec;
+}
+let LAST = null;   // last rendered view, for instant re-render on toggle
+let QUERY = "";    // active search filter
+const stale = off => document.getElementById("stale").classList.toggle("off", off);
+const matches = it => {
+  if(FILT.open && laneOf(it) === "done") return false;
+  if(FILT.lane && laneOf(it) !== FILT.lane) return false;
+  if(!chipMatch(it)) return false;                // filter chips (plan 37)
+  if(!QUERY) return true;
+  const q = QUERY.replace(/^#/,"");
+  return (""+it.id).includes(q) || (it.title||"").toLowerCase().includes(q)
+      || (it.displayId||"").toLowerCase().includes(q)
+      || ((it.branch && it.branch.name) || "").toLowerCase().includes(q);
+};
+
+// Relative age of an ISO date: "now", "5m", "3h", "2d", "3w", "4mo", "1y".
+function age(iso){
+  const t = Date.parse(iso||"");
+  if(isNaN(t)) return "";
+  const s = Math.max(0, (Date.now()-t)/1000);
+  if(s < 60) return "now";
+  const steps = [[60,"m",60],[3600,"h",24],[86400,"d",7],[604800,"w",4.35],
+    [2629800,"mo",12],[31557600,"y",Infinity]];
+  for(const [unit,suf,max] of steps){
+    const n = Math.floor(s/unit);
+    if(n < max) return n+suf+" ago";
+  }
+  return "";
+}
+const base = p => String(p||"").split(/[\\/]/).filter(Boolean).pop() || String(p||"");
+
+// VIEW: "trunk" (default — trunk checkout with the git branch overlay),
+// "all" (legacy merged worktree checkboxes), or a worktree index.
+// The view is deliberately NOT persisted (plan 31): every page load starts on
+// "trunk + branches", whichever checkout `serve` was started from and whatever
+// was picked before the reload. Filters persist; the view does not. Legacy
+// view keys (?view=, localStorage) are ignored and cleared, and the selects
+// carry autocomplete="off" so the browser's form restore cannot bring an old
+// choice back either.
+const DEFAULT_VIEW = "trunk";
+let VIEW = DEFAULT_VIEW;
+for(const k of ["rm-view","rm-root"]){ try { localStorage.removeItem(k); } catch(_){} }
+try {
+  if(/[?&](view|root)=/.test(location.search))
+    history.replaceState(null, "", location.pathname + location.hash);
+} catch(_){}
+let LASTP = null;   // last raw payload {_roots, statuses, merged, trunkRoot}
+const trunkIdx = P => (P && Number.isInteger(P.trunkRoot)
+  && P.trunkRoot < (P.statuses||[]).length) ? P.trunkRoot : 0;
+
+// Pick the selected view out of the payload; a removed/out-of-range worktree
+// selection falls back to the trunk view.
+function view(P){
+  if(VIEW !== "trunk" && VIEW !== "all"
+     && !(P.statuses && VIEW < P.statuses.length)) VIEW = "trunk";
+  const st = VIEW === "all" ? (P.merged || {})
+    : (P.statuses || [P.merged || {}])[VIEW === "trunk" ? trunkIdx(P) : VIEW]
+      || P.merged || {};
+  return {...st, _roots: P._roots, worktrees: P.worktrees, conflicts: P.conflicts,
+          scopeDrift: P.scopeDrift, attention: P.attention};
+}
+// Checkout index the item/ideas/changelog endpoints should read.
+const viewRoot = it => VIEW === "all"
+  ? (it && it._root !== undefined ? it._root : trunkIdx(LASTP))
+  : VIEW === "trunk" ? trunkIdx(LASTP) : VIEW;
+
+function syncRootSel(d){
+  const sel = document.getElementById("rootsel");
+  const roots = d._roots || [];
+  sel.hidden = roots.length < 2;
+  if(roots.length < 2) return;
+  const opt = (v,label) => { const o=document.createElement("option");
+    o.value=v; o.textContent=label; return o; };
+  sel.replaceChildren(opt("trunk","trunk + branches"),
+    opt("all","all worktrees (merged)"),
+    ...roots.map((r,i)=>opt(i, "worktree: "+(r.branch || r.name))));
+  sel.value = VIEW;
+}
+
+function syncLaneSel(items){
+  const sel = document.getElementById("laneFilter");
+  const n = {};
+  for(const it of items){ const l = laneOf(it); n[l] = (n[l]||0)+1; }
+  const opt = (v,label) => { const o=document.createElement("option");
+    o.value=v; o.textContent=label; return o; };
+  // Keep a remembered lane selectable even when it is currently empty.
+  const shown = LANES.filter(l => n[l] || l === FILT.lane);
+  sel.replaceChildren(opt("","all lanes"),
+    ...shown.map(l=>opt(l, l+" ("+(n[l]||0)+")")));
+  sel.value = FILT.lane;
+}
+
+
+
+// One problem marker per row (plan 57): the most urgent reason, in words.
+// Everything else about the item lives on its plan page.
+function rowMark(it){
+  const c = it.claim || {}, a = it.acceptance || {};
+  if(it.blockedBy && it.blockedBy.length)
+    return ["blocked by "+it.blockedBy.map(x=>"#"+x).join(", "), ""];
+  if(c.verdict === "REFUTED") return ["review refuted", ""];
+  if(laneOf(it) === "blocked") return ["blocked"+(c.note ? ": "+c.note : ""), ""];
+  if(it.needsApproval) return ["needs approval", ""];
+  if(a.failed) return [a.failed+" acceptance failed", ""];
+  const off = offPlanOf(it.id);
+  if(off && off.length) return [off.length+" files off plan", ""];
+  if(laneOf(it) === "waiting"){
+    const w = nextWait(it), n = daysLeft(w);
+    if(openEnded(w)) return [awaitText(w), "soft"];
+    return ["waiting, "+countdown(n, hoursLeft(w)), n != null && n <= 0 ? "" : "soft"];
+  }
+  if(laneOf(it) === "stale") return ["stale branch", "soft"];
+  return null;
+}
+
+function itemRow(it){
+  const wrap = el("div","item-wrap");
+  const row = el("div","item");
+  const fly = inFlight(it);
+  const href = "#/plan/"+it.id;
+  row.appendChild(el("span","dot "+lg(it)));
+  const title = el("span","title");
+  title.appendChild(txt("span","num", it.displayId || "#"+it.id));
+  const t = el("span","t");
+  t.appendChild(link(href, it.title));
+  title.appendChild(t);
+  if(VIEW === "all" && it.checkout) title.appendChild(txt("span","state", it.checkout));
+  row.appendChild(title);
+  const right = el("span","right");
+  const m = rowMark(it);
+  if(m){ const s = txt("span","mark"+(m[1] ? " "+m[1] : ""), m[0]); s.title = m[0];
+    right.appendChild(s); }
+  else if(fly) right.appendChild(txt("span","state", laneOf(it)));
+  right.appendChild(progressBar(it, fly));
+  right.appendChild(txt("span","frac", (it.done||0)+"/"+(it.total||0)));
+  row.appendChild(right);
+  // The whole row opens the plan page; the title is a real link, so
+  // middle-click / copy-link / open-in-new-tab work too.
+  row.onclick = e => { if(!e.target.closest("a")) location.hash = R(href); };
+  wrap.appendChild(row);
+  return wrap;
+}
+
+function acceptanceBlock(a){
+  const box = el("div","accept");
+  box.appendChild(txt("h4",null, "✅ acceptance · "+a.met+"/"+a.total+" accepted"));
+  for(const b of a.bullets){
+    const guard = b.kind === "guard";
+    const line = el("div","acc "+(guard ? "guard" : (b.state || "open")));
+    line.appendChild(txt("span","astate",
+      guard ? "guard" : b.state === "met" ? "✓ met" : b.state === "failed" ? "✗ failed" : "open"));
+    const t = el("span","atext");
+    if(b.label) t.appendChild(txt("span","alabel", b.label+": "));
+    t.appendChild(document.createTextNode(b.text || ""));
+    line.appendChild(t);
+    if(b.state) line.appendChild(txt("span","aev",
+      [b.date, b.evidence].filter(Boolean).join(" · ")));
+    box.appendChild(line);
+  }
+  return box;
+}
+
+// Trunk checkboxes tick at the merge gate, so an in-flight item at 0% gets a
+// striped lane-coloured bar instead of an empty one that reads as idle.
+function progressBar(it, fly){
+  const bar = el("span","bar"+(fly && !(it.pct>0) ? " inflight "+lg(it) : ""));
+  if(fly && !(it.pct>0)) bar.title = "in flight on a branch — trunk ticks at merge";
+  const fill = el("i");
+  fill.style.width = (it.pct||0)+"%"; bar.appendChild(fill);
+  return bar;
+}
+
+function verSection(v, items, cur){
+  const gd = items.reduce((a,i)=>a+(i.done||0),0);
+  const gt = items.reduce((a,i)=>a+(i.total||0),0);
+  const nf = items.filter(inFlight).length;
+  const sec = el("section","ver-group");
+  // While searching/filtering, force every shown group open so matches show.
+  if(!QUERY && !FILT.lane && !chipsActive() && !isOpen(v,cur)) sec.classList.add("collapsed");
+  sec.dataset.v = v;
+  const head = el("div","ver-head");
+  head.appendChild(txt("span","chev","▾"));
+  head.appendChild(txt("h2",null,"v"+v+(v===cur?" · current":"")));
+  const vl = link("#/version/"+v, "page →", "vlink");   // plan 49
+  vl.onclick = e => e.stopPropagation();
+  head.appendChild(vl);
+  const fc = ((LAST && LAST.forecast) || {})[v];
+  if(fc) head.appendChild(forecastTag(fc));
+  head.appendChild(txt("span","vpct",
+    (gt?Math.round(100*gd/gt):0)+"% · "+gd+"/"+gt));
+  head.onclick = () => {
+    sec.classList.toggle("collapsed");
+    prefs[v] = !sec.classList.contains("collapsed");
+    savePrefs();
+  };
+  sec.appendChild(head);
+  const box = el("div","items");
+  if(fc) { const b = burnDown(fc); if(b) box.appendChild(b); }
+  for(const it of items) box.appendChild(itemRow(it));
+  sec.appendChild(box);
+  return sec;
+}
+
+// Version forecast (plan 44): finish date at recent pace, its ±1sd range and
+// the target grade on the header; a burn-down sparkline at the top of the
+// expanded version. Text nodes and SVG attributes only.
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function shortDate(iso){
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso||""));
+  return m ? MONTHS[+m[2]-1]+" "+(+m[3]) : "?";
+}
+function forecastTag(f){
+  const t = el("span","vfc");
+  let s;
+  if(f.state === "done") s = "done";
+  else if(f.state === "insufficient") s = "not enough history";
+  else {
+    const r = f.range || [];
+    s = "forecast "+shortDate(f.date)+" ("+shortDate(r[0])+"–"+(r[1] ? shortDate(r[1]) : "?")+")";
+  }
+  t.appendChild(document.createTextNode(s));
+  t.title = f.state === "done" ? "no steps left"
+    : f.remaining+" steps left"+(f.ahead ? " (+"+f.ahead+" in earlier versions)" : "")
+      +" · "+f.pace+"/day over "+f.windowDays+"d ("+f.ticks+" ticks)";
+  if(f.target){
+    const cls = f.targetStatus ? f.targetStatus.replace(/\s+/g,"") : "";
+    const g = txt("span","tgt"+(cls ? " "+cls : ""),
+      (f.targetStatus || "target")+" · "+shortDate(f.target));
+    g.title = "target "+f.target;
+    t.appendChild(g);
+  }
+  return t;
+}
+function burnDown(f){
+  const pts = Array.isArray(f.burndown) ? f.burndown : [];
+  if(f.state === "done" || pts.length < 2) return null;
+  const W = 120, H = 24, max = Math.max(1, ...pts);
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("width", W); svg.setAttribute("height", H);
+  svg.setAttribute("viewBox", "0 0 "+W+" "+H);
+  svg.setAttribute("aria-hidden", "true");
+  const line = document.createElementNS(NS, "polyline");
+  line.setAttribute("points", pts.map((n,i) =>
+    (i*W/(pts.length-1)).toFixed(1)+","+(2+(H-4)*(1-n/max)).toFixed(1)).join(" "));
+  line.setAttribute("fill", "none");
+  line.setAttribute("stroke", "var(--accent)");
+  line.setAttribute("stroke-width", "1.5");
+  svg.appendChild(line);
+  const wrap = el("div","burn");
+  wrap.appendChild(svg);
+  wrap.appendChild(document.createTextNode("burn-down, last "+f.windowDays+"d: "
+    +pts[0]+" → "+pts[pts.length-1]+" left · "+f.pace+"/day"));
+  return wrap;
+}
+
+// Unmerged branches not attributed to any item (fix/*, experiments, release
+// branches): listed, never dropped. Collapsed by default.
+function otherSection(list){
+  const rows = list.map(b => {
+    const row = el("div","ob");
+    const n = txt("span","bname", b.name||"");
+    if(b.lastSubject) n.title = b.lastSubject;
+    row.appendChild(n);
+    row.appendChild(txt("span","ahead", b.ahead ? "+"+b.ahead : ""));
+    row.appendChild(txt("span","muted", age(b.lastDate)));
+    const w = txt("span","muted", b.worktree ? "wt "+base(b.worktree) : "");
+    if(b.worktree) w.title = b.worktree;
+    row.appendChild(w);
+    return row;
+  });
+  const names = list.slice(0, 3).map(b => b.name||"").join(", ") + (list.length > 3 ? ", …" : "");
+  return panel("other", {title:"other branches", summary:list.length+" unmerged · "+names,
+    red:false, body:rows});
+}
+
+// Numbered slots (plan 33): one row per kind — trunk highest, branches
+// highest, then each reservation (number, plan, state), clash/taken in red.
+// Absent when settings.slots is not configured, so nothing renders.
+function slotStrip(s){
+  if(!s || !(s.error || (s.kinds||[]).length)) return [];
+  if(s.error) return [panel("slots", {title:"slots", summary:"error: "+s.error, red:true,
+    body:[txt("div","serr","slots: "+s.error)], cls:"slots"})];
+  const rows = [], sums = [];
+  let red = false;
+  for(const k of s.kinds){
+    const row = el("div","srow");
+    row.appendChild(txt("span","skind", k.kind));
+    row.appendChild(txt("span","muted", "trunk "+(k.trunkHighest||"—")));
+    if(k.branchHighest) row.appendChild(txt("span","muted", "branches "+k.branchHighest));
+    const rs = k.reservations || [];
+    for(const r of rs){
+      const a = link("#/plan/"+r.plan, (r.numbers||[]).join(",")+" #"+r.plan,
+        "slot st-"+r.state);
+      a.title = [r.displayId, r.title, r.state+": "+r.detail].filter(Boolean).join(" — ");
+      row.appendChild(a);
+    }
+    if(!rs.length) row.appendChild(txt("span","muted","no reservations"));
+    if(k.clashes) row.appendChild(txt("span","slot st-clash",
+      k.clashes+(k.clashes > 1 ? " clashes" : " clash")));
+    rows.push(row);
+    const bad = rs.filter(r => r.state === "clash" || r.state === "taken").length;
+    if(k.clashes || bad) red = true;
+    sums.push([k.kind, "trunk "+(k.trunkHighest||"—"),
+      ...(k.branchHighest ? ["branches "+k.branchHighest] : []),
+      rs.length ? rs.length+" reserved" : "no reservations",
+      ...(k.clashes ? [k.clashes+(k.clashes > 1 ? " clashes" : " clash")] : []),
+      ...(bad ? [bad+" taken/clashing"] : [])].join(" "));
+  }
+  return [panel("slots", {title:"slots", summary:sums.join(" · "), red, body:rows, cls:"slots"})];
+}
+
+// Run log (plan 38): trunk health tile (latest suite result per shard,
+// failing names, integration commits ahead of trunk) and the gate timeline.
+// Log URLs go through link(), so only http(s) ever becomes an href.
+const GATES_SHOWN = 10;
+function fmtDur(sec){
+  if(sec == null) return "";
+  const h = Math.floor(sec/3600), m = Math.floor(sec%3600/60), s = sec%60;
+  return h ? h+"h"+(m ? String(m).padStart(2,"0")+"m" : "")
+    : m ? m+"m"+(s ? String(s).padStart(2,"0")+"s" : "") : s+"s";
+}
+function fmtWhen(iso){
+  const t = new Date(iso||"");
+  return isNaN(t) ? "" : t.toLocaleString([], {month:"short", day:"numeric",
+    hour:"2-digit", minute:"2-digit"});
+}
+const FAILING_SHOWN = 5;          // bug 55: failing names before "+N more"
+function healthTile(h){
+  const shards = (h && h.shards) || [], ahead = (h && h.ahead) || [];
+  if(!shards.length && !ahead.length) return null;
+  const red = h.green === false;
+  const bad = shards.filter(s => s.result === "fail").map(s => s.shard);
+  const lastAt = h.lastAt || shards.map(s => s.at).sort().pop();
+  const summary = [!shards.length ? "no suite runs recorded"
+      : bad.length ? bad.length+" failing ("+bad.join(", ")+")"
+      : "all "+shards.length+" green",
+    ...(lastAt ? ["last suite "+age(lastAt)] : []),
+    ...ahead.filter(a => a.commits).map(a => a.branch+" +"+a.commits)].join(" · ");
+  const body = [];
+  const head = el("div","hh");
+  if(!shards.length) head.appendChild(txt("span","muted","no suite runs recorded"));
+  for(const s of shards){
+    const chip = link(s.log || "", s.shard+" "+s.result, "shard "+s.result);
+    chip.title = [s.label, fmtWhen(s.at), age(s.at)].filter(Boolean).join(" · ");
+    head.appendChild(chip);
+  }
+  body.push(head);
+  const failing = [...new Set(shards.flatMap(s => s.failing || []))];
+  if(failing.length){
+    const ul = el("ul","failing");
+    for(const f of failing.slice(0, FAILING_SHOWN)) ul.appendChild(txt("li", null, f));
+    if(failing.length > FAILING_SHOWN){
+      const more = txt("li","more", "+"+(failing.length - FAILING_SHOWN)+" more");
+      more.title = failing.slice(FAILING_SHOWN).join("\n");
+      ul.appendChild(more);
+    }
+    body.push(ul);
+  }
+  for(const a of ahead) body.push(txt("div","muted",
+    a.branch+" is "+a.commits+" commit"+(a.commits === 1 ? "" : "s")+" ahead of trunk"));
+  // Superseded runs of each suite (newest first), behind a collapsed toggle.
+  const hist = (h && h.history) || [];
+  if(hist.length){
+    const det = el("details","hist");
+    det.open = PANEL_OPEN["health:history"] === true;
+    det.addEventListener("toggle", () => { PANEL_OPEN["health:history"] = det.open; savePanels(); });
+    det.appendChild(txt("summary",null, "history · "+hist.length+" superseded run"
+      +(hist.length === 1 ? "" : "s")));
+    for(const x of hist){
+      const row = el("div","hrun");
+      row.appendChild(txt("span","gres "+x.result, x.result));
+      row.appendChild(txt("span","hshard", x.shard));
+      row.appendChild(x.log ? link(x.log, x.label, "hlabel") : txt("span","hlabel", x.label));
+      const when = txt("span","muted", age(x.at));
+      when.title = fmtWhen(x.at);
+      row.appendChild(when);
+      det.appendChild(row);
+    }
+    body.push(det);
+  }
+  return panel("health", {title:"trunk health", summary, red, body, cls:"health"});
+}
+function gateTimeline(runs){
+  const gates = (runs||[]).filter(r => r.kind === "gate").slice(0, GATES_SHOWN);
+  if(!gates.length) return null;
+  const last = gates[0], nfail = gates.filter(g => g.result === "fail").length;
+  const summary = ["last "+last.result+": "+last.label+" "+age(last.at),
+    nfail ? nfail+" of "+gates.length+" failed" : gates.length+" passed"].join(" · ");
+  const rows = gates.map(g => {
+    const row = el("div","grow");
+    row.appendChild(txt("span","gres "+g.result, g.result));
+    row.appendChild(txt("span","glabel", g.label));
+    for(const id of (g.items||[])) row.appendChild(link("#/plan/"+id, "#"+id));
+    if((g.branches||[]).length) row.appendChild(txt("span","muted", g.branches.join(", ")));
+    const when = txt("span","muted", fmtWhen(g.startedAt || g.at));
+    when.title = "started "+(g.startedAt || g.at)+" · recorded "+g.at;
+    row.appendChild(when);
+    if(g.durationSec != null) row.appendChild(txt("span","muted", fmtDur(g.durationSec)));
+    if(g.log) row.appendChild(link(g.log, "log"));
+    return row;
+  });
+  return panel("gates", {title:"merge gates", summary, red: last.result === "fail",
+    body:rows, cls:"gates"});
+}
+function runPanel(d){
+  return [healthTile(d.trunkHealth), gateTimeline(d.runs)].filter(Boolean);
+}
+
+// Worktree map (plan 36): every linked worktree of the repo, the same in
+// every view. Header turns red past settings.worktreeWarn; a safe row shows
+// the removal command as text to copy — the dashboard never runs it.
+function worktreePanel(w){
+  if(!w || !w.count) return [];
+  const box = [];
+  const th = el("div","wtr wth");
+  for(const h of ["worktree","item · lane","dirty","unmerged","stage","age","safe"])
+    th.appendChild(txt("span",null,h));
+  box.push(th);
+  const num = v => v == null ? "?" : String(v);
+  for(const r of (w.rows||[])){
+    const row = el("div","wtr");
+    const name = el("span","bname");
+    name.appendChild(txt("span",null, base(r.path)));
+    name.appendChild(txt("span","muted", " "+(r.branch || "detached "+(r.head||""))));
+    name.title = r.path + (r.lastSubject ? "\n"+r.lastSubject : "");
+    row.appendChild(name);
+    const it = el("span","wit");
+    if(r.item != null){
+      it.appendChild(link("#/plan/"+r.item, r.displayId || "#"+r.item));
+      if(r.lane){
+        const lane = laneOf({lane:r.lane});
+        it.appendChild(txt("span","lane lg-"+(LANE_GROUP[lane]||"plan"), lane));
+      }
+    } else it.appendChild(txt("span","muted","—"));
+    row.appendChild(it);
+    row.appendChild(txt("span", r.dirty ? "dirty" : "muted", num(r.dirty)));
+    row.appendChild(txt("span", r.ahead ? "ahead" : "muted",
+      r.ahead ? "+"+r.ahead : num(r.ahead)));
+    row.appendChild(txt("span","muted", r.stage || "—"));
+    row.appendChild(txt("span","muted", age(r.lastDate) || "—"));
+    const ok = txt("span", r.safe ? "safe" : "unsafe", r.safe ? "safe" : "no");
+    if(!r.safe && r.reason) ok.title = r.reason;
+    row.appendChild(ok);
+    if(r.safe && r.removeCmd) row.appendChild(txt("code","wtcmd", r.removeCmd));
+    box.push(row);
+  }
+  return [panel("worktrees", {title:"worktrees",
+    summary:w.count+" linked · "+w.safe+" safe to remove"
+      +(w.over ? " · over "+w.warnAt+" (settings.worktreeWarn)" : ""),
+    red:!!w.over, hcls:w.over ? "wt-over" : "", body:box, cls:"wtmap"})];
+}
+
+// Branch conflict risk (plan 41): open item branches changing the same
+// files — high (git merge-tree finds a conflict) first — then the suggested
+// merge order. The same in every view; red header while any pair is high.
+function conflictsPanel(c){
+  if(!c || !(c.pairs||[]).length) return [];
+  const n = c.counts || {};
+  const box = [];
+  // A branch carrying several items is one node: "FEAT-1 +3".
+  const tag = w => (w.displayId || "#"+w.id)
+    + ((w.items||[]).length > 1 ? " +"+(w.items.length-1) : "");
+  for(const p of c.pairs){
+    const row = el("div","cfr");
+    row.appendChild(txt("span","risk r-"+p.risk, p.risk));
+    const who = el("span","wit");
+    const a = link("#/plan/"+p.a.id, tag(p.a)); a.title = p.a.title+" ("+p.a.branch+")";
+    const b = link("#/plan/"+p.b.id, tag(p.b)); b.title = p.b.title+" ("+p.b.branch+")";
+    who.append(a, txt("span","muted","↔"), b);
+    row.appendChild(who);
+    const more = (p.fileCount||0) - (p.files||[]).length;
+    const f = txt("span","cffiles", (p.files||[]).join(", ")+(more > 0 ? " +"+more+" more" : ""));
+    if(p.conflictFiles && p.conflictFiles.length)
+      f.title = "conflicts: "+p.conflictFiles.join(", ");
+    row.appendChild(f);
+    box.push(row);
+  }
+  const order = c.order || [];
+  if(order.length){
+    const o = el("div","cforder");
+    o.appendChild(txt("span","muted","merge order"));
+    order.forEach((x, i) => {
+      const a = link("#/plan/"+x.id, (i+1)+". "+tag(x));
+      a.title = x.title+" — "+(x.overlaps ? x.overlaps+" overlap"+(x.overlaps > 1 ? "s" : "")
+        +(x.high ? ", "+x.high+" high" : "") : "no overlaps");
+      o.appendChild(a);
+    });
+    box.push(o);
+  }
+  return [panel("conflicts", {title:"conflicts",
+    summary:c.pairs.length+" overlapping · "+(n.high||0)+" high"
+      +(c.mergeTree ? "" : " · file overlap only (git < 2.38: no merge-tree)"),
+    red:!!n.high, hcls:n.high ? "cf-high" : "", body:box, cls:"cfmap"})];
+}
+// Scope drift (plan 42): the off-plan files of an item's branch — an array
+// (possibly empty) when checked against declared paths, null when its plan
+// declares no scope, undefined when the item was not checked (no open branch).
+function offPlanOf(id){
+  const by = (LAST && LAST.scopeDrift && LAST.scopeDrift.byItem) || {};
+  return Object.prototype.hasOwnProperty.call(by, String(id)) ? by[String(id)] : undefined;
+}
+// The items a plan's branch overlaps with (plan page "overlaps" fact).
+function overlapsOf(id){
+  const pairs = (LAST && LAST.conflicts && LAST.conflicts.pairs) || [];
+  const on = (w, id) => (w.items || [w.id]).includes(id);
+  return pairs.filter(p => on(p.a, id) || on(p.b, id)).map(p => {
+    const o = on(p.a, id) ? p.b : p.a;
+    const s = el("span","cfo");
+    s.appendChild(txt("span","risk r-"+p.risk, p.risk));
+    s.appendChild(link("#/plan/"+o.id, o.displayId || "#"+o.id));
+    const more = (p.fileCount||0) - (p.files||[]).length;
+    s.appendChild(txt("span","cff", (p.files||[]).join(", ")+(more > 0 ? " +"+more+" more" : "")));
+    return s;
+  });
+}
+
+// ---- plan 57: one home for "needs attention" and for health panels ------
+// The Roadmap page opens with what needs a person (the same list the digest
+// and the tab title use); every health panel lives on #/health.
+function attentionBox(d){
+  const raw = Array.isArray(d.attention) ? d.attention : [];
+  if(!raw.length) return [];
+  // Group repeats (six conflict pairs read as one problem) and keep each
+  // line short: detail such as file lists lives on the Health page.
+  const groupKinds = {conflict:"branch pairs will conflict", slots:"migration slot clashes",
+    stubs:"plans are still the empty template"};
+  const rows = [], seen = {};
+  for(const a of raw){
+    if(groupKinds[a.kind]){
+      if(seen[a.kind]){ seen[a.kind].n++; continue; }
+      seen[a.kind] = {n:1, a}; rows.push(seen[a.kind]); continue;
+    }
+    rows.push({n:1, a});
+  }
+  const why = {refuted:"refuted", blocked:"blocked", trunk:"trunk", wip:"in flight",
+    slots:"migrations", conflict:"conflicts", stubs:"plans", waiting:"wait due",
+    awaiting:"awaiting"};
+  const short = s => String(s||"").replace(/\s*\([^)]*\)\s*$/, "").replace(/ — .*$/, "");
+  const box = el("section","attnbox");
+  box.appendChild(txt("h2",null, rows.length === 1 ? "1 thing needs you"
+    : rows.length+" things need you"));
+  const ul = el("ul");
+  for(const r of rows.slice(0, 8)){
+    const a = r.a, li = el("li");
+    li.appendChild(txt("span","why", why[a.kind] || a.kind || ""));
+    const grouped = r.n > 1 || groupKinds[a.kind];
+    const text = grouped && r.n > 1 ? r.n+" "+groupKinds[a.kind] : short(a.text);
+    const toHealth = a.kind === "trunk" || a.kind === "conflict" || a.kind === "slots";
+    if(toHealth) li.appendChild(link("#/health", text));
+    else if(a.id != null && a.kind !== "wip") li.appendChild(link("#/plan/"+a.id, text));
+    else li.appendChild(txt("span",null, text));
+    ul.appendChild(li);
+  }
+  box.appendChild(ul);
+  if(rows.length > 8) box.appendChild(link("#/digest", (rows.length-8)+" more in the digest"));
+  return [box];
+}
+function healthRed(d){
+  const out = [];
+  const h = d.trunkHealth;
+  if(h && h.green === false) out.push("trunk suite failing");
+  if(d.slots && d.slots.clashes) out.push("migration slot clash");
+  if(d.conflicts && (d.conflicts.pairs||[]).some(p=>p.risk==="high"))
+    out.push("branch conflicts");
+  return out;
+}
+function healthLine(d){
+  // Only what the needs-you list above does not already say.
+  const said = new Set((d.attention||[]).map(a => a.kind));
+  const red = healthRed(d).filter(x => !(x === "trunk suite failing" && said.has("trunk"))
+    && !(x === "branch conflicts" && said.has("conflict"))
+    && !(x === "migration slot clash" && said.has("slots")));
+  if(!red.length) return [];
+  const p = el("p","healthline");
+  p.appendChild(document.createTextNode("Health: "));
+  p.appendChild(link("#/health", red.join(", ")));
+  return [p];
+}
+function renderHealth(d){
+  const box = document.getElementById("health");
+  const others = Array.isArray(d.otherBranches) ? d.otherBranches : [];
+  const parts = [...runPanel(d), ...slotStrip(d.slots), ...conflictsPanel(d.conflicts),
+    ...worktreePanel(d.worktrees), ...(others.length ? [otherSection(others)] : [])];
+  const red = healthRed(d);
+  box.replaceChildren(txt("h1",null, "Health"),
+    txt("p","lede", red.length ? "Needs a look: "+red.join(", ")+"."
+      : "Trunk, merge gates, migration slots, branches and worktrees."),
+    ...(parts.length ? parts : [txt("div","empty", "nothing recorded yet")]));
+}
+
+function render(d){
+  LAST = d;
+  syncRootSel(d);
+  document.getElementById("project").textContent = d.project || "roadmap";
+  document.getElementById("cver").textContent =
+    d.currentVersion ? "v"+d.currentVersion : "";
+  const items = d.items || [];
+  syncLaneSel(items);
+  document.getElementById("openOnly").checked = !!FILT.open;
+  syncChips(items);                               // filter chips (plan 37)
+  if(ROUTE.name === "board") renderBoard(d);      // lane board (plan 37)
+  const td =items.reduce((a,i)=>a+(i.done||0),0);
+  const tt = items.reduce((a,i)=>a+(i.total||0),0);
+  document.getElementById("overall").textContent =
+    tt ? Math.round(100*td/tt)+"% ("+td+"/"+tt+")" : "";
+  document.getElementById("hbarfill").style.width = (tt?100*td/tt:0)+"%";
+  const chip = (n,label,cls) => {
+    const c = el("span","chip");
+    c.appendChild(el("span","cdot"+(cls?" "+cls:"")));
+    c.appendChild(txt("span",null, n+" "+label));
+    return c;
+  };
+  // done / in-flight / active / planned: every item in exactly one bucket
+  // (mirrors the CLI's lane_counts; computed here so every view gets it).
+  const k = {done:0, fly:0, active:0, planned:0, waiting:0};
+  for(const it of items){
+    if(laneOf(it) === "done") k.done++;
+    else if(laneOf(it) === "waiting") k.waiting++;
+    else if(inFlight(it)) k.fly++;
+    else if(it.status === "active") k.active++;
+    else k.planned++;
+  }
+  const nblocked = items.filter(i=>i.blockedBy&&i.blockedBy.length).length;
+  // plan 57: the counts live here only, as one sentence.
+  const sent = el("span","hsentence");
+  const part = (n, label) => { const s = el("span"); s.appendChild(txt("b",null, String(n)));
+    s.appendChild(document.createTextNode(" "+label)); return s; };
+  const parts = [part(k.done+" of "+items.length, "done"), part(k.fly, "in flight")];
+  if(k.waiting) parts.push(part(k.waiting, "waiting"));
+  if(nblocked) parts.push(part(nblocked, "blocked"));
+  parts.forEach((p,i) => { if(i) sent.appendChild(document.createTextNode(", ")); sent.appendChild(p); });
+  const lim = d.wip && d.wip.limit;
+  if(lim && k.fly > lim){ sent.appendChild(txt("span","mark", " (over the limit of "+lim+" in flight)")); }
+  document.getElementById("counts").replaceChildren(sent);
+  const app = document.getElementById("app");
+  const others = Array.isArray(d.otherBranches) ? d.otherBranches : [];
+  if(ROUTE.name === "health") renderHealth(d);   // plan 57: panels' one home
+  const tail = [];
+  const head = [...attentionBox(d), ...healthLine(d)];
+  if(!items.length){
+    app.replaceChildren(...head, txt("div","empty", d.error
+      || (d.scanning ? "scanning this worktree…" : "no roadmap items yet")), ...tail);
+    return;
+  }
+  const groups = {};
+  for(const it of items){ if(matches(it)) (groups[it.version] ||= []).push(it); }
+  const cur = d.currentVersion;
+  // Numeric semver compare (descending) so 0.10.0 sorts above 0.9.0, not below.
+  const vkey = v => String(v).split(".").map(n=>parseInt(n,10)||0);
+  const vcmp = (a,b) => {
+    const A=vkey(a), B=vkey(b);
+    for(let i=0; i<Math.max(A.length,B.length); i++){
+      const diff=(B[i]||0)-(A[i]||0); if(diff) return diff;
+    }
+    return 0;
+  };
+  const vers = Object.keys(groups).sort((a,b)=>
+    a===cur?-1:b===cur?1:vcmp(a,b));
+  if(!vers.length){
+    const why = QUERY ? "no items match “"+QUERY+"”"
+      : FILT.lane ? "no items in lane “"+FILT.lane+"”"
+      : chipsActive() ? "no items match the filter chips" : "no open items";
+    app.replaceChildren(...head, txt("div","empty", why), ...tail);
+    return;
+  }
+  // One clean column, current version first; other branches last.
+  app.replaceChildren(...head, ...vers.map(v=>verSection(v, groups[v], cur)), ...tail);
+}
+
+// ---- lane board (plan 37) ---------------------------------------------
+// #/board: one column per lane; every item sits in exactly the column of its
+// lane (laneOf — the CLI's derive_lane). Read-only by design: a write
+// endpoint on a localhost server is reachable from any page the browser
+// visits, so moving a card means copying its `roadmap.py claim …` line and
+// running it in a terminal. Re-rendered from render(), so SSE refreshes,
+// view switches and filter changes all reach it.
+const BOARD_PIPE = ["planned","active","building","review","fixing","gate-ready",
+  "gating","landed","waiting","done"];
+const BOARD_ALWAYS = ["planned","building","review","fixing","gate-ready","gating",
+  "landed","done"];                        // shown even when empty
+const BOARD_FLAGGED = ["blocked","stale"]; // side columns, flagged cards
+const BOARD_DONE_SHOWN = 20;
+const BOARD = {allDone: store.get("rm-board-alldone", false) === true};
+function loadBoard(){ BOARD.allDone = store.get(skey("rm-board-alldone"), false) === true; }
+
+// [{lane, flagged, items}] in board order. `onlyLane` (the lane filter)
+// narrows the board to that one column. Done is newest (highest id) first.
+function boardColumns(items, onlyLane){
+  const by = {};
+  for(const it of items) (by[laneOf(it)] ||= []).push(it);
+  const known = [...BOARD_PIPE, ...BOARD_FLAGGED];
+  const order = [...known, ...Object.keys(by).filter(l => !known.includes(l)).sort()];
+  return order
+    .filter(l => onlyLane ? l === onlyLane : BOARD_ALWAYS.includes(l) || (by[l]||[]).length)
+    .map(l => ({lane:l, flagged:BOARD_FLAGGED.includes(l),
+      items:(by[l]||[]).slice().sort(l === "done" ? (a,b) => b.id-a.id : (a,b) => a.id-b.id)}));
+}
+
+function boardCard(it, d){
+  const href = "#/plan/"+it.id;
+  const card = el("div","bcard "+lg(it)+(BOARD_FLAGGED.includes(laneOf(it)) ? " flag" : ""));
+  const top = el("div","btop");
+  top.appendChild(txt("span","num", it.displayId || "#"+it.id));
+  card.appendChild(top);
+  const t = el("div","bt");
+  t.appendChild(link(href, it.title || ""));
+  card.appendChild(t);
+  // plan 57: a card carries the one problem (if any) and nothing else; the
+  // branch, sha, owner, slots and acceptance are on the plan page.
+  const m = rowMark(it);
+  if(m) card.appendChild(txt("div","mark"+(m[1] ? " "+m[1] : ""), m[0]));
+  const moves = boardMoves(it);
+  if(moves.length) card.appendChild(boardFoot(it, moves));
+  card.onclick = e => {
+    if(!(e.target.closest && e.target.closest("a, .bfoot"))) location.hash = R(href); };
+  return card;
+}
+
+// "m/t accepted" when the payload carries an acceptance ledger {met, failed, total}.
+
+// Mirrors rmlib/parse.py CLAIM_STAGES (a test keeps the two equal).
+const BOARD_STAGES = ["review","fixing","gate-ready","gating","blocked","landed"];
+const BOARD_NEXT = {planned:"review", active:"review", building:"review", stale:"review",
+  fixing:"review", "gate-ready":"gating", gating:"landed"};
+// The `roadmap.py claim` lines that move a card, the likely next move first.
+// Done and waiting items get none (a waiting item outranks any claim).
+function boardMoves(it){
+  const lane = laneOf(it), c = it.claim || {};
+  if(!Number.isInteger(it.id) || lane === "done" || lane === "waiting") return [];
+  const out = [];
+  const add = (label, ...args) => { const cmd = ["roadmap.py claim", it.id, ...args].join(" ");
+    if(!out.some(m => m.cmd === cmd)) out.push({label, cmd}); };
+  if(lane === "review"){
+    if(c.verdict === "CONFIRMED") add("→ gate-ready", "--stage gate-ready");
+    else if(c.verdict) add("→ fixing", "--stage fixing");
+    else add("→ gate-ready, CONFIRMED", "--stage gate-ready --verdict CONFIRMED");
+  } else if(lane === "blocked" && c.stage) add("unblock (clear claim)", "--clear");
+  else if(BOARD_NEXT[lane]) add("→ "+BOARD_NEXT[lane], "--stage "+BOARD_NEXT[lane]);
+  for(const s of BOARD_STAGES) if(s !== lane && s !== c.stage) add("→ "+s, "--stage "+s);
+  if(c.stage || c.owner) add("clear claim", "--clear");
+  return out;
+}
+
+// Pick a move, see exactly what will be copied, copy it. Never runs anything.
+const BOARD_PICK = {};                 // id -> chosen line, kept across refreshes
+function boardFoot(it, moves){
+  const foot = el("div","bfoot");
+  const sel = el("select","bmove");
+  sel.title = "which claim line to copy";
+  moves = moves.map(m => ({label: m.label, cmd: inRoot(m.cmd)}));   // bug 52
+  for(const m of moves){ const o = txt("option",null, m.label); o.value = m.cmd; sel.appendChild(o); }
+  const want = BOARD_PICK[it.id];
+  sel.value = moves.some(m => m.cmd === want) ? want : moves[0].cmd;
+  const code = txt("code","bcmd", sel.value);
+  const btn = txt("button","bcopy","copy");
+  btn.type = "button";
+  btn.title = "copy, then run it in a terminal — the board is read-only";
+  sel.addEventListener("change", () => { BOARD_PICK[it.id] = sel.value;
+    code.textContent = sel.value; });
+  btn.addEventListener("click", () => boardCopy(code.textContent, btn, code));
+  foot.append(sel, btn, code);
+  return foot;
+}
+function boardCopy(s, btn, code){
+  const show = ok => {
+    btn.textContent = ok ? "copied" : "press ⌘C / Ctrl+C";
+    if(!ok) try { const r = document.createRange(); r.selectNodeContents(code);
+      const w = window.getSelection(); w.removeAllRanges(); w.addRange(r); } catch(_){}
+    setTimeout(() => { btn.textContent = "copy"; }, 1500);
+  };
+  const legacy = () => { let ok = false;
+    try { const ta = el("textarea"); ta.value = s; ta.setAttribute("readonly", "");
+      ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select(); ok = document.execCommand("copy");
+      ta.remove(); } catch(_){}
+    show(ok); };
+  try { navigator.clipboard.writeText(s).then(() => show(true), legacy); }
+  catch(_){ legacy(); }
+}
+
+function boardColumn(col, d){
+  const box = el("section","bcol"+(col.flagged ? " flagged" : ""));
+  box.dataset.lane = col.lane;
+  const head = el("div","bhead");
+  head.appendChild(txt("span","lane lg-"+(LANE_GROUP[col.lane] || "plan"), col.lane));
+  head.appendChild(txt("span","bn", String(col.items.length)));
+  box.appendChild(head);
+  const many = col.lane === "done" && col.items.length > BOARD_DONE_SHOWN;
+  const shown = many && !BOARD.allDone ? col.items.slice(0, BOARD_DONE_SHOWN) : col.items;
+  for(const it of shown) box.appendChild(boardCard(it, d));
+  if(!col.items.length) box.appendChild(txt("div","bempty","—"));
+  if(many){
+    const t = txt("span","lnk", BOARD.allDone ? "show last "+BOARD_DONE_SHOWN
+      : "show all "+col.items.length);
+    t.onclick = () => { BOARD.allDone = !BOARD.allDone;
+      store.set(skey("rm-board-alldone"), BOARD.allDone); if(LAST) renderBoard(LAST); };
+    box.appendChild(t);
+  }
+  return box;
+}
+
+function renderBoard(d){
+  const pane = document.getElementById("board");
+  const all = d.items || [];
+  if(!all.length){
+    pane.replaceChildren(txt("div","empty", d.error || "no roadmap items yet"));
+    return;
+  }
+  const items = all.filter(matches);
+  const old = pane.querySelector(".board"), x = old ? old.scrollLeft : 0;
+  const board = el("div","board");
+  for(const col of boardColumns(items, FILT.lane)) board.appendChild(boardColumn(col, d));
+  pane.replaceChildren(...(items.length ? [] : [txt("div","empty",
+    QUERY ? "no items match “"+QUERY+"”" : "no items match the filters")]), board);
+  board.scrollLeft = x;
+}
+
+// Filter chips, shared by the list and the board through matches() and kept
+// per browser in rm-filters. Lane is single-select and is the same state as
+// the lane <select> (FILT.lane); the other groups are multi-select — OR within
+// a group, AND across groups. "" stands for "no verdict" / "no branch".
+const CHIP_GROUPS = ["lane","verdict","branch","type","version"];
+const CHIP_NONE = {verdict:"no verdict", branch:"no branch"};
+const chipVal = (it, g) => g === "lane" ? laneOf(it)
+  : g === "verdict" ? ((it.claim && it.claim.verdict) || "")
+  : g === "branch" ? ((it.branch && it.branch.name) || (it.claim && it.claim.branch) || "")
+  : String(it[g] == null ? "" : it[g]);
+const chipSel = g => g === "lane" ? (FILT.lane ? [FILT.lane] : [])
+  : (Array.isArray(FILT[g]) ? FILT[g].filter(v => typeof v === "string") : []);
+const chipsActive = () => CHIP_GROUPS.some(g => g !== "lane" && chipSel(g).length);
+function chipMatch(it){
+  return CHIP_GROUPS.every(g => g === "lane" || !chipSel(g).length
+    || chipSel(g).includes(chipVal(it, g)));
+}
+function chipToggle(g, v){
+  if(g === "lane") FILT.lane = FILT.lane === v ? "" : v;
+  else { const s = chipSel(g); FILT[g] = s.includes(v) ? s.filter(x => x !== v) : [...s, v]; }
+  saveFilt();
+  if(LAST) render(LAST);
+}
+function chipOrder(g, vals){
+  const lanes = [...BOARD_PIPE, ...BOARD_FLAGGED];
+  const vk = v => String(v).split(".").map(n => parseInt(n,10) || 0);
+  const by = {
+    lane: (a,b) => (lanes.indexOf(a)+1 || 99) - (lanes.indexOf(b)+1 || 99) || (a < b ? -1 : 1),
+    verdict: (a,b) => (a === "") - (b === "") || (a < b ? -1 : 1),
+    version: (a,b) => { const A = vk(a), B = vk(b);
+      for(let i = 0; i < Math.max(A.length, B.length); i++){
+        const x = (B[i]||0) - (A[i]||0); if(x) return x; }
+      return 0; },
+  }[g] || ((a,b) => (a === "") - (b === "") || (a < b ? -1 : a > b ? 1 : 0));
+  return vals.sort(by);
+}
+function syncChips(items){
+  const box = document.getElementById("chips");
+  const det = el("details","fchips");
+  det.open = store.get("rm-chips-open", false) === true;
+  det.addEventListener("toggle", () => store.set("rm-chips-open", det.open));
+  const active = CHIP_GROUPS.reduce((a,g) => a + chipSel(g).length, 0);
+  det.appendChild(txt("summary",null, "filter chips"+(active ? " · "+active+" on" : "")));
+  for(const g of CHIP_GROUPS){
+    const n = new Map();
+    for(const it of items){ const v = chipVal(it, g); n.set(v, (n.get(v)||0) + 1); }
+    for(const v of chipSel(g)) if(!n.has(v)) n.set(v, 0);   // keep a remembered pick
+    if(!n.size) continue;
+    const row = el("div","fgroup");
+    row.appendChild(txt("span","fk", g));
+    for(const v of chipOrder(g, [...n.keys()])){
+      const on = chipSel(g).includes(v);
+      const b = txt("button","fchip"+(on ? " on" : ""),
+        (v === "" ? CHIP_NONE[g] || "none" : g === "version" ? "v"+v : v)+" "+n.get(v));
+      b.type = "button";
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+      b.addEventListener("click", () => chipToggle(g, v));
+      row.appendChild(b);
+    }
+    det.appendChild(row);
+  }
+  if(active){
+    const clr = txt("span","lnk","clear chips");
+    clr.onclick = () => { FILT.lane = ""; for(const g of CHIP_GROUPS) if(g !== "lane") FILT[g] = [];
+      saveFilt(); if(LAST) render(LAST); };
+    det.appendChild(clr);
+  }
+  box.replaceChildren(det);
+}
+// ---- end lane board (plan 37) -----------------------------------------
+
+document.getElementById("search").addEventListener("input", e => {
+  QUERY = e.target.value.trim().toLowerCase();
+  if(LAST) render(LAST);
+});
+// Enter runs the full-text search (plan 49): plan bodies, notes, ideas.
+document.getElementById("search").addEventListener("keydown", e => {
+  if(e.key === "Enter" && e.target.value.trim()) location.hash = R(searchHref(e.target.value));
+});
+document.getElementById("openOnly").addEventListener("change", e => {
+  FILT.open = e.target.checked; saveFilt();
+  if(LAST) render(LAST);
+});
+document.getElementById("laneFilter").addEventListener("change", e => {
+  FILT.lane = e.target.value; saveFilt();
+  if(LAST) render(LAST);
+});
+// Expand / collapse all: every version group and every dashboard panel.
+function setAllOpen(open){
+  if(!LAST) return;
+  for(const it of (LAST.items||[])) prefs[it.version] = open;
+  for(const s of document.querySelectorAll("#app [data-panel]"))
+    PANEL_OPEN[s.getAttribute("data-panel")] = open;
+  savePrefs(); savePanels(); render(LAST);
+}
+document.getElementById("expandAll").onclick = () => setAllOpen(true);   // PANEL_OPEN too
+document.getElementById("collapseAll").onclick = () => setAllOpen(false);
+
+// Server-Sent Events: server pushes a fresh status on every .roadmap or
+// branch-ref change. A refresh re-renders whatever route is open, in place,
+// keeping the route and the scroll position.
+// ---- connection banner + reconnect (plan 50) ----------------------------
+// On a dropped stream the last data stays on screen, the live dot goes grey,
+// and (if not back within DOWN_GRACE) a banner says how to restart the
+// server. Reconnects back off 1-2-4-8 s; a tab coming back into view or the
+// network returning retries at once. Every payload carries the server's
+// instance id: a different one means the server restarted, so the open
+// route and tab counts reload — no page refresh.
+let es = null, INSTANCE = null, RETRY_N = 0, RETRY_T = null, RETRY_AT = 0,
+  DOWN_T = null, DOWN = false;
+const BACKOFF = [1000, 2000, 4000, 8000];
+const DOWN_GRACE = 1500;
+function connBanner(on){
+  DOWN = on;
+  document.getElementById("connbanner").hidden = !on;
+  tickRetry();
+}
+function tickRetry(){
+  const s = Math.max(0, Math.ceil((RETRY_AT - Date.now())/1000));
+  document.getElementById("cbretry").textContent = !DOWN ? ""
+    : s > 0 ? "reconnecting in "+s+"s…" : "reconnecting…";
+}
+setInterval(() => { if(DOWN) tickRetry(); }, 1000);
+function scheduleRetry(){
+  clearTimeout(RETRY_T);
+  const ms = BACKOFF[Math.min(RETRY_N++, BACKOFF.length-1)];
+  RETRY_AT = Date.now() + ms;
+  RETRY_T = setTimeout(connect, ms);
+  tickRetry();
+}
+function connect(){
+  clearTimeout(RETRY_T); RETRY_T = null;
+  if(ALLMODE && PROJ == null) return;               // plan 48: home has no stream
+  if(es && es.url && es.rmApi === API() && es.readyState !== 2) return;
+  if(es) es.close();
+  es = new EventSource(API()+"/events");              // plan 48: /p/<slug> mount
+  es.rmApi = API();
+  es.onmessage = ev => {
+    let P; try { P = JSON.parse(ev.data); } catch(_){ return; }
+    RETRY_N = 0; clearTimeout(DOWN_T); DOWN_T = null; connBanner(false);
+    onPayload(P);
+  };
+  es.onerror = () => {
+    // Take over from EventSource's own retry so the backoff is ours.
+    es.close(); stale(true);
+    if(!DOWN && !DOWN_T) DOWN_T = setTimeout(() => { DOWN_T = null; connBanner(true); },
+      DOWN_GRACE);
+    scheduleRetry();
+  };
+}
+function onPayload(P){
+  const restarted = !!(INSTANCE && P.instance && P.instance !== INSTANCE);
+  if(P.instance) INSTANCE = P.instance;
+  try { LASTP = P; render(view(LASTP)); stale(false); refreshRoute(); } catch(_){}
+  if(restarted){ for(const k of Object.keys(TABCOUNTS)) delete TABCOUNTS[k];
+    renderTabs(); }
+  for(const f of PAYLOAD_HOOKS){ try { f(P, restarted); } catch(_){} }
+}
+// Later features hang per-payload work here (header meta, title, favicon).
+const PAYLOAD_HOOKS = [];
+const retryNow = () => { if(es && es.readyState === 1) return;
+  RETRY_N = 0; connect(); };
+document.addEventListener("visibilitychange", () => {
+  if(!document.hidden && (DOWN || DOWN_T)) retryNow(); });
+window.addEventListener("online", () => { if(DOWN || DOWN_T) retryNow(); });
+document.getElementById("cbcopy").onclick = e => {
+  const btn = e.currentTarget, cmd = document.getElementById("cbcmd");
+  const done = ok => { btn.textContent = ok ? "copied" : "select + copy";
+    setTimeout(() => { btn.textContent = "copy"; }, 1500); };
+  const select = () => { try { const r = document.createRange();
+    r.selectNodeContents(cmd); const sel = getSelection();
+    sel.removeAllRanges(); sel.addRange(r); } catch(_){} };
+  try { navigator.clipboard.writeText(cmd.textContent)
+    .then(() => done(true), () => { select(); done(false); }); }
+  catch(_){ select(); done(false); }
+};
+// Manual refresh: re-read the server's snapshot, reload the open route, and
+// reconnect at once when the stream is down.
+document.getElementById("refreshBtn").onclick = () => {
+  if(ROUTE.name === "projects"){ loadHome(); return; }   // plan 48: home has no stream
+  if(DOWN || DOWN_T || !es || es.readyState !== 1) retryNow();
+  getJSON("/api/status").then(P => onPayload(P)).catch(() => {});
+};
+// ---- theme toggle (plan 50): auto (follow the OS) -> light -> dark --------
+const THEMES = ["auto","light","dark"];
+let THEME = (t => THEMES.includes(t) ? t : "auto")(store.get("rm-theme", "auto"));
+function applyTheme(){
+  const root = document.documentElement;
+  if(THEME === "auto") delete root.dataset.theme; else root.dataset.theme = THEME;
+  const b = document.getElementById("themeBtn");
+  b.textContent = "theme: "+THEME;
+  b.title = THEME === "auto" ? "following the system theme — click for light"
+    : "click for "+THEMES[(THEMES.indexOf(THEME)+1) % THEMES.length];
+}
+document.getElementById("themeBtn").onclick = () => {
+  THEME = THEMES[(THEMES.indexOf(THEME)+1) % THEMES.length];
+  store.set("rm-theme", THEME);
+  applyTheme();
+};
+applyTheme();
+// ---- tab title, favicon dot, opt-in notifications (plan 50) -------------
+// The count is the server's `attention` list for the trunk view — the same
+// checks `roadmap digest` lists under "Needs attention" (REFUTED verdicts,
+// blocked claims, slot clashes, overdue waiting steps, a failing trunk suite,
+// WIP over the limit, template stubs, high conflict risk).
+// <plan50-pure> DOM-free helpers; tests run this block in node.
+// plan 57: count problems the way the needs-you list groups them (six
+// conflicting branch pairs are one problem), so header, tab title and list agree.
+const ATTN_GROUPED = new Set(["conflict","slots","stubs"]);
+const attnCount = P => {
+  if(!Array.isArray(P && P.attention)) return 0;
+  const kinds = new Set(); let n = 0;
+  for(const a of P.attention){
+    if(ATTN_GROUPED.has(a.kind)){ if(!kinds.has(a.kind)){ kinds.add(a.kind); n++; } }
+    else n++;
+  }
+  return n;
+};
+const titleFor = (project, n) => (n > 0 ? "("+n+") " : "")
+  + (project ? project+" — roadmap" : "roadmap");
+const FAVICON = (dot) => "data:image/svg+xml," + encodeURIComponent(
+  "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'>"
+  + "<rect width='16' height='16' rx='3' fill='#0e1116'/>"
+  + "<rect x='3' y='4' width='10' height='2' rx='1' fill='#3fb950'/>"
+  + "<rect x='3' y='7' width='7' height='2' rx='1' fill='#d29922'/>"
+  + "<rect x='3' y='10' width='4' height='2' rx='1' fill='#4b5563'/>"
+  + (dot ? "<circle cx='12' cy='12' r='4' fill='#f85149' stroke='#0e1116' stroke-width='1.5'/>" : "")
+  + "</svg>");
+// A notification only after the viewer opted in on this page (our own flag,
+// not just a browser permission granted earlier) and only when the count
+// rises against a settled baseline.
+const shouldNotify = (prev, n, optedIn, perm) => optedIn === true
+  && perm === "granted" && Number.isInteger(prev) && n > prev;
+// </plan50-pure>
+let ATTN_PREV = null;            // settled count to compare against; null = none yet
+let NOTIFY_ON = store.get("rm-notify", false) === true;
+const notifyPerm = () => { try { return Notification.permission; }
+  catch(_){ return "unsupported"; } };
+function syncNotifyBtn(){
+  const b = document.getElementById("notifyBtn"), perm = notifyPerm();
+  const on = NOTIFY_ON && perm === "granted";
+  b.textContent = perm === "unsupported" ? "alerts n/a"
+    : perm === "denied" ? "alerts blocked" : on ? "alerts on" : "alerts off";
+  b.setAttribute("aria-pressed", on ? "true" : "false");
+  b.title = perm === "unsupported" ? "this browser has no notifications"
+    : perm === "denied" ? "notifications are blocked for this page in the browser"
+    : on ? "notify when the attention count rises — click to stop"
+    : "notify me when the attention count rises";
+}
+document.getElementById("notifyBtn").onclick = () => {
+  const perm = notifyPerm();
+  if(perm === "unsupported" || perm === "denied"){ syncNotifyBtn(); return; }
+  if(NOTIFY_ON){ NOTIFY_ON = false; store.set("rm-notify", false); syncNotifyBtn(); return; }
+  // The only place permission is ever requested: this click.
+  const ask = perm === "granted" ? Promise.resolve("granted")
+    : Promise.resolve(Notification.requestPermission());
+  ask.then(p => { NOTIFY_ON = p === "granted"; store.set("rm-notify", NOTIFY_ON);
+    syncNotifyBtn(); }).catch(() => syncNotifyBtn());
+};
+syncNotifyBtn();
+function notifyRise(P, n){
+  const proj = projectOf(P);
+  const body = (P.attention || []).map(a => a.text).slice(0, 4).join("\n");
+  try { const note = new Notification(titleFor(proj, n), {body, tag:"roadmap-attention"});
+    note.onclick = () => { try { window.focus(); } catch(_){} location.hash = R("#/"); };
+  } catch(_){}
+}
+const projectOf = P => ((P.statuses || [])[trunkIdx(P)] || {}).project
+  || (P.merged || {}).project || null;
+PAYLOAD_HOOKS.push((P, restarted) => {
+  const n = attnCount(P);
+  document.title = titleFor(projectOf(P), n);
+  document.getElementById("favicon").href = FAVICON(n > 0);
+  const a = document.getElementById("attnlink");
+  a.href = R("#/");                // plan 57: the needs-you list tops the Roadmap page
+  a.hidden = !n;
+  a.textContent = n ? "⚠ "+n+" need"+(n === 1 ? "s" : "")+" attention" : "";
+  a.title = (P.attention || []).map(x => x.text).join("\n");
+  if(restarted) ATTN_PREV = null;
+  // A mid-scan payload is incomplete (conflicts arrive with the full scan):
+  // never notify from it, never settle the baseline on it.
+  if(P.scanning) return;
+  if(shouldNotify(ATTN_PREV, n, NOTIFY_ON, notifyPerm())) notifyRise(P, n);
+  ATTN_PREV = n;
+});
+// Header meta: "scanning N worktrees" while the first scan runs, and when
+// the data last changed.
+const hhmm = ms => { const d = new Date(ms); return isNaN(d) ? "" :
+  d.toLocaleTimeString([], {hour:"2-digit", minute:"2-digit", second:"2-digit"}); };
+PAYLOAD_HOOKS.push(P => { if(typeof P.root === "string") PROJ_ROOT = P.root; });
+PAYLOAD_HOOKS.push(P => {
+  const sc = P.scanning, hint = document.getElementById("scanhint");
+  const left = sc ? Math.max(0, (sc.total||0) - (sc.done||0)) : 0;
+  hint.hidden = !left;
+  hint.textContent = left ? "scanning "+left+" worktree"+(left === 1 ? "" : "s")+"…" : "";
+  const st = document.getElementById("stamp");
+  st.textContent = P.updated ? "updated "+hhmm(P.updated) : "";
+  st.title = P.updated ? "data last changed "+new Date(P.updated).toString() : "";
+});
+document.getElementById("rootsel").addEventListener("change", e => {
+  const v = e.target.value;
+  VIEW = (v === "trunk" || v === "all") ? v : (parseInt(v, 10) || 0);
+  if(LASTP) render(view(LASTP));   // view switch is local — no reconnect
+  refreshRoute();                  // re-fetch the open pane/page for this root
+});
+// Relative ages ("3h ago") drift without new data; refresh them each minute.
+setInterval(() => { if(LAST && ["roadmap","board"].includes(ROUTE.name)) render(LAST); }, 60000);
+
+// ---- routes (plan 31) -------------------------------------------------
+// Hash routes, so deep links and Back work without any server change:
+//   #/  #/ideas  #/changelog          the three list tabs
+//   #/board                           lane board (plan 37)
+//   #/digest[/<since>]                what changed since 3h|1d|3d|1w|2w|last
+//   #/plan/<id>  #/idea/<n>  #/notes/<root-relative .md path>   full pages
+// The route lives only in the URL; nothing about it is stored.
+const TABS = [["roadmap","Roadmap"],["board","Board"],["ideas","Ideas"],["changelog","Changelog"],
+  ["digest","Digest"],
+  ["versions","Versions"],["graph","Graph"],["health","Health"]];   // plan 49 pages, plan 57 health
+const TABCOUNTS = {};
+const LISTS = ["roadmap","board","ideas","changelog","digest","health"];
+const DIGEST_SINCE = ["3h","1d","3d","1w","2w","last"];
+const paneOf = t => document.getElementById(t==="roadmap" ? "app" : t);
+const rootParam = () => "root=" + viewRoot(null);
+let ROUTE = {name:"roadmap"};
+let PREV_HASH = "";          // where a note page's "back" link goes
+const SCROLL = {};           // list scroll positions, restored on return
+try { history.scrollRestoration = "manual"; } catch(_){}
+
+function parseRoute(h){
+  const parts = String(h||"").replace(/^#\/?/, "").split("/");
+  const head = parts[0] || "";
+  if(head === "projects" && ALLMODE) return {name:"projects"};   // plan 48
+  if(head === "plan" && /^\d+$/.test(parts[1]||"")) return {name:"plan", id:+parts[1]};
+  if(head === "idea" && /^\d+$/.test(parts[1]||"")) return {name:"idea", n:+parts[1]};
+  if(head === "notes" && parts.length > 1){
+    let p = parts.slice(1).join("/");
+    try { p = decodeURIComponent(p); } catch(_){ return {name:"roadmap"}; }
+    return {name:"notes", path:p};
+  }
+  if(head === "ideas" || head === "changelog" || head === "board" || head === "health") return {name:head};
+  // plan 49: #/search/<q>
+  if(head === "search"){
+    let q = parts.slice(1).join("/");
+    try { q = decodeURIComponent(q); } catch(_){ q = ""; }
+    return {name:"search", q};
+  }
+  // plan 49: #/versions, #/version/<v>, #/graph
+  if(head === "versions" || head === "graph") return {name:head};
+  if(head === "version" && /^[\w.+-]{1,64}$/.test(parts[1]||""))
+    return {name:"version", v:parts[1]};
+  if(head === "digest")
+    return {name:"digest", since: DIGEST_SINCE.includes(parts[1]) ? parts[1] : "1d"};
+  return {name:"roadmap"};
+}
+const noteHref = p => "#/notes/" + encodeURIComponent(p).replace(/%2F/g, "/");
+const tabOf = r => r.name === "plan" ? "roadmap" : r.name === "idea" ? "ideas"
+  : LISTS.includes(r.name) ? r.name : NAV_TAB[r.name] || "";
+
+// An in-app link: text only, and only an http(s) URL or a #/ route is ever
+// assigned as href (anything else renders as plain text).
+const SAFE_HREF = /^(https?:\/\/[^\s]+|#\/[^\s]*)$/i;
+function link(href, text, cls){
+  href = R(href);   // plan 48: #/p/<slug> prefix under serve --all
+  if(!SAFE_HREF.test(String(href||""))) return txt("span", cls||null, text);
+  const a = txt("a", cls||null, text);
+  a.href = href;
+  if(/^https?:/i.test(href)){ a.target = "_blank"; a.rel = "noopener noreferrer"; }
+  return a;
+}
+
+function renderTabs(){
+  const cur = tabOf(ROUTE);
+  document.getElementById("tabs").replaceChildren(...TABS.map(([id,label])=>{
+    const a = el("a","tab"+(id===cur?" on":""));
+    a.href = R(id === "roadmap" ? "#/" : "#/"+id);
+    a.appendChild(document.createTextNode(label));
+    if(TABCOUNTS[id] != null) a.appendChild(txt("span","n", TABCOUNTS[id]));
+    return a;
+  }), paletteTab());   // plan 49
+}
+
+function showPane(name){
+  for(const id of [...LISTS, "page", "projects"])
+    (id === "page" ? document.getElementById("page") : paneOf(id)).hidden = id !== name;
+  // The search / lane / chip controls are shared by the list and the board.
+  document.getElementById("rmctrls").hidden = name !== "roadmap" && name !== "board";
+  document.body.classList.toggle("on-board", name === "board");   // plan 37
+}
+
+function onRoute(){
+  const leaving = ROUTE;
+  if(LISTS.includes(leaving.name)) SCROLL[leaving.name] = window.scrollY;
+  ROUTE = parseRoute(enterProject(location.hash));   // plan 48
+  renderTabs();
+  KSEL_IDX = -1;   // plan 49: j/k selection starts over on every route
+  if(ROUTE.name === "projects"){ showHome(); return; }
+  if(LISTS.includes(ROUTE.name)){
+    showPane(ROUTE.name);
+    if(FOCUS_SEARCH && ROUTE.name === "roadmap"){ FOCUS_SEARCH = false;
+      document.getElementById("search").focus(); }
+    if((ROUTE.name === "roadmap" || ROUTE.name === "board" || ROUTE.name === "health") && LAST) render(LAST);
+    const y = SCROLL[ROUTE.name] || 0;
+    const done = () => window.scrollTo(0, y);
+    if(ROUTE.name === "ideas") loadIdeas(done);
+    else if(ROUTE.name === "changelog") loadChangelog(done);
+    else if(ROUTE.name === "digest") loadDigest(done);
+    else done();
+  } else {
+    showPane("page");
+    window.scrollTo(0, 0);
+    renderPage(false);
+  }
+}
+window.addEventListener("hashchange", () => {
+  PREV_HASH = ROUTE.name === "notes" ? PREV_HASH : R(routeHash(ROUTE));
+  onRoute();
+});
+function routeHash(r){
+  return r.name === "plan" ? "#/plan/"+r.id : r.name === "idea" ? "#/idea/"+r.n
+    : r.name === "notes" ? noteHref(r.path) : r.name === "roadmap" ? "#/"
+    : r.name === "digest" ? "#/digest/"+r.since
+    : r.name === "search" ? searchHref(r.q)
+    : r.name === "version" ? "#/version/"+r.v : "#/"+r.name;
+}
+
+// Re-render the open route after an SSE payload or a view switch.
+function refreshRoute(){
+  if(ROUTE.name === "ideas") loadIdeas();
+  else if(ROUTE.name === "changelog") loadChangelog();
+  else if(ROUTE.name === "digest") loadDigest();
+  else if(!LISTS.includes(ROUTE.name)) renderPage(true);
+}
+
+// Fetch → build off-DOM → swap in one go, then put the scroll back, so an
+// SSE refresh never jumps the page. A stale response (route changed while
+// in flight) is dropped.
+let PAGE_SEQ = 0;
+function renderPage(inPlace){
+  const pane = document.getElementById("page");
+  const seq = ++PAGE_SEQ, r = ROUTE;
+  if(!inPlace) pane.replaceChildren(txt("div","empty","loading…"));
+  // A deep link loads before the first SSE payload; which checkout to read
+  // depends on it, so wait — connect()'s first message re-renders the route.
+  if(!LASTP) return;
+  // Never swap the page out from under someone typing in it (plan 49).
+  if(inPlace && pane.contains(document.activeElement)
+     && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return;
+  const build = r.name === "plan" ? planPage(r) : r.name === "idea" ? ideaPage(r)
+    : r.name === "search" ? searchPage(r) : r.name === "version" ? versionPage(r)
+    : r.name === "versions" ? versionsPage() : r.name === "graph" ? graphPage()
+    : notePage(r);
+  build.then(nodes => {
+    if(seq !== PAGE_SEQ) return;
+    const y = window.scrollY;
+    pane.replaceChildren(...nodes);
+    if(inPlace) window.scrollTo(0, y);
+  }).catch(() => {
+    if(seq === PAGE_SEQ && !inPlace)
+      pane.replaceChildren(txt("div","empty","failed to load"));
+  });
+}
+
+const getJSON = url => fetch(API()+url, {cache:"no-store"}).then(r => r.json());
+
+function crumb(backHref, backLabel, path){
+  const c = el("div","crumb");
+  c.appendChild(link(backHref, "← "+backLabel));
+  if(path) c.appendChild(txt("span","path", path));
+  return c;
+}
+function fact(box, key, ...vals){
+  const v = el("span","v");
+  for(const x of vals) if(x) v.appendChild(typeof x === "string" ? txt("span",null,x) : x);
+  if(!v.childNodes.length) return;
+  box.appendChild(txt("span","k", key));
+  box.appendChild(v);
+}
+
+// ---- plan page --------------------------------------------------------
+function planPage(r){
+  // Which checkout to read: the one the current view shows this item from.
+  const items = (LAST && LAST.items) || [];
+  const it = items.find(x => x.id === r.id);
+  return getJSON("/api/item?id="+r.id+"&root="+viewRoot(it)).then(d => {
+    const out = [crumb("#/", "roadmap", d.planPath || "")];
+    if(d.error){ out.push(txt("div","empty", d.error)); return out; }
+    const row = {...(it||{}), ...d};   // list row fields + fresh detail
+    const fly = inFlight(row);
+    // plan 57, answer first: title, one state sentence, the one problem (if
+    // any), the latest claim note, the next command, then the plan itself.
+    // Everything else is under "Details" at the end, once.
+    const head = el("div","phead");
+    const h = el("h2");
+    h.appendChild(txt("span","num", d.displayId || "#"+d.id));
+    h.appendChild(txt("span",null, " "+(d.title||"")));
+    head.appendChild(h);
+    const meta = el("div","pmeta");
+    const lane = laneOf(row);
+    const said = [lane === "done" ? "done" : lane,
+      (row.done||0)+" of "+(row.total||0)+" steps",
+      d.version ? "v"+d.version : "", d.type || ""].filter(Boolean).join(" · ");
+    meta.appendChild(txt("span","state", said));
+    const m = rowMark(row);
+    if(m) meta.appendChild(txt("span","mark"+(m[1] ? " "+m[1] : ""), m[0]));
+    head.appendChild(meta);
+    out.push(head);
+    const c = d.claim || {};
+    if(c.note){
+      const p = el("p","lede");
+      p.appendChild(txt("span","state", "Latest"+(c.owner ? " from "+c.owner : "")
+        +(c.updated ? ", "+c.updated : "")+": "));
+      p.appendChild(document.createTextNode(c.note));
+      out.push(p);
+    }
+    // plan 49: the likely next CLI actions, as text to copy
+    const cmds = cmdBlock("Next step", planCommands(d, row,
+      {slots: LAST && LAST.slots, trunk: trunkName()}), {lead:true});
+    if(cmds) out.push(cmds);
+    // Acceptance state only adds something once a criterion is marked; the
+    // plan text below already lists the criteria themselves.
+    if(d.acceptance && (d.acceptance.met || d.acceptance.failed)
+       && d.acceptance.bullets && d.acceptance.bullets.length)
+      out.push(acceptanceBlock(d.acceptance));
+    // The page header already shows the title, type and version: drop the
+    // plan file's own "# Plan N: title" line and "> Type: … · Target: …" line.
+    const body = String(d.body || "").replace(/^\s*#\s[^\n]*\n(\s*>\s*Type:[^\n]*\n)?/, "");
+    out.push(md(body, d.planPath || ""));
+
+    const facts = el("div","facts");
+    if(c.stage || c.verdict || c.owner || c.branch){
+      const v = [];
+      if(c.stage) v.push(c.stage);
+      if(c.verdict) v.push(c.verdict);
+      if(c.branch) v.push("branch "+c.branch);
+      if(c.owner) v.push("owner "+c.owner+(c.refreshed && age(c.refreshed)
+        ? ", claimed "+age(c.refreshed) : ""));
+      fact(facts, "claim", ...v);
+    }
+    for(const k of ((LAST && LAST.slots && LAST.slots.kinds) || [])){
+      const r = (k.reservations||[]).find(x => x.plan === d.id);
+      if(r) fact(facts, "slot "+k.kind, r.value, r.state+": "+r.detail);
+    }
+    const planLinks = ids => (ids||[]).map(x => link("#/plan/"+x, "#"+x));
+    fact(facts, "depends on", ...planLinks(d.dependsOn));
+    if(d.followUpOf) fact(facts, "follow-up of", ...planLinks([d.followUpOf]));
+    fact(facts, "follow-ups", ...planLinks(d.followUps));
+    for(const w of (d.waitingSteps||[]))
+      fact(facts, "waiting", waitText(w), "step "+w.step,
+        w.on && w.since ? "since "+w.since : "", w.reason || "");
+    if(row.foundIn != null) fact(facts, "found in", ...planLinks([row.foundIn]));
+    fact(facts, "bugs found", ...planLinks(row.bugsFound));
+    fact(facts, "overlaps", ...overlapsOf(d.id));
+    const b = d.branch;
+    if(b) fact(facts, "branch", b.name, b.ahead ? "+"+b.ahead+" ahead" : "",
+      b.behind ? b.behind+" behind" : "", b.merged ? "merged" : "",
+      b.worktree ? "worktree "+base(b.worktree) : "");
+    const off = offPlanOf(d.id);
+    if(off && off.length) fact(facts, "off plan", ...off.map(f => txt("span","mono", f)));
+    else if(off === null) fact(facts, "scope", "the plan lists no files, so nothing is checked");
+    if(d.planPath) fact(facts, "plan file", link(noteHref(d.planPath), d.planPath));
+    if(d.notes && d.notes.length)
+      fact(facts, "notes", ...d.notes.map(n => link(noteHref(n), n)));
+    const more = el("details","more");
+    more.appendChild(txt("summary",null, "Details"));
+    if(facts.childNodes.length) more.appendChild(facts);
+    if(b && (b.commits||[]).length){
+      const box = el("div","commits");
+      box.appendChild(txt("h4",null, "Commits on "+b.name+" not on trunk"));
+      for(const cm of b.commits){
+        const line = el("div","commit");
+        line.appendChild(txt("span","sha", cm.sha||""));
+        const a = txt("span","age", age(cm.date)); a.title = cm.date||"";
+        line.appendChild(a);
+        line.appendChild(txt("span","subj", cm.subject||""));
+        box.appendChild(line);
+      }
+      if(b.ahead > b.commits.length)
+        box.appendChild(txt("div","muted", (b.ahead-b.commits.length)+" more"));
+      more.appendChild(box);
+    }
+    if(more.childNodes.length > 1) out.push(more);
+    return out;
+  });
+}
+
+// ---- idea page --------------------------------------------------------
+function ideaPage(r){
+  return getJSON("/api/ideas?"+rootParam()).then(d => {
+    const out = [crumb("#/ideas", "ideas", d.file || "")];
+    const b = (d.bullets||[]).find(x => x.index === r.n);
+    if(!b){ out.push(txt("div","empty", d.error || "no idea #"+r.n
+      +" — the incubator may have changed")); return out; }
+    const head = el("div","phead");
+    const h = el("h2");
+    h.appendChild(txt("span","num", "idea "+b.index));
+    h.appendChild(txt("span",null, b.title || b.body));
+    head.appendChild(h);
+    out.push(head);
+    if((b.body || "") !== (b.title || "")){   // body carries more than the title
+      const bullet = el("div","md");
+      const p = el("p"); inline(p, b.body || "", d.file || ""); bullet.appendChild(p);
+      out.push(bullet);
+    }
+    const hint = el("div","hint");
+    hint.appendChild(document.createTextNode("Promote to a plan (the dashboard is read-only — run it in a terminal): "));
+    hint.appendChild(txt("code",null, "roadmap.py promote --index "+b.index+" --type feature"));
+    out.push(hint);
+    if(!b.note) return out;
+    const facts = el("div","facts");
+    fact(facts, "notes", link(noteHref(b.note), b.note));
+    out.push(facts);
+    return getJSON("/api/note?path="+encodeURIComponent(b.note)+"&"+rootParam())
+      .then(n => { out.push(n.error ? txt("div","muted", n.error)
+        : md(n.body || "", b.note)); return out; });
+  });
+}
+
+// ---- note page --------------------------------------------------------
+function notePage(r){
+  const back = PREV_HASH || "#/";
+  return getJSON("/api/note?path="+encodeURIComponent(r.path)+"&"+rootParam())
+    .then(n => [crumb(back, "back", r.path),
+      n.error ? txt("div","empty", n.error) : md(n.body || "", r.path)]);
+}
+
+// ---- markdown → DOM -----------------------------------------------------
+// A deliberately small renderer for plan and note files: headings, lists
+// (nested, with [ ] / [x] tasks), fenced code, quotes, tables, rules and
+// inline code / bold / italic / strike / links. It only ever creates
+// elements and text nodes — no HTML string is parsed — and links go through
+// link(): http(s) URLs and .md paths that map to a #/notes route, nothing else.
+const FM = /^---\r?\n[\s\S]*?\r?\n---\r?\n?/;
+function md(src, path){
+  const root = el("div","md");
+  const lines = String(src).replace(FM, "").replace(/\r\n?/g, "\n").split("\n");
+  let i = 0, para = null, stack = [];   // stack: [{indent, list}]
+  const flush = () => { para = null; };
+  const closeLists = () => { stack = []; };
+  const appendBlock = node => { flush(); closeLists(); root.appendChild(node); };
+  while(i < lines.length){
+    const line = lines[i];
+    let m;
+    if((m = line.match(/^\s*(```|~~~)/))){
+      const fence = m[1], buf = [];
+      i++;
+      while(i < lines.length && !lines[i].trim().startsWith(fence)) buf.push(lines[i++]);
+      i++;
+      const pre = el("pre"); pre.appendChild(txt("code",null, buf.join("\n")));
+      appendBlock(pre); continue;
+    }
+    if(!line.trim()){ flush(); i++; continue; }
+    if((m = line.match(/^(#{1,6})\s+(.*?)\s*#*\s*$/))){
+      const h = el("h"+m[1].length); inline(h, m[2], path); appendBlock(h); i++; continue;
+    }
+    if(/^\s{0,3}([-*_])(\s*\1){2,}\s*$/.test(line)){ appendBlock(el("hr")); i++; continue; }
+    if(/^\s*>/.test(line)){
+      const buf = [];
+      while(i < lines.length && /^\s*>/.test(lines[i]))
+        buf.push(lines[i++].replace(/^\s*>\s?/, ""));
+      const q = el("blockquote"), inner = md(buf.join("\n"), path);
+      inner.className = "";
+      q.appendChild(inner);
+      appendBlock(q); continue;
+    }
+    if(/^\s*\|.*\|\s*$/.test(line) && i+1 < lines.length
+       && /^\s*\|?\s*:?-{2,}/.test(lines[i+1])){
+      const cells = l => l.trim().replace(/^\||\|$/g, "").split("|").map(c => c.trim());
+      const table = el("table"), thead = el("thead"), tbody = el("tbody");
+      const hr = el("tr");
+      for(const c of cells(line)){ const th = el("th"); inline(th, c, path); hr.appendChild(th); }
+      thead.appendChild(hr); table.appendChild(thead);
+      i += 2;
+      while(i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])){
+        const tr = el("tr");
+        for(const c of cells(lines[i++])){ const td = el("td"); inline(td, c, path); tr.appendChild(td); }
+        tbody.appendChild(tr);
+      }
+      table.appendChild(tbody);
+      const w = el("div","tw"); w.appendChild(table); appendBlock(w); continue;
+    }
+    if((m = line.match(/^(\s*)([-*+]|\d+[.)])\s+(.*)$/))){
+      flush();
+      const indent = m[1].replace(/\t/g, "    ").length;
+      const ordered = /\d/.test(m[2]);
+      while(stack.length && indent < stack[stack.length-1].indent) stack.pop();
+      let top = stack[stack.length-1];
+      if(!top || indent > top.indent){
+        const list = el(ordered ? "ol" : "ul");
+        if(top && top.list.lastChild) (top.list.lastChild.querySelector(":scope > .tbody")
+          || top.list.lastChild).appendChild(list);
+        else root.appendChild(list);
+        top = {indent, list}; stack.push(top);
+      }
+      const li = el("li");
+      const task = m[3].match(/^\[([ xX~])\]\s*(.*)$/);
+      if(task){
+        const done = /[xX]/.test(task[1]), wait = task[1] === "~";
+        li.className = "task" + (done ? " done" : "") + (wait ? " waiting" : "");
+        li.appendChild(txt("span","box", done ? "✓" : wait ? "⏳" : "○"));
+        const body = el("span","tbody"), t = el("span","ttext");
+        inline(t, task[2], path); body.appendChild(t); li.appendChild(body);
+      } else inline(li, m[3], path);
+      top.list.appendChild(li);
+      i++; continue;
+    }
+    // continuation of a list item or a paragraph
+    if(stack.length && /^\s+\S/.test(line) && !para){
+      const li = stack[stack.length-1].list.lastChild;
+      const tgt = (li && li.querySelector(":scope > .tbody > .ttext")) || li;
+      if(tgt){ tgt.appendChild(document.createTextNode(" ")); inline(tgt, line.trim(), path); }
+      i++; continue;
+    }
+    closeLists();
+    if(!para){ para = el("p"); root.appendChild(para); }
+    else para.appendChild(document.createTextNode(" "));
+    inline(para, line.trim(), path);
+    i++;
+  }
+  return root;
+}
+
+// Resolve a markdown link target to an in-app route or a safe external URL;
+// "" means render the link text only.
+function mdHref(ref, path){
+  ref = String(ref||"").trim();
+  if(/^https?:\/\//i.test(ref)) return ref;
+  if(/^#\//.test(ref)) return ref;
+  const clean = ref.split("#")[0];
+  if(!/\.md$/i.test(clean) || /^[a-z]+:/i.test(clean) || clean.startsWith("/")) return "";
+  const dir = String(path||"").split("/").slice(0, -1);
+  const tries = [clean.startsWith(".roadmap/") ? [] : dir, [".roadmap"], []];
+  for(const b of tries){
+    const out = [];
+    let ok = true;
+    for(const seg of [...b, ...clean.split("/")]){
+      if(seg === "" || seg === ".") continue;
+      if(seg !== "..") out.push(seg);
+      else if(out.length) out.pop();
+      else { ok = false; break; }   // climbs above the project root
+    }
+    const p = out.join("/");
+    if(ok && /^\.roadmap\/(notes|plans)\/[^/]+\.md$/.test(p)) return noteHref(p);
+  }
+  return "";
+}
+
+const INLINE_SRC = /(`+)([\s\S]*?[^`])\1(?!`)|!?\[([^\]]*)\]\(([^)\s]*)(?:\s+"[^"]*")?\)|\*\*([^*]+)\*\*|__([^_]+)__|~~([^~]+)~~|\*([^*\s][^*]*)\*|(?<![\w])_([^_\s][^_]*)_(?![\w])|(https?:\/\/[^\s<>()]+[^\s<>().,;:!?'"])/g;
+function inline(parent, s, path){
+  s = String(s||"");
+  let last = 0, m;
+  const re = new RegExp(INLINE_SRC.source, "g");   // own lastIndex: inline() recurses
+  while((m = re.exec(s))){
+    if(m.index > last) parent.appendChild(document.createTextNode(s.slice(last, m.index)));
+    if(m[1]) parent.appendChild(txt("code",null, m[2]));
+    else if(m[4] !== undefined && m[0][0] !== "!"){
+      const href = mdHref(m[4], path);
+      const a = href ? link(href, "") : el("span");
+      inline(a, m[3], path); parent.appendChild(a);
+    }
+    else if(m[4] !== undefined) parent.appendChild(document.createTextNode(m[3] || ""));
+    else if(m[5] || m[6]){ const b = el("strong"); inline(b, m[5]||m[6], path); parent.appendChild(b); }
+    else if(m[7]){ const d = el("del"); inline(d, m[7], path); parent.appendChild(d); }
+    else if(m[8] || m[9]){ const e = el("em"); inline(e, m[8]||m[9], path); parent.appendChild(e); }
+    else if(m[10]) parent.appendChild(link(m[10], m[10]));
+    last = re.lastIndex;
+  }
+  if(last < s.length) parent.appendChild(document.createTextNode(s.slice(last)));
+}
+
+// ---- list tabs ----------------------------------------------------------
+function loadIdeas(after){
+  const pane = document.getElementById("ideas");
+  getJSON("/api/ideas?"+rootParam()).then(d=>{
+    const items = d.bullets || [];
+    TABCOUNTS.ideas = items.length; renderTabs();
+    if(!items.length){
+      pane.replaceChildren(txt("div","empty",
+        d.error || "no ideas parked yet — /roadmap-idea · /roadmap-idea"));
+      return;
+    }
+    const out = [txt("div","srcfile", d.file || "")];
+    for(const b of items){
+      const row = el("div","idea");
+      row.appendChild(txt("span","bullet","•"));
+      row.appendChild(link("#/idea/"+b.index, b.title || b.body, "body"));
+      if(b.note) row.appendChild(txt("span","badge","notes"));
+      out.push(row);
+    }
+    const y = window.scrollY;
+    pane.replaceChildren(...out);
+    if(!after) window.scrollTo(0, y);
+  }).catch(()=>pane.replaceChildren(txt("div","empty","failed to load ideas")))
+    .finally(()=>{ if(after) after(); });
+}
+
+function loadChangelog(after){
+  const pane = document.getElementById("changelog");
+  getJSON("/api/changelog?"+rootParam()).then(d=>{
+    const vers = Array.isArray(d) ? d : [];
+    TABCOUNTS.changelog = vers.length; renderTabs();
+    if(!vers.length){
+      pane.replaceChildren(txt("div","empty",
+        (d && d.error) || "nothing user-facing published yet"));
+      return;
+    }
+    const y = window.scrollY;
+    pane.replaceChildren(...vers.map(v=>{
+      const sec = el("section","rel");
+      const h = el("h3");
+      h.appendChild(document.createTextNode("v"+v.version));
+      if(v.date) h.appendChild(txt("span","date", v.date));
+      h.appendChild(txt("span","pill", v.released ? "released" : "in progress"));
+      sec.appendChild(h);
+      if(v.notes) sec.appendChild(txt("div","blurb", v.notes));
+      for(const [name, rows] of Object.entries(v.sections||{})){
+        const box = el("div","sec");
+        box.appendChild(txt("h4",null,name));
+        for(const r of rows)
+          box.appendChild(txt("div", r.pending?"pending":null,
+            (r.pending?"◦ ":"• ")+r.text));
+        sec.appendChild(box);
+      }
+      if(v.rollup) sec.appendChild(txt("div","srcfile",
+        "…plus internal changes not shown here"));
+      return sec;
+    }));
+    if(!after) window.scrollTo(0, y);
+  }).catch(()=>pane.replaceChildren(txt("div","empty","failed to load changelog")))
+    .finally(()=>{ if(after) after(); });
+}
+
+// ---- digest (plan 45) -----------------------------------------------------
+// The CLI digest for the viewed checkout; the selector rewrites the route, so
+// the window lives in the URL only. Rows arrive pre-formatted (rmdigest.sections).
+function digestNodes(d, since){
+  const head = el("div","dghead");
+  const sel = el("select");
+  sel.title = "show changes since";
+  for(const o of (d.options || DIGEST_SINCE)){
+    const opt = txt("option", null, o === "last" ? "since my last digest" : "last "+o);
+    opt.value = o;
+    if(o === since) opt.selected = true;
+    sel.appendChild(opt);
+  }
+  sel.addEventListener("change", () => { location.hash = R("#/digest/"+sel.value); });
+  head.appendChild(sel);
+  if(d.since) head.appendChild(txt("span","srcfile",
+    "since "+String(d.since).replace("T"," ").slice(0,16)+"Z"
+    + (d.label ? " ("+d.label+")" : "")
+    + (d.baseline && d.baseline.sha ? " · baseline "+d.baseline.sha : "")));
+  const out = [head];
+  if(d.error){ out.push(txt("div","empty", d.error)); return out; }
+  if(d.git === false) out.push(txt("div","srcfile",
+    "not a git repo — only runs and attention can be reported"));
+  const secs = d.sections || [];
+  if(!secs.length) out.push(txt("div","empty","nothing changed in this window"));
+  for(const s of secs){
+    const box = el("div","dgsec "+s.key);
+    box.appendChild(txt("h4", null, s.title+" ("+s.rows.length+")"));
+    for(const r of s.rows){
+      const row = el("div");
+      row.appendChild(r.id != null ? link("#/plan/"+r.id, r.text) : txt("span",null,r.text));
+      box.appendChild(row);
+    }
+    out.push(box);
+  }
+  return out;
+}
+
+function loadDigest(after){
+  const pane = document.getElementById("digest");
+  const since = ROUTE.since || "1d";
+  getJSON("/api/digest?since="+encodeURIComponent(since)+"&"+rootParam()).then(d=>{
+    const att = (d.sections || []).find(s => s.key === "attention");
+    TABCOUNTS.digest = att ? att.rows.length : null; renderTabs();
+    const y = window.scrollY;
+    pane.replaceChildren(...digestNodes(d, since));
+    if(!after) window.scrollTo(0, y);
+  }).catch(()=>pane.replaceChildren(txt("div","empty","failed to load digest")))
+    .finally(()=>{ if(after) after(); });
+}
+
+// ---- all-projects home (plan 48) ----------------------------------------------
+// Under `serve --all` the page opens on #/projects: one card per registered
+// project. Opening one routes #/p/<slug>/<any normal route>; every in-app link
+// goes through R() so it keeps the prefix, and every fetch/stream goes to the
+// server's /p/<slug>/ mount via API(). In a single-project dashboard ALLMODE is
+// false and both are identities, so nothing changes there.
+const ALLMODE = (document.querySelector('meta[name="roadmap-mode"]') || {}).content === "all";
+let PROJ = null;            // slug of the open project (serve --all only)
+let PROJ_ROOT = null;       // its absolute root, from its /api/status payload (bug 52)
+let HOME_TIMER = null;
+const API = () => PROJ == null ? "" : "/p/" + encodeURIComponent(PROJ);
+const R = h => (ALLMODE && PROJ != null && /^#\//.test(h||"")
+  && !/^#\/(p\/|projects$)/.test(h)) ? "#/p/" + encodeURIComponent(PROJ) + h.slice(1) : h;
+// "#/p/<slug>/plan/3" -> {slug, hash:"#/plan/3"}; anything else is the home.
+function projOf(h){
+  const m = String(h||"").match(/^#\/?p\/([^/]+)(\/.*)?$/);
+  if(!m) return {slug:null, hash:"#/projects"};
+  try { return {slug: decodeURIComponent(m[1]), hash: "#" + (m[2] || "/")}; }
+  catch(_){ return {slug:null, hash:"#/projects"}; }
+}
+function enterProject(h){
+  if(!ALLMODE) return h;
+  const p = projOf(h);
+  if(p.slug !== PROJ) switchProject(p.slug);
+  return p.hash;
+}
+function switchProject(slug){
+  if(es){ es.close(); es = null; }
+  // plan 50 state is per server/project: a new project is not a restart, its
+  // attention count is not a rise, and the old project's banner/retry go.
+  clearTimeout(RETRY_T); RETRY_T = null; clearTimeout(DOWN_T); DOWN_T = null;
+  RETRY_N = 0; INSTANCE = null; ATTN_PREV = null; connBanner(false);
+  document.getElementById("cbcmd").textContent = "claude-roadmap serve --all";
+  document.getElementById("attnlink").hidden = true;
+  document.getElementById("favicon").href = FAVICON(false);
+  document.title = titleFor(slug, 0);
+  PROJ = slug; PROJ_ROOT = null; loadFilt(); loadBoard(); loadPanels();
+  for(const k of Object.keys(BOARD_PICK)) delete BOARD_PICK[k];
+  LASTP = null; LAST = null; VIEW = DEFAULT_VIEW; PREV_HASH = "";
+  for(const o of [TABCOUNTS, SCROLL]) for(const k of Object.keys(o)) delete o[k];
+  document.getElementById("homelink").hidden = slug == null;
+  document.getElementById("app").replaceChildren(txt("div","empty","connecting…"));
+  document.getElementById("page").replaceChildren();
+  for(const id of ["ideas","changelog","digest"]) paneOf(id).replaceChildren();
+  for(const id of ["cver","overall"]) document.getElementById(id).textContent = "";
+  document.getElementById("project").textContent = slug == null ? "all projects" : slug;
+  document.getElementById("counts").replaceChildren();
+  document.getElementById("hbarfill").style.width = "0%";
+  document.getElementById("rootsel").hidden = true;
+  if(slug != null) connect();
+}
+function showHome(){
+  showPane("projects");
+  document.getElementById("tabs").replaceChildren();
+  document.getElementById("project").textContent = "all projects";
+  window.scrollTo(0, 0);
+  loadHome();
+  if(!HOME_TIMER)   // the server recomputes a card at most every 10 s anyway
+    HOME_TIMER = setInterval(() => { if(ROUTE.name === "projects") loadHome(); }, 10000);
+}
+const homeSort = (a, b) => (a.exists === false) - (b.exists === false)
+  || String(b.lastActivity||"").localeCompare(String(a.lastActivity||""))
+  || String(a.name||"").localeCompare(String(b.name||""));
+function homeCard(c){
+  const gone = c.exists === false;
+  const card = el(gone ? "div" : "a", "pcard" + (gone ? " gone" : ""));
+  if(!gone) card.href = "#/p/" + encodeURIComponent(c.slug) + "/";
+  card.title = c.path || "";
+  const head = el("div","ph");
+  head.appendChild(txt("span","pn", c.project || c.name || c.slug));
+  if(c.version) head.appendChild(txt("span","pv", "v"+c.version));
+  if(!gone && c.total) head.appendChild(txt("span","pp", c.pct+"% ("+c.done+"/"+c.total+")"));
+  card.appendChild(head);
+  if(gone){
+    card.appendChild(txt("div","pa", "path missing — hide it with: roadmap.py projects --forget "+c.slug));
+  } else {
+    const bar = el("div","pbar"), fill = el("i");
+    fill.style.width = (c.pct || 0) + "%";
+    bar.appendChild(fill); card.appendChild(bar);
+    const counts = el("div","pc");
+    const n = (v, label) => counts.appendChild(txt("span", v ? "hot" : null, v+" "+label));
+    n(c.items || 0, "items"); n(c.inFlight || 0, "in flight");
+    n(c.blocked || 0, "blocked"); n(c.waiting || 0, "waiting");
+    card.appendChild(counts);
+    for(const a of (c.alerts || [])) card.appendChild(txt("div","pa "+(a.kind||""), "⚠ "+a.text));
+    if(c.error) card.appendChild(txt("div","pa", c.error));
+  }
+  const foot = el("div","pf");
+  foot.appendChild(txt("span","path", c.path || ""));
+  const when = age(c.lastActivity || c.lastSeen);
+  if(when) foot.appendChild(txt("span","age", when));
+  card.appendChild(foot);
+  return card;
+}
+function homeNodes(d){
+  const cards = (d && d.projects) || [];
+  if(!cards.length) return [txt("div","empty",
+    "no projects registered yet — run roadmap.py status in a project to add it here")];
+  return [...cards].sort(homeSort).map(homeCard);
+}
+function loadHome(){
+  const pane = document.getElementById("projects");
+  getJSON("/api/projects").then(d => {
+    if(ROUTE.name !== "projects") return;
+    const n = ((d && d.projects) || []).length;
+    document.getElementById("overall").textContent = n + " project" + (n === 1 ? "" : "s");
+    pane.replaceChildren(...homeNodes(d));
+    stale(false);
+  }).catch(() => { stale(true);
+    if(!pane.childNodes.length) pane.replaceChildren(txt("div","empty","failed to load projects")); });
+}
+
+// ---- navigation (plan 49) -------------------------------------------------
+// Full-text search page (#/search/<q>): /api/search runs the CLI search over
+// titles, item notes, plan bodies, ideas and notes files; hits are grouped
+// by the page they open, the match highlighted with a <mark> text node.
+const searchHref = q => "#/search/" + encodeURIComponent(String(q||"").trim());
+const SNIPS_SHOWN = 5;
+function hl(parent, s, m){
+  s = String(s||"");
+  if(!Array.isArray(m) || !(m[0] >= 0) || !(m[1] > m[0]) || m[1] > s.length){
+    parent.appendChild(document.createTextNode(s)); return parent; }
+  parent.appendChild(document.createTextNode(s.slice(0, m[0])));
+  parent.appendChild(txt("mark", null, s.slice(m[0], m[1])));
+  parent.appendChild(document.createTextNode(s.slice(m[1])));
+  return parent;
+}
+// Group hits by target page, in first-hit order: plan, idea, note, other.
+function groupHits(hits){
+  const groups = [], at = {};
+  for(const h of (hits||[])){
+    const key = h.id != null ? "p"+h.id : h.idea != null ? "i"+h.idea
+      : h.path ? "n"+h.path : "x"+h.ref;
+    if(!(key in at)){
+      const href = h.id != null ? "#/plan/"+h.id : h.idea != null ? "#/idea/"+h.idea
+        : h.path ? noteHref(h.path) : "";
+      at[key] = groups.length;
+      groups.push({key, href, id:h.id, idea:h.idea, path:h.path, title:h.title,
+        kind:h.kind, hits:[]});
+    }
+    groups[at[key]].hits.push(h);
+  }
+  return groups;
+}
+function searchNodes(d, q, items){
+  const box = el("div","phead");
+  const inp = el("input","fts");
+  inp.type = "search"; inp.value = q; inp.placeholder = "search plans, notes, ideas…";
+  inp.autocomplete = "off";
+  inp.addEventListener("keydown", e => {
+    if(e.key === "Enter" && inp.value.trim()) location.hash = R(searchHref(inp.value)); });
+  box.appendChild(inp);
+  const out = [crumb("#/", "roadmap", ""), box];
+  if(!q){ out.push(txt("div","srcfile","type a word and press Enter")); return out; }
+  if(d.error){ out.push(txt("div","empty", d.error)); return out; }
+  const groups = groupHits(d.hits);
+  out.push(txt("div","srcfile", (d.total||0)+" match"+(d.total === 1 ? "" : "es")
+    +" in "+groups.length+" place"+(groups.length === 1 ? "" : "s")+" for “"+q+"”"
+    +(d.truncated ? " — first "+(d.hits||[]).length+" shown" : "")));
+  if(!groups.length) out.push(txt("div","empty","nothing matches “"+q+"”"));
+  const byId = {};
+  for(const it of (items||[])) byId[it.id] = it;
+  for(const g of groups){
+    const grp = el("div","hitgrp");
+    const hh = el("div","hh");
+    const it = g.id != null ? byId[g.id] : null;
+    const label = g.id != null ? ((it && it.displayId) || "#"+g.id)+" "+(g.title || (it && it.title) || "")
+      : g.idea != null ? "idea "+g.idea : g.path || g.key.slice(1);
+    hh.appendChild(link(g.href, label));
+    hh.appendChild(txt("span","badge", g.id != null ? "plan" : g.kind));
+    grp.appendChild(hh);
+    for(const h of g.hits.slice(0, SNIPS_SHOWN)){
+      const row = el("div","hit");
+      row.appendChild(txt("span","hl", h.kind === "item" ? (h.field || "item")
+        : h.line != null ? "line "+h.line : h.kind));
+      row.appendChild(hl(el("span","hs"), h.snippet, h.match));
+      grp.appendChild(row);
+    }
+    if(g.hits.length > SNIPS_SHOWN)
+      grp.appendChild(txt("div","srcfile", "+"+(g.hits.length-SNIPS_SHOWN)+" more in here"));
+    out.push(grp);
+  }
+  return out;
+}
+function searchPage(r){
+  if(!r.q) return Promise.resolve(searchNodes({hits:[], total:0}, "", []));
+  return getJSON("/api/search?q="+encodeURIComponent(r.q)+"&"+rootParam())
+    .then(d => searchNodes(d, r.q, (LAST && LAST.items) || []));
+}
+
+// Copy-command buttons: the exact text shown is what gets copied. The page
+// never runs anything — commands go to the clipboard for a terminal.
+const CLI = "roadmap.py";
+const sh = s => /^[\w@%+=:,.\/-]+$/.test(String(s)) ? String(s)
+  : "'"+String(s).replace(/'/g, "'\\''")+"'";
+// Bug 52: under serve --all a copied command must run from any cwd, so it is
+// prefixed with `cd <project root> &&`. Single-project output is unchanged.
+const inRoot = cmd => (typeof ALLMODE !== "undefined" && ALLMODE && PROJ_ROOT)
+  ? "cd " + sh(PROJ_ROOT) + " && " + cmd : cmd;
+function copyText(s, btn){
+  const ok = () => { btn.textContent = "copied"; btn.classList.add("ok");
+    setTimeout(() => { btn.textContent = "copy"; btn.classList.remove("ok"); }, 1200); };
+  const fallback = () => {   // no clipboard API: select the shown text instead
+    try { const r = document.createRange(); r.selectNodeContents(btn.previousSibling);
+      const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+      if(document.execCommand("copy")) ok(); else btn.textContent = "select + copy";
+    } catch(_){ btn.textContent = "select + copy"; } };
+  if(navigator.clipboard && navigator.clipboard.writeText)
+    navigator.clipboard.writeText(s).then(ok, fallback);
+  else fallback();
+}
+function cmdBlock(title, cmds, opts){
+  if(!cmds.length) return null;
+  const box = el("section","cmds");
+  box.appendChild(txt("h4",null, title));
+  // plan 57: with {lead:true} show one command (the first that acts on this
+  // item, not the generic `next`) and fold the rest under "more commands".
+  let shown = cmds, rest = [];
+  if(opts && opts.lead && cmds.length > 1){
+    const i = Math.max(0, cmds.findIndex(c => !/ next( |$)/.test(c.cmd)));
+    shown = [cmds[i]]; rest = cmds.filter((_, j) => j !== i);
+  }
+  const addRows = (into, list) => { for(const c of list){
+    const row = el("div","cmd");
+    if(c.why) row.appendChild(txt("span","why", c.why));
+    const full = inRoot(c.cmd);      // bug 52: runnable from any cwd under serve --all
+    row.appendChild(txt("code",null, full));
+    const b = txt("button","copy","copy");
+    b.type = "button"; b.title = "copy: "+full;
+    b.addEventListener("click", () => copyText(full, b));
+    row.appendChild(b);
+    into.appendChild(row);
+  } };
+  addRows(box, shown);
+  if(rest.length){
+    const more = el("details","more");
+    more.appendChild(txt("summary",null, rest.length+" more commands"));
+    addRows(more, rest);
+    box.appendChild(more);
+  }
+  return box;
+}
+function versionCommands(v, items){
+  const open = (items||[]).some(it => laneOf(it) !== "done");
+  const waiting = (items||[]).some(it => laneOf(it) === "waiting");
+  const out = [];
+  if(open) out.push({why:"next unblocked item in this version",
+    cmd:CLI+" next --version "+sh(v)});
+  out.push({why: open ? "release (refuses while items are open)" : "release this version",
+    cmd:CLI+" release --version "+sh(v)});
+  if(waiting) out.push({why:"release, moving waiting steps into follow-ups",
+    cmd:CLI+" release --version "+sh(v)+" --with-waiting"});
+  return out;
+}
+
+// Version pages: #/versions (index, from the streamed status) and
+// #/version/<v> (items by lane, forecast, changelog preview, release command).
+const NAV_TAB = {versions:"versions", version:"versions", graph:"graph"};
+const vkeyOf = v => String(v).split(".").map(n => parseInt(n,10)||0);
+function vcmpDesc(a, b){
+  const A = vkeyOf(a), B = vkeyOf(b);
+  for(let i = 0; i < Math.max(A.length, B.length); i++){
+    const d = (B[i]||0)-(A[i]||0); if(d) return d; }
+  return 0;
+}
+function versionRows(items, cur, forecast){
+  const by = {};
+  for(const it of (items||[])) (by[it.version] ||= []).push(it);
+  return Object.keys(by).sort(vcmpDesc).map(v => {
+    const its = by[v];
+    const done = its.reduce((a,i)=>a+(i.done||0),0), total = its.reduce((a,i)=>a+(i.total||0),0);
+    return {v, n:its.length, done, total, pct: total ? Math.round(100*done/total) : 0,
+      open: its.filter(i => laneOf(i) !== "done").length, current: v === cur,
+      forecast: (forecast||{})[v] || null};
+  });
+}
+function versionsPage(){
+  const d = LAST || {};
+  const out = [crumb("#/", "roadmap", "")];
+  const rows = versionRows(d.items, d.currentVersion, d.forecast);
+  if(!rows.length){ out.push(txt("div","empty","no versions yet")); return Promise.resolve(out); }
+  for(const r of rows){
+    const row = el("div","vrow");
+    const t = el("span","title");
+    t.appendChild(link("#/version/"+r.v, "v"+r.v+(r.current ? " · current" : "")));
+    t.appendChild(txt("span","muted", r.n+" item"+(r.n === 1 ? "" : "s")
+      +(r.open ? " · "+r.open+" open" : " · all done")));
+    if(r.forecast) t.appendChild(forecastTag(r.forecast));
+    row.appendChild(t);
+    const bar = el("span","bar"), fill = el("i"); fill.style.width = r.pct+"%";
+    bar.appendChild(fill); row.appendChild(bar);
+    row.appendChild(txt("span","frac", r.pct+"% · "+r.done+"/"+r.total));
+    out.push(row);
+  }
+  return Promise.resolve(out);
+}
+function versionNodes(d){
+  const out = [crumb("#/versions", "versions", "")];
+  if(d.error){ out.push(txt("div","empty", d.error)); return out; }
+  const items = d.items || [];
+  const head = el("div","phead");
+  const h = el("h2");
+  h.appendChild(txt("span",null, "v"+d.version));
+  if(d.version === d.currentVersion) h.appendChild(txt("span","num","current"));
+  head.appendChild(h);
+  const meta = el("div","pmeta");
+  const pct = d.total ? Math.round(100*d.done/d.total) : 0;
+  const bar = el("span","bar"), fill = el("i"); fill.style.width = pct+"%";
+  bar.appendChild(fill); meta.appendChild(bar);
+  meta.appendChild(txt("span","frac", pct+"% · "+(d.done||0)+"/"+(d.total||0)));
+  meta.appendChild(txt("span","badge", items.length+" item"+(items.length === 1 ? "" : "s")));
+  if(d.date) meta.appendChild(txt("span","badge", "released "+d.date));
+  if(d.forecast) meta.appendChild(forecastTag(d.forecast));
+  head.appendChild(meta);
+  if(d.forecast){ const b = burnDown(d.forecast); if(b) head.appendChild(b); }
+  out.push(head);
+  const cmds = cmdBlock("commands to copy", versionCommands(d.version, items));
+  if(cmds) out.push(cmds);
+  const by = {};
+  for(const it of items) (by[laneOf(it)] ||= []).push(it);
+  const lanes = [...LANES.filter(l => by[l]), ...Object.keys(by).filter(l => !LANES.includes(l))];
+  for(const l of lanes){
+    const g = el("section","lanegrp");
+    const h4 = el("h4");
+    h4.appendChild(txt("span","lane lg-"+(LANE_GROUP[l]||"plan"), l));
+    h4.appendChild(txt("span","muted", String(by[l].length)));
+    g.appendChild(h4);
+    for(const it of by[l].sort((a,b) => a.id-b.id)) g.appendChild(itemRow(it));
+    out.push(g);
+  }
+  const prev = (title, body, none) => {
+    const box = el("section","clprev");
+    box.appendChild(txt("h4",null, title));
+    box.appendChild(body ? md(body, "") : txt("div","srcfile", none));
+    return box;
+  };
+  out.push(prev("changelog preview — public (CHANGELOG.md)", d.public,
+    d.summary ? "" : "nothing public in this version — it rolls up as behind-the-scenes work"));
+  out.push(prev("changelog preview — internal (CHANGELOG.internal.md)", d.internal,
+    "no internal entries"));
+  if(d.changelogError) out.push(txt("div","srcfile", "changelog: "+d.changelogError));
+  return out;
+}
+function versionPage(r){
+  return getJSON("/api/version?v="+encodeURIComponent(r.v)+"&"+rootParam())
+    .then(versionNodes);
+}
+
+// Dependency graph (#/graph): dependsOn edges among the open versions'
+// items, laid out in layers left to right (a dependency sits left of what
+// needs it), computed here — no library. Nodes take their lane colour; an
+// edge whose dependency is unfinished, into an unfinished item, is a
+// blocking link and draws red, and a blocked item gets a dashed red border.
+// Only items with an edge are drawn; done dependencies outside the open
+// versions appear faded for context. Click (or Enter on) a node opens it.
+const GRAPH = {NW:176, NH:40, GX:56, GY:14, PAD:8};
+function graphModel(items){
+  const all = items || [], byId = {};
+  for(const it of all) byId[it.id] = it;
+  const openV = new Set(all.filter(i => laneOf(i) !== "done").map(i => i.version));
+  const scope = new Set(all.filter(i => openV.has(i.version)).map(i => i.id));
+  const deps = id => ((byId[id] && byId[id].dependsOn) || []).filter(d => byId[d] && d !== id);
+  const edges = [], used = new Set();
+  for(const id of [...scope].sort((a,b) => a-b)) for(const d of deps(id)){
+    const blocking = laneOf(byId[d]) !== "done" && laneOf(byId[id]) !== "done";
+    edges.push({from:d, to:id, blocking}); used.add(d); used.add(id);
+  }
+  // Longest-path layering; a cycle (the CLI refuses them, but files can be
+  // hand-edited) is cut where it is met instead of recursing forever.
+  const layer = {}, onPath = new Set();
+  const L = id => {
+    if(id in layer) return layer[id];
+    if(onPath.has(id)) return -1;
+    onPath.add(id);
+    let l = 0;
+    for(const d of deps(id)) if(used.has(d)) l = Math.max(l, L(d)+1);
+    onPath.delete(id);
+    return layer[id] = l;
+  };
+  const ids = [...used].sort((a,b) => a-b);
+  ids.forEach(L);
+  const cols = [];
+  for(const id of ids) (cols[layer[id]] ||= []).push(id);
+  // Order each column by the mean row of its dependencies (barycentre), so
+  // edges run mostly straight; ties keep id order.
+  const row = {};
+  cols.forEach((col, c) => {
+    if(c) col.sort((a,b) => {
+      const bc = id => { const ps = deps(id).filter(d => d in row);
+        return ps.length ? ps.reduce((s,d) => s+row[d], 0)/ps.length : Infinity; };
+      return (bc(a)-bc(b)) || (a-b);
+    });
+    col.forEach((id, r) => { row[id] = r; });
+  });
+  const {NW, NH, GX, GY, PAD} = GRAPH;
+  const nodes = ids.map(id => {
+    const it = byId[id];
+    return {id, x: PAD + layer[id]*(NW+GX), y: PAD + row[id]*(NH+GY), layer: layer[id],
+      label: it.displayId || "#"+id, title: it.title || "", version: it.version,
+      lane: laneOf(it), cls: "lg-"+(LANE_GROUP[laneOf(it)] || "plan"),
+      blocked: !!(it.blockedBy && it.blockedBy.length), context: !scope.has(id)};
+  });
+  const at = {};
+  for(const n of nodes) at[n.id] = n;
+  for(const e of edges){
+    const a = at[e.from], b = at[e.to];
+    e.x1 = a.x + NW; e.y1 = a.y + NH/2; e.x2 = b.x; e.y2 = b.y + NH/2;
+  }
+  const rows = Math.max(0, ...cols.map(c => c.length));
+  return {nodes, edges, width: PAD*2 + cols.length*(NW+GX) - (cols.length ? GX : 0),
+    height: PAD*2 + rows*(NH+GY) - (rows ? GY : 0),
+    loose: [...scope].filter(id => !used.has(id) && laneOf(byId[id]) !== "done").length,
+    versions: [...openV].sort(vcmpDesc)};
+}
+function graphSvg(m){
+  const NS = "http://www.w3.org/2000/svg", {NW, NH} = GRAPH;
+  const mk = (tag, attrs, cls) => { const e = document.createElementNS(NS, tag);
+    for(const k in attrs) e.setAttribute(k, attrs[k]); if(cls) e.setAttribute("class", cls);
+    return e; };
+  const svg = mk("svg", {width:m.width, height:m.height, viewBox:"0 0 "+m.width+" "+m.height,
+    role:"img"});
+  svg.setAttribute("aria-label", "dependency graph: "+m.nodes.length+" items, "
+    +m.edges.length+" dependencies");
+  const defs = mk("defs", {});
+  for(const k of ["", "blocking"]){
+    const mark = mk("marker", {id:"garrow"+(k ? "-"+k : ""), viewBox:"0 0 8 8", refX:"8",
+      refY:"4", markerWidth:"7", markerHeight:"7", orient:"auto"});
+    mark.appendChild(mk("path", {d:"M0,0 L8,4 L0,8 z"}, "garrow"+(k ? " "+k : "")));
+    defs.appendChild(mark);
+  }
+  svg.appendChild(defs);
+  for(const e of m.edges){
+    const mx = (e.x1 + e.x2)/2;
+    const p = mk("path", {d:"M"+e.x1+","+e.y1+" C"+mx+","+e.y1+" "+mx+","+e.y2+" "+e.x2+","+e.y2,
+      "marker-end":"url(#garrow"+(e.blocking ? "-blocking" : "")+")"},
+      "gedge"+(e.blocking ? " blocking" : ""));
+    p.setAttribute("data-from", e.from); p.setAttribute("data-to", e.to);
+    svg.appendChild(p);
+  }
+  const clip = (s, n) => s.length > n ? s.slice(0, n-1)+"…" : s;
+  for(const n of m.nodes){
+    const g = mk("g", {transform:"translate("+n.x+","+n.y+")", tabindex:"0", role:"link"},
+      "gnode "+n.cls+(n.blocked ? " blocked" : "")+(n.context ? " ctx" : ""));
+    g.setAttribute("aria-label", n.label+" "+n.title);
+    g.setAttribute("data-id", n.id);
+    const tip = mk("title", {}); tip.textContent = n.label+" "+n.title+" · v"+n.version
+      +" · "+n.lane+(n.blocked ? " · blocked" : "");
+    g.appendChild(tip);
+    g.appendChild(mk("rect", {width:NW, height:NH, rx:"6"}));
+    const t1 = mk("text", {x:"8", y:"15"}, "gid"); t1.textContent = n.label+" · "+n.lane;
+    const t2 = mk("text", {x:"8", y:"31"}); t2.textContent = clip(n.title, 24);
+    g.append(t1, t2);
+    const open = () => { location.hash = R("#/plan/"+n.id); };
+    g.addEventListener("click", open);
+    g.addEventListener("keydown", ev => { if(ev.key === "Enter"){ ev.preventDefault(); open(); } });
+    svg.appendChild(g);
+  }
+  return svg;
+}
+function graphNodes(items){
+  const out = [crumb("#/", "roadmap", "")];
+  const m = graphModel(items);
+  const leg = el("div","glegend");
+  leg.appendChild(txt("span",null, m.versions.length
+    ? "open versions: "+m.versions.map(v => "v"+v).join(", ") : "no open versions"));
+  leg.appendChild(txt("span",null, m.nodes.length+" items · "+m.edges.length+" dependencies"
+    +(m.edges.some(e => e.blocking) ? " · "+m.edges.filter(e => e.blocking).length+" blocking (red)" : "")));
+  if(m.loose) leg.appendChild(txt("span",null, "+"+m.loose+" open item"
+    +(m.loose === 1 ? "" : "s")+" with no dependencies (not drawn)"));
+  out.push(leg);
+  if(!m.edges.length){ out.push(txt("div","empty","no dependencies between open items")); return out; }
+  const box = el("div","graph");
+  box.appendChild(graphSvg(m));
+  out.push(box);
+  return out;
+}
+function graphPage(){ return Promise.resolve(graphNodes((LAST && LAST.items) || [])); }
+
+// Plan page copy buttons: the likely next CLI actions for the item in view,
+// chosen from its lane, open steps, claim owner, slots and rulings.
+const trunkName = () => ((LASTP && (LASTP.statuses||[])[trunkIdx(LASTP)]) || {}).trunk || "main";
+function planCommands(d, row, ctx){
+  const N = d.id, out = [], lane = laneOf(row || d), c = d.claim || {};
+  const clip = (s, n) => { s = String(s||""); return s.length > n ? s.slice(0, n-1)+"…" : s; };
+  const take = c.owner && d.me && c.owner !== d.me ? " --take" : "";
+  const ev = ' --evidence "<verify command + result>"';
+  if(lane !== "done"){
+    out.push({why:"what to build next", cmd:CLI+" next"});
+    const steps = (d.steps||[]).map((s, i) => ({...s, n:i+1}));
+    const due = steps.filter(s => !s.done && s.waiting && (daysLeft(s.waiting) ?? 1) <= 0);
+    for(const s of due) out.push({why:"waiting step "+s.n+" is due — tick it once verified",
+      cmd:CLI+" check --plan "+N+" --step "+s.n+ev});
+    const open = steps.find(s => !s.done && !s.waiting);
+    if(open){
+      out.push({why:"tick step "+open.n+": "+clip(open.text, 70),
+        cmd:CLI+" check --plan "+N+" --step "+open.n+ev});
+      out.push({why:"step "+open.n+" built but needs time (soak, review)",
+        cmd:CLI+" wait "+N+" --step "+open.n+' --until 7d --reason "<what>"'});
+    }
+    const claim = (why, args) => out.push({why, cmd:CLI+" claim "+N+" "+args+take});
+    if(lane === "review"){
+      claim("review passed", "--stage gate-ready --verdict CONFIRMED");
+      claim("review found problems", "--stage fixing --verdict PARTIAL");
+    } else if(lane === "fixing") claim("fixes done — back to review", "--stage review");
+    else if(lane === "gate-ready") claim("merge gate started", "--stage gating");
+    else if(lane === "gating") claim("gate merged into "+(ctx.trunk||"main")+" — record the landing",
+      "--landed "+sh(ctx.trunk||"main"));
+    else if(lane === "landed"){
+      out.push({why:"preview ticking landed items trunk now contains", cmd:CLI+" check --landed"});
+      out.push({why:"tick them", cmd:CLI+" check --landed --yes"});
+    } else if(lane !== "waiting") claim("hand to review", "--stage review");
+    if(c.owner && take) out.push({why:"held by "+c.owner+" — the claim commands above take it over",
+      cmd:CLI+" claim "+N+" --owner "+sh(d.me)+" --take"});
+    // Acceptance ledger (plan 43): the first criterion not yet met.
+    const acc = ((d.acceptance && d.acceptance.bullets) || [])
+      .find(b => b.kind !== "guard" && b.state !== "met");
+    if(acc){
+      out.push({why:"acceptance "+acc.n+(acc.state === "failed" ? " (failed)" : "")+": "
+        +clip(acc.text, 70), cmd:CLI+" accept "+N+" --line "+acc.n+ev});
+      out.push({why:"list the acceptance ledger", cmd:CLI+" accept "+N});
+    }
+    for(const k of ((ctx.slots && ctx.slots.kinds) || [])){
+      const held = (k.reservations||[]).some(r => r.plan === N);
+      out.push(held ? {why:"check its "+k.kind+" number for clashes", cmd:CLI+" slot "+N+" --check"}
+        : {why:"reserve the next "+k.kind+" number", cmd:CLI+" slot "+N+" --kind "+sh(k.kind)});
+    }
+  }
+  if(d.needsApproval) out.push({why:"sign off (approval required)",
+    cmd:CLI+" ruling "+N+' --text "<sign-off>" --approval'});
+  out.push({why:"record a decision", cmd:CLI+" ruling "+N+' --text "<decision>"'});
+  out.push({why:"file a bug found in this item", cmd:CLI+' bug "<title>" --found-in '+N});
+  return out;
+}
+
+// ---- keyboard layer (plan 49) ---------------------------------------------
+//   /  search   g l|b|i|c|g|v  go to list/board/ideas/changelog/graph/versions
+//   j k  move through rows   Enter  open   Esc  back   ?  this sheet
+//   Ctrl/Cmd+K  command palette
+// Single keys are inert while typing in a field (or with a modifier held);
+// the Ctrl/Cmd+K chord is the one shortcut that works from anywhere.
+const GO = {l:"#/", b:"#/board", i:"#/ideas", c:"#/changelog", g:"#/graph", v:"#/versions"};
+const SHORTCUTS = [["/","search (Enter on the list filter: full-text)"],
+  ["g l","go to the roadmap list"], ["g b","go to the lane board"], ["g i","go to ideas"], ["g c","go to changelog"],
+  ["g g","go to the dependency graph"], ["g v","go to versions"],
+  ["j / k","next / previous row"], ["Enter","open the selected row"],
+  ["Esc","back"], ["?","show / hide this sheet"], ["Ctrl/⌘ K","jump to any plan, idea, version or page"]];
+const NAV_ROWS = ".item, .bcard, .idea, .hitgrp, .vrow, .gnode, .dgsec > div, .rel";
+let KSEL_IDX = -1, FOCUS_SEARCH = false, G_PENDING = 0;
+const NAV_STACK = [];
+function isTyping(t){
+  if(!t || !t.tagName) return false;
+  if(t.isContentEditable) return true;
+  if(t.tagName === "TEXTAREA" || t.tagName === "SELECT") return true;
+  return t.tagName === "INPUT"
+    && !/^(checkbox|radio|button|submit|reset|range|color|file)$/i.test(t.type || "");
+}
+// Pure: the action for one key event. st = {typing, mod, palette, pending}.
+function keyAction(key, st){
+  if(st.palette) return {act:"palette"};
+  if(st.typing || st.mod) return null;
+  if(st.pending) return GO[key] ? {act:"go", href:GO[key]} : {act:"cancel"};
+  switch(key){
+    case "/": return {act:"search"};
+    case "g": return {act:"pending"};
+    case "j": return {act:"move", by:1};
+    case "k": return {act:"move", by:-1};
+    case "Enter": return {act:"open"};
+    case "Escape": return {act:"back"};
+    case "?": return {act:"help"};
+  }
+  return null;
+}
+function visiblePane(){
+  for(const id of ["app","board","ideas","changelog","digest","page"]){
+    const p = document.getElementById(id); if(p && !p.hidden) return p; }
+  return document.body;
+}
+function navRows(){
+  return [...visiblePane().querySelectorAll(NAV_ROWS)].filter(r => r.getClientRects().length);
+}
+function moveSel(by){
+  const rows = navRows();
+  if(!rows.length) return;
+  const cur = rows.findIndex(r => r.classList.contains("kbsel"));
+  const from = cur >= 0 ? cur : Math.min(KSEL_IDX, rows.length-1);
+  const i = from < 0 ? (by > 0 ? 0 : rows.length-1)
+    : Math.max(0, Math.min(rows.length-1, from+by));
+  for(const r of rows) r.classList.remove("kbsel");
+  rows[i].classList.add("kbsel");
+  KSEL_IDX = i;
+  if(rows[i].classList.contains("gnode")) rows[i].focus();
+  rows[i].scrollIntoView({block:"nearest"});
+}
+function openRow(row){
+  const a = row.matches("a[href]") ? row : row.querySelector("a[href]");
+  const h = a && a.getAttribute("href");
+  if(h && /^#\//.test(h)) location.hash = R(h);
+  else if(a) a.click();
+  else row.dispatchEvent(new MouseEvent("click", {bubbles:true}));
+}
+function goBack(){
+  if(NAV_STACK.length > 1){ history.back(); return; }
+  const up = ROUTE.name === "version" ? "#/versions" : ROUTE.name === "roadmap" ? "" : "#/";
+  if(up) location.hash = R(up);
+}
+function focusSearch(){
+  const f = document.querySelector("#page:not([hidden]) .fts");
+  if(f){ f.focus(); f.select(); return; }
+  const s = document.getElementById("search");
+  if(!document.getElementById("rmctrls").hidden){ s.focus(); s.select(); return; }
+  FOCUS_SEARCH = true;
+  location.hash = R("#/");
+}
+window.addEventListener("hashchange", () => {
+  const h = location.hash || "#/";
+  if(NAV_STACK.length > 1 && NAV_STACK[NAV_STACK.length-2] === h) NAV_STACK.pop();
+  else NAV_STACK.push(h);
+});
+NAV_STACK.push(location.hash || "#/");
+document.addEventListener("keydown", e => {
+  const chord = (e.ctrlKey || e.metaKey) && !e.altKey && (e.key === "k" || e.key === "K");
+  if(e.isComposing) return;
+  if(SHEET && !chord && (e.key === "Escape" || e.key === "?")){
+    e.preventDefault(); toggleSheet(false); return; }
+  const a = keyAction(e.key, {palette: chord, typing: isTyping(e.target),
+    mod: e.ctrlKey || e.metaKey || e.altKey, pending: G_PENDING > Date.now()});
+  if(!a) return;
+  if(a.act !== "pending") G_PENDING = 0;
+  if(a.act === "open"){
+    // Enter belongs to a focused link/button/node; rows only when nothing is.
+    const t = e.target;
+    if(t && t.closest && t.closest("a, button, [tabindex], summary")) return;
+    const row = navRows().find(r => r.classList.contains("kbsel"));
+    if(!row) return;
+    e.preventDefault(); openRow(row); return;
+  }
+  e.preventDefault();
+  if(a.act === "palette") togglePalette();
+  else if(a.act === "search") focusSearch();
+  else if(a.act === "pending") G_PENDING = Date.now() + 1500;
+  else if(a.act === "go") location.hash = R(a.href);
+  else if(a.act === "move") moveSel(a.by);
+  else if(a.act === "back") goBack();
+  else if(a.act === "help") toggleSheet(true);
+});
+
+// Shortcut sheet (?)
+let SHEET = null;
+function toggleSheet(on){
+  if(SHEET){ SHEET.remove(); SHEET = null; }
+  if(!on) return;
+  const ov = el("div","overlay"), box = el("div","ovbox"), g = el("div","sheet");
+  g.appendChild(txt("h4",null,"keyboard shortcuts"));
+  for(const [k, what] of SHORTCUTS){ g.appendChild(txt("kbd",null,k)); g.appendChild(txt("span",null,what)); }
+  g.appendChild(txt("div","muted","Single keys do nothing while you type in a field. Esc or ? closes this."));
+  box.appendChild(g); ov.appendChild(box);
+  ov.addEventListener("click", e => { if(e.target === ov) toggleSheet(false); });
+  document.body.appendChild(ov);
+  SHEET = ov;
+}
+
+// Command palette (Ctrl/Cmd+K): jump to any plan, idea, version or page by
+// fuzzy name. Entries come from the streamed status; ideas are fetched once
+// per opening. Results are text nodes; choosing one only changes the route.
+const PAGES = [["#/","Roadmap list"],["#/board","Lane board"],["#/ideas","Ideas"],["#/changelog","Changelog"],
+  ["#/digest/1d","Digest"],["#/versions","Versions"],["#/graph","Dependency graph"]];
+const PAL_SHOWN = 40;
+// Pure: score `s` against query `q` (higher is better, -1 = no match). Every
+// space-separated token must match, as a substring (best: early, at a word
+// start) or else as an in-order subsequence (weaker, rewards runs).
+function fuzzy(q, s){
+  s = String(s||"").toLowerCase();
+  let total = 0;
+  for(const t of String(q||"").toLowerCase().split(/\s+/).filter(Boolean)){
+    const at = s.indexOf(t);
+    if(at >= 0){ total += 100 - Math.min(at, 40) + (at === 0 || /\W/.test(s[at-1]) ? 20 : 0); continue; }
+    let i = 0, run = 0, sc = 0;
+    for(const ch of t){
+      const j = s.indexOf(ch, i);
+      if(j < 0) return -1;
+      run = j === i ? run+1 : 0; sc += 1 + run*2; i = j+1;
+    }
+    total += sc;
+  }
+  return total;
+}
+function paletteEntries(items, ideas){
+  const out = PAGES.map(([href, label]) => ({kind:"page", label, href, sub:""}));
+  for(const r of versionRows(items, LAST && LAST.currentVersion, {}))
+    out.push({kind:"version", label:"v"+r.v, href:"#/version/"+r.v,
+      sub: r.pct+"%"+(r.current ? " · current" : "")});
+  for(const it of [...(items||[])].sort((a,b) => b.id-a.id))
+    out.push({kind:"plan", label:(it.displayId || "#"+it.id)+" #"+it.id+" "+(it.title||""),
+      href:"#/plan/"+it.id, sub:"v"+it.version+" · "+laneOf(it)});
+  for(const b of (ideas||[]))
+    out.push({kind:"idea", label:b.title || b.body || "", href:"#/idea/"+b.index, sub:"idea "+b.index});
+  return out;
+}
+function paletteRank(q, entries){
+  if(!String(q||"").trim()) return entries.slice(0, PAL_SHOWN);
+  return entries.map((e, i) => ({e, i, s: fuzzy(q, e.label)}))
+    .filter(x => x.s >= 0).sort((a,b) => (b.s-a.s) || (a.i-b.i))
+    .slice(0, PAL_SHOWN).map(x => x.e);
+}
+let PAL = null;
+function togglePalette(){
+  if(PAL){ closePalette(); return; }
+  const ov = el("div","overlay"), box = el("div","ovbox");
+  const inp = el("input","fts");
+  inp.type = "search"; inp.autocomplete = "off";
+  inp.placeholder = "jump to a plan, idea, version or page…";
+  inp.setAttribute("aria-label", "command palette");
+  const list = el("div","pal-list");
+  box.append(inp, list); ov.appendChild(box);
+  const st = {entries: paletteEntries((LAST && LAST.items) || [], []), shown: [], on: 0};
+  const draw = () => {
+    const q = inp.value.trim();
+    st.shown = paletteRank(q, st.entries);
+    if(q) st.shown.push({kind:"search", label:"search everything for “"+q+"”",
+      href: searchHref(q), sub:"full-text"});
+    st.on = Math.min(st.on, Math.max(0, st.shown.length-1));
+    list.replaceChildren(...st.shown.map((x, i) => {
+      const r = el("div","pal-row"+(i === st.on ? " on" : ""));
+      r.append(txt("span","pk", x.kind), txt("span","pl", x.label), txt("span","ps", x.sub));
+      r.addEventListener("click", () => choose(i));
+      return r;
+    }));
+    if(!st.shown.length) list.appendChild(txt("div","empty","no match"));
+  };
+  const choose = i => { const x = st.shown[i]; if(!x) return; closePalette(); location.hash = R(x.href); };
+  inp.addEventListener("input", () => { st.on = 0; draw(); });
+  inp.addEventListener("keydown", e => {
+    if(e.key === "ArrowDown" || e.key === "ArrowUp"){
+      e.preventDefault();
+      st.on = Math.max(0, Math.min(st.shown.length-1, st.on + (e.key === "ArrowDown" ? 1 : -1)));
+      draw();
+      const on = list.querySelector(".on"); if(on) on.scrollIntoView({block:"nearest"});
+    } else if(e.key === "Enter"){ e.preventDefault(); choose(st.on); }
+    else if(e.key === "Escape"){ e.preventDefault(); closePalette(); }
+  });
+  ov.addEventListener("click", e => { if(e.target === ov) closePalette(); });
+  document.body.appendChild(ov);
+  PAL = {ov, back: document.activeElement};
+  draw();
+  inp.focus();
+  getJSON("/api/ideas?"+rootParam()).then(d => {
+    if(!PAL || PAL.ov !== ov) return;
+    st.entries = paletteEntries((LAST && LAST.items) || [], d.bullets || []);
+    draw();
+  }).catch(() => {});
+}
+function closePalette(){
+  if(!PAL) return;
+  PAL.ov.remove();
+  const back = PAL.back; PAL = null;
+  if(back && back.focus && back !== document.body) try { back.focus(); } catch(_){}
+}
+function paletteTab(){
+  const t = txt("span","tab kb", /Mac|iPhone|iPad/.test(navigator.platform||"") ? "⌘K" : "Ctrl K");
+  t.title = "jump to anything (Ctrl/⌘ K) · ? for all shortcuts";
+  t.setAttribute("role","button"); t.tabIndex = 0;
+  t.addEventListener("click", togglePalette);
+  t.addEventListener("keydown", e => { if(e.key === "Enter"){ e.preventDefault(); togglePalette(); } });
+  return t;
+}
+
+onRoute();
+connect();
+</script>
+</body>
+</html>

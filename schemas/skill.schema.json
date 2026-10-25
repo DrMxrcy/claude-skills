@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/DrMxrcy/claude-skills/schemas/skill.schema.json",
+  "title": "Skill package",
+  "description": "The install-layout contract for one directory under skills/. This file is documentation: the enforcer is scripts/validate_skills.py (stdlib only), which applies the required-file, naming, and semver rules below. Keep the two in sync when the layout changes.",
+  "type": "object",
+  "required": ["dir", "SKILL.md", "README.md", "VERSION"],
+  "properties": {
+    "dir": {
+      "description": "Directory name under skills/. Must equal the SKILL.md frontmatter `name`.",
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "SKILL.md": {
+      "description": "Required. Markdown with a leading YAML frontmatter block (--- fenced) that agents load.",
+      "type": "object",
+      "required": ["name", "description"],
+      "properties": {
+        "name": {
+          "description": "Skill name; must equal the directory name.",
+          "type": "string",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+        },
+        "description": {
+          "description": "Non-empty. When to load the skill, including trigger phrases.",
+          "type": "string",
+          "minLength": 1
+        },
+        "argument-hint": {
+          "description": "Optional. Shown next to slash commands.",
+          "type": "string"
+        }
+      }
+    },
+    "README.md": {
+      "description": "Required. Human-facing docs for the skill, linked from the root README table.",
+      "type": "string"
+    },
+    "VERSION": {
+      "description": "Required. A single semver line (MAJOR.MINOR.PATCH[-prerelease][+build]), no leading 'v'.",
+      "type": "string",
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(-[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?(\\+[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?$"
+    },
+    "scripts": {
+      "description": "Optional. Deterministic CLI helpers. Python 3 stdlib only, no third-party deps.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "templates": {
+      "description": "Optional. Files the skill's scripts copy into a target project.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "references": {
+      "description": "Optional. Long-form docs the skill loads on demand.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "hooks": {
+      "description": "Optional. Lifecycle hook scripts installed alongside the skill.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "commands": {
+      "description": "Optional. Slash commands live at repo root in commands/<dir>/ and must all be *.md; Claude Code loads them as /<dir>:<file>, the installer also ships flat /<dir>-<file> aliases.",
+      "type": "array",
+      "items": { "type": "string", "pattern": "\\.md$" }
+    }
+  }
+}

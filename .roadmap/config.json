@@ -1,0 +1,604 @@
+{
+  "project": "claude-skills",
+  "currentVersion": "0.19.0",
+  "nextId": 58,
+  "items": [
+    {
+      "id": 1,
+      "slug": "use-codex-skill-invocation-instead-of-unsupported-slash-commands",
+      "title": "Use Codex skill invocation instead of unsupported slash commands",
+      "type": "bug",
+      "version": "0.14.1",
+      "file": "plans/001-use-codex-skill-invocation-instead-of-unsupported-slash-commands.md",
+      "note": "Roadmap now opens correctly from Codex using its native skill picker.",
+      "audience": "public"
+    },
+    {
+      "id": 2,
+      "slug": "consolidate-codex-hooks-into-config-toml",
+      "title": "Consolidate Codex hooks into config.toml",
+      "type": "bug",
+      "version": "0.14.2",
+      "file": "plans/002-consolidate-codex-hooks-into-config-toml.md",
+      "note": "Codex starts cleanly without duplicate hook configuration warnings.",
+      "audience": "public"
+    },
+    {
+      "id": 3,
+      "slug": "audience-leak-guard-demote-tier-for-developer-api-surface-work-lint-gate-when-explicitly-setting-audience-public",
+      "title": "Audience leak guard: DEMOTE tier for developer/API-surface work + lint gate when explicitly setting audience public",
+      "type": "feature",
+      "version": "0.15.0",
+      "file": "plans/003-audience-leak-guard-demote-tier-for-developer-api-surface-work-lint-gate-when-explicitly-setting-audience-public.md",
+      "note": "The changelog now warns before developer-facing work (API keys, posting APIs, admin tooling) slips into the public notes."
+    },
+    {
+      "id": 4,
+      "slug": "worktree-aware-serve-orient-detect-git-worktrees-warn-when-dashboard-serves-a-stale-branch-s-roadmap-vs-main-checkout",
+      "title": "Worktree-aware serve/orient: detect git worktrees, warn when dashboard serves a stale branch's roadmap vs main checkout",
+      "type": "feature",
+      "version": "0.15.0",
+      "file": "plans/004-worktree-aware-serve-orient-detect-git-worktrees-warn-when-dashboard-serves-a-stale-branch-s-roadmap-vs-main-checkout.md",
+      "audience": "internal"
+    },
+    {
+      "id": 5,
+      "slug": "combined-all-worktrees-view-as-the-serve-dashboard-default",
+      "title": "Combined all-worktrees view as the serve dashboard default",
+      "type": "feature",
+      "version": "0.15.0",
+      "file": "plans/005-combined-all-worktrees-view-as-the-serve-dashboard-default.md",
+      "audience": "internal"
+    },
+    {
+      "id": 6,
+      "slug": "live-worktree-re-discovery-in-serve-added-deleted-checkouts-update-the-dashboard",
+      "title": "Live worktree re-discovery in serve \u2014 added/deleted checkouts update the dashboard",
+      "type": "feature",
+      "version": "0.15.0",
+      "file": "plans/006-live-worktree-re-discovery-in-serve-added-deleted-checkouts-update-the-dashboard.md",
+      "audience": "internal"
+    },
+    {
+      "id": 7,
+      "slug": "serve-reprints-unchanged-status-on-every-file-touch-skip-identical-payloads",
+      "title": "Serve reprints unchanged status on every file touch \u2014 skip identical payloads",
+      "type": "bug",
+      "version": "0.15.0",
+      "file": "plans/007-serve-reprints-unchanged-status-on-every-file-touch-skip-identical-payloads.md",
+      "audience": "internal"
+    },
+    {
+      "id": 8,
+      "slug": "auto-release-nudge-when-current-version-hits-100-prompt-or-auto-run-roadmap-release-before-starting-next-version",
+      "title": "Auto-release nudge: when current version hits 100%, prompt or auto-run roadmap release before starting next version",
+      "type": "feature",
+      "version": "0.16.0",
+      "file": "plans/008-auto-release-nudge-when-current-version-hits-100-prompt-or-auto-run-roadmap-release-before-starting-next-version.md",
+      "note": "Finished versions get cut automatically: when every item in the current version is done, the roadmap offers (or runs) the release for you before new work starts."
+    },
+    {
+      "id": 9,
+      "slug": "internal-notes-can-leak-into-the-public-changelog-unset-audience-bugs-default-public-and-demote-tells-only-advise",
+      "title": "Internal notes can leak into the public changelog: unset-audience bugs default public and demote tells only advise",
+      "type": "bug",
+      "version": "0.15.0",
+      "file": "plans/009-internal-notes-can-leak-into-the-public-changelog-unset-audience-bugs-default-public-and-demote-tells-only-advise.md",
+      "note": "The public changelog is now protected: unclassified work stays in the internal log, saving a public note requires an explicit audience, and internal-sounding wording is refused at save time.",
+      "audience": "internal"
+    },
+    {
+      "id": 10,
+      "slug": "typed-human-readable-id-prefixes-tsk-42-bug-7-as-display-layer-over-int-ids",
+      "title": "Typed human-readable ID prefixes (TSK-42, BUG-7) as display layer over int ids",
+      "type": "feature",
+      "version": "0.16.0",
+      "file": "plans/010-typed-human-readable-id-prefixes-tsk-42-bug-7-as-display-layer-over-int-ids.md",
+      "note": "Items now show friendly typed IDs like FEAT-12 and BUG-7 in status and next \u2014 and you can reference them either way when marking work done.",
+      "audience": "public"
+    },
+    {
+      "id": 11,
+      "slug": "acceptance-criteria-section-as-first-class-part-of-plan-templates",
+      "title": "Acceptance criteria section as first-class part of plan templates",
+      "type": "feature",
+      "version": "0.16.0",
+      "file": "plans/011-acceptance-criteria-section-as-first-class-part-of-plan-templates.md",
+      "note": "Plan templates now include an Acceptance section so reviews check work against explicit pass/fail criteria.",
+      "audience": "public"
+    },
+    {
+      "id": 12,
+      "slug": "filtered-listing-and-search-status-type-version-filters-plus-search-and-stats-subcommands",
+      "title": "Filtered listing and search: status --type/--version filters, plus search and stats subcommands",
+      "type": "feature",
+      "version": "0.16.0",
+      "file": "plans/012-filtered-listing-and-search-status-type-version-filters-plus-search-and-stats-subcommands.md",
+      "note": "Find things faster: filter status by type or version, and search titles, notes, and plans from the CLI.",
+      "audience": "public"
+    },
+    {
+      "id": 13,
+      "slug": "promote-leaves-the-incubator-notes-link-text-in-the-promoted-item-title-and-slug",
+      "title": "promote leaves the incubator notes-link text in the promoted item title and slug",
+      "type": "bug",
+      "version": "0.16.0",
+      "file": "plans/013-promote-leaves-the-incubator-notes-link-text-in-the-promoted-item-title-and-slug.md",
+      "audience": "internal"
+    },
+    {
+      "id": 14,
+      "slug": "version-date-stamped-once-and-never-re-stamped-when-the-version-reopens",
+      "title": "Version date stamped once and never re-stamped when the version reopens",
+      "type": "bug",
+      "version": "0.17.0",
+      "file": "plans/014-version-date-stamped-once-and-never-re-stamped-when-the-version-reopens.md",
+      "audience": "internal"
+    },
+    {
+      "id": 15,
+      "slug": "schema-validated-install-manifest-ci-validate-script-for-cross-agent-installs",
+      "title": "Schema-validated install manifest + CI validate script for cross-agent installs",
+      "type": "chore",
+      "version": "0.17.0",
+      "file": "plans/015-schema-validated-install-manifest-ci-validate-script-for-cross-agent-installs.md"
+    },
+    {
+      "id": 16,
+      "slug": "completion-promise-gate-parent-greps-an-explicit-done-marker-before-allowing-check",
+      "title": "Completion-promise gate: parent greps an explicit done marker before allowing check",
+      "type": "feature",
+      "version": "0.17.0",
+      "file": "plans/016-completion-promise-gate-parent-greps-an-explicit-done-marker-before-allowing-check.md"
+    },
+    {
+      "id": 17,
+      "slug": "per-role-model-mapping-setting-for-the-quality-first-build-loop",
+      "title": "Per-role model mapping setting for the quality-first build loop",
+      "type": "feature",
+      "version": "0.17.0",
+      "file": "plans/017-per-role-model-mapping-setting-for-the-quality-first-build-loop.md"
+    },
+    {
+      "id": 18,
+      "slug": "split-roadmap-discipline-rules-into-individually-loadable-principle-skills",
+      "title": "Split roadmap discipline rules into individually loadable principle skills",
+      "type": "refactor",
+      "version": "0.17.0",
+      "file": "plans/018-split-roadmap-discipline-rules-into-individually-loadable-principle-skills.md"
+    },
+    {
+      "id": 19,
+      "slug": "release-flow-should-bump-or-warn-about-the-skill-version-file-in-this-repo",
+      "title": "Release flow should bump or warn about the skill VERSION file in this repo",
+      "type": "chore",
+      "version": "0.17.0",
+      "file": "plans/019-release-flow-should-bump-or-warn-about-the-skill-version-file-in-this-repo.md"
+    },
+    {
+      "id": 21,
+      "slug": "tabbed-serve-dashboard-roadmap-ideas-changelog-views",
+      "title": "Tabbed serve dashboard: Roadmap, Ideas, Changelog views",
+      "type": "feature",
+      "version": "0.18.0",
+      "file": "plans/021-tabbed-serve-dashboard-roadmap-ideas-changelog-views.md",
+      "note": "The live dashboard now has tabs \u2014 browse your roadmap, the Idea Incubator, and the changelog without leaving the page.",
+      "audience": "public"
+    },
+    {
+      "id": 22,
+      "slug": "antigravity-agy-plugin-packaging-and-cli-installer-support",
+      "title": "Antigravity agy plugin packaging and CLI installer support",
+      "type": "feature",
+      "version": "0.18.0",
+      "file": "plans/022-antigravity-agy-plugin-packaging-and-cli-installer-support.md",
+      "audience": "public",
+      "note": "Antigravity users can now install the roadmap and agent tools as native plugins, with the same commands and hooks as everywhere else."
+    },
+    {
+      "id": 23,
+      "slug": "haiku-first-cost-tiers-re-tier-the-agent-fleet-and-slim-the-quality-build-loop",
+      "title": "Haiku-first cost tiers: re-tier the agent fleet and slim the quality build loop",
+      "type": "chore",
+      "version": "0.18.0",
+      "file": "plans/023-haiku-first-cost-tiers-re-tier-the-agent-fleet-and-slim-the-quality-build-loop.md",
+      "audience": "internal"
+    },
+    {
+      "id": 24,
+      "slug": "sole-writer-fallback-for-ai-coders-without-native-subagents",
+      "title": "Sole-writer fallback for AI coders without native subagents",
+      "type": "chore",
+      "version": "0.18.0",
+      "file": "plans/024-sole-writer-fallback-for-ai-coders-without-native-subagents.md",
+      "audience": "internal"
+    },
+    {
+      "id": 25,
+      "slug": "mixed-model-review-verifier-on-sonnet-opus-or-cross-provider-second-pass-for-high-risk-steps",
+      "title": "Mixed-model review: verifier on sonnet, opus or cross-provider second pass for high-risk steps",
+      "type": "chore",
+      "version": "0.18.0",
+      "file": "plans/025-mixed-model-review-verifier-on-sonnet-opus-or-cross-provider-second-pass-for-high-risk-steps.md",
+      "audience": "internal"
+    },
+    {
+      "id": 26,
+      "slug": "review-effort-and-cache-stable-briefs-verifier-sonnet-high-read-only-tool-scopes-inline-plan-bodies-diff-scoped-re-verification",
+      "title": "Review-effort and cache-stable briefs: verifier sonnet/high, read-only tool scopes, inline plan bodies, diff-scoped re-verification",
+      "type": "chore",
+      "version": "0.18.0",
+      "file": "plans/026-review-effort-and-cache-stable-briefs-verifier-sonnet-high-read-only-tool-scopes-inline-plan-bodies-diff-scoped-re-verification.md",
+      "audience": "internal"
+    },
+    {
+      "id": 27,
+      "slug": "parallel-safe-roadmap-builds-per-item-worktrees-fresh-session-orchestration-pending-decision-handoff-and-per-item-token-spend",
+      "title": "Parallel-safe roadmap builds: per-item worktrees, fresh-session orchestration, pending-decision handoff and per-item token spend",
+      "type": "feature",
+      "version": "0.20.0",
+      "file": "plans/027-parallel-safe-roadmap-builds-per-item-worktrees-fresh-session-orchestration-pending-decision-handoff-and-per-item-token-spend.md",
+      "audience": "internal",
+      "note": "Respawn budget set to 4 respawns per step (5 attempts total). After that the step is BLOCKED and written to the handoff note."
+    },
+    {
+      "id": 28,
+      "slug": "council-review-plan-review-and-merge-gate-by-multiple-agent-clis",
+      "title": "Council review: plan review and merge gate by multiple agent CLIs",
+      "type": "feature",
+      "version": "0.19.0",
+      "file": "plans/028-council-review-plan-review-and-merge-gate-by-multiple-agent-clis.md",
+      "note": "Adds a council of installed agent CLIs that reviews each plan before build and each diff before merge.",
+      "audience": "internal"
+    },
+    {
+      "id": 29,
+      "slug": "adversarial-review-skill-multi-cli-review-with-triage-from-claude-code",
+      "title": "Adversarial review skill: multi-CLI review with triage from Claude Code",
+      "type": "feature",
+      "version": "0.19.0",
+      "file": "plans/029-adversarial-review-skill-multi-cli-review-with-triage-from-claude-code.md"
+    },
+    {
+      "id": 30,
+      "slug": "honest-in-flight-tracking-claim-branch-stage-verdict-per-item-branch-progress-and-stage-filters-in-status-and-dashboard",
+      "title": "Honest in-flight tracking: claim branch/stage/verdict per item, branch progress and stage filters in status and dashboard",
+      "type": "feature",
+      "version": "0.19.0",
+      "file": "plans/030-honest-in-flight-tracking-claim-branch-stage-verdict-per-item-branch-progress-and-stage-filters-in-status-and-dashboard.md",
+      "note": "Built-but-unmerged work shows its real state instead of 0%.",
+      "audience": "public"
+    },
+    {
+      "id": 31,
+      "slug": "dashboard-trunk-plus-branches-always-the-default-view-url-in-every-refresh-log-line-and-full-pages-for-each-plan-and-idea",
+      "title": "Dashboard: trunk plus branches always the default view, URL in every refresh log line, and full pages for each plan and idea",
+      "type": "feature",
+      "version": "0.19.0",
+      "file": "plans/031-dashboard-trunk-plus-branches-always-the-default-view-url-in-every-refresh-log-line-and-full-pages-for-each-plan-and-idea.md",
+      "note": "The live roadmap page opens on everything, and every plan and idea gets its own page.",
+      "audience": "public"
+    },
+    {
+      "id": 32,
+      "slug": "batch-claims-a-landed-stage-and-bulk-check-off-from-claims",
+      "title": "Batch claims, a landed stage, and bulk check-off from claims",
+      "type": "feature",
+      "version": "0.21.0",
+      "file": "plans/032-batch-claims-a-landed-stage-and-bulk-check-off-from-claims.md",
+      "note": "Move many items through review and merge in one command, and tick them off together once they reach main.",
+      "audience": "public"
+    },
+    {
+      "id": 33,
+      "slug": "numbered-slot-reservations-reserve-the-next-migration-or-any-numbered-sequence-per-plan-with-clash-detection",
+      "title": "Numbered slot reservations: reserve the next migration (or any numbered sequence) per plan, with clash detection",
+      "type": "feature",
+      "version": "0.21.0",
+      "file": "plans/033-numbered-slot-reservations-reserve-the-next-migration-or-any-numbered-sequence-per-plan-with-clash-detection.md",
+      "note": "Plans can reserve the next migration number, so two branches never pick the same one.",
+      "audience": "public",
+      "dependsOn": [
+        31
+      ]
+    },
+    {
+      "id": 34,
+      "slug": "rulings-record-dated-decisions-on-a-plan-from-the-cli-and-show-them-on-the-dashboard",
+      "title": "Rulings: record dated decisions on a plan from the CLI and show them on the dashboard",
+      "type": "feature",
+      "version": "0.21.0",
+      "file": "plans/034-rulings-record-dated-decisions-on-a-plan-from-the-cli-and-show-them-on-the-dashboard.md",
+      "note": "Decisions and owner approvals get recorded on the plan and shown on its page.",
+      "audience": "public",
+      "dependsOn": [
+        31
+      ]
+    },
+    {
+      "id": 35,
+      "slug": "check-refuses-steps-on-bug-plans-whose-observed-root-cause-are-still-the-template",
+      "title": "check refuses steps on bug plans whose Observed/Root cause are still the template",
+      "type": "feature",
+      "version": "0.21.0",
+      "file": "plans/035-check-refuses-steps-on-bug-plans-whose-observed-root-cause-are-still-the-template.md",
+      "note": "Steps can no longer be checked off on a plan that is still the empty template.",
+      "audience": "public"
+    },
+    {
+      "id": 36,
+      "slug": "worktree-map-status-worktrees-and-a-dashboard-worktree-panel-with-safe-to-remove-marks",
+      "title": "Worktree map: status --worktrees and a dashboard worktree panel with safe-to-remove marks",
+      "type": "feature",
+      "version": "0.21.0",
+      "file": "plans/036-worktree-map-status-worktrees-and-a-dashboard-worktree-panel-with-safe-to-remove-marks.md",
+      "note": "See every worktree at a glance, which branch it holds, and which ones are safe to clean up.",
+      "audience": "public",
+      "dependsOn": [
+        31
+      ]
+    },
+    {
+      "id": 37,
+      "slug": "dashboard-lane-board-columns-per-lane-with-cards-for-branch-sha-verdict-and-last-note-plus-verdict-and-branch-filter-chips",
+      "title": "Dashboard lane board: columns per lane with cards for branch, sha, verdict and last note, plus verdict and branch filter chips",
+      "type": "feature",
+      "version": "0.21.0",
+      "file": "plans/037-dashboard-lane-board-columns-per-lane-with-cards-for-branch-sha-verdict-and-last-note-plus-verdict-and-branch-filter-chips.md",
+      "note": "A board view on the dashboard shows every item in its column, from planned to done.",
+      "audience": "public",
+      "dependsOn": [
+        31,
+        32
+      ]
+    },
+    {
+      "id": 38,
+      "slug": "run-log-record-merge-gate-and-trunk-suite-runs-from-the-cli-shown-as-a-gate-timeline-and-trunk-health-tile",
+      "title": "Run log: record merge-gate and trunk suite runs from the CLI, shown as a gate timeline and trunk health tile",
+      "type": "feature",
+      "version": "0.21.0",
+      "file": "plans/038-run-log-record-merge-gate-and-trunk-suite-runs-from-the-cli-shown-as-a-gate-timeline-and-trunk-health-tile.md",
+      "note": "Merge gates and test runs are recorded, so everyone can see what ran, what passed, and how far the trunk is ahead.",
+      "audience": "public",
+      "dependsOn": [
+        31
+      ]
+    },
+    {
+      "id": 39,
+      "slug": "auto-collapse-shipped-versions-in-roadmap-md-instead-of-a-length-warning-on-every-call",
+      "title": "Auto-collapse shipped versions in ROADMAP.md instead of a length warning on every call",
+      "type": "chore",
+      "version": "0.21.0",
+      "file": "plans/039-auto-collapse-shipped-versions-in-roadmap-md-instead-of-a-length-warning-on-every-call.md",
+      "note": "The roadmap stops warning about file length once shipped versions fold away on their own.",
+      "audience": "public"
+    },
+    {
+      "id": 40,
+      "slug": "claim-owners-and-a-work-in-progress-limit",
+      "title": "Claim owners and a work-in-progress limit",
+      "type": "feature",
+      "version": "0.21.0",
+      "file": "plans/040-claim-owners-and-a-work-in-progress-limit.md",
+      "note": "Each claimed item shows who is working on it, and the roadmap warns when too much is in flight at once.",
+      "audience": "public",
+      "dependsOn": [
+        31,
+        32
+      ]
+    },
+    {
+      "id": 41,
+      "slug": "branch-conflict-risk-show-which-open-branches-change-the-same-files",
+      "title": "Branch conflict risk: show which open branches change the same files",
+      "type": "feature",
+      "version": "0.21.0",
+      "file": "plans/041-branch-conflict-risk-show-which-open-branches-change-the-same-files.md",
+      "note": "See which in-flight branches touch the same files, so merge order can be planned before the gate.",
+      "audience": "public",
+      "dependsOn": [
+        31,
+        32
+      ]
+    },
+    {
+      "id": 42,
+      "slug": "scope-drift-per-branch-flag-changes-outside-the-files-a-plan-lists",
+      "title": "Scope drift per branch: flag changes outside the files a plan lists",
+      "type": "feature",
+      "version": "0.21.0",
+      "file": "plans/042-scope-drift-per-branch-flag-changes-outside-the-files-a-plan-lists.md",
+      "note": "Branches that wander outside their plan get flagged before review.",
+      "audience": "public",
+      "dependsOn": [
+        31,
+        32,
+        41
+      ]
+    },
+    {
+      "id": 43,
+      "slug": "acceptance-ledger-mark-each-acceptance-bullet-passed-with-evidence-and-require-it-for-done",
+      "title": "Acceptance ledger: mark each acceptance bullet passed with evidence, and require it for done",
+      "type": "feature",
+      "version": "0.21.0",
+      "file": "plans/043-acceptance-ledger-mark-each-acceptance-bullet-passed-with-evidence-and-require-it-for-done.md",
+      "note": "Every acceptance line gets its own pass mark and evidence, so done means every line was checked.",
+      "audience": "public",
+      "dependsOn": [
+        31,
+        35
+      ]
+    },
+    {
+      "id": 44,
+      "slug": "version-forecast-estimate-each-open-version-s-finish-date-from-recent-pace",
+      "title": "Version forecast: estimate each open version's finish date from recent pace",
+      "type": "feature",
+      "version": "0.21.0",
+      "file": "plans/044-version-forecast-estimate-each-open-version-s-finish-date-from-recent-pace.md",
+      "note": "Each open version shows a forecast finish date based on how fast work has been moving.",
+      "audience": "public",
+      "dependsOn": [
+        31
+      ]
+    },
+    {
+      "id": 45,
+      "slug": "digest-what-landed-moved-stalled-and-got-blocked-since-a-given-time",
+      "title": "Digest: what landed, moved, stalled and got blocked since a given time",
+      "type": "feature",
+      "version": "0.21.0",
+      "file": "plans/045-digest-what-landed-moved-stalled-and-got-blocked-since-a-given-time.md",
+      "note": "A short digest tells you what changed on the roadmap since you last looked.",
+      "audience": "public",
+      "dependsOn": [
+        31
+      ]
+    },
+    {
+      "id": 46,
+      "slug": "waiting-steps-and-split-retarget-time-gated-checks-no-longer-hold-up-a-release-or-drag-the-whole-feature-to-the-next-version",
+      "title": "Waiting steps and split retarget: time-gated checks no longer hold up a release or drag the whole feature to the next version",
+      "type": "feature",
+      "version": "0.21.0",
+      "file": "plans/046-waiting-steps-and-split-retarget-time-gated-checks-no-longer-hold-up-a-release-or-drag-the-whole-feature-to-the-next-version.md",
+      "note": "Steps that need time to pass, like a week of monitoring, can wait without holding up a release.",
+      "audience": "public",
+      "dependsOn": [
+        31,
+        32
+      ]
+    },
+    {
+      "id": 47,
+      "slug": "bug-routing-a-bug-command-that-fixes-in-flight-plans-in-place-or-files-a-linked-bug-item-and-an-incubator-that-refuses-bugs",
+      "title": "Bug routing: a bug command that fixes in-flight plans in place or files a linked bug item, and an incubator that refuses bugs",
+      "type": "feature",
+      "version": "0.21.0",
+      "file": "plans/047-bug-routing-a-bug-command-that-fixes-in-flight-plans-in-place-or-files-a-linked-bug-item-and-an-incubator-that-refuses-bugs.md",
+      "note": "Bugs always land in the right place: fixed inside the plan still being built, or tracked as their own item, never lost among ideas.",
+      "audience": "public",
+      "dependsOn": [
+        31,
+        32
+      ]
+    },
+    {
+      "id": 48,
+      "slug": "all-projects-dashboard-home-every-roadmap-project-on-one-page-registered-automatically",
+      "title": "All-projects dashboard home: every roadmap project on one page, registered automatically",
+      "type": "feature",
+      "version": "0.21.0",
+      "file": "plans/048-all-projects-dashboard-home-every-roadmap-project-on-one-page-registered-automatically.md",
+      "note": "One dashboard page lists every project you use the roadmap in, with no setup.",
+      "audience": "public"
+    },
+    {
+      "id": 49,
+      "slug": "dashboard-navigation-version-pages-dependency-graph-full-text-search-keyboard-shortcuts-and-copy-command-buttons",
+      "title": "Dashboard navigation: version pages, dependency graph, full-text search, keyboard shortcuts and copy-command buttons",
+      "type": "feature",
+      "version": "0.21.0",
+      "file": "plans/049-dashboard-navigation-version-pages-dependency-graph-full-text-search-keyboard-shortcuts-and-copy-command-buttons.md",
+      "note": "Find anything fast: pages per version, a dependency map, search across every plan, and keyboard shortcuts.",
+      "audience": "public"
+    },
+    {
+      "id": 50,
+      "slug": "dashboard-resilience-and-polish-reconnect-banner-tab-title-alerts-light-theme-fast-first-paint",
+      "title": "Dashboard resilience and polish: reconnect banner, tab-title alerts, light theme, fast first paint",
+      "type": "feature",
+      "version": "0.21.0",
+      "file": "plans/050-dashboard-resilience-and-polish-reconnect-banner-tab-title-alerts-light-theme-fast-first-paint.md",
+      "note": "The dashboard reconnects on its own, flags problems in the browser tab, follows your light or dark setting, and opens faster.",
+      "audience": "public"
+    },
+    {
+      "id": 51,
+      "slug": "bug-found-in-writes-the-fix-step-before-refusing-a-claim-held-by-another-owner",
+      "title": "bug --found-in writes the Fix step before refusing a claim held by another owner",
+      "type": "bug",
+      "version": "0.19.0",
+      "file": "plans/051-bug-found-in-writes-the-fix-step-before-refusing-a-claim-held-by-another-owner.md"
+    },
+    {
+      "id": 52,
+      "slug": "leftovers-note-error-suggests-a-missing-audience-flag-board-copy-commands-lack-the-project-under-serve-all-board-filters-shared-across-projects",
+      "title": "Leftovers: note error suggests a missing --audience flag; board copy commands lack the project under serve --all; board filters shared across projects",
+      "type": "bug",
+      "version": "0.19.0",
+      "file": "plans/052-leftovers-note-error-suggests-a-missing-audience-flag-board-copy-commands-lack-the-project-under-serve-all-board-filters-shared-across-projects.md"
+    },
+    {
+      "id": 53,
+      "slug": "waits-in-hours-and-open-ended-waits-on-a-person-wait-until-24h-and-wait-on",
+      "title": "Waits in hours and open-ended waits on a person: wait --until 24h and wait --on",
+      "type": "feature",
+      "version": "0.21.0",
+      "file": "plans/053-waits-in-hours-and-open-ended-waits-on-a-person-wait-until-24h-and-wait-on.md",
+      "note": "Steps can wait a few hours, or wait on a person such as a tester, with daily reminders until they are done.",
+      "audience": "public",
+      "dependsOn": [
+        46
+      ]
+    },
+    {
+      "id": 54,
+      "slug": "chunked-whole-repo-review-with-model-md-baseline-openusage-budgeting-and-resumable-coverage",
+      "title": "Chunked whole-repo review with model.md baseline, openusage budgeting, and resumable coverage",
+      "type": "feature",
+      "version": "0.19.0",
+      "file": "plans/054-chunked-whole-repo-review-with-model-md-baseline-openusage-budgeting-and-resumable-coverage.md"
+    },
+    {
+      "id": 55,
+      "slug": "dashboard-header-too-tall-panels-not-collapsible-trunk-health-shows-every-past-run-as-a-red-chip",
+      "title": "Dashboard: header too tall, panels not collapsible, trunk health shows every past run as a red chip",
+      "type": "bug",
+      "version": "0.19.0",
+      "file": "plans/055-dashboard-header-too-tall-panels-not-collapsible-trunk-health-shows-every-past-run-as-a-red-chip.md"
+    },
+    {
+      "id": 56,
+      "slug": "fleet-fold-review-eval-gate-keep-or-fold-policy-merge-spec-pass-drop-explore",
+      "title": "Fleet fold review: eval gate, keep-or-fold policy, merge spec pass, drop Explore",
+      "type": "refactor",
+      "version": "0.19.0",
+      "file": "plans/056-fleet-fold-review-eval-gate-keep-or-fold-policy-merge-spec-pass-drop-explore.md",
+      "note": "Agent fleet slimmed per fold-subagents guidance, gated on golden-task evals",
+      "audience": "internal"
+    },
+    {
+      "id": 57,
+      "slug": "dashboard-simplification-one-home-per-fact-answer-first-pages-monochrome-no-badge-clutter-vercel-design-principles",
+      "title": "Dashboard simplification: one home per fact, answer-first pages, monochrome, no badge clutter (Vercel design principles)",
+      "type": "refactor",
+      "version": "0.21.0",
+      "file": "plans/057-dashboard-simplification-one-home-per-fact-answer-first-pages-monochrome-no-badge-clutter-vercel-design-principles.md",
+      "note": "A calmer dashboard: each fact appears once, pages lead with what matters now, and color only marks real problems.",
+      "audience": "public"
+    }
+  ],
+  "settings": {
+    "autoCommit": true,
+    "gitTagOnRelease": false
+  },
+  "skillVersion": "0.17.0",
+  "last_seen_sha": "5acfe6b7d2f687e6ce82047198e8abd13a4dd4bb",
+  "versionDates": {
+    "0.14.1": "2026-07-22",
+    "0.14.2": "2026-07-22",
+    "0.15.0": "2026-07-23",
+    "0.16.0": "2026-08-20",
+    "0.17.0": "2026-08-21",
+    "0.18.0": "2026-10-21",
+    "0.20.0": "2026-10-23"
+  },
+  "releaseNotes": {
+    "0.17.0": "Trust, but verify: finished steps can now carry proof of the tests that passed, release dates always match when work really wrapped, and your setup stays tidy across every AI coder you use.",
+    "0.18.0": "A roomier dashboard and a sharper crew. The live roadmap page now has tabs for your plan, your idea incubator, and your changelog. Antigravity joins the list of supported coders with native plugins. Behind the scenes, the review crew got cheaper and more careful: a different model now checks each change at full attention, and every helper gets exactly the tools its job needs. Happy shipping."
+  }
+}

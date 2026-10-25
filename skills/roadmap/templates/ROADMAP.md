@@ -1,7 +1,8 @@
 # 🗺️ Roadmap: {{PROJECT}}
 
 ## 💡 Idea Incubator
-<!-- Free-form. Drop loose ideas here; scripts never touch this region. -->
+<!-- Free-form; sync never rewrites this region. ONE bullet per idea (`roadmap.py idea`).
+     Long write-ups (brainstorms, review findings) go to .roadmap/notes/ files and get linked. -->
 - (add ideas here)
 
 <!-- roadmap:auto:start -->

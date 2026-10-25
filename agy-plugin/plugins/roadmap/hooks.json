@@ -1,0 +1,18 @@
+{
+  "roadmap-sync": {
+    "Stop": [
+      {
+        "type": "command",
+        "command": "./skills/roadmap/hooks/roadmap-sync.sh"
+      }
+    ]
+  },
+  "roadmap-orient": {
+    "PreInvocation": [
+      {
+        "type": "command",
+        "command": "./skills/roadmap/hooks/roadmap-orient.sh"
+      }
+    ]
+  }
+}

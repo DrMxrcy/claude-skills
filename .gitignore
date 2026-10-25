@@ -1,3 +1,15 @@
 __pycache__/
 *.pyc
 .pytest_cache/
+.DS_Store
+
+# Plugin bundles: skills are bundled at build time from skills/.
+# Only manifests, rules, hooks, and build scripts are source.
+/codex-plugin/plugins/roadmap/skills/
+/agy-plugin/plugins/roadmap/skills/
+/agy-plugin/plugins/agent/skills/
+.agents/
+
+/.playwright-mcp
+/.playwright-mcp
+/.playwright-mcp
