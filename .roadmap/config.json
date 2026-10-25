@@ -1,7 +1,7 @@
 {
   "project": "claude-skills",
   "currentVersion": "0.19.0",
-  "nextId": 56,
+  "nextId": 57,
   "items": [
     {
       "id": 1,
@@ -560,6 +560,16 @@
       "type": "bug",
       "version": "0.19.0",
       "file": "plans/055-dashboard-header-too-tall-panels-not-collapsible-trunk-health-shows-every-past-run-as-a-red-chip.md"
+    },
+    {
+      "id": 56,
+      "slug": "fleet-fold-review-eval-gate-keep-or-fold-policy-merge-spec-pass-drop-explore",
+      "title": "Fleet fold review: eval gate, keep-or-fold policy, merge spec pass, drop Explore",
+      "type": "refactor",
+      "version": "0.19.0",
+      "file": "plans/056-fleet-fold-review-eval-gate-keep-or-fold-policy-merge-spec-pass-drop-explore.md",
+      "note": "Agent fleet slimmed per fold-subagents guidance, gated on golden-task evals",
+      "audience": "internal"
     }
   ],
   "settings": {
