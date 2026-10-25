@@ -674,7 +674,7 @@ def test_dashboard_html_markdown_renderer_is_dom_only(served):
     # plan 48: tab routes, the attention link and home cards are fixed #/
     # routes, R() only adds the #/p/<encodeURIComponent(slug)> prefix)
     assert sorted(assigns) == sorted(['href', 'R(id === "roadmap" ? "#/" : "#/"+id)',
-                                      'R("#/digest")',
+                                      'R("#/")',
                                       '"#/p/" + encodeURIComponent(c.slug) + "/"',
                                       'FAVICON(n > 0)', 'FAVICON(false)']), assigns
 
@@ -699,9 +699,9 @@ def test_dashboard_html_has_rulings_display(dashboard):
     """Plan 34: the item card and plan page render rulings (approvals flagged,
     'needs approval' marker) from status/api fields, DOM-only."""
     body = dashboard._dashboard_html()
-    for hook in ("function rulingBadges", "function rulingsBlock", "it.rulings",
-                 "it.needsApproval", "needs approval", "r.approval",
-                 "rulingsBlock(d.rulings)", "rulingBadges(d)", "rulingBadges(it)"):
+    # plan 57: rulings render once, from the plan body; rows carry only the
+    # "needs approval" marker.
+    for hook in ("it.needsApproval", "needs approval", "out.push(md(body"):
         assert hook in body, hook
     assert ".innerHTML" not in body and "insertAdjacentHTML" not in body
 
