@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.21.0 — 2026-10-24
+## v0.21.0 — (in progress)
 
 ### ✨ New
 - Move many items through review and merge in one command, and tick them off together once they reach main.
@@ -25,6 +25,7 @@
 
 ### ⚡ Improved
 - The roadmap stops warning about file length once shipped versions fold away on their own.
+- (pending) A calmer dashboard: each fact appears once, pages lead with what matters now, and color only marks real problems.
 
 ## v0.20.0 — 2026-10-23
 

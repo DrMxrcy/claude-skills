@@ -1,7 +1,7 @@
 {
   "project": "claude-skills",
   "currentVersion": "0.19.0",
-  "nextId": 57,
+  "nextId": 58,
   "items": [
     {
       "id": 1,
@@ -570,6 +570,16 @@
       "file": "plans/056-fleet-fold-review-eval-gate-keep-or-fold-policy-merge-spec-pass-drop-explore.md",
       "note": "Agent fleet slimmed per fold-subagents guidance, gated on golden-task evals",
       "audience": "internal"
+    },
+    {
+      "id": 57,
+      "slug": "dashboard-simplification-one-home-per-fact-answer-first-pages-monochrome-no-badge-clutter-vercel-design-principles",
+      "title": "Dashboard simplification: one home per fact, answer-first pages, monochrome, no badge clutter (Vercel design principles)",
+      "type": "refactor",
+      "version": "0.21.0",
+      "file": "plans/057-dashboard-simplification-one-home-per-fact-answer-first-pages-monochrome-no-badge-clutter-vercel-design-principles.md",
+      "note": "A calmer dashboard: each fact appears once, pages lead with what matters now, and color only marks real problems.",
+      "audience": "public"
     }
   ],
   "settings": {
@@ -585,8 +595,7 @@
     "0.16.0": "2026-08-20",
     "0.17.0": "2026-08-21",
     "0.18.0": "2026-10-21",
-    "0.20.0": "2026-10-23",
-    "0.21.0": "2026-10-24"
+    "0.20.0": "2026-10-23"
   },
   "releaseNotes": {
     "0.17.0": "Trust, but verify: finished steps can now carry proof of the tests that passed, release dates always match when work really wrapped, and your setup stays tidy across every AI coder you use.",
