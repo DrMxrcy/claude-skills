@@ -3,7 +3,7 @@ id: 56
 title: Fleet fold review: eval gate, keep-or-fold policy, merge spec pass, drop Explore
 type: refactor
 version: 0.19.0
-status: planned
+status: active
 created: 2026-10-25
 ---
 
@@ -37,7 +37,8 @@ created: 2026-10-25
 - **Fails if:** installer output, public CLI behavior, or any baseline test regresses.
 
 ## 📋 Checklist
-- [ ] Step 1: Add keep-or-fold test, divide-by-context rule, eval-gate rule to orchestration-policy.md
+- [x] Step 1: Add keep-or-fold test, divide-by-context rule, eval-gate rule to orchestration-policy.md
+  > evidence: scout spec MET x4; verifier PARTIAL fixed (fleet grandfathered, evals sign-off, tie rule); pytest install_agent+agy 24 passed (agy validate test pre-existing fail) (2026-10-25)
 - [ ] Step 2: Build evals/ with 10 golden tasks and runner doc; run baseline twice
 - [ ] Step 3: Merge scout spec pass into verifier (quality-build.md, policy, verifier/scout agent files); re-run evals, compare
 - [ ] Step 4: Remove Explore from fleet, installer, agy-plugin, codex-plugin, tests; re-run evals
