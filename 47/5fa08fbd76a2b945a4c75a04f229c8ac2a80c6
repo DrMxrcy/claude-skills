@@ -1,0 +1,51 @@
+install.sh
+  s_b0a8e9af27c956::t_5620c5faa8cc2c 619-620,623-625,628,630,632-633
+ROADMAP.md
+  s_b0a8e9af27c956::t_dc656d306d715e 4
+  s_b0a8e9af27c956::t_897f77028a4765 25,36
+skills/adversarial-review/scripts/run_review.py
+  s_b0a8e9af27c956::t_7709d811998f82 1031-1041,1046-1048,1052-1054,1058-1059,1064-1066,1070-1071,1933-1935,1942-1943,2355,2371,2376
+  s_b0a8e9af27c956::t_53883a1c503554 2358-2359,2380
+  s_b0a8e9af27c956::t_c4b49eae300d08 12,21-24,1950-1971,2085-2086,2136,2341-2354,2356-2357,2360-2370,2372-2375,2377-2379,2438-2440,2468-2471
+tests/test_adversarial_review.py
+  s_b0a8e9af27c956::t_f4ed218ce60d84 795-828,831-833,859-860,863-896,918-925
+  s_b0a8e9af27c956::t_2575b8842d3b0c 829-830,834-858,897-905,911-917
+  s_b0a8e9af27c956::t_01e982945a0d44 861-862
+  s_b0a8e9af27c956::t_1ad9fd246b39c6 1125,1159
+  s_b0a8e9af27c956::t_3dcea3430724bd 906-910
+commands/single-adversarial-review.md
+  s_b0a8e9af27c956::t_609d2dcf29bc6e 1-12,16-22,25-34
+  s_b0a8e9af27c956::t_2575b8842d3b0c 13-15,23-24
+skills/adversarial-review/SKILL.md
+  s_b0a8e9af27c956::t_1ad9fd246b39c6 9-10
+  s_b0a8e9af27c956::t_df527bedb09ba2 56-72,75
+  s_b0a8e9af27c956::t_2575b8842d3b0c 73-74
+tests/test_install.py
+  s_b0a8e9af27c956::t_5b4e1f87d0bb9d 151
+  s_b0a8e9af27c956::t_1ad9fd246b39c6 124-145,147-148,150,152-154
+  s_b0a8e9af27c956::t_ebac19de085b9b 146,149
+.roadmap/notes/2026-10-29-adversarial-review-diff-target-caps-context-before-redaction-so-a-secret-cut-at-the-cap-can-leak-a-prefix.md
+  s_b0a8e9af27c956::t_dc656d306d715e 1-3
+.roadmap/config.json
+  s_b0a8e9af27c956::t_9be251701a8ee0 608
+.roadmap/plans/059-single-adversarial-review-single-adversarial-review-runs-one-reviewer-on-the-host-s-own-model.md
+  s_b0a8e9af27c956::t_122368154d950d 6,31-34
+CHANGELOG.internal.md
+  s_b0a8e9af27c956::t_57e601cd8b3e33 46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "475fa08fbd76a2b945a4c75a04f229c8ac2a80c6",
+  "prompts": {},
+  "sessions": {
+    "s_b0a8e9af27c956": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ed4d96e8-2c8d-42a4-885c-beff7c5e4d04",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
