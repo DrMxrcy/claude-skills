@@ -1,0 +1,21 @@
+.roadmap/notes/2026-10-29-agy-plugin-agy-1-4-6-ignores-plugin-commands-and-truncates-roadmap-skill-md-past-24000-bytes.md
+  s_b0a8e9af27c956::t_236bc3f081b454 1-3
+ROADMAP.md
+  s_b0a8e9af27c956::t_45eb56b629d754 4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a8488383053964b590009db5b9fcd0d2b6f93924",
+  "prompts": {},
+  "sessions": {
+    "s_b0a8e9af27c956": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ed4d96e8-2c8d-42a4-885c-beff7c5e4d04",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
