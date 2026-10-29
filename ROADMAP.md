@@ -1,6 +1,7 @@
 # 🗺️ Roadmap: claude-skills
 
 ## 💡 Idea Incubator
+- agy plugin: agy 1.4.6 ignores plugin commands and truncates roadmap SKILL.md past 24000 bytes ([notes](.roadmap/notes/2026-10-29-agy-plugin-agy-1-4-6-ignores-plugin-commands-and-truncates-roadmap-skill-md-past-24000-bytes.md))
 - Upgrade must not write into a gitignored scripts dir without git add -f or a refusal
 <!-- Free-form; sync never rewrites this region. ONE bullet per idea (`roadmap.py idea`).
      Long write-ups (brainstorms, review findings) go to .roadmap/notes/ files and get linked. -->
