@@ -6,7 +6,8 @@ description: >
   codex, claude, agy, cursor-agent, opencode — then Claude triages the ranked findings.
   Members that hit a usage limit, are missing, or fail are recorded and skipped, never
   retried. Triggers on "adversarial review", "multi-model review", "have the other CLIs
-  review this", "council review of the diff", "/adversarial-review".
+  review this", "council review of the diff", "/adversarial-review". For one reviewer on
+  the session's own model, "/single-adversarial-review" (see Single review).
 argument-hint: "[diff | branch:<base> | version:<v> | plan:<id> | repo]"
 ---
 
@@ -51,6 +52,26 @@ in the project first, then under `$HOME`. In this source repo it is
 Output goes to `.roadmap/notes/review-<YYYY-MM-DD>-<slug>/`. Exit codes: `0` written;
 `1` bad target, clean tree, not a git repo, or a bad `model.md`; `2` the **live
 read-only guard failed**.
+
+## Single review
+
+`/single-adversarial-review` runs the same review with one reviewer: the agent session
+the command runs in, on its own current model (OpenCode's model inside OpenCode,
+Claude's inside Claude Code). No member CLI is started.
+
+    python3 <run_review.py> [TARGET] --prompt-only [--base REF] [--security]
+                            [--decided TEXT|@FILE] [--deny GLOB] [--chunk-budget N]
+
+- It writes the prompt one member would get to `<run-dir>/prompt.md` and prints the
+  path. For `repo` it writes one `prompt-<chunk-id>.md` per chunk, in risk order.
+- Target, context, `--decided`, deny list and secret redaction are the council's. The
+  lens is production breakage, or security with `--security`.
+- It runs no member, pre-flight, `model.md` check or snapshot. Exit `1` cases are the
+  same as a council run.
+- The session then reviews the live repo read-only by that prompt, applies the
+  evidence rule from Triage to its own findings, and reports the verdict and findings.
+  There is no snapshot, so the prompt names the deny list in a "Do not read these
+  paths" block and the session itself must skip those files.
 
 ## Whole-repo chunks (`repo`)
 

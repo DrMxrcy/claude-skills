@@ -1,6 +1,7 @@
 # 🗺️ Roadmap: claude-skills
 
 ## 💡 Idea Incubator
+- adversarial-review: diff target caps context before redaction, so a secret cut at the cap can leak a prefix ([notes](.roadmap/notes/2026-10-29-adversarial-review-diff-target-caps-context-before-redaction-so-a-secret-cut-at-the-cap-can-leak-a-prefix.md))
 - Upgrade must not write into a gitignored scripts dir without git add -f or a refusal
 <!-- Free-form; sync never rewrites this region. ONE bullet per idea (`roadmap.py idea`).
      Long write-ups (brainstorms, review findings) go to .roadmap/notes/ files and get linked. -->
@@ -21,7 +22,7 @@
 
 ### [x] v0.18.0 — 100% · 6 items · shipped 2026-10-21 ([history](CHANGELOG.internal.md))
 
-### [ ] v0.19.0 — 72%
+### [ ] v0.19.0 — 76%
 - [ ] **#28 Council review: plan review and merge gate by multiple agent CLIs** `feature` — 0% ([plan](.roadmap/plans/028-council-review-plan-review-and-merge-gate-by-multiple-agent-clis.md))
 - [x] **#29 Adversarial review skill: multi-CLI review with triage from Claude Code** `feature` — 100% ([plan](.roadmap/plans/029-adversarial-review-skill-multi-cli-review-with-triage-from-claude-code.md))
 - [x] **#30 Honest in-flight tracking: claim branch/stage/verdict per item, branch progress and stage filters in status and dashboard** `feature` — 100% ([plan](.roadmap/plans/030-honest-in-flight-tracking-claim-branch-stage-verdict-per-item-branch-progress-and-stage-filters-in-status-and-dashboard.md))
@@ -32,7 +33,7 @@
 - [x] **#55 Dashboard: header too tall, panels not collapsible, trunk health shows every past run as a red chip** `bug` — 100% ([plan](.roadmap/plans/055-dashboard-header-too-tall-panels-not-collapsible-trunk-health-shows-every-past-run-as-a-red-chip.md))
 - [ ] **#56 Fleet fold review: eval gate, keep-or-fold policy, merge spec pass, drop Explore** `refactor` — 0% ([plan](.roadmap/plans/056-fleet-fold-review-eval-gate-keep-or-fold-policy-merge-spec-pass-drop-explore.md))
 - [ ] **#58 OpenCode install target: roadmap and adversarial-review in ~/.config/opencode** `feature` — 0% ([plan](.roadmap/plans/058-opencode-install-target-roadmap-and-adversarial-review-in-config-opencode.md))
-- [ ] **#59 Single adversarial review: /single-adversarial-review runs one reviewer on the host's own model** `feature` — 0% ([plan](.roadmap/plans/059-single-adversarial-review-single-adversarial-review-runs-one-reviewer-on-the-host-s-own-model.md))
+- [x] **#59 Single adversarial review: /single-adversarial-review runs one reviewer on the host's own model** `feature` — 100% ([plan](.roadmap/plans/059-single-adversarial-review-single-adversarial-review-runs-one-reviewer-on-the-host-s-own-model.md))
 
 ### [x] v0.20.0 — 100%
 - [x] **#27 Parallel-safe roadmap builds: per-item worktrees, fresh-session orchestration, pending-decision handoff and per-item token spend** `feature` — 100% ([plan](.roadmap/plans/027-parallel-safe-roadmap-builds-per-item-worktrees-fresh-session-orchestration-pending-decision-handoff-and-per-item-token-spend.md))

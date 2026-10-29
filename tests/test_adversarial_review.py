@@ -792,6 +792,137 @@ def test_clean_tree_diff_target_is_an_error(env):
     assert res.returncode == 1 and "nothing to review" in res.stderr
 
 
+# --- --prompt-only (/single-adversarial-review) ------------------------------------------
+
+GH_TOKEN = "ghp_" + "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8"
+
+
+def _no_member_launch(monkeypatch):
+    """Fail the test if any member, preflight, model.md or snapshot path is reached."""
+    def boom(*a, **k):
+        raise AssertionError("--prompt-only reached a member launch path")
+    for name in ("run_member", "_attempt", "_run_capped", "probe_version", "read_openusage",
+                 "load_model_baseline", "build_snapshot", "snapshot", "run_chunked"):
+        monkeypatch.setattr(rr, name, boom)
+
+
+def test_prompt_only_diff_writes_prompt_and_runs_no_member(env, monkeypatch, capsys):
+    repo, _, _ = env
+    (repo / "app.py").write_text(f"def f(x):\n    return x / 0  # changed\nT = '{GH_TOKEN}'\n")
+    _no_member_launch(monkeypatch)
+    code = rr.main(["diff", "--prompt-only", "--decided", "Division by zero is intended",
+                    "--repo", str(repo)])
+    assert code == 0
+    out = capsys.readouterr().out.strip().splitlines()
+    path = Path(out[-1].removeprefix("prompt: "))
+    assert path.name == "prompt.md" and path.is_file()
+    assert path.parent.parent == repo / ".roadmap/notes"
+    assert path.parent.name.startswith("review-") and path.parent.name.endswith("-diff")
+    assert sorted(p.name for p in path.parent.iterdir()) == ["prompt.md"]
+    prompt = path.read_text()
+    assert "# changed" in prompt and GH_TOKEN not in prompt
+    assert "[REDACTED:github-token]" in prompt
+    assert rr.LENS_TEXT["production breakage"] in prompt
+    assert rr.LENS_TEXT["security"] not in prompt
+    assert "- Division by zero is intended" in prompt.split("## Decided")[1]
+    assert "sanitized snapshot" not in prompt
+    deny = prompt.split("## Do not read these paths")[1].split("##")[0]
+    assert all(f"`{p}`" in deny for p in rr.DEFAULT_DENY)
+    assert "{{" not in prompt
+
+
+def test_prompt_only_extra_deny_glob_reaches_prompt(env, monkeypatch, capsys):
+    repo, _, _ = env
+    _no_member_launch(monkeypatch)
+    assert rr.main(["diff", "--prompt-only", "--deny", "secrets/*,*.cfg",
+                    "--repo", str(repo)]) == 0
+    path = Path(capsys.readouterr().out.strip().removeprefix("prompt: "))
+    deny = path.read_text().split("## Do not read these paths")[1].split("##")[0]
+    assert "`secrets/*`" in deny and "`*.cfg`" in deny and "`.env*`" in deny
+
+
+def test_council_prompt_has_no_deny_block_and_unchanged_chunk_scope(env):
+    repo, _, _ = env
+    snap = rr.build_snapshot(repo, rr.build_target(repo, "diff"))
+    try:
+        chunk = {"id": "c1", "label": "app", "risk": "changed", "files": ["app.py"]}
+        prompt = rr.render_prompt(rr.build_target(repo, "repo"), snap.root, snapshot=snap,
+                                  chunk=chunk, total_chunks=1, deny=rr.DEFAULT_DENY)
+    finally:
+        snap.cleanup()
+    assert "## Do not read these paths" not in prompt and "sanitized snapshot" in prompt
+    assert ("Review only the files below. Your snapshot holds only these files plus the "
+            "project docs, so cite only them. Name anything outside the chunk that you "
+            "needed in your NOT_CHECKED line.") in prompt
+
+
+def test_prompt_only_cli_spawns_no_member_cli(env):
+    repo, bin_dir, run = env
+    for m in rr.MEMBERS:
+        _fake(bin_dir, m.binary, _reply("FINDING|high|Confirmed|app.py:2|x|y|z"))
+    res = run("diff", "--prompt-only", "--security")
+    assert res.returncode == 0, res.stderr
+    path = Path(res.stdout.strip().removeprefix("prompt: "))
+    assert path.is_file() and rr.LENS_TEXT["security"] in path.read_text()
+    assert not list(bin_dir.glob("*.calls")), "a member CLI was called"
+
+
+def test_prompt_only_clean_tree_matches_council_error(env):
+    repo, _, run = env
+    git(repo, "checkout", "-q", "app.py")
+    council, single = run("diff", "--members", "agy"), run("diff", "--prompt-only")
+    assert single.returncode == council.returncode == 1
+    assert single.stderr == council.stderr and "nothing to review" in single.stderr
+    assert not list(repo.glob(".roadmap/notes/review-*"))
+
+
+def test_prompt_only_repo_writes_one_prompt_per_chunk(env, monkeypatch, capsys):
+    repo, _, _ = env
+    (repo / "lib").mkdir()
+    (repo / "lib/util.py").write_text(f"KEY = '{GH_TOKEN}'\n")
+    (repo / ".env").write_text("API_KEY=sk-live-should-never-appear-123\n")
+    _no_member_launch(monkeypatch)
+    assert rr.main(["repo", "--prompt-only", "--repo", str(repo)]) == 0
+    paths = [Path(ln.removeprefix("prompt: "))
+             for ln in capsys.readouterr().out.strip().splitlines()]
+    out_dir = paths[0].parent
+    chunks, _ = rr.plan_repo_chunks(repo, str(out_dir.relative_to(repo)), rr.DEFAULT_DENY,
+                                    rr.chunk_plan.DEFAULT_CHUNK_BUDGET)
+    assert [p.name for p in paths] == [f"prompt-{c['id']}.md" for c in chunks]
+    assert sorted(p.name for p in out_dir.iterdir()) == sorted(p.name for p in paths)
+    text = "".join(p.read_text() for p in paths)
+    assert "## Chunk scope" in text and "### app.py" in text
+    assert GH_TOKEN not in text and "sk-live-should-never-appear" not in text
+    assert "This is chunk c" in paths[0].read_text()
+    assert "Your snapshot holds" not in text and "sanitized snapshot" not in text
+    assert "Read other files only as needed to judge these ones." in text
+    assert text.count("## Do not read these paths") == len(paths)
+
+
+def test_prompt_only_repo_redacts_token_cut_by_the_cap(env, monkeypatch, capsys):
+    repo, _, _ = env
+    token = "ghp_" + "Z9y8X7w6V5u4T3s2R1q0P9o8N7m6L5k4J3i2H1g0"
+    # the token straddles MAX_CONTEXT_BYTES once pasted, so capping first would leak a part
+    (repo / "big").mkdir()
+    head = "## Chunk files (raw, secret-redacted)\n\n### big/a.py\n```text\n"
+    pad = rr.MAX_CONTEXT_BYTES - len(head) - 20
+    (repo / "big/a.py").write_text("x=1\n" * (pad // 4) + "#" * (pad % 4) + token + "\n")
+    assert token[:12] in rr._cap(head + (repo / "big/a.py").read_text())   # cut mid-token
+    _no_member_launch(monkeypatch)
+    assert rr.main(["repo", "--prompt-only", "--repo", str(repo)]) == 0
+    paths = [Path(ln.removeprefix("prompt: "))
+             for ln in capsys.readouterr().out.strip().splitlines()]
+    text = "".join(p.read_text() for p in paths)
+    assert "context truncated" in text
+    assert token[:12] not in text and token[-12:] not in text
+
+
+def test_prompt_only_rejects_resume(env, capsys):
+    repo, _, _ = env
+    assert rr.main(["--prompt-only", "--resume", "x", "--repo", str(repo)]) == 1
+    assert "--prompt-only" in capsys.readouterr().err
+
+
 def test_prompt_template_placeholders_format_and_security_paragraph():
     text = rr.PROMPT_FILE.read_text()
     for ph in ("{{TARGET}}", "{{SNAPSHOT}}", "{{CONTEXT}}", "{{LENS}}", "{{PROJECT_DOCS}}",
@@ -991,6 +1122,7 @@ def test_skill_layout_is_minimal():
 
 def test_docs_have_no_references_dir_or_checklist_sync():
     for path in (SKILL / "SKILL.md", SKILL / "README.md", REPO / "commands/adversarial-review.md",
+                 REPO / "commands/single-adversarial-review.md",
                  SKILL / "prompts/adversarial.md", SKILL / "prompts/refute.md", SCRIPT):
         text = path.read_text()
         for banned in ("references/", "sync-security-refs", "secaudit", "attribution",
@@ -1024,6 +1156,7 @@ def test_install_only_adversarial_review(tmp_path):
         assert (skill / rel).is_file(), rel
     assert not (skill / "references").exists()
     assert (tmp_path / ".claude/commands/adversarial-review.md").is_file()
+    assert (tmp_path / ".claude/commands/single-adversarial-review.md").is_file()
     assert not (tmp_path / ".claude/skills/roadmap").exists()
 
 

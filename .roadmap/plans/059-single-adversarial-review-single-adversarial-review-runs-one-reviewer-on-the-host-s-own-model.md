@@ -3,7 +3,7 @@ id: 59
 title: Single adversarial review: /single-adversarial-review runs one reviewer on the host's own model
 type: feature
 version: 0.19.0
-status: planned
+status: done
 created: 2026-10-29
 ---
 
@@ -28,5 +28,7 @@ created: 2026-10-29
 - **Fails if:** any existing council behaviour, output file, exit code or test changes; or the single command spawns any model CLI.
 
 ## 🚶 Step-by-Step Checklist
-- [ ] Step 1: `--prompt-only` mode in run_review.py with tests -> target: skills/adversarial-review/scripts/run_review.py, tests/test_adversarial_review.py
-- [ ] Step 2: `/single-adversarial-review` command, SKILL.md section, install.sh wiring with install tests -> target: commands/single-adversarial-review.md, skills/adversarial-review/SKILL.md, install.sh, tests/test_install*.py
+- [x] Step 1: `--prompt-only` mode in run_review.py with tests -> target: skills/adversarial-review/scripts/run_review.py, tests/test_adversarial_review.py
+  > evidence: pytest 4 files: 164 passed; spec review (scout haiku) all acceptance MET; quality review (verifier sonnet) PARTIAL, 4 findings fixed (cap-boundary redaction, deny block in prompt, arg quoting, chunk scope text), re-tested by parent (2026-10-29)
+- [x] Step 2: `/single-adversarial-review` command, SKILL.md section, install.sh wiring with install tests -> target: commands/single-adversarial-review.md, skills/adversarial-review/SKILL.md, install.sh, tests/test_install*.py
+  > evidence: pytest 4 files: 164 passed; spec review (scout haiku) all acceptance MET; quality review (verifier sonnet) PARTIAL, 4 findings fixed (cap-boundary redaction, deny block in prompt, arg quoting, chunk scope text), re-tested by parent (2026-10-29)

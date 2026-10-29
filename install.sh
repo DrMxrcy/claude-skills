@@ -616,20 +616,21 @@ if [ "$commands" = "1" ] && _want roadmap && [ "$agent" != "codex" ]; then
   fi
 fi
 
-# /adversarial-review: one flat command beside the skill (Codex invokes skills as
-# $adversarial-review instead, so it gets no command file).
+# /adversarial-review and /single-adversarial-review: flat commands beside the skill
+# (Codex invokes skills as $adversarial-review instead, so it gets no command file).
 if [ "$commands" = "1" ] && _want adversarial-review && [ "$agent" != "codex" ] \
    && [ -d "$skills_dest/adversarial-review" ]; then
-  ar_cmd="$(dirname "$SRC_DIR")/commands/adversarial-review.md"
-  if [ -f "$ar_cmd" ]; then
+  for ar_name in adversarial-review single-adversarial-review; do
+    ar_cmd="$(dirname "$SRC_DIR")/commands/$ar_name.md"
+    [ -f "$ar_cmd" ] || continue
     mkdir -p "$base/commands"
     if [ "$link" = "1" ]; then
-      ln -sfn "$(cd "$(dirname "$ar_cmd")" && pwd)/$(basename "$ar_cmd")" "$base/commands/adversarial-review.md"
+      ln -sfn "$(cd "$(dirname "$ar_cmd")" && pwd)/$(basename "$ar_cmd")" "$base/commands/$ar_name.md"
     else
-      cp "$ar_cmd" "$base/commands/adversarial-review.md"
+      cp "$ar_cmd" "$base/commands/$ar_name.md"
     fi
-    echo "Installed command: /adversarial-review -> $base/commands/adversarial-review.md"
-  fi
+    echo "Installed command: /$ar_name -> $base/commands/$ar_name.md"
+  done
 fi
 
 # Add roadmap rules to the agent instruction files (idempotent) so the discipline

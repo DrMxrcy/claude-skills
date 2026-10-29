@@ -43,7 +43,7 @@ _Full work log — every item, including internal/dev work. The curated public c
 - The live roadmap page opens on everything, and every plan and idea gets its own page.
 - Chunked whole-repo review with model.md baseline, openusage budgeting, and resumable coverage
 - (pending) OpenCode install target: roadmap and adversarial-review in ~/.config/opencode
-- (pending) Separate from the multi-CLI council. Run inside OpenCode it uses OpenCode's current model; inside Claude Code, Claude's.
+- Separate from the multi-CLI council. Run inside OpenCode it uses OpenCode's current model; inside Claude Code, Claude's.
 
 ### 🐛 Fixed
 - bug --found-in writes the Fix step before refusing a claim held by another owner

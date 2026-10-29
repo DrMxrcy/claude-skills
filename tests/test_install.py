@@ -121,6 +121,37 @@ def test_install_no_commands_flag(tmp_path):
     assert not (tmp_path / ".claude/commands").exists()
 
 
+AR_COMMANDS = ("adversarial-review.md", "single-adversarial-review.md")
+
+
+def test_install_adversarial_review_commands_claude_and_opencode(tmp_path):
+    for flag, base in ((None, ".claude"), ("--opencode", ".opencode")):
+        res = _run(tmp_path, "--project", *([flag] if flag else []))
+        assert res.returncode == 0, res.stderr
+        for name in AR_COMMANDS:
+            dest = tmp_path / base / "commands" / name
+            assert dest.read_text() == (REPO / "commands" / name).read_text(), dest
+            assert f"Installed command: /{name[:-3]} -> " in res.stdout
+
+
+def test_install_adversarial_review_commands_link(tmp_path):
+    res = _run(tmp_path, "--project", "--link")
+    assert res.returncode == 0, res.stderr
+    for name in AR_COMMANDS:
+        dest = tmp_path / ".claude/commands" / name
+        assert dest.is_symlink() and dest.resolve() == (REPO / "commands" / name).resolve()
+
+
+def test_install_adversarial_review_commands_skipped_for_codex_and_no_commands(tmp_path):
+    for args, base in ((("--codex",), ".codex"), (("--no-commands",), ".claude")):
+        res = _run(tmp_path, "--project", *args)
+        assert res.returncode == 0, res.stderr
+        assert (tmp_path / base / "skills/adversarial-review/SKILL.md").is_file()
+        for name in AR_COMMANDS:
+            assert not list(tmp_path.rglob(name)), (args, name)
+            assert f"/{name[:-3]} ->" not in res.stdout
+
+
 def test_install_ships_all_commands(tmp_path):
     _run(tmp_path, "--project")
     src = {p.name for p in (REPO / "commands").glob("roadmap-*.md")}

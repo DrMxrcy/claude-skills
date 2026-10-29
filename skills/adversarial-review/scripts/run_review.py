@@ -9,7 +9,7 @@ Claude does the final judgement on that summary; this script only collects and r
 Usage:
   run_review.py [TARGET] [--base REF] [--members a,b] [--exclude a,b] [--refute]
                 [--security] [--decided TEXT|@FILE] [--timeout 300] [--repo PATH]
-                [--out-dir DIR] [--list]
+                [--out-dir DIR] [--list] [--prompt-only]
 
 TARGET (default: diff):
   diff                working tree vs HEAD (or <base>...HEAD with --base)
@@ -17,6 +17,10 @@ TARGET (default: diff):
   version:<v>         every plan file in .roadmap/plans/ targeting version <v>
   plan:<id>           one plan file (e.g. plan:29)
   repo                the whole repo, including ROADMAP.md and .roadmap/ state
+
+--prompt-only writes the prompt one member would get to <run-dir>/prompt.md (repo: one
+prompt-<chunk-id>.md per chunk), prints the path and exits; no member runs. The host
+agent then reviews by it on its own model (/single-adversarial-review).
 
 --refute adds a second round: each member that ran gets the evidenced findings it did
 not report itself (fresh process) and tries to disprove them with cited evidence.
@@ -1024,32 +1028,47 @@ def snapshot_block(snapshot):
     return "\n".join(lines) + "\n"
 
 
+def deny_block(deny):
+    """--prompt-only: no snapshot keeps denied files away, so the reviewer must."""
+    if not deny:
+        return ""
+    pats = ", ".join(f"`{p}`" for p in deny)
+    return ("## Do not read these paths\n\n"
+            "You review the live repo, not a sanitized copy. Do not open, search or quote "
+            "any file whose path or any path component matches this deny list; they may "
+            f"hold secrets. Deny list: {pats}.\n")
+
+
 def lens_for(index, security_only=False):
     return "security" if security_only else LENSES[index % len(LENSES)]
 
 
-def chunk_block(chunk, total):
-    """Chunk-scoped instructions for one chunk call (empty for other targets)."""
+def chunk_block(chunk, total, in_snapshot=True):
+    """Chunk-scoped instructions for one chunk call (empty for other targets).
+    `in_snapshot` False: a --prompt-only reviewer on the live repo, with no snapshot."""
     if chunk is None:
         return ""
     files = "".join(f"- `{f}`\n" for f in chunk["files"])
+    scope = ("Your snapshot holds only these files plus the project docs, so cite only "
+             "them. " if in_snapshot else
+             "Read other files only as needed to judge these ones. ")
     return ("## Chunk scope\n\n"
             f"This is chunk {chunk['id']} of {total} (`{chunk['label']}`, risk: "
             f"{chunk['risk']}). The whole repo is reviewed in module chunks, one call per "
-            "chunk; other chunks go to other calls. Review only the files below. Your "
-            "snapshot holds only these files plus the project docs, so cite only them. "
-            "Name anything outside the chunk that you needed in your NOT_CHECKED line.\n\n"
+            "chunk; other chunks go to other calls. Review only the files below. " + scope
+            + "Name anything outside the chunk that you needed in your NOT_CHECKED line.\n\n"
             f"Files in this chunk:\n{files}")
 
 
 def render_prompt(target, repo, lens="production breakage", decided=None, snapshot=None,
-                  chunk=None, total_chunks=0):
-    """`repo` is where members look (the snapshot root in a real run)."""
+                  chunk=None, total_chunks=0, deny=None):
+    """`repo` is where members look (the snapshot root in a real run). `deny`: only
+    without a snapshot (--prompt-only), names the paths the reviewer must not read."""
     template = PROMPT_FILE.read_text()
     blocks = {
         "{{TARGET}}": target.description,
-        "{{SNAPSHOT}}": snapshot_block(snapshot),
-        "{{CHUNK}}": chunk_block(chunk, total_chunks),
+        "{{SNAPSHOT}}": snapshot_block(snapshot) if snapshot is not None else deny_block(deny),
+        "{{CHUNK}}": chunk_block(chunk, total_chunks, snapshot is not None),
         "{{LENS}}": LENS_TEXT[lens],
         "{{PROJECT_DOCS}}": project_docs_block(repo),
         "{{DECIDED}}": decided_block(decided),
@@ -1911,18 +1930,43 @@ def _fence(text):
     return "`" * max(3, longest + 1)
 
 
-def raw_chunk_context(root, files):
-    """Chunk files as pasted context, read from the (redacted) chunk snapshot."""
+def raw_chunk_context(root, files, redact=False):
+    """Chunk files as pasted context, read from the (redacted) chunk snapshot. `redact`:
+    `root` is the live repo, so redact each file before the cap can cut a secret."""
     parts = ["## Chunk files (raw, secret-redacted)\n"]
     for rel in files:
         path = Path(root) / rel
         if not path.is_file():
             continue
         text = path.read_text(errors="replace")
+        if redact:
+            text = redact_text(text)[0]
         fence = _fence(text)
         parts.append(f"\n### {rel}\n{fence}text\n{text}"
                      f"{'' if text.endswith(chr(10)) else chr(10)}{fence}\n")
     return _cap("".join(parts))
+
+
+def plan_repo_chunks(repo, out_rel, deny, budget, base=None):
+    """(chunks in risk order, [(rel, reason)] not chunked) for a `repo` target."""
+    repo_target = Target("whole repo", "repo", "", "repo", [])
+    sizes, unchunked = chunk_plan.plannable_files(
+        repo, snapshot_files(repo, repo_target, out_rel), is_denied, deny, MAX_SNAPSHOT_FILE)
+    chunks = chunk_plan.plan_chunks(sizes, budget, changed_files(repo, base))
+    if not chunks:
+        raise ValueError("no reviewable text files in the repo")
+    return chunks, unchunked
+
+
+def codegraph_chunk_context(repo, files, deny):
+    """(secret-redacted codegraph context or None, note, {kind: count} redacted)."""
+    text, note = chunk_plan.codegraph_context(
+        repo, files, env=_base_env(), is_denied=is_denied, deny=deny)
+    red = {}
+    if text is not None:
+        text, red = redact_text(text)
+        text = _cap("## Chunk context (codegraph explore, secret-redacted)\n\n" + text)
+    return text, note, red
 
 
 def _base_env():
@@ -2038,14 +2082,8 @@ def run_chunked(args, repo, members, not_run, deny):
             eligible.append((m, e))
 
     if cov is None:
-        repo_target = Target("whole repo", "repo", "", "repo", [])
-        sizes, unchunked = chunk_plan.plannable_files(
-            repo, snapshot_files(repo, repo_target, out_rel), is_denied, deny,
-            MAX_SNAPSHOT_FILE)
-        chunks = chunk_plan.plan_chunks(sizes, args.chunk_budget,
-                                        changed_files(repo, args.base))
-        if not chunks:
-            raise ValueError("no reviewable text files in the repo")
+        chunks, unchunked = plan_repo_chunks(repo, out_rel, deny, args.chunk_budget,
+                                             args.base)
         cov = chunk_plan.new_coverage(chunks, args.chunk_budget, unchunked, created=date)
         chunk_plan.save_coverage(out_dir, cov)
     chunks, total = cov["chunks"], len(cov["chunks"])
@@ -2095,14 +2133,7 @@ def run_chunked(args, repo, members, not_run, deny):
             clock = cg_locks.setdefault(chunk["id"], threading.Lock())
         with clock:
             if chunk["id"] not in cg_cache:
-                text, note = chunk_plan.codegraph_context(
-                    repo, chunk["files"], env=_base_env(), is_denied=is_denied, deny=deny)
-                red = {}
-                if text is not None:
-                    text, red = redact_text(text)
-                    text = _cap("## Chunk context (codegraph explore, secret-redacted)\n\n"
-                                + text)
-                cg_cache[chunk["id"]] = (text, note, red)
+                cg_cache[chunk["id"]] = codegraph_chunk_context(repo, chunk["files"], deny)
             return cg_cache[chunk["id"]]
 
     def work(m, entry):
@@ -2307,6 +2338,46 @@ def run_chunked(args, repo, members, not_run, deny):
     return 0
 
 
+# --- single review (--prompt-only) -----------------------------------------------------
+# /single-adversarial-review: the host session is the one reviewer, on its own model. This
+# writes the prompt a council member would get (first lens, or security) and runs nothing:
+# no member, preflight, model.md check or snapshot copy. The host reads the live repo.
+
+def write_prompts(args, repo, deny):
+    """--prompt-only: prompt.md (repo: prompt-<chunk-id>.md per chunk, risk order) in a
+    new run dir; prints each path. Returns the exit code."""
+    date = _dt.date.today().isoformat()
+    lens = lens_for(0, args.security)
+    if args.target != "repo":
+        target = build_target(repo, args.target, args.base, deny)
+        out_dir = pick_out_dir(repo, args.out_dir, slugify(target.slug), date)
+        path = out_dir / "prompt.md"
+        path.write_text(render_prompt(target, repo, lens, args.decided, deny=deny))
+        print(f"prompt: {path}")
+        return 0
+    if args.chunk_budget < 1:
+        raise ValueError("--chunk-budget must be at least 1 token")
+    out_dir = pick_out_dir(repo, args.out_dir, "repo", date)
+    try:
+        out_rel = str(out_dir.resolve().relative_to(repo.resolve()))
+    except ValueError:
+        out_rel = None
+    chunks, _ = plan_repo_chunks(repo, out_rel, deny, args.chunk_budget, args.base)
+    use_codegraph = chunk_plan.has_codegraph(repo)
+    for chunk in chunks:
+        files = list(chunk["files"])
+        text = codegraph_chunk_context(repo, files, deny)[0] if use_codegraph else None
+        if text is None:     # plannable_files already dropped denied, linked, binary files
+            text = raw_chunk_context(repo, files, redact=True)
+        ctarget = Target(f"whole repo, chunk {chunk['id']} of {len(chunks)}: "
+                         f"{chunk['label']}", "repo", text, "repo", files)
+        path = out_dir / f"prompt-{chunk['id']}.md"
+        path.write_text(render_prompt(ctarget, repo, lens, args.decided, chunk=chunk,
+                                      total_chunks=len(chunks), deny=deny))
+        print(f"prompt: {path}")
+    return 0
+
+
 # --- CLI ------------------------------------------------------------------------------
 
 def _names(csv):
@@ -2364,6 +2435,9 @@ def main(argv=None):
     ap.add_argument("--repo", default=None, help="repo root (default: git toplevel of CWD)")
     ap.add_argument("--out-dir", default=None)
     ap.add_argument("--list", action="store_true", help="show members and exit")
+    ap.add_argument("--prompt-only", action="store_true",
+                    help="write the review prompt to <run-dir>/prompt.md and exit; "
+                         "runs no member (for /single-adversarial-review)")
     ap.add_argument("--chunk-budget", type=int, default=chunk_plan.DEFAULT_CHUNK_BUDGET,
                     help="repo target: tokens per chunk (estimate: 4 bytes per token)")
     ap.add_argument("--resume", metavar="RUN_DIR",
@@ -2391,6 +2465,10 @@ def main(argv=None):
         members, not_run = select_members(args.members, ",".join(args.exclude))
         deny = tuple(DEFAULT_DENY) + tuple(d for entry in args.deny for d in _names(entry))
         decided_block(args.decided)          # validate @files before anything runs
+        if args.prompt_only:
+            if args.resume:
+                raise ValueError("--prompt-only writes fresh prompts; drop --resume")
+            return write_prompts(args, repo, deny)
         if args.resume or args.target == "repo":
             if args.target not in ("repo", "diff"):   # "diff" is the unset default
                 raise ValueError("--resume continues a chunked repo run; drop the target")
