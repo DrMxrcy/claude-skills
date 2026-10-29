@@ -1,0 +1,59 @@
+agy-plugin/plugins/roadmap/commands/roadmap-retarget.md
+  s_5a1dfd8a33fac1::t_9930425106bbf4 39
+agy-plugin/plugins/roadmap/commands/roadmap-review.md
+  s_5a1dfd8a33fac1::t_9930425106bbf4 36
+agy-plugin/plugins/roadmap/commands/roadmap-upgrade.md
+  s_5a1dfd8a33fac1::t_9930425106bbf4 19
+agy-plugin/plugins/roadmap/commands/roadmap-reevaluate.md
+  s_5a1dfd8a33fac1::t_9930425106bbf4 43
+agy-plugin/plugins/roadmap/commands/roadmap-done.md
+  s_5a1dfd8a33fac1::t_9930425106bbf4 30
+agy-plugin/plugins/roadmap/commands/roadmap-sync.md
+  s_5a1dfd8a33fac1::t_9930425106bbf4 16
+agy-plugin/plugins/roadmap/commands/roadmap-build.md
+  s_5a1dfd8a33fac1::t_9930425106bbf4 125
+agy-plugin/plugins/roadmap/commands/roadmap-release.md
+  s_5a1dfd8a33fac1::t_9930425106bbf4 48
+agy-plugin/plugins/roadmap/commands/roadmap-handoff.md
+  s_5a1dfd8a33fac1::t_9930425106bbf4 51
+agy-plugin/plugins/roadmap/commands/roadmap-init.md
+  s_5a1dfd8a33fac1::t_9930425106bbf4 21
+agy-plugin/plugins/roadmap/commands/roadmap-idea.md
+  s_5a1dfd8a33fac1::t_9930425106bbf4 28
+agy-plugin/plugins/roadmap/commands/roadmap-tidy.md
+  s_5a1dfd8a33fac1::t_9930425106bbf4 60
+agy-plugin/plugins/roadmap/commands/roadmap-catchup.md
+  s_5a1dfd8a33fac1::t_9930425106bbf4 33
+agy-plugin/plugins/roadmap/commands/roadmap-status.md
+  s_5a1dfd8a33fac1::t_9930425106bbf4 18
+agy-plugin/plugins/roadmap/commands/roadmap-next.md
+  s_5a1dfd8a33fac1::t_9930425106bbf4 50
+commands/adversarial-review.md
+  s_5a1dfd8a33fac1::t_f52ed40a7fc5c9 1-30
+agy-plugin/plugins/roadmap/commands/roadmap-promote.md
+  s_5a1dfd8a33fac1::t_9930425106bbf4 34
+agy-plugin/plugins/roadmap/commands/roadmap-remove.md
+  s_5a1dfd8a33fac1::t_9930425106bbf4 25
+skills/adversarial-review/SKILL.md
+  s_5a1dfd8a33fac1::t_f52ed40a7fc5c9 1-259
+agy-plugin/plugins/roadmap/commands/roadmap-plan.md
+  s_5a1dfd8a33fac1::t_9930425106bbf4 43
+agy-plugin/plugins/roadmap/commands/roadmap-changelog.md
+  s_5a1dfd8a33fac1::t_9930425106bbf4 177
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f0066aa3facebdc0ce397a41c7195a1975b5007f",
+  "prompts": {},
+  "sessions": {
+    "s_5a1dfd8a33fac1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd0709ff-752e-4604-8bbf-3b05863e8ff3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
