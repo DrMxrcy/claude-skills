@@ -917,6 +917,28 @@ def test_prompt_only_repo_redacts_token_cut_by_the_cap(env, monkeypatch, capsys)
     assert token[:12] not in text and token[-12:] not in text
 
 
+def test_prompt_only_diff_redacts_token_cut_by_the_cap(env, monkeypatch, capsys):
+    repo, _, _ = env
+    token = "ghp_" + "Z9y8X7w6V5u4T3s2R1q0P9o8N7m6L5k4J3i2H1g0"
+    head = "## git diff HEAD\n```diff\n"
+
+    def write(pad):
+        (repo / "app.py").write_text("def f(x):\n    return x / 0  # changed\n#"
+                                     + "#" * pad + token + "\n")
+        return (head + rr._git_diff(repo, "HEAD")).encode().index(token.encode())
+
+    # place the token so it straddles MAX_CONTEXT_BYTES; capping first would leak a part
+    at = write(0)
+    assert write(rr.MAX_CONTEXT_BYTES - 20 - at) == rr.MAX_CONTEXT_BYTES - 20
+    assert token[:12] in rr._cap(head + rr._git_diff(repo, "HEAD"))   # cut mid-token
+    _no_member_launch(monkeypatch)
+    assert rr.main(["diff", "--prompt-only", "--repo", str(repo)]) == 0
+    path = Path(capsys.readouterr().out.strip().splitlines()[-1].removeprefix("prompt: "))
+    text = path.read_text()
+    assert "context truncated" in text
+    assert token[:12] not in text and token[-12:] not in text
+
+
 def test_prompt_only_rejects_resume(env, capsys):
     repo, _, _ = env
     assert rr.main(["--prompt-only", "--resume", "x", "--repo", str(repo)]) == 1

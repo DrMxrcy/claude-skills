@@ -782,9 +782,12 @@ def _git_diff(repo, *args):
 def build_target(repo, target, base=None, deny=None):
     """Return a Target for a target spec. Raises ValueError. Diff text is filtered by
     the deny list (`deny`, default DEFAULT_DENY) and secret-redacted (redact_text)
-    before it can reach any prompt; target.redacted counts what was removed."""
+    before it can reach any prompt, then capped (_cap); target.redacted counts what
+    was removed."""
     t = _build_target(repo, target, base, deny)
+    # redact before the cap: a secret the cap cut would no longer match a pattern
     t.context, t.redacted = redact_text(t.context)
+    t.context = _cap(t.context)
     return t
 
 
@@ -807,7 +810,7 @@ def _build_target(repo, target, base=None, deny=None):
         ctx = f"## git diff HEAD\n```diff\n{diff}```\n"
         if shown:
             ctx += "\n## Untracked files (read them directly)\n" + "\n".join(shown) + "\n"
-        return Target("working tree diff vs HEAD", "diff", _cap(ctx), "diff", files,
+        return Target("working tree diff vs HEAD", "diff", ctx, "diff", files,
                       withheld)
     if kind == "branch":
         if not arg:
@@ -820,7 +823,7 @@ def _build_target(repo, target, base=None, deny=None):
         files = _lines(_git(repo, "-c", "core.quotePath=false", "diff", "--name-only",
                             f"{arg}...HEAD"))
         ctx = f"## Commits {arg}..HEAD\n{log}\n## git diff {arg}...HEAD\n```diff\n{diff}```\n"
-        return Target(f"branch diff {arg}...HEAD", f"branch-{arg}", _cap(ctx), "branch",
+        return Target(f"branch diff {arg}...HEAD", f"branch-{arg}", ctx, "branch",
                       files, withheld)
     if kind == "version":
         if not arg:
@@ -833,7 +836,7 @@ def _build_target(repo, target, base=None, deny=None):
         ctx = "".join(f"## {p.relative_to(repo)}\n{p.read_text(errors='replace')}\n" for p in plans)
         ctx += "\nVerify every checklist step and ✅ Acceptance line above against the code.\n"
         return Target(f"roadmap version {want} ({len(plans)} plan(s))", f"version-{want}",
-                      _cap(ctx), "version", [p.relative_to(repo).as_posix() for p in plans])
+                      ctx, "version", [p.relative_to(repo).as_posix() for p in plans])
     if kind == "plan":
         if not arg.isdigit():
             raise ValueError("plan target needs a numeric id: plan:<id>")
@@ -843,7 +846,7 @@ def _build_target(repo, target, base=None, deny=None):
         p = plans[0]
         ctx = f"## {p.relative_to(repo)}\n{p.read_text(errors='replace')}\n" \
               "\nVerify every checklist step and ✅ Acceptance line above against the code.\n"
-        return Target(f"plan {int(arg)} ({p.name})", f"plan-{int(arg)}", _cap(ctx), "plan",
+        return Target(f"plan {int(arg)} ({p.name})", f"plan-{int(arg)}", ctx, "plan",
                       [p.relative_to(repo).as_posix()])
     if kind == "repo":
         tracked = _git(repo, "ls-files").decode(errors="replace")
@@ -860,7 +863,7 @@ def _build_target(repo, target, base=None, deny=None):
         plans = _plan_files(repo)
         if plans:
             ctx += "\n## Plan files (.roadmap/plans/)\n" + "".join(f"- {p.name}\n" for p in plans)
-        return Target("whole repo incl. roadmap state", "repo", _cap(ctx), "repo", [])
+        return Target("whole repo incl. roadmap state", "repo", ctx, "repo", [])
     raise ValueError(f"unknown target {target!r} (diff, branch:<base>, version:<v>, plan:<id>, repo)")
 
 

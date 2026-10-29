@@ -3,7 +3,7 @@ id: 60
 title: adversarial-review: diff target caps context before redaction, so a secret cut at the cap can leak a prefix
 type: bug
 version: 0.19.0
-status: planned
+status: done
 created: 2026-10-29
 ---
 
@@ -26,6 +26,13 @@ created: 2026-10-29
 - **Fails if:** any existing adversarial-review test breaks, the context can exceed MAX_CONTEXT_BYTES plus the cap's truncation marker, or the redaction counts change for inputs without a cap-straddling secret.
 
 ## 🛠️ Checklist
-- [ ] Step 1: Write a reproduction test
-- [ ] Step 2: Apply the fix
-- [ ] Step 3: Verify suite is green
+- [x] Step 1: Write a reproduction test
+  > evidence: regression test fails on HEAD, passes on fix; pytest 115 passed; verifier (sonnet) CONFIRMED no other cap-then-redact path (2026-10-29)
+- [x] Step 2: Apply the fix
+  > evidence: regression test fails on HEAD, passes on fix; pytest 115 passed; verifier (sonnet) CONFIRMED no other cap-then-redact path (2026-10-29)
+- [x] Step 3: Verify suite is green
+  > evidence: regression test fails on HEAD, passes on fix; pytest 115 passed; verifier (sonnet) CONFIRMED no other cap-then-redact path (2026-10-29)
+
+## ⚖️ Rulings
+
+- **Ruling (2026-10-29, owner):** Accept redact-then-cap even though target.redacted can now count a secret that sits past the cap and never reaches the prompt. Overcounting in summary.md is the safe direction; exact counting would need offset mapping for no safety gain. This relaxes the Fails-if line on redaction counts for over-cap inputs only.
