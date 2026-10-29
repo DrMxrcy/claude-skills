@@ -48,7 +48,7 @@ rate-limit loses at most the in-flight step, never a whole item.
 **Finding the CLI (`<roadmap.py>`) — do not search for it.**
 
 ```bash
-for d in .claude .grok .agents "$HOME/.claude" "$HOME/.grok" "$HOME/.agents"; do RM="$d/skills/roadmap/scripts/roadmap.py"; [ -f "$RM" ] && break; done
+for d in .claude .grok .agents .opencode "$HOME/.claude" "$HOME/.grok" "$HOME/.agents" "$HOME/.config/opencode"; do RM="$d/skills/roadmap/scripts/roadmap.py"; [ -f "$RM" ] && break; done
 ```
 
 Run `python3 "$RM" …` — use `$RM` wherever `<roadmap.py>` appears.
