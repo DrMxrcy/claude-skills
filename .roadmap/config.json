@@ -1,7 +1,7 @@
 {
   "project": "claude-skills",
   "currentVersion": "0.19.0",
-  "nextId": 60,
+  "nextId": 61,
   "items": [
     {
       "id": 1,
@@ -597,6 +597,15 @@
       "version": "0.19.0",
       "file": "plans/059-single-adversarial-review-single-adversarial-review-runs-one-reviewer-on-the-host-s-own-model.md",
       "note": "Separate from the multi-CLI council. Run inside OpenCode it uses OpenCode's current model; inside Claude Code, Claude's.",
+      "audience": "internal"
+    },
+    {
+      "id": 60,
+      "slug": "adversarial-review-diff-target-caps-context-before-redaction-so-a-secret-cut-at-the-cap-can-leak-a-prefix",
+      "title": "adversarial-review: diff target caps context before redaction, so a secret cut at the cap can leak a prefix",
+      "type": "bug",
+      "version": "0.19.0",
+      "file": "plans/060-adversarial-review-diff-target-caps-context-before-redaction-so-a-secret-cut-at-the-cap-can-leak-a-prefix.md",
       "audience": "internal"
     }
   ],
