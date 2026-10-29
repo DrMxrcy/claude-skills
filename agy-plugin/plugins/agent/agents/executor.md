@@ -1,7 +1,7 @@
 ---
 name: executor
 description: Use for implementation that needs engineering judgment — features, bug fixes, design-sensitive refactors where the approach is decided but execution requires weighing edge cases, contracts, and existing patterns.
-model: opus
+model: pro
 effort: medium
 ---
 

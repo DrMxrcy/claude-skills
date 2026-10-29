@@ -1,7 +1,7 @@
 {
   "project": "claude-skills",
   "currentVersion": "0.19.0",
-  "nextId": 61,
+  "nextId": 62,
   "items": [
     {
       "id": 1,
@@ -607,6 +607,14 @@
       "version": "0.19.0",
       "file": "plans/060-adversarial-review-diff-target-caps-context-before-redaction-so-a-secret-cut-at-the-cap-can-leak-a-prefix.md",
       "audience": "internal"
+    },
+    {
+      "id": 61,
+      "slug": "test-agy-cli-plugin-validate-expects-ok-but-agy-1-4-6-prints-validation-passed",
+      "title": "test_agy_cli_plugin_validate expects [ok] but agy 1.4.6 prints Validation passed",
+      "type": "bug",
+      "version": "0.19.0",
+      "file": "plans/061-test-agy-cli-plugin-validate-expects-ok-but-agy-1-4-6-prints-validation-passed.md"
     }
   ],
   "settings": {
@@ -614,7 +622,7 @@
     "gitTagOnRelease": false
   },
   "skillVersion": "0.17.0",
-  "last_seen_sha": "a8488383053964b590009db5b9fcd0d2b6f93924",
+  "last_seen_sha": "2f32e9b8878c8906329cdaa17fa57df28d36dec0",
   "versionDates": {
     "0.14.1": "2026-07-22",
     "0.14.2": "2026-07-22",

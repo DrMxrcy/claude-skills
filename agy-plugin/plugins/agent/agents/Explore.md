@@ -1,9 +1,15 @@
 ---
 name: Explore
 description: Fast read-only codebase exploration — locating files, tracing naming conventions, sweeping directories, mapping where functionality lives. Returns paths and findings, never edits.
-model: haiku
+model: flash
 effort: low
-tools: Glob, Grep, Read, Bash, mcp__codegraph__codegraph_explore, mcp__codegraph__codegraph_node
+tools:
+  - Glob
+  - Grep
+  - Read
+  - Bash
+  - mcp__codegraph__codegraph_explore
+  - mcp__codegraph__codegraph_node
 ---
 
 You are a read-only exploration agent. You locate and map code; you never modify anything.

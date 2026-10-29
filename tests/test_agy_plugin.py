@@ -1,4 +1,5 @@
 """Coverage for the Antigravity (agy) plugin packages (agy-plugin/) and build script."""
+import re
 import json
 import os
 import shutil
@@ -146,6 +147,12 @@ def test_marketplace_references_local_plugins():
     assert agent_entry["policy"]["installation"] == "AVAILABLE"
 
 
+def _validated(stdout):
+    # agy <= 1.4.5 printed "[ok]"; 1.4.6 prints "Validation passed" (warnings are
+    # tracked separately, not failed here)
+    return "[ok]" in stdout or "Validation passed" in stdout
+
+
 def test_agy_cli_plugin_validate():
     agy_bin = shutil.which("agy")
     if not agy_bin:
@@ -156,9 +163,24 @@ def test_agy_cli_plugin_validate():
     # Validate roadmap plugin
     res_rm = subprocess.run([agy_bin, "plugin", "validate", str(ROADMAP_PLUGIN)], capture_output=True, text=True)
     assert res_rm.returncode == 0, res_rm.stderr
-    assert "[ok]" in res_rm.stdout
+    assert _validated(res_rm.stdout), res_rm.stdout
 
     # Validate agent plugin
     res_ag = subprocess.run([agy_bin, "plugin", "validate", str(AGENT_PLUGIN)], capture_output=True, text=True)
     assert res_ag.returncode == 0, res_ag.stderr
-    assert "[ok]" in res_ag.stdout
+    assert _validated(res_ag.stdout), res_ag.stdout
+
+
+def test_agent_fleet_frontmatter_is_agy_shaped():
+    # agy 1.4.6 skips an agent whose `tools` is a comma string or whose `model` is not
+    # an agy tier; the Claude source files keep their own format.
+    assert _build().returncode == 0
+    agents = sorted((AGENT_PLUGIN / "agents").glob("*.md"))
+    assert agents
+    for f in agents:
+        fm = f.read_text().split("---\n")[1]
+        model = re.search(r"^model: *(\S+)", fm, re.M)
+        assert model and model.group(1) in {"pro", "flash", "flash_lite", "inherit"}, f.name
+        assert not re.search(r"^tools: *\S", fm, re.M), f"{f.name}: tools must be a YAML list"
+    src = (REPO / "skills/agent/.claude/agents/executor.md").read_text()
+    assert "model: opus" in src

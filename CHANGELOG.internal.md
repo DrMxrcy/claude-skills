@@ -50,6 +50,7 @@ _Full work log — every item, including internal/dev work. The curated public c
 - Leftovers: note error suggests a missing --audience flag; board copy commands lack the project under serve --all; board filters shared across projects
 - Dashboard: header too tall, panels not collapsible, trunk health shows every past run as a red chip
 - adversarial-review: diff target caps context before redaction, so a secret cut at the cap can leak a prefix
+- test_agy_cli_plugin_validate expects [ok] but agy 1.4.6 prints Validation passed
 
 ### ⚡ Improved
 - (pending) Agent fleet slimmed per fold-subagents guidance, gated on golden-task evals

@@ -1,7 +1,7 @@
 ---
 name: mech-executor
 description: Use for fully-specified mechanical work — pattern refactors, convention-following tests, docs, formatting, bulk edits. Execute efficiently; no judgment calls.
-model: haiku
+model: flash
 effort: medium
 ---
 

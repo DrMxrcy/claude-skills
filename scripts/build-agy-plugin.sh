@@ -83,8 +83,27 @@ echo "Bundled skill: skills/agent -> $agent_pkg/skills/agent (v$agent_version)"
 # Copy subagents fleet
 rm -f "$agent_pkg/agents"/*.md
 if [ -d "$agent_src/.claude/agents" ]; then
-  cp "$agent_src/.claude/agents"/*.md "$agent_pkg/agents/"
-  echo "Copied subagent fleet -> $agent_pkg/agents/"
+  # agy's agent frontmatter wants `tools` as a YAML list and `model` as an agy tier
+  # (pro | flash | flash_lite | inherit), so convert the Claude-format files on copy.
+  "$PYTHON" - "$agent_src/.claude/agents" "$agent_pkg/agents" <<'PY'
+import re, sys
+from pathlib import Path
+
+src, dest = Path(sys.argv[1]), Path(sys.argv[2])
+TIERS = {"opus": "pro", "sonnet": "pro", "haiku": "flash"}
+for f in sorted(src.glob("*.md")):
+    text = f.read_text()
+    m = re.match(r"---\n(.*?\n)---\n", text, re.S)
+    if m:
+        fm = re.sub(r"^model: *(\S+) *$",
+                    lambda x: f"model: {TIERS.get(x.group(1), 'inherit')}", m.group(1), flags=re.M)
+        fm = re.sub(r"^tools: *([^\n\[]+?) *$",
+                    lambda x: "tools:\n" + "\n".join(f"  - {t.strip()}" for t in x.group(1).split(",") if t.strip()),
+                    fm, flags=re.M)
+        text = f"---\n{fm}---\n" + text[m.end():]
+    (dest / f.name).write_text(text)
+PY
+  echo "Converted subagent fleet -> $agent_pkg/agents/ (agy tools list + model tiers)"
 fi
 
 # Copy orchestration rules
