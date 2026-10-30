@@ -3,7 +3,7 @@ id: 62
 title: Upstream statewide roadmap changes: changelog repo rules, summary+bullets style, T3 Orchestrator V2 routing
 type: feature
 version: 0.19.0
-status: planned
+status: done
 created: 2026-10-30
 ---
 
@@ -27,5 +27,7 @@ created: 2026-10-30
 - **Fails if:** any newer repo-side change (OpenCode paths, plan 57-61 work) is lost, or the roadmap SKILL.md grows past what it already was by more than the routing paragraph.
 
 ## 🚶 Step-by-Step Checklist
-- [ ] Step 1: Port changelog repo rules and changelogStyle (changelog.py, ops.py, roadmap.py, state-model.md, roadmap-changelog command) with tests -> target: skills/roadmap/scripts, commands/roadmap-changelog.md, tests/
-- [ ] Step 2: Port Orchestrator V2 routing docs (SKILL.md, quality-build.md), rebuild agy plugin mirror -> target: skills/roadmap/SKILL.md, skills/roadmap/references/quality-build.md, agy-plugin/
+- [x] Step 1: Port changelog repo rules and changelogStyle (changelog.py, ops.py, roadmap.py, state-model.md, roadmap-changelog command) with tests -> target: skills/roadmap/scripts, commands/roadmap-changelog.md, tests/
+  > evidence: full suite 1053 passed (parent run); 15 new changelog-rules tests; changelog output byte-identical with keys absent; verifier (sonnet) CONFIRMED hunk parity with statewide b5a5cb34d/db54b59db/1c6a015ee, nothing repo-newer reverted (2026-10-30)
+- [x] Step 2: Port Orchestrator V2 routing docs (SKILL.md, quality-build.md), rebuild agy plugin mirror -> target: skills/roadmap/SKILL.md, skills/roadmap/references/quality-build.md, agy-plugin/
+  > evidence: full suite 1053 passed (parent run); 15 new changelog-rules tests; changelog output byte-identical with keys absent; verifier (sonnet) CONFIRMED hunk parity with statewide b5a5cb34d/db54b59db/1c6a015ee, nothing repo-newer reverted (2026-10-30)

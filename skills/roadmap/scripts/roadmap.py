@@ -60,7 +60,7 @@ from rmlib.changelog import (  # noqa: E402
     WARN_VENDORS, WARN_JARGON, WARN_TELLS, DEMOTE_ADMIN, DEMOTE_COMPLIANCE,
     DEMOTE_SECURITY, DEMOTE_PLUMBING, DEMOTE_TELLS, _PATH_RE, _SEG_RE,
     _REF_RE, _STATUS_RES, _word_hits, _dedupe, status_tells, lint_note,
-    demote_tells, item_audience, _changelog_versions, _grouped_lines,
+    demote_tells, changelog_rules, item_audience, _changelog_versions, _grouped_lines,
     render_public_changelog, changelog_json, render_internal_changelog,
     audit_public_notes)
 
@@ -123,7 +123,7 @@ __all__ = [  # public facade: names re-exported for callers/tests/hooks (roadmap
     'DEMOTE_ADMIN', 'DEMOTE_COMPLIANCE', 'DEMOTE_SECURITY',
     'DEMOTE_PLUMBING', 'DEMOTE_TELLS', '_PATH_RE', '_SEG_RE', '_REF_RE',
     '_STATUS_RES', '_word_hits', '_dedupe', 'status_tells', 'lint_note',
-    'demote_tells', 'item_audience', '_changelog_versions',
+    'demote_tells', 'changelog_rules', 'item_audience', '_changelog_versions',
     '_grouped_lines', 'render_public_changelog', 'changelog_json',
     'render_internal_changelog', 'audit_public_notes', '_git_dirty',
     '_git_head', '_record_last_seen_sha', 'drift_check', 'format_orient',

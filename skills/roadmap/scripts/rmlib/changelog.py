@@ -59,6 +59,9 @@ DEMOTE_SECURITY = [     # security fixes that disclose a past hole — never adv
     "exploit", "public url", "public urls", "expiring link", "expiring links", "signed url",
     "signed urls", "abuse", "fraud", "tamper", "spoof", "forge", "bypass", "escalation",
     "step-up", "re-auth", "double-submit", "brute force",
+    "redos", "denial of service", "hangs the server", "takeover", "taken-over", "intruder",
+    "leak", "leaks", "leaked", "exposes", "exposed", "cross-tenant", "every tenant",
+    "another community's", "unauthenticated", "injection", "xss", "csrf", "ssrf",
 ]
 DEMOTE_PLUMBING = [     # SEO/infra plumbing & internal milestones — no user-visible payoff
     "groundwork", "groundwork for", "reusable", "static-page", "sitemap", "robots rules",
@@ -89,6 +92,12 @@ DEMOTE_DISCLOSURE = [
     re.compile(r"\bcan(?:not| no longer) be (?:fabricated|gamed|forged|spoofed|faked)\b", re.I),
     re.compile(r"\benforced on (?:our|the) servers?\b", re.I),
     re.compile(r"\bserver-side\b", re.I),
+    # "only X can open/see …" — a fix stated as a new restriction tells readers it was open before.
+    re.compile(r"\bonly (?:the |its |their |your )?(?:\w+ ){0,3}can (?:open|see|view|access|reach|"
+               r"read|edit|use|turn|change|join)\b", re.I),
+    re.compile(r"\bno longer (?:lets|exposes|leaks|reveals|shows \w+ to)\b", re.I),
+    re.compile(r"\b(?:anyone|outsiders|strangers|other (?:users|members|communities)) "
+               r"(?:can no longer|can't|cannot)\b", re.I),
 ]
 
 _PATH_RE = re.compile(r"\b[\w.-]+\.(?:ts|tsx|js|jsx|mjs|cjs|py|go|rs|java|rb|php|"
@@ -104,6 +113,7 @@ _STATUS_RES = [
     re.compile(r"\b\d{4}-\d{2}-\d{2}\b"),                 # ISO date stamps (2026-07-15)
     re.compile(r"\bStep\s+\d+\b"),                        # plan-step refs ("Step 9")
     re.compile(r"\bv\d+\.\d+(?:\.\d+)?\b"),               # version refs (v1.6.0)
+    re.compile(r"(?<![\w.])\d+\.\d+\.\d+(?![\w.])"),         # bare version refs (1.0.2)
     re.compile(r"\b(?:DONE|WIP|TODO|BLOCKED|DEFERRED|DESCOPED|DESCOPE|ACCEPTED|"
                r"SHIPPED|MERGED|FIXED|QA|TBD)\b"),        # shouted status words
 ]
@@ -135,25 +145,53 @@ def status_tells(text: str) -> list[str]:
     return _dedupe(hits)
 
 
-def lint_note(text: str, extra_terms: list[str] | None = None) -> list[str]:
+def changelog_rules(cfg: dict) -> dict:
+    """The project's own changelog lint rules from settings, as lint_note keyword args:
+    `internalTerms` (extra warn words: competitor or vendor names), `internalPatterns`
+    (extra warn regexes, case-insensitive) and `publicTerms` (words that are user-facing in
+    this product and must not count as tells, e.g. "staff" where community staff are users)."""
+    s = cfg.get("settings", {})
+    return {"extra_terms": s.get("internalTerms", []),
+            "extra_patterns": s.get("internalPatterns", []),
+            "allow": s.get("publicTerms", [])}
+
+
+def lint_note(text: str, extra_terms: list[str] | None = None,
+              extra_patterns: list[str] | None = None,
+              allow: list[str] | None = None) -> list[str]:
     """Every internal tell in a would-be PUBLIC note, for display/warnings — status-dump
     tells (issue refs, paths, dates, step/version refs, shouted status), vendor/jargon
-    (warn tier), and scope/disclosure words (demote tier). Empty list == looks clean.
-    Advisory here; the status-dump subset also hard-blocks in `note` / `new --note`."""
+    (warn tier), project patterns, and scope/disclosure words (demote tier). Empty list ==
+    looks clean. Advisory here; the status-dump subset also hard-blocks in `note` /
+    `new --note`."""
     hits = status_tells(text)
     hits += _word_hits(text, [*WARN_TELLS, *(extra_terms or [])])
-    hits += demote_tells(text)
-    return _dedupe(hits)
+    for pat in extra_patterns or []:
+        hits += [m.group(0) for m in re.finditer(pat, text, re.I)]
+    hits += demote_tells(text, allow)
+    return _drop_allowed(_dedupe(hits), allow)
 
 
-def demote_tells(text: str) -> list[str]:
+def _drop_allowed(hits: list[str], allow: list[str] | None) -> list[str]:
+    allowed = {a.lower() for a in allow or []}
+    return [h for h in hits if h.lower() not in allowed]
+
+
+def demote_tells(text: str, allow: list[str] | None = None) -> list[str]:
     """Only the high-confidence WRONG-AUDIENCE tells (admin / compliance / security-disclosure
     / plumbing / dev-surface words, plus disclosure-shaped phrasing). Hard-blocks saving a
-    public note and explicitly setting audience=public."""
+    public note and explicitly setting audience=public. `allow` (settings.publicTerms)
+    drops words that are user-facing in this product."""
     hits = _word_hits(text, DEMOTE_TELLS)
     for rx in DEMOTE_DISCLOSURE:
-        hits += rx.findall(text)
-    return _dedupe(hits)
+        hits += [m.group(0) for m in rx.finditer(text)]
+    return _drop_allowed(_dedupe(hits), allow)
+
+
+def summary_with_bullets(cfg: dict) -> bool:
+    """settings.changelogStyle "summary+bullets": a version's blurb renders above its
+    public item bullets instead of replacing them. Default "summary" keeps blurb-only."""
+    return cfg.get("settings", {}).get("changelogStyle") == "summary+bullets"
 
 
 def item_audience(item: dict) -> str:
@@ -219,11 +257,13 @@ def render_public_changelog(root: Path) -> tuple[str, list[str]]:
     show — versions with real public bullets stay clean (less is more); internal work
     remains fully logged in CHANGELOG.internal.md. Returns (markdown, warnings)."""
     warnings: list[str] = []
-    summaries = read_config(root).get("releaseNotes", {})
+    cfg = read_config(root)
+    summaries = cfg.get("releaseNotes", {})
+    with_bullets = summary_with_bullets(cfg)
     out = ["# Changelog", ""]
     for version, header, rows in _changelog_versions(root):
         blurb = summaries.get(version)
-        if blurb:
+        if blurb and not with_bullets:
             # A curated per-version blurb IS the public release notes — item bullets
             # (and their missing-note warnings) don't apply; detail lives internally.
             out += [header, "", blurb, ""]
@@ -247,7 +287,9 @@ def render_public_changelog(root: Path) -> tuple[str, list[str]]:
             section = TYPE_SECTION.get(it["type"], "⚡ Improved")
             sections.setdefault(section, []).append((row["complete"], note))
         lines = _grouped_lines(sections)
-        if rolled_up and not lines:
+        if blurb:
+            lines = [blurb, "", *lines]
+        elif rolled_up and not lines:
             lines += [ROLLUP_LINE, ""]
         if not lines:
             continue                       # nothing public to show for this version
@@ -263,6 +305,7 @@ def changelog_json(root: Path) -> list[dict]:
     cfg = read_config(root)
     version_dates = cfg.get("versionDates", {})
     summaries = cfg.get("releaseNotes", {})
+    with_bullets = summary_with_bullets(cfg)
     out = []
     for version, _header, rows in _changelog_versions(root):
         blurb = summaries.get(version)
@@ -282,11 +325,13 @@ def changelog_json(root: Path) -> list[dict]:
         if not sections and not rollup and not blurb:
             continue
         # `notes` is the curated per-version blurb; when present it supersedes
-        # `sections` for user-facing display (mirrors CHANGELOG.md).
+        # `sections` for user-facing display (mirrors CHANGELOG.md), unless
+        # settings.changelogStyle is "summary+bullets", which keeps both.
+        keep = with_bullets or not blurb
         out.append({"version": version, "date": version_dates.get(version),
                     "released": released, "notes": blurb,
-                    "sections": {} if blurb else sections,
-                    "rollup": False if blurb else rollup})
+                    "sections": sections if keep else {},
+                    "rollup": rollup if keep and not blurb else False})
     return out
 
 
@@ -313,7 +358,7 @@ def audit_public_notes(root: Path) -> list[str]:
     """Full pre-release audit of the public changelog: flag every public item missing a
     note, and lint existing public notes for internal language. Used by /roadmap-changelog."""
     cfg = read_config(root)
-    extra = cfg.get("settings", {}).get("internalTerms", [])
+    rules = changelog_rules(cfg)
     summaries = cfg.get("releaseNotes", {})
     msgs = []
     # Completed versions still rendering raw item bullets: suggest a curated blurb —
@@ -331,7 +376,7 @@ def audit_public_notes(root: Path) -> list[str]:
                     f"(retargeted away?) — it renders nowhere. Clear it: "
                     f"roadmap summary --version {version} --clear")
     for it in sorted(cfg["items"], key=lambda i: i["id"]):
-        if summaries.get(it["version"]):
+        if summaries.get(it["version"]) and not summary_with_bullets(cfg):
             continue   # version ships a curated blurb; per-item notes are internal-only
         explicit = it.get("audience")
         blob = f"{it.get('note', '')} {it['title']}"
@@ -346,7 +391,7 @@ def audit_public_notes(root: Path) -> list[str]:
         if eff != "public":
             continue
         # Explicitly marked public but matches a high-confidence internal signal — likely wrong.
-        d = demote_tells(blob)
+        d = demote_tells(blob, rules["allow"])
         if explicit == "public" and d:
             msgs.append(f"#{it['id']} is marked PUBLIC but matches high-confidence internal "
                         f"signals ({', '.join(d)}) — likely miscategorized: \"{it['title']}\"")
@@ -355,12 +400,12 @@ def audit_public_notes(root: Path) -> list[str]:
             msgs.append(f"#{it['id']} \"{it['title']}\" (public) has no note — "
                         f"add one, or mark it internal: roadmap audience --plan {it['id']} --to internal")
             continue
-        tells = lint_note(note, extra)
+        tells = lint_note(note, **rules)
         if tells:
             msgs.append(f"#{it['id']} note reads internal ({', '.join(tells)}): \"{note}\"")
         # The note may read clean while the work is actually admin-only, a compliance gate, or
         # otherwise internal — the planning title usually still carries that signal.
-        title_only = [t for t in lint_note(it["title"], extra) if t not in tells]
+        title_only = [t for t in lint_note(it["title"], **rules) if t not in tells]
         if title_only:
             msgs.append(f"#{it['id']} note looks clean but its title suggests internal/admin "
                         f"scope ({', '.join(title_only)}) — confirm it's really public: \"{it['title']}\"")

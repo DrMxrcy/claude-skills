@@ -22,7 +22,7 @@
 
 ### [x] v0.18.0 — 100% · 6 items · shipped 2026-10-21 ([history](CHANGELOG.internal.md))
 
-### [ ] v0.19.0 — 76%
+### [ ] v0.19.0 — 80%
 - [ ] **#28 Council review: plan review and merge gate by multiple agent CLIs** `feature` — 0% ([plan](.roadmap/plans/028-council-review-plan-review-and-merge-gate-by-multiple-agent-clis.md))
 - [x] **#29 Adversarial review skill: multi-CLI review with triage from Claude Code** `feature` — 100% ([plan](.roadmap/plans/029-adversarial-review-skill-multi-cli-review-with-triage-from-claude-code.md))
 - [x] **#30 Honest in-flight tracking: claim branch/stage/verdict per item, branch progress and stage filters in status and dashboard** `feature` — 100% ([plan](.roadmap/plans/030-honest-in-flight-tracking-claim-branch-stage-verdict-per-item-branch-progress-and-stage-filters-in-status-and-dashboard.md))
@@ -36,7 +36,7 @@
 - [x] **#59 Single adversarial review: /single-adversarial-review runs one reviewer on the host's own model** `feature` — 100% ([plan](.roadmap/plans/059-single-adversarial-review-single-adversarial-review-runs-one-reviewer-on-the-host-s-own-model.md))
 - [x] **#60 adversarial-review: diff target caps context before redaction, so a secret cut at the cap can leak a prefix** `bug` — 100% ([plan](.roadmap/plans/060-adversarial-review-diff-target-caps-context-before-redaction-so-a-secret-cut-at-the-cap-can-leak-a-prefix.md))
 - [x] **#61 test_agy_cli_plugin_validate expects [ok] but agy 1.4.6 prints Validation passed** `bug` — 100% ([plan](.roadmap/plans/061-test-agy-cli-plugin-validate-expects-ok-but-agy-1-4-6-prints-validation-passed.md))
-- [ ] **#62 Upstream statewide roadmap changes: changelog repo rules, summary+bullets style, T3 Orchestrator V2 routing** `feature` — 0% ([plan](.roadmap/plans/062-upstream-statewide-roadmap-changes-changelog-repo-rules-summary-bullets-style-t3-orchestrator-v2-routing.md))
+- [x] **#62 Upstream statewide roadmap changes: changelog repo rules, summary+bullets style, T3 Orchestrator V2 routing** `feature` — 100% ([plan](.roadmap/plans/062-upstream-statewide-roadmap-changes-changelog-repo-rules-summary-bullets-style-t3-orchestrator-v2-routing.md))
 
 ### [x] v0.20.0 — 100%
 - [x] **#27 Parallel-safe roadmap builds: per-item worktrees, fresh-session orchestration, pending-decision handoff and per-item token spend** `feature` — 100% ([plan](.roadmap/plans/027-parallel-safe-roadmap-builds-per-item-worktrees-fresh-session-orchestration-pending-decision-handoff-and-per-item-token-spend.md))

@@ -202,7 +202,9 @@ On invocation, detect state and pick a phase:
      reviewers where offered); record which passes were independent vs self-review in the
      evidence, never claim a review that did not happen; same scope, test gates, micro-commits;
      unavailability alone never blocks the task; stay in the host's native tools. Full text:
-     `references/quality-build.md` → "Worker availability and review fallback". Parent owns all roadmap CLI; children never
+     `references/quality-build.md` → "Worker availability and review fallback". **Inside T3 Code** (any coder: its
+     `delegate_task` tool is present) workers route through the orchestrator, with the `verifier` on a provider
+     different from the author: `references/quality-build.md` → "Orchestrator V2 routing". Parent owns all roadmap CLI; children never
      edit `ROADMAP.md`. Do **not** parallelize implementers on the same tree; `--auto`
      skips user pauses between items, **not** reviews. Full write-up:
      [`references/quality-build.md`](references/quality-build.md).

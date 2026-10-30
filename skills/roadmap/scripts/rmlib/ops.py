@@ -20,7 +20,7 @@ from rmlib.parse import (
 from rmlib.parse import ACCEPT_MARKER_RE, acceptance_bullets, public_bullet  # plan 43
 from rmlib.parse import FOUND_HEADING, FOUND_SECTION_KEY, meta_ids  # plan 47
 from rmlib.changelog import (
-    demote_tells, item_audience, lint_note, status_tells)
+    changelog_rules, demote_tells, item_audience, lint_note, status_tells)
 from rmlib.sync import (
     _branch_has_work, status, sync, uncut_complete_version)
 from rmlib.sync import is_in_flight  # plan 47
@@ -721,12 +721,13 @@ def _refuse_unclassified_note(item: dict, note: str, force: bool) -> None:
         f"set the note. --force keeps it unclassified (renders internal-only).")
 
 
-def _refuse_public_note_demote_tells(item: dict, note: str, force: bool) -> None:
+def _refuse_public_note_demote_tells(item: dict, note: str, force: bool,
+                                     allow: list[str] | None = None) -> None:
     """Refuse (ValueError) a note that would render PUBLIC while the note/title trips a
     high-confidence demote tell — wrong-audience text must not ship to end users."""
     if force or not note or item_audience(item) != "public":
         return
-    tells = demote_tells(f"{note} {item.get('title', '')}")
+    tells = demote_tells(f"{note} {item.get('title', '')}", allow)
     if tells:
         raise ValueError(
             f"note refused — this reads like wrong-audience work ({', '.join(tells)}). "
@@ -737,12 +738,13 @@ def _refuse_public_note_demote_tells(item: dict, note: str, force: bool) -> None
             f"with --force if this text really should ship.")
 
 
-def _refuse_public_demote_tells(item: dict, force: bool) -> None:
+def _refuse_public_demote_tells(item: dict, force: bool,
+                                allow: list[str] | None = None) -> None:
     """Refuse (ValueError) EXPLICITLY setting audience=public on an item whose note/title
     trips a high-confidence demote tell (admin/compliance/plumbing/dev-surface)."""
     if force:
         return
-    tells = demote_tells(f"{item.get('note', '')} {item.get('title', '')}")
+    tells = demote_tells(f"{item.get('note', '')} {item.get('title', '')}", allow)
     if tells:
         raise ValueError(
             f"public audience refused — this item reads like wrong-audience work "
@@ -762,9 +764,10 @@ def new_item(root: Path, type_: str, title: str, version: str | None = None,
                  "note": note, "audience": audience}
     _refuse_unclassified_note(candidate, note, force)
     _refuse_status_note(candidate, note, force)
-    _refuse_public_note_demote_tells(candidate, note, force)
+    allow = changelog_rules(cfg)["allow"]
+    _refuse_public_note_demote_tells(candidate, note, force, allow)
     if audience == "public":
-        _refuse_public_demote_tells({"title": title, "note": note}, force)
+        _refuse_public_demote_tells({"title": title, "note": note}, force, allow)
     version = _norm_version(version or cfg["currentVersion"])
     slug = slugify(title)
     if not slug:
@@ -799,11 +802,12 @@ def set_note(root: Path, plan_id: int, text: str, force: bool = False) -> None:
             candidate = {**item, "note": text}
             _refuse_unclassified_note(candidate, text, force)
             _refuse_status_note(candidate, text, force)
-            _refuse_public_note_demote_tells(candidate, text, force)
+            _refuse_public_note_demote_tells(candidate, text, force,
+                                             changelog_rules(cfg)["allow"])
             item["note"] = text
             write_config(root, cfg)
             if item_audience(item) == "public":
-                tells = lint_note(text, cfg.get("settings", {}).get("internalTerms", []))
+                tells = lint_note(text, **changelog_rules(cfg))
                 if tells:
                     print(f"warning: #{plan_id} note reads internal ({', '.join(tells)}); "
                           f"CHANGELOG.md is user-facing. Rephrase in plain benefit language, "
@@ -845,7 +849,7 @@ def set_release_summary(root: Path, version: str, text: str | None = None,
                 f"you). Re-run with --force if the text really should ship as-is.")
     summaries[version] = text.strip()
     write_config(root, cfg)
-    tells = lint_note(text, cfg.get("settings", {}).get("internalTerms", []))
+    tells = lint_note(text, **changelog_rules(cfg))
     if tells:
         print(f"warning: v{version} summary has internal-sounding wording "
               f"({', '.join(tells)}); it ships verbatim to end users — consider rephrasing.",
@@ -861,7 +865,7 @@ def set_audience(root: Path, plan_id: int, audience: str, force: bool = False) -
     for item in cfg["items"]:
         if item["id"] == plan_id:
             if audience == "public":
-                _refuse_public_demote_tells(item, force)
+                _refuse_public_demote_tells(item, force, changelog_rules(cfg)["allow"])
             item["audience"] = audience
             write_config(root, cfg)
             sync(root)

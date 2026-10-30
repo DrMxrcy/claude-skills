@@ -11,6 +11,18 @@ There are **two** changelogs, both rendered deterministically by the CLI:
   exactly what ships to the App Store. Only when a version has no summary does it fall back
   to per-item bullets (`audience: public` items, from their `note`, never the raw title),
   with a "behind-the-scenes" roll-up line when nothing public shipped.
+  With `settings.changelogStyle: "summary+bullets"` the blurb renders first and the public
+  item bullets follow under New / Fixed / Improved. Then every public note ships verbatim —
+  curating means checking each public bullet for internal-only content (step/plan notes,
+  platform staff or operator work, fixed security holes, plumbing, cosmetic housekeeping)
+  and moving it to `internal`.
+  The lint also reads the project's own rules from `settings`: `internalTerms` (extra
+  internal words, e.g. competitor or hosting names), `internalPatterns` (extra regexes, e.g.
+  plan/bug numbers or spec refs) and `publicTerms` (words that are user-facing in this
+  product, e.g. `staff` or `admin` where those are user roles, so they never count as tells).
+  The lint is a seatbelt: before every release, read each public line and each public
+  item's **title** too. A title naming a hang, leak, takeover or access gap means a security
+  fix, so the item is `internal` whatever its note says.
 - `CHANGELOG.internal.md` — **internal**. Every item, with the raw title as a fallback —
   the full dev-facing work log. **This is where the detail lives.** The public file does
   NOT need every change; the internal one records all of them.

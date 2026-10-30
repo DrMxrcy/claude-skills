@@ -123,7 +123,7 @@ Parent reads the plan file + linked Spec / Detailed plan once, then for **each u
 - **Why a different model:** builder and verifier tiers are different models by default because a model reviewing its own output shares its blind spots — it rationalizes the same assumptions it wrote. Independent blind spots are the point; the cheaper model is a side benefit. **Why high effort:** for review work, effort moves finding quality more than model choice does, so the verifier runs high while the orchestrator stays low/medium.
 - After spec is clean, one fresh **`verifier`** pass: correctness edge cases, error handling, contract drift, test quality; any "Fails if" line in ✅ Acceptance is a hard blocker. Returns CONFIRMED / REFUTED / PARTIAL with evidence.
 - REFUTED/PARTIAL → before dispatching the fix, the parent snapshots the tree: `git add -N .` (intent-to-add, so new files appear in diffs) then `git stash create` — prints a commit SHA without touching the working tree; empty when the tree is clean, then use `HEAD`. Copy the literal SHA into the verifier prompt (shell variables do not survive between tool calls). `executor` fixes → `git add -N .` again for files the fix created → **re-run only the verifier, scoped to the fix**: its prompt receives the diff range `git diff <baseline-sha>` plus the specific findings sent back, and it verifies only that diff and those findings — not the whole step again (spec already passed; the unchanged code already has a verdict). Same two-loop cap.
-- **High-risk steps** (touching auth, billing, permissions, migrations, shared state, concurrency, public API contracts) get a **second, independent pass** — `verifier` with an `opus` model override, or a cross-provider reviewer (Codex/Gemini CLI) where installed, for maximum blind-spot diversity; otherwise one pass is the default.
+- **High-risk steps** (touching auth, billing, permissions, migrations, shared state, concurrency, public API contracts) get a **second, independent pass** — `verifier` with an `opus` model override, or a cross-provider reviewer (Codex/Gemini CLI) where installed, for maximum blind-spot diversity; inside T3 Code that is a `delegate_task` to another provider (see "Orchestrator V2 routing"); otherwise one pass is the default.
 
 ### E. Parent verification + roadmap
 
@@ -148,9 +148,34 @@ Only the parent:
 
 Every subagent prompt is two parts, in this order: the `agent` skill's `references/brief-common.md` pasted verbatim first (reporting format, evidence rules, commit rule, stop-after-report — identical across every project and task), then `references/brief-task.md` filled in (repo, plan, step, inline plan body + acceptance, test commands, diff range). Nothing variable appears before the end of the common part, so the cached prefix stays byte-identical from one spawn to the next.
 
+## Orchestrator V2 routing (T3 Code, any coder)
+
+When the session runs inside T3 Code, its orchestrator tools (`orchestrator_capabilities`, `delegate_task`, `task_status`, `task_cancel`) are present whatever coder drives the thread: Claude Code, Codex, OpenCode or another provider. The build loop then uses them for every worker role, so `/roadmap-build … --auto` behaves the same from any CLI. Delegation through T3 is host tooling, not switching coders; the rule against shelling out to another CLI still stands.
+
+- **Once per thread**, before the first delegate: `orchestrator_capabilities`, and note which providers and models are available.
+- **Same provider, finishes this turn:** the native tool (Claude `Agent` with `run_in_background:false`, Codex `spawn_agent` then wait, OpenCode subagent). **Another provider, a separate checkout, or background work:** `delegate_task`.
+- **Role routing** (the roles stay the tier table's; only the transport changes):
+
+| Role | Route | Target |
+|---|---|---|
+| Implement | parent | — |
+| Parallel `executor` | `delegate_task`, `isolation:"worktree"`, `mode:"async"` | parent's provider, its executor model |
+| `verifier` (high-risk steps, item-level review) | `delegate_task`, synchronous | a provider **different from the one that wrote the code**: Claude author → Codex `gpt-6.1-sol` high; Codex author → Claude `sonnet` high; OpenCode author → Claude `sonnet` or Codex `gpt-6.1-sol` |
+| `security-executor` | native when the parent is Claude; otherwise `delegate_task` | Claude `opus` with the security-executor brief |
+| `scout` sweeps | native | parent's cheapest model |
+
+- **Brief:** the delegate's `task` is the same two-part spawn prompt as any worker (`brief-common.md`, then `brief-task.md`), plus the role's instructions from `.claude/agents/<role>.md`. Children never run `roadmap.py`, never push `main`, never deploy.
+- **Waiting:** follow the delegate's `next`; never poll (`task_status` loops, `sleep`, watchers). A delegate no longer needed: `task_cancel`.
+- **Fix rounds:** every re-review is a new `delegate_task` carrying the brief, the findings and the objections; small findings the parent fixes itself with no new delegate. Same two-loop cap.
+- **Parallel results:** a worktree delegate's branch is merged by the parent through the normal merge gate, never by the child.
+- **Target unavailable:** this file is the user's standing instruction, so the fallback order counts as asked: try the next provider in the row that is still different from the author; if none is left, run the review as parent self-review under the fallback below, and say so in the step summary.
+- **Evidence:** keep the ledger shape and add the transport, e.g. `verifier: CONFIRMED, 2 findings, 2 acted on (t3 delegate: codex/gpt-6.1-sol)`.
+
+Outside T3 the same roles use the coder's own agents: Claude `.claude/agents/`, Codex `.codex/agents/`, OpenCode `.opencode/agents/` (mirrored from the Claude files where the project generates them). With neither, the fallback below applies.
+
 ## Worker availability and review fallback (Codex, Gemini CLI, Kimi, Copilot, restricted sessions)
 
-The tier table above is the **default when native workers are available and permitted**. Repository or session restrictions take precedence over delegation and model-routing instructions anywhere in this skill. Stay in the host's native tooling: in Codex use Codex collaboration tools; never invoke the Claude CLI, load `.claude/agents/` definitions, or use Claude model aliases from another coder. Shared tooling living under `.claude/skills/` stays usable — its location does not authorize switching coders.
+The tier table above is the **default when native workers are available and permitted**. Repository or session restrictions take precedence over delegation and model-routing instructions anywhere in this skill. Stay in the host's native tooling: in Codex use Codex collaboration tools; never invoke the Claude CLI, load `.claude/agents/` definitions, or use Claude model aliases from another coder, except through T3 Code's orchestrator ("Orchestrator V2 routing" above), which is host tooling. Shared tooling living under `.claude/skills/` stays usable — its location does not authorize switching coders.
 
 If implementation or review workers are unavailable or prohibited, the parent **continues the authorized work**:
 
