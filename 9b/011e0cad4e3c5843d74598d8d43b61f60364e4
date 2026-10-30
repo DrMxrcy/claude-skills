@@ -1,0 +1,209 @@
+skills/agent/evals/tasks/06-review-hollow-test.md
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-43
+skills/agent/evals/fixtures/04-review-missing-auth/_step/.message
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-3
+skills/agent/evals/fixtures/07-spec-unmet-acceptance/_step/export.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-13
+skills/roadmap/references/quality-build.md
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 87,89,91-100,102,104,106,108,110-111,113,115-117,119-122,129,131-132
+  s_b0a8e9af27c956::t_85b1008c795b2f 123
+skills/agent/evals/fixtures/01-lookup-direct/test_fees.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-19
+skills/agent/evals/fixtures/08-mech-bulk-rename/_solution/views.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-7
+skills/agent/evals/tasks/07-spec-unmet-acceptance.md
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-47
+skills/agent/evals/fixtures/09-clean-pass-control/_step/.message
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-3
+skills/agent/evals/fixtures/03-review-off-by-one/_step/.message
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-3
+skills/agent/evals/fixtures/10-multi-file-feature/_oracle/oracle_cli.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-26
+skills/agent/evals/fixtures/09-clean-pass-control/_step/temps.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-9
+skills/agent/evals/tasks/03-review-off-by-one.md
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-48
+tests/test_install_agent.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 12,29-38,44-45,265-278
+skills/agent/evals/fixtures/08-mech-bulk-rename/_oracle/oracle_rename.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-22
+agy-plugin/plugins/agent/plugin.json
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 4,26
+skills/agent/evals/fixtures/10-multi-file-feature/_solution/cli.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-21
+skills/agent/evals/tasks/08-mech-bulk-rename.md
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-37
+skills/agent/evals/fixtures/06-review-hollow-test/_oracle/oracle_slug.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-14
+skills/agent/evals/fixtures/06-review-hollow-test/_step/slug.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-17
+skills/agent/evals/fixtures/06-review-hollow-test/_step/test_slug.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-20
+agy-plugin/plugins/agent/agents/verifier.md
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 24
+skills/agent/evals/tasks/04-review-missing-auth.md
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-48
+skills/agent/evals/fixtures/07-spec-unmet-acceptance/_step/test_export.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-17
+skills/agent/evals/fixtures/03-review-off-by-one/pager.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1
+agy-plugin/plugins/agent/agents/scout.md
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 3
+skills/agent/evals/fixtures/09-clean-pass-control/_oracle/oracle_temps.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-11
+skills/agent/evals/fixtures/06-review-hollow-test/slug.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-6
+skills/agent/evals/fixtures/09-clean-pass-control/test_temps.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-13
+skills/agent/evals/fixtures/09-clean-pass-control/_step/test_temps.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-22
+skills/agent/evals/fixtures/03-review-off-by-one/_oracle/oracle_pager.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-20
+skills/agent/evals/fixtures/02-where-is-x/test_config.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-20
+skills/agent/evals/fixtures/07-spec-unmet-acceptance/_oracle/oracle_export.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-18
+skills/agent/evals/.gitignore
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-2
+skills/agent/evals/fixtures/02-where-is-x/cli.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-15
+agy-plugin/README.md
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 17
+skills/agent/evals/fixtures/08-mech-bulk-rename/_solution/test_store.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-19
+skills/agent/evals/fixtures/08-mech-bulk-rename/store.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-8
+skills/agent/evals/fixtures/10-multi-file-feature/_solution/format.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-11
+skills/agent/evals/fixtures/02-where-is-x/client.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-6
+skills/agent/evals/tasks/01-lookup-direct.md
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-37
+skills/agent/README.md
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 21,57-62
+  s_b0a8e9af27c956::t_6992a709783d67 63
+skills/agent/evals/fixtures/06-review-hollow-test/test_slug.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-12
+skills/agent/references/orchestration-policy.md
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 3,7,21,24,31,35,37,41-46,49
+skills/agent/evals/fixtures/04-review-missing-auth/test_api.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-15
+tests/test_agent_evals.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-165
+skills/agent/evals/tasks/02-where-is-x.md
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-45
+skills/agent/evals/fixtures/05-security-path-traversal/test_files.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-18
+skills/agent/evals/fixtures/10-multi-file-feature/cli.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-19
+skills/agent/evals/fixtures/02-where-is-x/worker.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-9
+skills/agent/evals/fixtures/10-multi-file-feature/store.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-10
+skills/agent/evals/fixtures/08-mech-bulk-rename/_solution/store.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-8
+skills/agent/evals/fixtures/08-mech-bulk-rename/_solution/README.md
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-4
+skills/agent/evals/README.md
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-117
+skills/agent/evals/fixtures/01-lookup-direct/fees.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-10
+skills/agent/evals/tasks/10-multi-file-feature.md
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-42
+scripts/build-agy-plugin.sh
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 81
+skills/agent/evals/fixtures/07-spec-unmet-acceptance/orders.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-7
+skills/agent/evals/fixtures/10-multi-file-feature/test_cli.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-17
+skills/agent/evals/fixtures/04-review-missing-auth/_oracle/oracle_api.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-17
+skills/agent/evals/fixtures/04-review-missing-auth/api.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-29
+skills/agent/evals/tasks/05-security-path-traversal.md
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-41
+skills/agent/evals/fixtures/03-review-off-by-one/_solution/pager.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-16
+skills/agent/evals/fixtures/07-spec-unmet-acceptance/_step/.message
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-3
+skills/agent/evals/fixtures/05-security-path-traversal/_oracle/oracle_files.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-47
+skills/agent/evals/fixtures/01-lookup-direct/invoice.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-11
+skills/agent/evals/fixtures/10-multi-file-feature/format.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-5
+skills/agent/.claude/agents/scout.md
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 3
+CHANGELOG.internal.md
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 57
+skills/agent/evals/fixtures/08-mech-bulk-rename/_solution/report.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-6
+skills/agent/evals/fixtures/08-mech-bulk-rename/README.md
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-4
+skills/agent/evals/tasks/09-clean-pass-control.md
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-42
+skills/agent/evals/fixtures/03-review-off-by-one/_step/test_pager.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-21
+skills/agent/evals/fixtures/04-review-missing-auth/_solution/api.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-37
+skills/agent/evals/fixtures/05-security-path-traversal/_solution/files.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-12
+skills/agent/evals/fixtures/08-mech-bulk-rename/report.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-6
+skills/agent/evals/fixtures/07-spec-unmet-acceptance/_solution/export.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-13
+skills/agent/.claude/agents/verifier.md
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 18
+skills/agent/evals/fixtures/06-review-hollow-test/_solution/slug.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-17
+README.md
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 172
+skills/agent/evals/fixtures/02-where-is-x/config.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-11
+skills/agent/evals/fixtures/04-review-missing-auth/_step/api.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-36
+skills/agent/evals/fixtures/08-mech-bulk-rename/test_store.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-19
+skills/agent/evals/run_eval.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-254
+tests/test_agy_plugin.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 36
+.roadmap/plans/056-fleet-fold-review-eval-gate-keep-or-fold-policy-merge-spec-pass-drop-explore.md
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 6,40-55
+skills/agent/evals/fixtures/06-review-hollow-test/_step/.message
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-3
+skills/agent/evals/fixtures/09-clean-pass-control/temps.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-5
+ROADMAP.md
+  s_b0a8e9af27c956::t_85b1008c795b2f 25,34
+skills/agent/evals/fixtures/03-review-off-by-one/_step/pager.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-16
+skills/agent/evals/fixtures/05-security-path-traversal/files.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-8
+agy-plugin/plugins/agent/rules/AGENTS.md
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 3,7,21,24,31,35,37,41-46,49
+skills/agent/evals/fixtures/08-mech-bulk-rename/views.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-7
+skills/agent/SKILL.md
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 8,28,31,47,112
+install.sh
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 232-233,685-688
+skills/agent/evals/fixtures/04-review-missing-auth/_step/test_api.py
+  s_b0a8e9af27c956::t_5977d6ced4d1f1 1-22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9b011e0cad4e3c5843d74598d8d43b61f60364e4",
+  "prompts": {},
+  "sessions": {
+    "s_b0a8e9af27c956": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ed4d96e8-2c8d-42a4-885c-beff7c5e4d04",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
