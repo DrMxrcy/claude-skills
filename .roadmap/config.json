@@ -1,7 +1,7 @@
 {
   "project": "claude-skills",
   "currentVersion": "0.19.0",
-  "nextId": 62,
+  "nextId": 63,
   "items": [
     {
       "id": 1,
@@ -615,6 +615,15 @@
       "type": "bug",
       "version": "0.19.0",
       "file": "plans/061-test-agy-cli-plugin-validate-expects-ok-but-agy-1-4-6-prints-validation-passed.md"
+    },
+    {
+      "id": 62,
+      "slug": "upstream-statewide-roadmap-changes-changelog-repo-rules-summary-bullets-style-t3-orchestrator-v2-routing",
+      "title": "Upstream statewide roadmap changes: changelog repo rules, summary+bullets style, T3 Orchestrator V2 routing",
+      "type": "feature",
+      "version": "0.19.0",
+      "file": "plans/062-upstream-statewide-roadmap-changes-changelog-repo-rules-summary-bullets-style-t3-orchestrator-v2-routing.md",
+      "audience": "internal"
     }
   ],
   "settings": {
