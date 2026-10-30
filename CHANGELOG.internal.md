@@ -45,7 +45,7 @@ _Full work log — every item, including internal/dev work. The curated public c
 - (pending) OpenCode install target: roadmap and adversarial-review in ~/.config/opencode
 - Separate from the multi-CLI council. Run inside OpenCode it uses OpenCode's current model; inside Claude Code, Claude's.
 - Upstream statewide roadmap changes: changelog repo rules, summary+bullets style, T3 Orchestrator V2 routing
-- (pending) Upstream statewide adversarial-review runner changes: --parallel, measured usage, repo doc deny, limit classify
+- Upstream statewide adversarial-review runner changes: --parallel, measured usage, repo doc deny, limit classify
 
 ### 🐛 Fixed
 - bug --found-in writes the Fix step before refusing a claim held by another owner

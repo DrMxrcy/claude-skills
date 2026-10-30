@@ -133,10 +133,10 @@ FILES = {
     "auth/login.py": "def login(user, password):\n    return user == 'admin'\n",
     "api/handler.py": "def handle(req):\n    return req.body\n",
     "lib/util.py": "def add(a, b):\n    return a - b\n",
-    "docs/guide.md": "# Guide\nRun the thing.\n",
+    "guides/guide.md": "# Guide\nRun the thing.\n",
 }
 # Risk order: changed (app.py at root), then security paths (api, auth), then the rest.
-ORDER = ["(root)", "api", "auth", "docs", "lib"]
+ORDER = ["(root)", "api", "auth", "guides", "lib"]
 
 
 @pytest.fixture
@@ -498,6 +498,149 @@ def test_plan_calls_and_usage_remaining_units():
     assert rr.usage_remaining("claude", data) == (60, "claude-b.weekly")
     assert rr.usage_remaining("codex", data)[0] is None
     assert rr.usage_remaining("opencode", data)[0] is None
+
+
+
+def _usage_by_calls(bin_dir, start, per_call, fail_from_read=None):
+    """Fake openusage: codex session window = start - per_call * codex calls so far.
+    From read number `fail_from_read` (0 = the pre-flight read) on, it exits 1."""
+    fail = "None" if fail_from_read is None else str(fail_from_read)
+    _script(bin_dir, "openusage", f"""
+        p = os.path.join(LOG, "openusage.reads")
+        reads = int(open(p).read()) if os.path.exists(p) else 0
+        open(p, "w").write(str(reads + 1))
+        if {fail} is not None and reads >= {fail}:
+            sys.exit(1)
+        c = os.path.join(LOG, "codex.calls")
+        calls = len(open(c).read().split()) if os.path.exists(c) else 0
+        print(json.dumps({{"providers": {{"codex": {{"resources": {{
+            "session": {{"remaining": {start} - {per_call} * calls}},
+            "weekly": {{"remaining": 100}}}}}}}}}}))
+    """)
+
+
+def _more_modules(repo, n=3):
+    for i in range(1, n + 1):
+        (repo / f"m{i}").mkdir()
+        (repo / f"m{i}/a.py").write_text(f"def g{i}():\n    return {i}\n")
+
+
+def test_measured_usage_replaces_chunk_cost_after_measured_calls(env):
+    repo, bin_dir, run = env
+    _more_modules(repo)                                   # 8 chunks
+    _usage_by_calls(bin_dir, 100, 1)                      # each call really costs 1%
+    _fake(bin_dir, "codex", _reply(OK, codex=True))
+    res = run("repo", "--members", "codex", "--usage-floor", "10", "--chunk-cost", "18")
+    assert res.returncode == 0, res.stderr
+    summary, _ = _summary(repo)
+    assert "planned 5 of 8 call(s)" in summary            # the --chunk-cost guess: 90 / 18
+    assert rr.MEASURED_CALLS == 5
+    assert len(_calls(bin_dir, "codex")) == 8, "measured usage lifts the guessed cap"
+    assert "- codex: chunks reviewed 8/8" in summary
+
+
+def test_measured_mode_without_a_live_reading_keeps_the_planned_cap(env):
+    repo, bin_dir, run = env
+    _more_modules(repo)
+    _usage_by_calls(bin_dir, 100, 1, fail_from_read=5)    # reading after call 5 fails
+    _fake(bin_dir, "codex", _reply(OK, codex=True))
+    res = run("repo", "--members", "codex", "--usage-floor", "10", "--chunk-cost", "18")
+    assert res.returncode == 0, res.stderr
+    summary, _ = _summary(repo)
+    assert len(_calls(bin_dir, "codex")) == 5
+    assert "usage floor 10%: planned 5 call(s) from 100% remaining" in summary
+
+
+def test_measured_usage_still_stops_an_expensive_member_at_the_floor(env):
+    repo, bin_dir, run = env
+    _more_modules(repo)
+    _usage_by_calls(bin_dir, 100, 15)
+    _fake(bin_dir, "codex", _reply(OK, codex=True))
+    res = run("repo", "--members", "codex", "--usage-floor", "10", "--chunk-cost", "18")
+    assert res.returncode == 0, res.stderr
+    summary, _ = _summary(repo)
+    # call 6 leaves 10%; one more measured 15% call would cross the 10% floor
+    assert len(_calls(bin_dir, "codex")) == 6
+    assert "openusage shows 10% remaining after 6 call(s)" in summary
+
+
+def _timed(behaviour):
+    return ("import time\nt0 = time.time()\n" + behaviour + "\n"
+            "open(os.path.join(LOG, 'times'), 'a').write(f'{t0} {time.time()}\\n')\n")
+
+
+def test_parallel_spreads_chunks_across_workers_without_repeats(env):
+    repo, bin_dir, run = env
+    _fake(bin_dir, "agy", _timed("time.sleep(0.6)") + _reply(OK))
+    res = run("repo", "--members", "agy", "--no-preflight", "--parallel", "2")
+    assert res.returncode == 0, res.stderr
+    summary, run_dir = _summary(repo)
+    ids = [c["id"] for c in json.loads((run_dir / "coverage.json").read_text())["chunks"]]
+    calls = _calls(bin_dir, "agy")
+    assert sorted(calls) == ids, "every chunk exactly once"
+    spans = sorted(tuple(map(float, ln.split()))
+                   for ln in (bin_dir / "times").read_text().splitlines())
+    assert any(b[0] < a[1] for a, b in zip(spans, spans[1:])), "no two calls overlapped"
+    assert "- agy: chunks reviewed 5/5" in summary
+    cov = json.loads((run_dir / "coverage.json").read_text())
+    assert all(c["members_done"] == ["agy"] for c in cov["chunks"])
+
+
+def test_parallel_floor_counts_calls_in_flight(env):
+    repo, bin_dir, run = env
+    _usage_by_calls(bin_dir, 30, 5)                       # 5% per call, counted at start
+    # c01 returns fast, c02 is still in flight when the next claim checks the floor
+    _fake(bin_dir, "codex", "import time\ntime.sleep(0.2 if chunk == 'c01' else 1.5)\n"
+                            + _reply(OK, codex=True))
+    res = run("repo", "--members", "codex", "--usage-floor", "10", "--chunk-cost", "2",
+              "--parallel", "2")
+    assert res.returncode == 0, res.stderr
+    summary, _ = _summary(repo)
+    # after c01: 20% left, measured 10%/call, c02 in flight: 20 - 10 * 2 < 10 -> stop.
+    # Ignoring the in-flight call (20 - 10 = 10) would have started a third chunk.
+    assert sorted(_calls(bin_dir, "codex")) == ["c01", "c02"]
+    assert "openusage shows 20% remaining after 1 call(s)" in summary
+    assert "- codex: chunks reviewed 2/5" in summary
+
+
+def test_parallel_must_be_positive(env):
+    repo, bin_dir, run = env
+    res = run("repo", "--members", "agy", "--no-preflight", "--parallel", "0")
+    assert res.returncode == 1 and "--parallel" in res.stderr
+
+
+def test_repo_run_leaves_out_planning_records_unless_include_docs(env):
+    repo, bin_dir, run = env
+    extra = {"docs/notes.md": "DOCS-MARKER\n", "CHANGELOG.md": "CHANGELOG-MARKER\n",
+             "ROADMAP.md": "ROADMAP-MARKER\n", ".roadmap/plans/001-x.md": "PLAN-MARKER\n",
+             ".claude/agents/a.md": "AGENT-MARKER\n", ".security-audit/r.md": "AUDIT-MARKER\n"}
+    for rel, text in extra.items():
+        (repo / rel).parent.mkdir(parents=True, exist_ok=True)
+        (repo / rel).write_text(text)
+    _fake(bin_dir, "agy", _reply(OK))
+    markers = [t.strip() for t in extra.values()]
+
+    def prompts():
+        return "".join(p.read_text() for p in bin_dir.glob("agy.c*.prompt"))
+
+    res = run("repo", "--members", "agy", "--no-preflight")
+    assert res.returncode == 0, res.stderr
+    _, run_dir = _summary(repo)
+    cov = json.loads((run_dir / "coverage.json").read_text())
+    assert [c["module"] for c in cov["chunks"]] == ORDER
+    text = prompts()
+    assert not [m for m in markers if m in text]
+
+    for f in bin_dir.glob("agy.*"):
+        f.unlink()
+    res = run("repo", "--members", "agy", "--no-preflight", "--include-docs")
+    assert res.returncode == 0, res.stderr
+    _, run_dir = _summary(repo)
+    files = {f for c in json.loads((run_dir / "coverage.json").read_text())["chunks"]
+             for f in c["files"]}
+    assert set(extra) <= files
+    text = prompts()
+    assert all(m in text for m in markers)
 
 
 # --- step 5: optional CodeGraph context -------------------------------------------------

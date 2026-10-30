@@ -23,6 +23,8 @@ self-contained (Python standard library only).
     /adversarial-review version:0.19.0  # every plan in a roadmap version
     /adversarial-review plan:29         # one plan item
     /adversarial-review repo            # whole repo, one module chunk per call
+    /adversarial-review repo --parallel 2       # two chunk calls per member at once
+    /adversarial-review repo --include-docs     # also plans, changelogs, docs/, agent dirs
     /adversarial-review --resume <run-dir>      # continue a chunked repo run
     /adversarial-review diff --exclude claude   # cross-vendor review of a Claude diff
     /adversarial-review diff --refute           # + round 2: members try to disprove each other
@@ -33,6 +35,8 @@ Results go to `.roadmap/notes/review-<date>-<slug>/`: one `<member>.md` per memb
 snapshot and guard results, and the not-checked lines.
 
 A `repo` run is chunked by module under `--chunk-budget`, with risky chunks first. It
+reviews code: `.roadmap`, `ROADMAP.md`, `CHANGELOG*.md`, `docs/` and agent tooling
+directories are left out unless `--include-docs`. It
 writes `model.md` (each member's probed model and effort flags), `coverage.json` and one
 result per chunk as each finishes, so `--resume` continues after a usage limit. With
 `openusage` installed, each member's chunk calls are planned from its remaining window,

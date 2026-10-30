@@ -1,6 +1,6 @@
 ---
 description: Read-only adversarial review by this session's own model, one reviewer, no member CLIs
-argument-hint: "[diff | branch:<base> | version:<v> | plan:<id> | repo] [--base REF] [--security] [--decided TEXT] [--deny GLOB] [--chunk-budget N]"
+argument-hint: "[diff | branch:<base> | version:<v> | plan:<id> | repo] [--base REF] [--security] [--decided TEXT] [--deny GLOB] [--chunk-budget N] [--include-docs]"
 ---
 
 Run a read-only adversarial review with **one reviewer: you**, on the model this session
@@ -21,7 +21,8 @@ CLI is started. Target: $ARGUMENTS (default: `diff`, the working tree vs HEAD).
    read, search and run read-only git commands only. Do not edit, create or delete files,
    and do not start another model CLI or subagent to review for you. Do not open files
    listed in the prompt's **Do not read these paths** block (the default deny list plus
-   any `--deny` glob). For `repo`, review the chunk prompts in the order printed.
+   any `--deny` glob; for `repo`, also planning records and agent tooling unless
+   `--include-docs`). For `repo`, review the chunk prompts in the order printed.
 4. Apply the skill's **evidence rule** to your own findings before you report them. For
    each one, open its `path:line`, check that a quote of at least 10 characters appears
    within 3 lines of that line, and state its impact path. Drop any finding that fails;

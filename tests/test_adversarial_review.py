@@ -220,7 +220,23 @@ def test_classify_usage_limit_on_every_exit_code_with_specific_phrases():
     assert rr.classify(0, "429 Too Many Requests", 300)[0] == limited
     review = "The rate limit check is wrong.\n" + F_A
     assert rr.classify(0, review, 300)[0] == "ran"
-    assert rr.classify(0, review, 300, stderr="rate limited, retry later")[0] == limited
+    # a finished review (FINDING / NOT_CHECKED lines) counts as ran whatever stderr says:
+    # codex echoes the whole transcript, code that mentions rate limits included
+    assert rr.classify(0, review, 300, stderr="rate limited, retry later")[0] == "ran"
+    assert rr.classify(0, "x", 300, stderr="error: rate limited", reply=review)[0] == "ran"
+    assert rr.classify(0, "", 300, stderr="", reply="NOT_CHECKED|none")[0] == "ran"
+    # no reply lines: the reply and the whole stderr tail are checked. A member that
+    # returned no review is never counted as ran when the tail names a limit, even if
+    # the line is only echoed transcript: a false skip is safer than a false clean run.
+    assert rr.classify(0, "", 300, stderr="Error: rate limited, retry later",
+                       reply="")[0] == limited
+    assert rr.classify(0, "", 300, stderr="reading rate_limit.py: rate limit check\n",
+                       reply="")[0] == limited
+    old = "ERROR: rate limited\n" + "ok line\n" * rr.STDERR_TAIL_LINES
+    assert rr.classify(0, "", 300, stderr=old, reply="")[0] == "ran"
+    assert rr.classify(1, "Error: quota reached for today", 300)[0] == limited
+    assert rr.classify(1, "status: RESOURCE_EXHAUSTED", 300)[0] == limited
+    assert rr.classify(0, "", 300, stderr="error: resource_exhausted", reply="")[0] == limited
     assert rr.classify(1, "HTTP 429 Too Many Requests", 300)[0] == limited
     assert rr.classify(1, "Quota exceeded for model", 300)[0] == limited
     assert rr.classify(1, "insufficient_quota", 300)[0] == limited
@@ -886,7 +902,8 @@ def test_prompt_only_repo_writes_one_prompt_per_chunk(env, monkeypatch, capsys):
     paths = [Path(ln.removeprefix("prompt: "))
              for ln in capsys.readouterr().out.strip().splitlines()]
     out_dir = paths[0].parent
-    chunks, _ = rr.plan_repo_chunks(repo, str(out_dir.relative_to(repo)), rr.DEFAULT_DENY,
+    chunks, _ = rr.plan_repo_chunks(repo, str(out_dir.relative_to(repo)),
+                                    rr.DEFAULT_DENY + rr.REPO_DENY,
                                     rr.chunk_plan.DEFAULT_CHUNK_BUDGET)
     assert [p.name for p in paths] == [f"prompt-{c['id']}.md" for c in chunks]
     assert sorted(p.name for p in out_dir.iterdir()) == sorted(p.name for p in paths)
@@ -897,6 +914,35 @@ def test_prompt_only_repo_writes_one_prompt_per_chunk(env, monkeypatch, capsys):
     assert "Your snapshot holds" not in text and "sanitized snapshot" not in text
     assert "Read other files only as needed to judge these ones." in text
     assert text.count("## Do not read these paths") == len(paths)
+
+
+def test_prompt_only_repo_applies_repo_deny_unless_include_docs(env, monkeypatch, capsys):
+    repo, _, _ = env
+    (repo / "docs").mkdir()
+    (repo / "docs/guide.md").write_text("DOCS-MARKER\n")
+    (repo / "CHANGELOG.md").write_text("CHANGELOG-MARKER\n")
+    _no_member_launch(monkeypatch)
+
+    def prompts(*extra):
+        assert rr.main(["repo", "--prompt-only", "--repo", str(repo), *extra]) == 0
+        paths = [Path(ln.removeprefix("prompt: "))
+                 for ln in capsys.readouterr().out.strip().splitlines()]
+        return "".join(p.read_text() for p in paths)
+
+    text = prompts()
+    assert "DOCS-MARKER" not in text and "CHANGELOG-MARKER" not in text
+    assert "Plan 7" not in text and "`.roadmap`" in text and "`docs/*`" in text
+    text = prompts("--include-docs")
+    assert "DOCS-MARKER" in text and "CHANGELOG-MARKER" in text and "Plan 7" in text
+    assert "`docs/*`" not in text
+
+
+def test_repo_deny_is_generic():
+    assert "statewide-docs" not in rr.REPO_DENY
+    assert not any("statewide" in p for p in rr.REPO_DENY)
+    for p in (".roadmap", "ROADMAP.md", "CHANGELOG*.md", "docs/*", ".security-audit",
+              ".claude", ".agents", ".grok", ".codex", ".cursor", ".codegraph"):
+        assert p in rr.REPO_DENY
 
 
 def test_prompt_only_repo_redacts_token_cut_by_the_cap(env, monkeypatch, capsys):
@@ -1449,3 +1495,19 @@ def test_no_preflight_flag(env):
     assert run("--members", "codex", "--no-preflight").returncode == 0
     assert (bin_dir / "codex.calls").exists()
     assert "- disabled (--no-preflight)" in _summary(repo)[0]
+
+
+def test_classify_limit_on_stderr_tail_without_error_word():
+    # A reply with no review lines and a limit named in the stderr tail is a skip, even
+    # when the line does not say "error"; an echoed transcript above the tail is ignored.
+    limited = "skipped: usage limit"
+    assert rr.classify(0, "", 300, stderr="You've hit your usage limit. try later\n",
+                       reply="")[0] == limited
+    assert rr.classify(0, "", 300, stderr="stream disconnected; quota reached\n",
+                       reply="")[0] == limited
+    assert rr.classify(0, "", 300, stderr="Rate limit exceeded, retry\n",
+                       reply="I could not review")[0] == limited
+    echoed = "code mentions rate limit\n" * 3 + "ok\n" * (rr.STDERR_TAIL_LINES + 5)
+    assert rr.classify(0, "", 300, stderr=echoed, reply="")[0] == "ran"
+    assert rr.classify(0, "", 300, stderr="rate limit\n",
+                       reply="NOT_CHECKED|nothing else\n")[0] == "ran"

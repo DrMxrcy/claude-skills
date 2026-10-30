@@ -2,7 +2,8 @@
 name: adversarial-review
 description: >
   Read-only adversarial review of a diff, branch, roadmap version, single plan, or the
-  whole repo (including roadmap state and versions) by several model CLIs at once —
+  whole repo's code (planning records and agent tooling only with --include-docs) by
+  several model CLIs at once —
   codex, claude, agy, cursor-agent, opencode — then Claude triages the ranked findings.
   Members that hit a usage limit, are missing, or fail are recorded and skipped, never
   retried. Triggers on "adversarial review", "multi-model review", "have the other CLIs
@@ -28,7 +29,8 @@ in the project first, then under `$HOME`. In this source repo it is
                             [--refute] [--security] [--decided TEXT|@FILE]
                             [--deny GLOB] [--no-preflight] [--timeout 300]
                             [--chunk-budget 20000] [--resume RUN_DIR] [--model-md FILE]
-                            [--usage-floor 10] [--chunk-cost 2]
+                            [--usage-floor 10] [--chunk-cost 2] [--parallel 1]
+                            [--include-docs]
     python3 <run_review.py> --list          # installed / excluded members
 
 | TARGET | Context | Snapshot holds |
@@ -37,7 +39,7 @@ in the project first, then under `$HOME`. In this source repo it is
 | `branch:<base>` | `git log <base>..HEAD` and `git diff <base>...HEAD` | same as `diff` |
 | `version:<v>` | plan files whose frontmatter `version:` is `<v>` | whole tree |
 | `plan:<id>` | that plan file | whole tree |
-| `repo` | one chunk per call (see Whole-repo chunks) | that chunk's files plus `RULES.md`, `DESIGN.md`, `ARCHITECTURE.md` |
+| `repo` | one chunk per call (see Whole-repo chunks); planning records and agent tooling left out unless `--include-docs` | that chunk's files plus `RULES.md`, `DESIGN.md`, `ARCHITECTURE.md` |
 
 - `--exclude <member>` records `skipped: excluded by user`. For a diff Claude wrote,
   `--exclude claude` gives a cross-vendor review.
@@ -61,10 +63,12 @@ Claude's inside Claude Code). No member CLI is started.
 
     python3 <run_review.py> [TARGET] --prompt-only [--base REF] [--security]
                             [--decided TEXT|@FILE] [--deny GLOB] [--chunk-budget N]
+                            [--include-docs]
 
 - It writes the prompt one member would get to `<run-dir>/prompt.md` and prints the
   path. For `repo` it writes one `prompt-<chunk-id>.md` per chunk, in risk order.
-- Target, context, `--decided`, deny list and secret redaction are the council's. The
+- Target, context, `--decided`, deny list (the repo deny list included, for `repo`)
+  and secret redaction are the council's. The
   lens is production breakage, or security with `--security`.
 - It runs no member, pre-flight, `model.md` check or snapshot. Exit `1` cases are the
   same as a council run.
@@ -75,6 +79,12 @@ Claude's inside Claude Code). No member CLI is started.
 
 ## Whole-repo chunks (`repo`)
 
+- **Repo deny list:** a `repo` run, and a `--resume`, reviews code, not planning
+  records. On top of the snapshot deny list it leaves out `.roadmap`, `ROADMAP.md`,
+  `CHANGELOG*.md`, `docs/*` (top-level `docs/`), `.security-audit`, `.claude`,
+  `.agents`, `.grok`, `.codex`, `.cursor` and `.codegraph`; plan checklists and
+  changelogs otherwise draw many findings about their own text. `--include-docs`
+  reviews them too. `--prompt-only repo` applies the same list.
 - **Chunks:** the repo is split by top-level module under `--chunk-budget` tokens
   (estimated at 4 bytes per token). A module over the budget is split by sub-directory,
   then by file. Denied, binary, symlinked and over-5 MB files are not chunked. Each
@@ -103,9 +113,19 @@ Claude's inside Claude Code). No member CLI is started.
 - **openusage budgeting:** with `openusage` installed, a member's remaining window sets
   how many chunk calls it is planned to make: `(remaining - --usage-floor) /
   --chunk-cost`. After each call the window is read again, and the member stops before
-  it would drop below the floor. The floor it stopped at goes in `summary.md`. Without
+  it would drop below the floor. Once a member has finished 5 chunk calls, the measured
+  drop per call replaces the `--chunk-cost` guess: a cheap member keeps going past its
+  planned count while the live reading stays above the floor, an expensive one still
+  stops there. If openusage cannot be read at that point, the planned count holds. The
+  floor it stopped at goes in `summary.md`. Without
   openusage, or for a member it has no data for, every chunk is planned from
   `--chunk-budget` alone, and the summary says so.
+- **`--parallel N`** (default 1): each member runs up to N chunk calls at once, each a
+  fresh process in its own snapshot. Chunks are still claimed in risk order, and none
+  is run twice. The floor check counts calls still in flight, so N calls in flight
+  never jointly cross `--usage-floor`. A usage limit or 3 failed calls in a row stop the
+  member's other workers from claiming more chunks; calls already running finish. With
+  the default of 1 the loop is sequential, as before.
 - **CodeGraph (optional):** if the target repo already has a `.codegraph/` index and
   `codegraph` is on PATH, each chunk's context is the output of `codegraph explore`.
   Otherwise the chunk's raw files are used. The path used is recorded per chunk. The
@@ -164,8 +184,12 @@ call is made for it. `--no-preflight` turns the check off.
 
 - `ran`
 - `skipped: usage limit`: a specific limit phrase (usage limit, rate limit, quota
-  exceeded, insufficient_quota, too many requests, 429 too many requests, limit reached)
-  on any exit code. On exit 0, a reply with FINDING lines is judged by stderr only.
+  exceeded, insufficient_quota, too many requests, 429 too many requests, limit reached,
+  quota reached, resource_exhausted) on any exit code. On exit 0, a reply with
+  FINDING, REFUTE, UPHOLD or NOT_CHECKED lines is a finished review and counts as ran.
+  Otherwise the reply and only the error lines among the last 20 lines of stderr are
+  checked: codex echoes its whole transcript to stderr, so reviewed code that mentions
+  rate limiting must not read as a limit.
 - `skipped: not installed`, `skipped: excluded`, `skipped: excluded by user`
 - `failed: exit <n>`, `failed: timeout after <n>s`, `failed: version probe`
 

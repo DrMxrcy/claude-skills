@@ -9,14 +9,17 @@ Claude does the final judgement on that summary; this script only collects and r
 Usage:
   run_review.py [TARGET] [--base REF] [--members a,b] [--exclude a,b] [--refute]
                 [--security] [--decided TEXT|@FILE] [--timeout 300] [--repo PATH]
-                [--out-dir DIR] [--list] [--prompt-only]
+                [--out-dir DIR] [--list] [--prompt-only] [--include-docs] [--parallel N]
 
 TARGET (default: diff):
   diff                working tree vs HEAD (or <base>...HEAD with --base)
   branch:<base>       committed changes on this branch: git diff <base>...HEAD
   version:<v>         every plan file in .roadmap/plans/ targeting version <v>
   plan:<id>           one plan file (e.g. plan:29)
-  repo                the whole repo, including ROADMAP.md and .roadmap/ state
+  repo                the whole repo in module chunks; planning records and agent tooling
+                      (.roadmap/, ROADMAP.md, CHANGELOG*.md, docs/, agent dirs) are left
+                      out unless --include-docs. --parallel N runs N chunk calls per member
+                      at once.
 
 --prompt-only writes the prompt one member would get to <run-dir>/prompt.md (repo: one
 prompt-<chunk-id>.md per chunk), prints the path and exits; no member runs. The host
@@ -120,6 +123,11 @@ def member_env(member, environ=None):
 DEFAULT_DENY = (".env*", "*.pem", "*.key", "id_*", ".npmrc", ".netrc", ".git",
                 "node_modules", "*.p12", "*.pfx", ".pypirc", ".ssh", ".aws")
 MAX_SNAPSHOT_FILE = 5_000_000
+MEASURED_CALLS = 5             # chunk calls before measured usage replaces --chunk-cost
+# Whole-repo runs review code, not planning records: plan files, changelogs, operator docs and
+# agent tooling drew hundreds of "critical" findings about checklist text. --include-docs reviews them.
+REPO_DENY = (".roadmap", "ROADMAP.md", "CHANGELOG*.md", "docs/*", ".security-audit",
+             ".claude", ".agents", ".grok", ".codex", ".cursor", ".codegraph")
 MAX_SCAN_FILE = 2_000_000
 QUOTE_WINDOW = 3               # a quote must appear within this many lines of path:line
 REFUTE_QUORUM = 2              # distinct members whose verified refutations drop a finding
@@ -135,9 +143,11 @@ SESSION_SUBCOMMANDS = frozenset({"resume", "fork"})
 # permissions") are auth/other errors, not usage limits.
 USAGE_LIMIT_RE = re.compile(
     r"usage limit|rate[ -]?limit(?:ed)?|quota exceeded|exceeded (?:your )?(?:current )?quota"
-    r"|insufficient[_ ]quota|too many requests|429 too many requests|limit reached",
+    r"|insufficient[_ ]quota|too many requests|429 too many requests|limit reached"
+    r"|quota reached|resource_exhausted",
     re.IGNORECASE,
 )
+STDERR_TAIL_LINES = 20       # stderr lines a clean exit is checked on for a limit
 MIN_EVIDENCE_CHARS = 10        # non-space characters a finding's evidence must carry
 LABELS = {"confirmed": "Confirmed", "needs verification": "Needs verification"}
 LENSES = ("production breakage", "security", "maintainability")
@@ -307,20 +317,25 @@ def _last_line(text):
     return lines[-1][:200] if lines else ""
 
 
-_REPLY_LINE_RE = re.compile(r"^\s*[`>*-]*\s*(FINDING|REFUTE|UPHOLD)\|", re.MULTILINE)
+_REPLY_LINE_RE = re.compile(r"^\s*[`>*-]*\s*(FINDING|REFUTE|UPHOLD|NOT_CHECKED)\|", re.MULTILINE)
 
 
-def classify(returncode, combined, timeout, stderr=""):
+def classify(returncode, combined, timeout, stderr="", reply=None):
     """Map a finished attempt to (status, reason).
 
-    The usage-limit pattern is checked on every exit code. On exit 0 it is checked on
-    stderr, and on the reply only when the reply carries no FINDING/REFUTE/UPHOLD
-    lines — so a real review that merely discusses rate limiting still counts as ran.
+    The usage-limit pattern is checked on every exit code. On exit 0 a reply carrying
+    FINDING/REFUTE/UPHOLD/NOT_CHECKED lines is a finished review and counts as ran; without
+    them the reply and the last STDERR_TAIL_LINES lines of stderr are checked. codex echoes
+    the whole transcript (prompt and files read) to stderr, so only the tail counts; a reply
+    with no review lines is never read as ran when the tail names a limit.
     """
     if returncode is None:
         return f"failed: timeout after {timeout}s", "wall-time cap hit; process group killed"
     if returncode == 0:
-        haystack = stderr if _REPLY_LINE_RE.search(combined) else combined
+        reply = combined if reply is None else reply
+        if _REPLY_LINE_RE.search(reply):
+            return "ran", ""
+        haystack = "\n".join([reply, *stderr.splitlines()[-STDERR_TAIL_LINES:]])
     else:
         haystack = combined
     match = USAGE_LIMIT_RE.search(haystack)
@@ -358,7 +373,7 @@ def _attempt(member, binary_path, prompt, repo, timeout, model=None, cap_label=N
         if member.output_file and outfile.is_file():
             body = outfile.read_text(errors="replace") or out
         combined = "\n".join(x for x in (out, err, body if body is not out else "") if x)
-        status, reason = classify(rc, combined, cap_label or timeout, stderr=err)
+        status, reason = classify(rc, combined, cap_label or timeout, stderr=err, reply=body)
         if status != "ran" and err.strip():
             body = f"{body}\n\n--- stderr ---\n{err}".strip()
         return Attempt(status, reason, body, rc, secs, shown, model or "")
@@ -577,15 +592,15 @@ def _git(repo, *args, check=True):
     return res.stdout
 
 
-def _sha1(path):
+def _digest(path):
     try:
-        return hashlib.sha1(path.read_bytes()).hexdigest()
+        return hashlib.sha256(path.read_bytes()).hexdigest()
     except OSError:
         return None
 
 
 def snapshot(repo, exclude_rel):
-    """{path: (porcelain XY, content sha1)} for every dirty or untracked path, plus
+    """{path: (porcelain XY, content sha256)} for every dirty or untracked path, plus
     EVERY file under .roadmap/ (tracked, untracked or gitignored), minus exclude_rel.
 
     Hashing content catches a member editing a file that was already dirty, which
@@ -607,7 +622,7 @@ def snapshot(repo, exclude_rel):
         if prefix and (path + "/").startswith(prefix):
             continue
         full = Path(repo) / path
-        entries[path] = (xy, _sha1(full) if full.is_file() else None)
+        entries[path] = (xy, _digest(full) if full.is_file() else None)
     roadmap = Path(repo) / ".roadmap"
     if roadmap.is_dir():
         for dirpath, dirnames, filenames in os.walk(roadmap):
@@ -621,7 +636,7 @@ def snapshot(repo, exclude_rel):
                 full = Path(dirpath) / name
                 if full.is_file():
                     xy = entries.get(rel, ("", None))[0]
-                    entries[rel] = (xy, _sha1(full))
+                    entries[rel] = (xy, _digest(full))
     return entries
 
 
@@ -968,12 +983,12 @@ def build_snapshot(repo, target, deny=DEFAULT_DENY, out_rel=None, only=None):
 
 
 def tree_hashes(root):
-    """{rel: sha1} of every file under root (to notice member writes in the snapshot)."""
+    """{rel: sha256} of every file under root (to notice member writes in the snapshot)."""
     out = {}
     for dirpath, _, filenames in os.walk(root):
         for name in filenames:
             full = Path(dirpath) / name
-            out[full.relative_to(root).as_posix()] = _sha1(full)
+            out[full.relative_to(root).as_posix()] = _digest(full)
     return out
 
 
@@ -1039,7 +1054,7 @@ def deny_block(deny):
     return ("## Do not read these paths\n\n"
             "You review the live repo, not a sanitized copy. Do not open, search or quote "
             "any file whose path or any path component matches this deny list; they may "
-            f"hold secrets. Deny list: {pats}.\n")
+            f"hold secrets or lie outside this review. Deny list: {pats}.\n")
 
 
 def lens_for(index, security_only=False):
@@ -2142,22 +2157,48 @@ def run_chunked(args, repo, members, not_run, deny):
     def work(m, entry):
         plan = plans[m.name]
         pins = model_pins(m, entry)
-        calls, fails, est_cost = 0, 0, cost
-        for chunk in chunk_plan.todo_for(cov, m.name):
-            if calls >= plan["planned"]:
-                if plan["source"] == "openusage":
-                    plan["stopped"] = (f"usage floor {floor:g}%: planned {plan['planned']} "
-                                       f"call(s) from {plan['remaining']:g}% remaining")
-                break
-            if calls and plan["remaining"] is not None:
-                rem, _ = usage_remaining(m.name, read_openusage()[0])
+        st = {"started": 0, "calls": 0, "fails": 0, "est": cost, "stop": False}
+        mlock = threading.Lock()
+        todo = iter(chunk_plan.todo_for(cov, m.name))
+
+        def claim():
+            """The member's next chunk, or None once it should stop. Claims are serialised, so
+            --parallel workers never pass the plan or the floor between them."""
+            with mlock:
+                if st["stop"]:
+                    return None
+                # The up-front plan uses the --chunk-cost guess; once enough calls are measured
+                # the live floor check below governs instead (a cheap member is not capped at
+                # the guess, an expensive one still stops at the floor).
+                measured_enough = (plan["source"] == "openusage"
+                                   and st["calls"] >= MEASURED_CALLS)
+                over_plan = st["started"] >= plan["planned"]
+                rem = None
+                if (st["calls"] and plan["remaining"] is not None
+                        and (measured_enough or not over_plan)):
+                    rem, _ = usage_remaining(m.name, read_openusage()[0])
+                # Measured mode needs a live reading: without one the planned cap holds.
+                if over_plan and (not measured_enough or rem is None):
+                    if plan["source"] == "openusage" and not plan["stopped"]:
+                        plan["stopped"] = (f"usage floor {floor:g}%: planned {plan['planned']} "
+                                           f"call(s) from {plan['remaining']:g}% remaining")
+                    return None
                 if rem is not None:
-                    measured = (plan["remaining"] - rem) / calls
-                    est_cost = max(est_cost, measured)
-                    if rem - est_cost < floor:
-                        plan["stopped"] = (f"usage floor {floor:g}%: openusage shows {rem:g}% "
-                                           f"remaining after {calls} call(s)")
-                        break
+                    measured = (plan["remaining"] - rem) / st["calls"]
+                    st["est"] = (max(measured, cost / 4) if measured_enough
+                                 else max(st["est"], measured))
+                    in_flight = st["started"] - st["calls"]
+                    if rem - st["est"] * (in_flight + 1) < floor:
+                        st["stop"] = True
+                        plan["stopped"] = (f"usage floor {floor:g}%: openusage shows "
+                                           f"{rem:g}% remaining after {st['calls']} call(s)")
+                        return None
+                chunk = next(todo, None)
+                if chunk is not None:
+                    st["started"] += 1
+                return chunk
+
+        def one(chunk):
             ctx_note, ctx_red, cg_text = "raw files (no .codegraph/ index)", {}, None
             if use_codegraph:
                 cg_text, ctx_note, ctx_red = codegraph_for(chunk)
@@ -2198,14 +2239,33 @@ def run_chunked(args, repo, members, not_run, deny):
                 c = chunk_plan.mark(cov, chunk["id"], m.name, res.status)
                 c["context"] = ctx_note
                 chunk_plan.save_coverage(out_dir, cov)
-            calls += 1
-            if res.status.startswith("skipped: usage limit"):
-                plan["stopped"] = f"usage limit on {chunk['id']}: {res.reason}"
-                break
-            fails = 0 if res.ran else fails + 1
-            if fails >= MAX_CONSECUTIVE_FAILURES:
-                plan["stopped"] = f"{fails} chunk calls failed in a row ({res.status})"
-                break
+            with mlock:
+                st["calls"] += 1
+                if res.status.startswith("skipped: usage limit"):
+                    st["stop"] = True
+                    plan["stopped"] = f"usage limit on {chunk['id']}: {res.reason}"
+                    return
+                st["fails"] = 0 if res.ran else st["fails"] + 1
+                if st["fails"] >= MAX_CONSECUTIVE_FAILURES:
+                    st["stop"] = True
+                    plan["stopped"] = f"{st['fails']} chunk calls failed in a row ({res.status})"
+
+        def loop():
+            try:
+                while (chunk := claim()) is not None:
+                    one(chunk)
+            except BaseException:
+                with mlock:              # a crashed worker stops its siblings too
+                    st["stop"] = True
+                raise
+
+        n = max(1, args.parallel)
+        if n == 1:
+            loop()
+            return
+        with ThreadPoolExecutor(max_workers=n) as mpool:
+            for fut in [mpool.submit(loop) for _ in range(n)]:
+                fut.result()
 
     def safe_work(m, entry):
         try:
@@ -2453,6 +2513,12 @@ def main(argv=None):
     ap.add_argument("--chunk-cost", type=float, default=DEFAULT_CHUNK_COST,
                     help="repo target: estimated window percent one chunk call uses "
                          "(raised to the measured drop when openusage shows one)")
+    ap.add_argument("--include-docs", action="store_true",
+                    help="repo target: also review plan files, changelogs, docs/ and agent "
+                         "tooling (left out by default: " + " ".join(REPO_DENY) + ")")
+    ap.add_argument("--parallel", type=int, default=1,
+                    help="repo target: concurrent chunk calls per member, each a fresh "
+                         "process; the usage floor counts calls still in flight")
     args = ap.parse_args(argv)
 
     if args.list:
@@ -2467,6 +2533,8 @@ def main(argv=None):
     try:
         members, not_run = select_members(args.members, ",".join(args.exclude))
         deny = tuple(DEFAULT_DENY) + tuple(d for entry in args.deny for d in _names(entry))
+        if (args.resume or args.target == "repo") and not args.include_docs:
+            deny += REPO_DENY
         decided_block(args.decided)          # validate @files before anything runs
         if args.prompt_only:
             if args.resume:
@@ -2477,6 +2545,8 @@ def main(argv=None):
                 raise ValueError("--resume continues a chunked repo run; drop the target")
             if args.chunk_budget < 1:
                 raise ValueError("--chunk-budget must be at least 1 token")
+            if args.parallel < 1:
+                raise ValueError("--parallel must be at least 1")
             return run_chunked(args, repo, members, not_run, deny)
         target = build_target(repo, args.target, args.base, deny)
     except (ValueError, RuntimeError, OSError) as exc:

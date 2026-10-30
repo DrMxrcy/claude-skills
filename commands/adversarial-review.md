@@ -1,6 +1,6 @@
 ---
 description: Read-only adversarial review by every installed model CLI, then triage the findings
-argument-hint: "[diff | branch:<base> | version:<v> | plan:<id> | repo] [--base REF] [--exclude a,b] [--refute] [--security] [--decided TEXT] [--deny GLOB] [--no-preflight] [--chunk-budget N] [--resume RUN_DIR]"
+argument-hint: "[diff | branch:<base> | version:<v> | plan:<id> | repo] [--base REF] [--exclude a,b] [--refute] [--security] [--decided TEXT] [--deny GLOB] [--no-preflight] [--chunk-budget N] [--resume RUN_DIR] [--parallel N] [--include-docs]"
 ---
 
 Run a read-only adversarial review using the **adversarial-review** skill. Target: $ARGUMENTS
@@ -13,7 +13,11 @@ Run a read-only adversarial review using the **adversarial-review** skill. Targe
    each and run in parallel, so start it in the background if your host allows that. Do
    not retry members that are skipped or failed. Add `--exclude claude` when Claude wrote
    the diff, so the review is cross-vendor. Add `--refute` only when the user asks for a
-   refutation round, because it costs one more call per member.
+   refutation round, because it costs one more call per member. A `repo` run leaves out
+   planning records and agent tooling (`.roadmap`, `ROADMAP.md`, `CHANGELOG*.md`, `docs/`,
+   agent dirs); add `--include-docs` only when the user wants those reviewed. Add
+   `--parallel N` only when the user asks for faster repo runs: N chunk calls per member
+   at once, still under the usage floor.
 3. If it exits **2**, the read-only guard failed. Tell the user which paths changed (they
    are listed in `summary.md`), treat every finding as untrusted, and stop. Do not
    revert their files for them. If it exits **1**, report the error (for example a clean

@@ -3,7 +3,7 @@ id: 63
 title: Upstream statewide adversarial-review runner changes: --parallel, measured usage, repo doc deny, limit classify
 type: feature
 version: 0.19.0
-status: planned
+status: done
 created: 2026-10-30
 ---
 
@@ -26,5 +26,12 @@ created: 2026-10-30
 - **Fails if:** `statewide-docs` or any other statewide-only path ships in the generic file, or the default (`--parallel 1`) chunk loop changes order or stop behaviour.
 
 ## 🚶 Step-by-Step Checklist
-- [ ] Step 1: Three-way merge the statewide runner changes with tests -> target: skills/adversarial-review/scripts/run_review.py, tests/
-- [ ] Step 2: Document --parallel, --include-docs and the default repo deny in SKILL.md and the command files -> target: skills/adversarial-review/SKILL.md, commands/
+- [x] Step 1: Three-way merge the statewide runner changes with tests -> target: skills/adversarial-review/scripts/run_review.py, tests/
+  > evidence: full suite passed (see line); 3-way merge vs b1b38ef clean; verifier (sonnet) PARTIAL: concurrency/REPO_DENY/parity confirmed, classify regression fixed by parent with regression test (2026-10-30)
+- [x] Step 2: Document --parallel, --include-docs and the default repo deny in SKILL.md and the command files -> target: skills/adversarial-review/SKILL.md, commands/
+  > evidence: full suite passed (see line); 3-way merge vs b1b38ef clean; verifier (sonnet) PARTIAL: concurrency/REPO_DENY/parity confirmed, classify regression fixed by parent with regression test (2026-10-30)
+
+## ⚖️ Rulings
+
+- **Ruling (2026-10-30, owner):** classify departs from statewide's rule: with no review lines, the whole last STDERR_TAIL_LINES of stderr is checked, not only lines containing 'error'. Verifier showed real limits ('You've hit your usage limit', 'quota reached', 'Rate limit exceeded') read as ran under the statewide rule; a false skip is safer than a false clean run. NOT_CHECKED is anchored to a line start via _REPLY_LINE_RE.
+- **Ruling (2026-10-30, owner):** Accepted: after MEASURED_CALLS an openusage member may run past its planned count while the live floor allows it (statewide behaviour); without a live reading the planned cap still holds.
