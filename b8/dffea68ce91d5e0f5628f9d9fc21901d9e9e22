@@ -1,0 +1,45 @@
+skills/roadmap/references/quality-build.md
+  s_b0a8e9af27c956::t_46b38bcb063a7c 126,151-175,178
+skills/roadmap/scripts/rmlib/ops.py
+  s_b0a8e9af27c956::t_809435c974c961 23,724-725,730,741-742,747,767-768,770,805-806,810,852,868
+skills/roadmap/scripts/roadmap.py
+  s_b0a8e9af27c956::t_809435c974c961 63,126
+skills/roadmap/SKILL.md
+  s_b0a8e9af27c956::t_365f18f464aea8 205-207
+skills/roadmap/scripts/rmlib/changelog.py
+  s_b0a8e9af27c956::t_809435c974c961 62-64,95-100,116,148-161,164-166,169-173,175-177,179-180,183-184,187-194,260-262,266,290-292,308,328-330,333-334,361,379,394,403,408
+commands/roadmap-changelog.md
+  s_b0a8e9af27c956::t_1b5a5dbc881b3c 14-25
+tests/test_roadmap_changelog_rules.py
+  s_b0a8e9af27c956::t_ada18b36aa0558 1-85,88-138
+  s_b0a8e9af27c956::t_0bf143faeb02cc 86-87
+CHANGELOG.internal.md
+  s_b0a8e9af27c956::t_583b74f6c01d65 47
+skills/roadmap/references/state-model.md
+  s_b0a8e9af27c956::t_809435c974c961 37
+  s_b0a8e9af27c956::t_a0c16c9a62c42d 38
+agy-plugin/plugins/roadmap/commands/roadmap-changelog.md
+  s_b0a8e9af27c956::t_56a0f8e53f2b0b 14-25
+.roadmap/config.json
+  s_b0a8e9af27c956::t_8ad13eb805ac2d 634
+.roadmap/plans/062-upstream-statewide-roadmap-changes-changelog-repo-rules-summary-bullets-style-t3-orchestrator-v2-routing.md
+  s_b0a8e9af27c956::t_cf737c1d57b859 6,30-33
+ROADMAP.md
+  s_b0a8e9af27c956::t_78d3198d370756 25,39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b8dffea68ce91d5e0f5628f9d9fc21901d9e9e22",
+  "prompts": {},
+  "sessions": {
+    "s_b0a8e9af27c956": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ed4d96e8-2c8d-42a4-885c-beff7c5e4d04",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "DrMxrcy <drmxrcy@gmail.com>"
+    }
+  }
+}
