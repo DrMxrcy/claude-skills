@@ -22,7 +22,7 @@
 
 ### [x] v0.18.0 — 100% · 6 items · shipped 2026-10-21 ([history](CHANGELOG.internal.md))
 
-### [ ] v0.19.0 — 80%
+### [ ] v0.19.0 — 89%
 - [ ] **#28 Council review: plan review and merge gate by multiple agent CLIs** `feature` — 0% ([plan](.roadmap/plans/028-council-review-plan-review-and-merge-gate-by-multiple-agent-clis.md))
 - [x] **#29 Adversarial review skill: multi-CLI review with triage from Claude Code** `feature` — 100% ([plan](.roadmap/plans/029-adversarial-review-skill-multi-cli-review-with-triage-from-claude-code.md))
 - [x] **#30 Honest in-flight tracking: claim branch/stage/verdict per item, branch progress and stage filters in status and dashboard** `feature` — 100% ([plan](.roadmap/plans/030-honest-in-flight-tracking-claim-branch-stage-verdict-per-item-branch-progress-and-stage-filters-in-status-and-dashboard.md))
@@ -31,7 +31,7 @@
 - [x] **#52 Leftovers: note error suggests a missing --audience flag; board copy commands lack the project under serve --all; board filters shared across projects** `bug` — 100% ([plan](.roadmap/plans/052-leftovers-note-error-suggests-a-missing-audience-flag-board-copy-commands-lack-the-project-under-serve-all-board-filters-shared-across-projects.md))
 - [x] **#54 Chunked whole-repo review with model.md baseline, openusage budgeting, and resumable coverage** `feature` — 100% ([plan](.roadmap/plans/054-chunked-whole-repo-review-with-model-md-baseline-openusage-budgeting-and-resumable-coverage.md))
 - [x] **#55 Dashboard: header too tall, panels not collapsible, trunk health shows every past run as a red chip** `bug` — 100% ([plan](.roadmap/plans/055-dashboard-header-too-tall-panels-not-collapsible-trunk-health-shows-every-past-run-as-a-red-chip.md))
-- [ ] **#56 Fleet fold review: eval gate, keep-or-fold policy, merge spec pass, drop Explore** `refactor` — 0% ([plan](.roadmap/plans/056-fleet-fold-review-eval-gate-keep-or-fold-policy-merge-spec-pass-drop-explore.md))
+- [x] **#56 Fleet fold review: eval gate, keep-or-fold policy, merge spec pass, drop Explore** `refactor` — 100% ([plan](.roadmap/plans/056-fleet-fold-review-eval-gate-keep-or-fold-policy-merge-spec-pass-drop-explore.md))
 - [ ] **#58 OpenCode install target: roadmap and adversarial-review in ~/.config/opencode** `feature` — 0% ([plan](.roadmap/plans/058-opencode-install-target-roadmap-and-adversarial-review-in-config-opencode.md))
 - [x] **#59 Single adversarial review: /single-adversarial-review runs one reviewer on the host's own model** `feature` — 100% ([plan](.roadmap/plans/059-single-adversarial-review-single-adversarial-review-runs-one-reviewer-on-the-host-s-own-model.md))
 - [x] **#60 adversarial-review: diff target caps context before redaction, so a secret cut at the cap can leak a prefix** `bug` — 100% ([plan](.roadmap/plans/060-adversarial-review-diff-target-caps-context-before-redaction-so-a-secret-cut-at-the-cap-can-leak-a-prefix.md))

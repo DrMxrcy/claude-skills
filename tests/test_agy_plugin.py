@@ -33,6 +33,7 @@ def test_build_script_runs_and_bundles_roadmap_and_agent():
 
     # Agent bundle
     assert (AGENT_PLUGIN / "skills" / "agent" / "SKILL.md").exists()
+    assert not (AGENT_PLUGIN / "skills" / "agent" / "evals").exists()   # dev-only
     assert (AGENT_PLUGIN / "agents" / "executor.md").exists()
     assert (AGENT_PLUGIN / "agents" / "verifier.md").exists()
     assert (AGENT_PLUGIN / "agents" / "scout.md").exists()

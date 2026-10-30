@@ -9,7 +9,7 @@ REPO = Path(__file__).resolve().parent.parent
 INSTALL = REPO / "install.sh"
 
 FLEET = {"executor.md", "verifier.md", "security-executor.md",
-         "mech-executor.md", "scout.md", "Explore.md"}
+         "mech-executor.md", "scout.md"}
 START = "<!-- agent:orchestration:start -->"
 
 
@@ -26,12 +26,23 @@ def test_agent_fleet_installed_by_default(tmp_path):
     assert FLEET <= agents
 
 
+def test_install_strips_dev_only_evals(tmp_path):
+    # evals/ (golden tasks + fixture repos) is for maintainers; users never get it.
+    assert (REPO / "skills/agent/evals").is_dir()
+    res = _run(tmp_path, "--project")
+    assert res.returncode == 0, res.stderr
+    installed = tmp_path / ".claude/skills/agent"
+    assert (installed / "SKILL.md").is_file()
+    assert not (installed / "evals").exists()
+
+
 def test_agent_policy_merged_into_instruction_files(tmp_path):
     _run(tmp_path, "--project")
     for name in ("CLAUDE.md", "AGENTS.md"):
         text = (tmp_path / name).read_text()
         assert START in text
-        assert "Delegation tiers" in text
+        assert "Default: one agent loop" in text
+        assert "Keep-or-fold test" in text
         assert "security-executor" in text
         assert "roadmap:rules:start" in text     # coexists with roadmap rules block
 
@@ -251,3 +262,17 @@ def test_caveman_hook_sets_level_from_project_preference(tmp_path):
                          capture_output=True, text=True)
     assert (home / ".claude/.caveman-active").read_text() == "full"
     assert "decide the level NOW" in res.stdout
+
+
+def test_retired_explore_agent_removed_on_install(tmp_path):
+    # Plan 56: our stale fleet Explore.md is dropped on install; a user's own one stays.
+    ours = "description: Fast read-only codebase exploration - x\n"
+    mine = "description: my own explorer\n"
+    for name, body, kept in (("ours", ours, False), ("mine", mine, True)):
+        proj = tmp_path / name
+        agents = proj / ".claude/agents"
+        agents.mkdir(parents=True)
+        (agents / "Explore.md").write_text("---\nname: Explore\n" + body + "---\n")
+        res = _run(proj, "--project")
+        assert res.returncode == 0, res.stderr
+        assert (agents / "Explore.md").exists() is kept

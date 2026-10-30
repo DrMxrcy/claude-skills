@@ -54,7 +54,7 @@ _Full work log — every item, including internal/dev work. The curated public c
 - test_agy_cli_plugin_validate expects [ok] but agy 1.4.6 prints Validation passed
 
 ### ⚡ Improved
-- (pending) Agent fleet slimmed per fold-subagents guidance, gated on golden-task evals
+- Agent fleet slimmed per fold-subagents guidance, gated on golden-task evals
 
 ## v0.18.0 — 2026-10-21
 

@@ -14,7 +14,7 @@ Native [Google Antigravity](https://antigravity.google) (`agy`) plugins packagin
 
 2. **`agent`** (`plugins/agent`):
    - **Skill**: Guidance and orchestration patterns for delegating labor to cheaper model tiers.
-   - **Subagent Fleet**: `executor`, `verifier`, `scout`, `mech-executor`, `security-executor`, and `Explore` available via `agy --agent <name>`.
+   - **Subagent Fleet**: `executor`, `verifier`, `scout`, `mech-executor`, and `security-executor` available via `agy --agent <name>`.
    - **Rules**: Injects subagent delegation policy (`rules/AGENTS.md`).
 
 ## Quick Install

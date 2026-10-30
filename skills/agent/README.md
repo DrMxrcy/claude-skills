@@ -18,8 +18,7 @@ in clean context, so "done" means *checked*, not *claimed*.
   | `verifier` | sonnet | Fresh-context adversarial verification (never fixes) |
   | `security-executor` | opus | All security-sensitive work |
   | `mech-executor` | haiku | Fully-specified mechanical work (sonnet override if it stalls) |
-  | `scout` | haiku | Cheap read-only evidence, spec-conformance review, test runs |
-  | `Explore` | haiku | Broad read-only exploration (overrides the built-in, expensive default) |
+  | `scout` | haiku | Cheap read-only evidence, large-log summaries, test runs |
 
 - **A two-part spawn brief** (`references/brief-common.md` stable prefix + `references/brief-task.md` placeholders) so cached prompt prefixes stay identical across tasks
 - **An orchestration policy** (`references/orchestration-policy.md`) merged into your
@@ -54,6 +53,13 @@ uninstalls the policy.
 - **Fresh-context verification** beats self-review — the `verifier` starts skeptical
   and tries to refute.
 - **Spawn-cost awareness** — don't delegate a task that costs less than the handoff.
+
+## Evals (maintainers)
+
+`evals/` holds 10 golden tasks with tiny fixture repos and a stdlib runner
+(`evals/run_eval.py`). Fleet changes such as folding an agent or merging review passes
+are gated on them. Run each task at least twice per configuration and compare. See
+`evals/README.md`. They're dev-only: the installer strips `evals/` from installed copies.
 
 ## Note: agents register only in new sessions
 
